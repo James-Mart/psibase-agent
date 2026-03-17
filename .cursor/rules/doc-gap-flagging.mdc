@@ -1,0 +1,27 @@
+---
+description: When and how to flag documentation gaps (existing doc pages only)
+alwaysApply: true
+---
+
+# Documentation Gap Flagging
+
+After completing the main task, you may optionally flag a documentation gap only if:
+1. you relied on existing documentation under `doc/src/` for the topic,
+2. you found an existing doc page relevant to that topic,
+3. you discovered an important gap, ambiguity, or missing architectural detail in that existing documentation.
+
+Do not suggest creating new documentation pages, new documentation categories, or new top-level topics. Only flag possible updates to existing documentation pages under `doc/src/`.
+
+Before flagging a gap, first verify that a relevant existing doc page already exists in `doc/src/`.
+
+When flagging a gap:
+- be brief,
+- do not draft the doc change yet,
+- do not edit docs yet,
+- include only:
+  Potential doc gap: <brief description>
+  Possible target: <path under doc/src/>
+
+Only update the documentation if the user explicitly approves. After approval, make a minimal change to the existing target page. The edit itself is the proposal.
+
+Be conservative. Do not flag temporary details, speculative interpretations, obvious facts from code, or fast-changing implementation details.

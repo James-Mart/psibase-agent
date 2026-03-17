@@ -1,0 +1,12 @@
+---
+description: Plans must not contain "Either X, Y, or Z" style options; resolve ambiguity with the user first, then state one definitive approach.
+alwaysApply: true
+---
+
+# Plan: No Ambiguity
+
+When writing a plan (e.g. with CreatePlan or in structured planning):
+
+- **Do not** include multiple alternative approaches in the plan text (e.g. "Either: do X, do Y, or do Z").
+- If there is more than one valid implementation, **ask the user** to choose before finalizing the plan.
+- After the user resolves the ambiguity, the plan must describe a **single, definitive solution** (one approach, one set of steps).

@@ -1,0 +1,11 @@
+---
+description: Do not expand scope beyond what was explicitly requested
+alwaysApply: true
+---
+
+# Scope Discipline
+
+- Only make changes the user explicitly asked for.
+- Do not fix, restore, or add things you notice are missing unless the user asked you to.
+- If you notice something broken or missing, mention it to the user instead of silently fixing it.
+- When a task has multiple steps, complete only the requested steps.
