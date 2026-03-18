@@ -1,0 +1,15 @@
+---
+description: Use the reference UI as the primary example for frontend conventions
+globs: packages/**/ui/src/**/*
+alwaysApply: false
+---
+
+# Follow Reference UI Conventions
+
+When working on frontend code under `packages/**/ui/src/**/*`:
+
+1. Use `packages/user/Homepage/ui` as the primary reference for how frontend code is typically structured in this repository.
+2. Follow its conventions and patterns where relevant, including project structure, component organization, shared component usage, imports, configuration patterns, and general implementation style.
+3. Treat it as a guide for "how we do things here", not as something to copy mechanically.
+4. Prefer consistency with the reference UI unless there is a concrete reason to differ.
+5. When introducing a new pattern, first check whether the reference UI already shows the established project approach.
