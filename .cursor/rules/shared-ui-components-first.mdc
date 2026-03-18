@@ -1,0 +1,13 @@
+---
+description: Prefer shared shadcn UI components in project UIs
+globs: packages/**/ui/src/**/*.tsx
+alwaysApply: false
+---
+
+# Shared UI Components First
+
+When editing UI code in `packages/**/ui/src/**/*.tsx`:
+
+1. Prefer existing components from `@shared/shadcn/ui/*` and `@shared/shadcn/custom/*` when building any UI.
+2. For the UI widget/component you need, search for the most relevant shared component first, and only use native HTML/UI primitives if no shared equivalent exists.
+
