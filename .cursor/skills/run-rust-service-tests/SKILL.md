@@ -1,42 +1,27 @@
 ---
 name: run-rust-service-tests
-description: Run rust unit tests for psibase package services. Use when running or verifying tests for a Rust service. Does not apply to C++ services or to Rust plugins (wasm components).
+description: Run rust unit tests for psibase package services (wasm services under packages/*/*/service/). Use when running or verifying tests for a Rust service. Does not apply to C++ services or to Rust plugins (wasm components).
 ---
 
-# Rust Service Tests
+# Rust service tests
 
 ## Scope
 
-- **Applies to:** Rust **service** crates (core wasm). Example: `packages/*/*/service/`.
-- **Does not apply to:** C++ services; Rust **plugin** crates (wasm components, separate crates typically in `packages/*/*/plugin/`).
+- **Applies to:** Rust **service** crates under `packages/*/*/service/` (the directory that contains that service’s `Cargo.toml`).
+- **Does not apply to:** C++ services; Rust **plugin** crates (`packages/*/*/plugin/`).
 
-## How to run
+## Run tests
 
-1. **Change to the service crate root** (the directory that contains the service’s `Cargo.toml`), e.g.:
-   - `packages/*/*/service/`
+From the **psibase repository root** (the tree that contains `build/rust/release/cargo-psibase`):
 
-2. **Run tests** with the `cargo-psibase` binary (not `cargo psibase`):
-   ```bash
-   cargo-psibase test
-   ```
+```bash
+./build/rust/release/cargo-psibase test --manifest-path packages/<tier>/<Package>/service/Cargo.toml
+```
 
-3. **If `cargo-psibase` is not in PATH**, use the locally built binary:
-   ```bash
-   /path/to/psibase/build/rust/release/cargo-psibase test
-   ```
-   From the repo root, that is typically:
-   `./build/rust/release/cargo-psibase test`
+Substitute the manifest path (e.g. `packages/system/VirtualServer/service/Cargo.toml`). This always uses the built binary, not whatever is on `PATH`. Use `cargo-psibase` as a subcommand of that binary—**not** `cargo psibase`.
 
-4. **Optional:** Filter tests by name:
-   ```bash
-   cargo-psibase test -- relay_tests
-   ```
+**Optional:** Filter tests by name:
 
-## Summary
-
-| Item        | Value                                              |
-|-------------|----------------------------------------------------|
-| Working dir | Service crate root (e.g. `packages/*/*/service/`)  |
-| Command     | `cargo-psibase test`                               |
-| Binary      | Use `cargo-psibase` (not `cargo psibase`)          |
-| Not for     | C++ services; Rust plugin crates                   |
+```bash
+./build/rust/release/cargo-psibase test --manifest-path packages/<tier>/<Package>/service/Cargo.toml -- test_name_substring
+```
