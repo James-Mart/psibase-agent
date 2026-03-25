@@ -9,4 +9,4 @@ alwaysApply: false
 - Prefer C++20 library features and idioms (e.g., `std::string_view`, `std::ranges`, `std::views`).
 - Prefer safer prefix/suffix checks: use `starts_with()` / `ends_with()` instead of direct `front()` / `back()` character checks on strings/views.
 - Prefer `std::ranges::contains(range, value)` for membership checks instead of manually iterating a container (e.g., `for (...) if (...) return true`).
-
+- Keep parameter and local variable identifiers shorter than 14 characters
