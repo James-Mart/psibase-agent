@@ -1,0 +1,8 @@
+{
+  "setup-worktree": [
+    "bash .vscode/scripts/env-setup.sh"
+  ],
+  "setup-worktree-windows": [
+    "bash .vscode/scripts/env-setup.sh"
+  ]
+}
