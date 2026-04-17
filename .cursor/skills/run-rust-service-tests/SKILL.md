@@ -25,3 +25,7 @@ Substitute the manifest path (e.g. `packages/system/VirtualServer/service/Cargo.
 ```bash
 ./build/rust/release/cargo-psibase test --manifest-path packages/<tier>/<Package>/service/Cargo.toml -- test_name_substring
 ```
+
+## How the build works
+
+`cargo-psibase test` automatically builds the package (service wasm + plugin) **and** the test binary before running tests. You do not need to rebuild the package separately. Do **not** use the `package-builder` subagent for test runs -- that is for producing installable `.psi` archives, not for running tests.
