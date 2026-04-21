@@ -49,7 +49,7 @@ if [[ "$SOURCE_BRANCH" == origin/* ]]; then
     git fetch origin "$remote_branch"
 fi
 
-git worktree add -b "$NEW_BRANCH" "$WORKTREE_PATH" "$SOURCE_BRANCH"
+git worktree add --no-track -b "$NEW_BRANCH" "$WORKTREE_PATH" "$SOURCE_BRANCH"
 
 echo
 echo "Running env-setup.sh in $WORKTREE_PATH ..."
