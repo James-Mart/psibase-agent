@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Reviews the current git branch against the repository's default branch and writes a structured PR review to review.md in the workspace root. Surfaces bugs, cleanup, doc, memory, and naming improvements. Use when the user asks for a PR review, wants to clean up a branch before opening a PR, or asks to generate or update review.md.
+description: Reviews the current git branch against `main` and writes a structured PR review to review.md in the workspace root. Surfaces bugs, cleanup, doc, memory, and naming improvements. Use when the user asks for a PR review, wants to clean up a branch before opening a PR, or asks to generate or update review.md.
 ---
 
 # PR Review
@@ -9,7 +9,7 @@ Write a structured review of the current branch to `review.md` in the workspace 
 
 ## Scope (strict)
 
-All steps, findings, and template sections below apply **only** to code this branch adds or modifies relative to the merge base with the default branch.
+All steps, findings, and template sections below apply **only** to code this branch adds or modifies relative to the merge base with `main`.
 
 - Do not propose changes to pre-existing or surrounding code.
 - If a concern can only be fixed by editing untouched code, omit it.
@@ -18,7 +18,7 @@ All steps, findings, and template sections below apply **only** to code this bra
 ## Steps
 
 1. **Get diff and context**
-   - Use the `/read-branch` command to fetch the merge-base diff between the default branch and `HEAD`. It determines the default branch, computes the merge base, and runs the canonical diff.
+   - Use the `/read-branch` command to fetch the merge-base diff between `main` and `HEAD`. It computes the merge base against `main` and runs the canonical diff.
    - Also capture: current branch (`git branch --show-current`), recent commits (`git log <merge-base>..HEAD --oneline -20`), and a file summary (`git diff --stat <merge-base> HEAD`).
 
 2. **Analyze**
@@ -39,10 +39,10 @@ All steps, findings, and template sections below apply **only** to code this bra
 ## Template
 
 ```markdown
-# PR Review: <branch> → <default-branch>
+# PR Review: <branch> → main
 
 **Branch:** `<current-branch>`
-**Base:** `<default-branch>` (merge base: `<sha>`)
+**Base:** `main` (merge base: `<sha>`)
 **Scope:** <file count / line stats>
 
 ---
