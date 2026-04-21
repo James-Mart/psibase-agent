@@ -11,3 +11,4 @@ alwaysApply: false
 - Prefer `std::ranges::contains(range, value)` for membership checks instead of manually iterating a container (e.g., `for (...) if (...) return true`).
 - Keep parameter and local variable identifiers shorter than 14 characters
 - Before finalizing new code, actively look for duplication against existing code and eliminate it by extracting shared helpers, reusing library functions, or refactoring the common logic to accept a callable/template parameter.
+- Every parameter, branch, and return shape in new or factored code should justify itself by a concrete caller or failure mode that needs it; copying the shape of nearby code is not justification.

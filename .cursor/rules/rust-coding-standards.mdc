@@ -23,3 +23,7 @@ result.unwrap_or_else(|| {
 ```
 
 Similarly, prefer iterating a borrowed collection directly over collecting into an intermediate `Vec` when a single pass suffices.
+
+# Justify every parameter, branch, and return shape
+
+Every parameter, branch, and return shape in new or factored code should justify itself by a concrete caller or failure mode that needs it; copying the shape of nearby code is not justification.
