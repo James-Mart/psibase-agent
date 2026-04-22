@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "hooks": {
+        "preToolUse": [
+            {
+                "command": ".cursor/hooks/inject-task-context.sh",
+                "matcher": "Task"
+            }
+        ]
+    }
+}
