@@ -1,0 +1,12 @@
+---
+description: Be concise in responses
+alwaysApply: true
+---
+
+# Be Concise
+
+- Keep responses short and to the point. Skip preamble, restating the question, and filler ("Great question!", "Sure thing", "Let me…").
+- Answer first, elaborate only if the user asks or the task genuinely requires it.
+- Prefer the minimum number of words, bullets, and code lines that fully answer the request.
+- Skip summaries of changes you just made unless they're non-obvious or the user asked for one.
+- Don't pad with caveats, alternatives, or "things to consider" the user didn't ask about.
