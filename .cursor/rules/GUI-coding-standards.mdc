@@ -1,0 +1,92 @@
+---
+description: Apply Brandon's UI cleanup standards when writing or editing React/TSX UI in psibase package frontends to keep them consistent with shared-ui patterns
+globs: packages/**/ui/src/**/*.tsx
+alwaysApply: false
+---
+
+# GUI Coding Standards
+
+Brandon's lens for psibase frontend code. See canonical examples in
+[@packages/shared-ui/lib/query-keys.ts](packages/shared-ui/lib/query-keys.ts),
+[@packages/shared-ui/components/form/app-form.tsx](packages/shared-ui/components/form/app-form.tsx),
+and [@packages/shared-ui/shadcn/ui](packages/shared-ui/shadcn/ui).
+
+## Share, don't fork
+Reach for `@shared-ui` first. Don't duplicate an existing shared schema, hook, component, or helper — import the canonical one and delete the local copy.
+
+## Hide, don't disable
+Action controls a user can't legitimately use should not render. UI gating doesn't replace plugin/service-level auth — both must be present.
+
+```tsx
+// BAD
+<Button disabled={!canEdit} onClick={onEdit}>Edit</Button>
+
+// GOOD
+{canEdit && <Button onClick={onEdit}>Edit</Button>}
+```
+
+## Surface every state
+Loading, empty, error, and "you can't do this because…" states must be explicit and rendered where the user expected to act — not silently absent.
+
+## Click target == visual target
+Padding, hover styles, and focus rings belong on the interactive element, not the wrapper.
+
+## URL is the source of truth
+Tabs, sub-views, and selection state belong in routes. Read identifiers from `useParams`, not local state. Side menus reflect the current route.
+
+## TanStack Query
+- Query keys live in a centralized `queryKeys` object per app (see `@shared-ui/lib/query-keys.ts`) — never inlined.
+- Reach the `QueryClient` via the `context` arg of `onSuccess`/`onError`, not by importing it.
+- Validate every response with **zod**.
+- Prefer one combined query over many small ones hitting the same endpoint on the same page.
+- Set explicit `staleTime`s — the default `0` causes refetch storms.
+
+```tsx
+// BAD
+useQuery({ queryKey: ['user', id], queryFn: () => fetchUser(id) });
+
+// GOOD
+useQuery({
+  queryKey: queryKeys.user(id),
+  queryFn: () => userSchema.parse(await fetchUser(id)),
+  staleTime: 30_000,
+});
+```
+
+## TanStack Form
+- Use the shared `useAppForm` (`@shared-ui/components/form/app-form.tsx`) and its bound field/submit components — not hand-rolled state.
+- Name the form variable specifically (e.g., `inviteForm`); never `form` (shadows `<form>`).
+- One form, one submit handler. Two submit paths mean two forms.
+- Reset via `formApi.reset()` inside `onSubmit`, not in a `useEffect`.
+
+## Toasts and errors
+- One success toast per user action — don't double-toast from both the hook and the caller.
+- Don't swallow promise errors inside `toast.promise(...)` — use `.unwrap()` or a real `onError`.
+- Keep toast/copy style (e.g., trailing periods) consistent with neighboring strings.
+
+## TypeScript
+- `field?: T` already implies `| undefined`; don't append it.
+- Avoid non-null assertions (`!`) — pass values through (e.g., mutation `vars`) so they aren't needed.
+
+## Component & file structure
+- Split monolithic components into a directory of focused files; the umbrella composition gets a semantic name.
+- Prefer shadcn primitives from `@shared-ui/shadcn/ui` (`Card`, `Skeleton`, `TableCaption`, etc.) over hand-rolled markup.
+- A `useEffect` whose only job is to mirror computed values into state is a smell — compute inline.
+
+```tsx
+// BAD
+const [fullName, setFullName] = useState('');
+useEffect(() => setFullName(`${first} ${last}`), [first, last]);
+
+// GOOD
+const fullName = `${first} ${last}`;
+```
+
+## Dead weight
+Delete what's no longer used: imports, dependencies, files orphaned by a refactor, local copies superseded by `@shared-ui`. When removing a shared resource, sweep all consumers in the same change.
+
+## Mechanical vs feature changes
+Formatting-only or rename-only edits belong in their own commit. Don't bury feature diffs in mechanical churn.
+
+## Walk the flow
+A UI change is also a UX change. Mentally walk it with multiple accounts and roles; handle auth-gated paths, empty data, network errors, expired tokens, and role transitions.
