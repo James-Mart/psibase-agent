@@ -63,4 +63,4 @@ echo "WORKTREE_PATH=$WORKTREE_PATH"
 echo "BRANCH=$NEW_BRANCH"
 echo
 echo "Next: start the worker (run as a background shell so you can see/cancel it):"
-echo "  cd \"$WORKTREE_PATH\" && agent worker start --name \"$WORKTREE_NAME\""
+echo "  cd \"$WORKTREE_PATH\" && echo \"Branch: $NEW_BRANCH\" && agent worker start --name \"$WORKTREE_NAME\""

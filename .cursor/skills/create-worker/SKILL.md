@@ -58,7 +58,7 @@ as a backgrounded shell (`block_until_ms: 0`) so:
 Run it from the new worktree:
 
 ```bash
-cd <WORKTREE_PATH> && agent worker start --name "<WORKTREE_NAME>"
+cd <WORKTREE_PATH> && echo "Branch: <new-branch>" && agent worker start --name "<WORKTREE_NAME>"
 ```
 
 Use a descriptive shell description such as `"agent worker: <WORKTREE_NAME>"`
