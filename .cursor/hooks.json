@@ -3,8 +3,8 @@
     "hooks": {
         "preToolUse": [
             {
-                "command": ".cursor/hooks/inject-task-context.sh",
-                "matcher": "Task"
+                "command": ".cursor/hooks/inject-tool-preamble.sh",
+                "matcher": "Task|CreatePlan"
             }
         ]
     }
