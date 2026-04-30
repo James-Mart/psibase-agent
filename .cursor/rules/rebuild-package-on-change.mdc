@@ -1,0 +1,15 @@
+---
+description: After edits under packages/, use package-builder subagent to rebuild affected packages
+globs: packages/**
+alwaysApply: false
+---
+
+# Rebuild packages after package edits
+
+When you modify files under `packages/**`, call the `package-builder` subagent.
+
+Pass:
+
+`ModifiedFiles: <modified file paths relative to repo root>`
+
+Do not build those targets directly in the shell without going through that workflow.
