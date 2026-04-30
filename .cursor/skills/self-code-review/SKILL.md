@@ -23,13 +23,17 @@ Use this skill only when manually prompted.
    - Commits do **not** need to compile independently.
    - Prefer an order that is easy to review: types/schema/contracts, core implementation, callers/UI, tests/docs, cleanup.
    - Keep generated files with their sources and lockfiles with the dependency or package change that produced them.
-   - If different hunks in one file belong to different commits, use a cached patch (`git apply --cached`) instead of interactive staging.
+   - If different hunks in one file belong to different commits, prefer the `bin/stage-file-from-copy` helper over hand-written cached patches.
 
 3. **Stage only the next proposed commit**
    - Reset or adjust the index only as needed to ensure the staged diff contains exactly the next batch.
    - Stage whole files when all hunks belong to the batch.
-   - Stage partial files with an explicit cached patch when only some hunks belong.
+   - For partial files, create a temporary copy containing exactly the desired staged version, then run `bin/stage-file-from-copy <repo-relative-path> <temp-copy>`.
    - Verify with `git diff --cached --stat` and, when useful, `git diff --cached`.
+
+## Helper Scripts
+
+`bin/stage-file-from-copy <repo-relative-path> <temp-copy>` stages a tracked file from a prepared copy without touching the working tree. Use it for mixed-file staging: start the copy from `HEAD:<path>`, apply only the hunks for the current proposed commit, run the helper, then inspect the printed staged diff.
 
 4. **Ask for review and approval**
    - Tell the user what is staged and give the proposed commit message in the same response.
