@@ -15,6 +15,4 @@ When producing a plan, append the following section verbatim to the plan, after 
 The agent implementing this plan must follow these requirements:
 
 - **Code comments**: Do not add comments that explain what the code does. The only exception is doc comments on public interface functions/objects, and even those must be extremely concise. Inline comments within function bodies are almost never needed; when they are, they should explain *why* a particular design was chosen (especially when the reasoning is non-obvious), not *what* the code does.
-- **Commits**: When committing changes, consult the `create-commits` skill to follow the preferred commit creation style (voice, grouping, audit format).
-- **Pushing**: Committing locally is fine without confirmation. Do not push any changes without explicitly confirming with the user first.
 ```
