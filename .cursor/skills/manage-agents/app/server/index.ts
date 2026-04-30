@@ -15,7 +15,7 @@ import { fileURLToPath } from "url";
 const PORT = Number(process.env.PORT ?? 8071);
 const PROD_PORT = 8070;
 const WORKTREES_DIR = "/root/psibase.worktrees";
-const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "../../../../");
+const REPO_ROOT = process.env.PSIBASE_ROOT ?? "/root/psibase";
 const CREATE_WORKER_SCRIPT = join(
   REPO_ROOT,
   ".cursor/skills/create-worker/scripts/create-worker.sh",
