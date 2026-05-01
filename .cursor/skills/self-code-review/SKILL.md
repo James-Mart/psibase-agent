@@ -41,6 +41,7 @@ Use this skill only when manually prompted.
    - Do not commit until the user approves the staged changes.
 
 5. **Commit after approval**
+   - Run **`git commit` exactly once** for this approval. Do not add or commit any other files in the same assistant turn.
    - If the user changes the message, use their message.
    - Commit with a heredoc:
      ```bash
@@ -53,7 +54,7 @@ Use this skill only when manually prompted.
    - If the commit fails or a hook changes files, stop and ask before proceeding.
 
 6. **Repeat**
-   - After each successful commit, stage the next proposed commit, provide the staged file list and message, and wait again.
+   - After that commit, stage the next proposed commit, provide the staged file list and message, and **wait again** (new approval required; do not chain commits on one message).
    - Continue until all intended changes are committed.
    - Finish with `git status --short --untracked-files=all` and a concise list of commits created.
 
