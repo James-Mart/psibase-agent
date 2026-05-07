@@ -7,11 +7,10 @@ import {
   readFileSync,
   writeFileSync,
   renameSync,
-  mkdirSync,
-  unlinkSync,
 } from "fs";
 import { join, resolve, sep } from "path";
 import { fileURLToPath } from "url";
+import { getNote, upsertNote, renameNote, deleteNote } from "./db.js";
 
 const PORT = Number(process.env.PORT ?? 8071);
 const PROD_PORT = 8070;
@@ -21,8 +20,6 @@ const CREATE_WORKER_SCRIPT = join(
   REPO_ROOT,
   ".cursor/skills/manage-agents/scripts/create-worker.sh",
 );
-
-const NOTES_DIR = join(resolve(fileURLToPath(import.meta.url), "../../"), "notes");
 
 const app = express();
 app.use(express.json());
@@ -226,13 +223,7 @@ app.get("/api/workers/:name/details", (req, res) => {
     // git status failed
   }
 
-  let note = "";
-  const noteFile = join(NOTES_DIR, `${name}.md`);
-  if (existsSync(noteFile)) {
-    note = readFileSync(noteFile, "utf-8");
-  }
-
-  res.json({ unstagedFiles, note });
+  res.json({ unstagedFiles, note: getNote(name) });
 });
 
 app.put("/api/workers/:name/note", (req, res) => {
@@ -250,8 +241,7 @@ app.put("/api/workers/:name/note", (req, res) => {
     return;
   }
 
-  mkdirSync(NOTES_DIR, { recursive: true });
-  writeFileSync(join(NOTES_DIR, `${name}.md`), note);
+  upsertNote(name, note);
   res.json({ ok: true });
 });
 
@@ -349,11 +339,7 @@ app.post("/api/workers/:name/rename", (req, res) => {
       updateModuleConfigs(modulesDir);
     }
 
-    // Rename note file if it exists
-    const oldNote = join(NOTES_DIR, `${name}.md`);
-    if (existsSync(oldNote)) {
-      renameSync(oldNote, join(NOTES_DIR, `${newName}.md`));
-    }
+    renameNote(name, newName);
 
     res.json({ ok: true, newName });
   } catch (err: any) {
@@ -456,12 +442,7 @@ app.delete("/api/workers/:name", async (req, res) => {
     branchDeleteMessage = "Skipped branch delete (could not resolve branch)";
   }
 
-  const noteFile = join(NOTES_DIR, `${name}.md`);
-  try {
-    if (existsSync(noteFile)) unlinkSync(noteFile);
-  } catch {
-    /* ignore */
-  }
+  deleteNote(name);
 
   res.json({
     ok: true,

@@ -12,11 +12,11 @@ import {
   type WorkerInfo,
   type WorkerDetails,
 } from "./api";
-import { CopyIcon, TrashIcon } from "./components/Icons";
+import { Check, Copy, Trash2 } from "lucide-react";
 import { CreateModal } from "./components/CreateModal";
 import { DeleteModal } from "./components/DeleteModal";
 import { DetailPane, type CreatePlaceholder } from "./components/DetailPane";
-import { ToastContainer, useToast } from "./components/Toast";
+import { toast, Toaster } from "sonner";
 import "./App.css";
 
 const branchToWorkerName = (branch: string) => branch.replace(/\//g, "-");
@@ -42,7 +42,6 @@ function App() {
   const [copied, setCopied] = useState<string | null>(null);
   const noteTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const pollRef = useRef<ReturnType<typeof setInterval>>();
-  const { toasts, addToast, removeToast } = useToast();
 
   const refresh = useCallback(async () => {
     try {
@@ -121,7 +120,7 @@ function App() {
       await startAgent(name);
       await refresh();
     } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(name, false);
     }
@@ -134,7 +133,7 @@ function App() {
       await new Promise((r) => setTimeout(r, 500));
       await refresh();
     } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(name, false);
     }
@@ -148,12 +147,12 @@ function App() {
     try {
       const result = await deleteWorker(name);
       if (result.branchDeleteMessage) {
-        addToast(result.branchDeleteMessage, "info");
+        toast.info(result.branchDeleteMessage);
       }
       if (selectedName === name) setSelectedName(null);
       await refresh();
     } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(name, false);
     }
@@ -172,7 +171,7 @@ function App() {
       if (selectedName === oldName) setSelectedName(newName);
       await refresh();
     } catch (err: unknown) {
-      addToast(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(oldName, false);
     }
@@ -229,7 +228,7 @@ function App() {
 
   return (
     <div className="app">
-      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+      <Toaster theme="dark" position="top-right" />
 
       <div className="header-row">
         <h1>Agent Workers</h1>
@@ -358,7 +357,7 @@ function App() {
                             {w.path}
                             <button
                               type="button"
-                              className={`btn-copy${copied === w.path ? " btn-copy-active" : ""}`}
+                              className="btn-copy"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCopy(w.path);
@@ -366,7 +365,7 @@ function App() {
                               title={copied === w.path ? "Copied!" : "Copy path"}
                               aria-label="Copy path"
                             >
-                              <CopyIcon />
+                              {copied === w.path ? <Check size={14} /> : <Copy size={14} />}
                             </button>
                           </span>
                         </span>
@@ -413,7 +412,7 @@ function App() {
                         aria-label={`Delete worker ${w.name}`}
                         title="Delete worktree"
                       >
-                        <TrashIcon />
+                        <Trash2 size={18} />
                       </button>
                     </td>
                   </tr>
@@ -437,20 +436,17 @@ function App() {
         />
       )}
 
-      {deleteTarget && (
-        <DeleteModal
-          worker={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={() => void handleConfirmDelete()}
-        />
-      )}
+      <DeleteModal
+        worker={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void handleConfirmDelete()}
+      />
 
-      {showCreateModal && (
-        <CreateModal
-          onClose={() => setShowCreateModal(false)}
-          onSubmit={handleCreate}
-        />
-      )}
+      <CreateModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreate}
+      />
     </div>
   );
 }
