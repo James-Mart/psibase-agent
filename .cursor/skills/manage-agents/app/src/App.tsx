@@ -2,127 +2,56 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchWorkers,
   createWorker,
+  CreateWorkerError,
   startAgent,
   stopAgent,
   renameWorker,
+  deleteWorker,
   fetchWorkerDetails,
   saveWorkerNote,
   type WorkerInfo,
   type WorkerDetails,
-  type FileEntry,
 } from "./api";
+import { CopyIcon, TrashIcon } from "./components/Icons";
+import { CreateModal } from "./components/CreateModal";
+import { DeleteModal } from "./components/DeleteModal";
+import { DetailPane, type CreatePlaceholder } from "./components/DetailPane";
+import { ToastContainer, useToast } from "./components/Toast";
 import "./App.css";
 
-interface TreeNode {
-  name: string;
-  path: string;
-  children: TreeNode[];
-  isFile: boolean;
-  status?: string;
-}
-
-function statusLabel(status: string): { letter: string; className: string } {
-  switch (status) {
-    case "M": return { letter: "M", className: "status-modified" };
-    case "A": return { letter: "A", className: "status-added" };
-    case "D": return { letter: "D", className: "status-deleted" };
-    case "R": return { letter: "R", className: "status-renamed" };
-    case "??": return { letter: "U", className: "status-untracked" };
-    default: return { letter: status.charAt(0) || "?", className: "status-untracked" };
-  }
-}
-
-function buildTree(files: FileEntry[]): TreeNode[] {
-  const root: TreeNode = { name: "", path: "", children: [], isFile: false };
-  for (const { path: p, status } of files) {
-    const parts = p.split("/").filter(Boolean);
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isFile = i === parts.length - 1;
-      let child = current.children.find((c) => c.name === part && c.isFile === isFile);
-      if (!child) {
-        child = { name: part, path: parts.slice(0, i + 1).join("/"), children: [], isFile, status: isFile ? status : undefined };
-        current.children.push(child);
-      }
-      current = child;
-    }
-  }
-  root.children.sort((a, b) => {
-    if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-    return a.name.localeCompare(b.name);
-  });
-  return root.children;
-}
-
-function FileTreeNode({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
-  const [open, setOpen] = useState(!node.isFile);
-  if (node.isFile) {
-    const s = statusLabel(node.status ?? "??");
-    return (
-      <div className="tree-leaf mono" style={{ paddingLeft: depth * 16 + 12 }}>
-        <span className={`tree-status ${s.className}`}>{s.letter}</span>
-        {node.name}
-      </div>
-    );
-  }
-  return (
-    <div>
-      <div
-        className="tree-dir mono"
-        style={{ paddingLeft: depth * 16 + 12 }}
-        onClick={() => setOpen(!open)}
-      >
-        <span className="tree-arrow">{open ? "\u25BE" : "\u25B8"}</span>
-        {node.name}/
-      </div>
-      {open && node.children
-        .sort((a, b) => {
-          if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-          return a.name.localeCompare(b.name);
-        })
-        .map((child) => (
-          <FileTreeNode key={child.path} node={child} depth={depth + 1} />
-        ))}
-    </div>
-  );
-}
-
-function FileTree({ files }: { files: FileEntry[] }) {
-  const tree = buildTree(files);
-  return (
-    <div className="file-tree">
-      {tree.map((node) => (
-        <FileTreeNode key={node.path} node={node} />
-      ))}
-    </div>
-  );
-}
+const branchToWorkerName = (branch: string) => branch.replace(/\//g, "-");
+const WORKTREES_DIR = "/root/psibase.worktrees";
+const branchToWorktreePath = (branch: string) =>
+  `${WORKTREES_DIR}/${branchToWorkerName(branch)}`;
 
 function App() {
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
-  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [busyWorkers, setBusyWorkers] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [branch, setBranch] = useState("");
-  const [sourceBranch, setSourceBranch] = useState("");
-  const [formStatus, setFormStatus] = useState<{
-    type: "loading" | "error" | "success";
-    message: string;
-  } | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [details, setDetails] = useState<WorkerDetails | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkerInfo | null>(null);
+  const [createPlaceholders, setCreatePlaceholders] = useState<CreatePlaceholder[]>([]);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [workerDetails, setWorkerDetails] = useState<WorkerDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [noteValue, setNoteValue] = useState("");
+  const [noteSaveError, setNoteSaveError] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const noteTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const { toasts, addToast, removeToast } = useToast();
 
   const refresh = useCallback(async () => {
     try {
       setWorkers(await fetchWorkers());
+      setApiError(null);
     } catch {
-      /* silent */
+      setApiError("Unable to reach backend");
+    } finally {
+      setInitialLoading(false);
     }
   }, []);
 
@@ -132,39 +61,55 @@ function App() {
     return () => clearInterval(pollRef.current);
   }, [refresh]);
 
-  const loadDetails = useCallback(async (name: string) => {
-    setDetailsLoading(true);
-    try {
-      const d = await fetchWorkerDetails(name);
-      setDetails(d);
-      setNoteValue(d.note);
-    } catch {
-      setDetails(null);
-    } finally {
-      setDetailsLoading(false);
-    }
-  }, []);
-
+  const prevSelectedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (selected) loadDetails(selected);
-    else setDetails(null);
-  }, [selected, loadDetails]);
+    if (!selectedName) {
+      setWorkerDetails(null);
+      setDetailsLoading(false);
+      prevSelectedRef.current = null;
+      return;
+    }
+    const isFailedPlaceholder = createPlaceholders.some(
+      (placeholder) => placeholder.id === selectedName && placeholder.phase === "failed",
+    );
+    if (isFailedPlaceholder) {
+      setWorkerDetails(null);
+      setDetailsLoading(false);
+      prevSelectedRef.current = selectedName;
+      return;
+    }
+    if (prevSelectedRef.current === selectedName) return;
+    prevSelectedRef.current = selectedName;
+    setDetailsLoading(true);
+    fetchWorkerDetails(selectedName)
+      .then((d) => {
+        setWorkerDetails(d);
+        setNoteValue(d.note);
+      })
+      .catch(() => setWorkerDetails(null))
+      .finally(() => setDetailsLoading(false));
+  }, [selectedName, createPlaceholders]);
 
-  const handleNoteChange = (name: string, value: string) => {
+  const handleNoteChange = (value: string) => {
     setNoteValue(value);
+    setNoteSaveError(false);
     if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
     noteTimerRef.current = setTimeout(() => {
-      saveWorkerNote(name, value).catch(() => {});
+      if (selectedName) {
+        saveWorkerNote(selectedName, value).catch(() => setNoteSaveError(true));
+      }
     }, 500);
   };
 
-  const handleNoteBlur = (name: string) => {
+  const handleNoteBlur = () => {
     if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
-    saveWorkerNote(name, noteValue).catch(() => {});
+    if (selectedName) {
+      saveWorkerNote(selectedName, noteValue).catch(() => setNoteSaveError(true));
+    }
   };
 
   const markBusy = (name: string, on: boolean) =>
-    setBusy((prev) => {
+    setBusyWorkers((prev) => {
       const next = new Set(prev);
       on ? next.add(name) : next.delete(name);
       return next;
@@ -175,8 +120,8 @@ function App() {
     try {
       await startAgent(name);
       await refresh();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(name, false);
     }
@@ -188,8 +133,27 @@ function App() {
       await stopAgent(name);
       await new Promise((r) => setTimeout(r, 500));
       await refresh();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err));
+    } finally {
+      markBusy(name, false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const name = deleteTarget.name;
+    setDeleteTarget(null);
+    markBusy(name, true);
+    try {
+      const result = await deleteWorker(name);
+      if (result.branchDeleteMessage) {
+        addToast(result.branchDeleteMessage, "info");
+      }
+      if (selectedName === name) setSelectedName(null);
+      await refresh();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(name, false);
     }
@@ -205,43 +169,68 @@ function App() {
     setEditing(null);
     try {
       await renameWorker(oldName, newName);
-      if (selected === oldName) setSelected(newName);
+      if (selectedName === oldName) setSelectedName(newName);
       await refresh();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err));
     } finally {
       markBusy(oldName, false);
     }
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!branch.trim()) return;
+  const handleCreate = (branch: string, sourceBranch: string) => {
+    const id = crypto.randomUUID();
+    setCreatePlaceholders((prev) => [
+      ...prev,
+      { id, branch, phase: "creating" },
+    ]);
+    setShowCreateModal(false);
 
-    setFormStatus({ type: "loading", message: "Creating worktree..." });
-    try {
-      const result = await createWorker(branch.trim(), sourceBranch.trim());
-      setFormStatus({
-        type: "success",
-        message: `Created ${result.worktreeName} on branch ${result.branch}`,
-      });
-      setBranch("");
-      setSourceBranch("");
-      await refresh();
-    } catch (err: any) {
-      setFormStatus({ type: "error", message: err.message });
-    }
+    void (async () => {
+      try {
+        await createWorker(branch, sourceBranch);
+        setCreatePlaceholders((prev) => prev.filter((placeholder) => placeholder.id !== id));
+        await refresh();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        let extra = "";
+        if (err instanceof CreateWorkerError) {
+          extra = [err.stderr, err.output].filter(Boolean).join("\n\n");
+        }
+        setCreatePlaceholders((prev) =>
+          prev.map((placeholder) =>
+            placeholder.id === id
+              ? { ...placeholder, phase: "failed" as const, errorMessage: message, errorExtra: extra || undefined }
+              : placeholder,
+          ),
+        );
+      }
+    })();
   };
 
   const handleRowClick = (name: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button, input")) return;
-    setSelected(selected === name ? null : name);
+    setSelectedName(selectedName === name ? null : name);
   };
 
-  const selectedWorker = workers.find((w) => w.name === selected);
+  const handleCopy = (path: string) => {
+    navigator.clipboard.writeText(path);
+    setCopied(path);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const selectedWorker = workers.find((w) => w.name === selectedName);
+  const selectedFailedCreate = createPlaceholders.find(
+    (placeholder) => placeholder.id === selectedName && placeholder.phase === "failed",
+  );
+
+  const creatingRows = createPlaceholders.filter((placeholder) => placeholder.phase === "creating");
+  const failedRows = createPlaceholders.filter((placeholder) => placeholder.phase === "failed");
 
   return (
     <div className="app">
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
       <div className="header-row">
         <h1>Agent Workers</h1>
         <button className="btn-add" onClick={() => setShowCreateModal(true)}>
@@ -249,203 +238,218 @@ function App() {
         </button>
       </div>
 
+      {apiError && (
+        <div className="api-error-banner">{apiError}</div>
+      )}
+
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               <th>Name</th>
-              <th>Branch</th>
               <th>Agent Status</th>
-              <th>Actions</th>
+              <th className="actions-col">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {workers.length === 0 ? (
+            {initialLoading ? (
               <tr className="empty-row">
-                <td colSpan={4}>No worktrees found</td>
+                <td colSpan={3}>Loading...</td>
+              </tr>
+            ) : workers.length === 0 && createPlaceholders.length === 0 ? (
+              <tr className="empty-row">
+                <td colSpan={3}>No worktrees found</td>
               </tr>
             ) : (
-              workers.map((w) => (
-                <tr
-                  key={w.name}
-                  className={[
-                    busy.has(w.name) ? "row-busy" : "",
-                    "clickable",
-                    selected === w.name ? "row-selected" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={(e) => handleRowClick(w.name, e)}
-                >
-                  <td className="mono">
-                    {editing === w.name ? (
-                      <span className="rename-inline">
-                        <input
-                          className="rename-input"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRename(w.name);
-                            if (e.key === "Escape") setEditing(null);
-                          }}
-                          autoFocus
-                        />
-                        <button
-                          className="btn-save"
-                          onClick={() => handleRename(w.name)}
-                        >
-                          Save
-                        </button>
-                        <button
-                          className="btn-cancel"
-                          onClick={() => setEditing(null)}
-                        >
-                          Cancel
-                        </button>
-                      </span>
-                    ) : (
+              <>
+                {creatingRows.map((placeholder) => (
+                  <tr key={placeholder.id} className="row-pending" aria-busy="true">
+                    <td className="mono">
                       <span className="name-cell">
-                        {w.name}
-                        {!w.agentRunning && !busy.has(w.name) && (
-                          <button
-                            className="btn-edit"
-                            onClick={() => {
-                              setEditing(w.name);
-                              setEditValue(w.name);
+                        <span className="name-row">{branchToWorkerName(placeholder.branch)}</span>
+                        <span className="name-path mono">{branchToWorktreePath(placeholder.branch)}</span>
+                      </span>
+                    </td>
+                    <td>
+                      <div className="status-cell">
+                        <span className="badge badge-setting-up">Setting up</span>
+                      </div>
+                    </td>
+                    <td className="actions-cell" />
+                  </tr>
+                ))}
+                {failedRows.map((placeholder) => (
+                  <tr
+                    key={placeholder.id}
+                    className={[
+                      "clickable row-failed-create",
+                      selectedName === placeholder.id ? "row-selected" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={(e) => handleRowClick(placeholder.id, e)}
+                  >
+                    <td className="mono">
+                      <span className="name-cell">
+                        <span className="name-row">{branchToWorkerName(placeholder.branch)}</span>
+                        <span className="name-path mono">{branchToWorktreePath(placeholder.branch)}</span>
+                      </span>
+                    </td>
+                    <td>
+                      <div className="status-cell">
+                        <span className="badge badge-setup-failed">Setup failed</span>
+                      </div>
+                    </td>
+                    <td className="actions-cell" />
+                  </tr>
+                ))}
+                {workers.map((w) => (
+                  <tr
+                    key={w.name}
+                    className={[
+                      busyWorkers.has(w.name) ? "row-busy" : "",
+                      "clickable",
+                      selectedName === w.name ? "row-selected" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={(e) => handleRowClick(w.name, e)}
+                  >
+                    <td className="mono">
+                      {editing === w.name ? (
+                        <span className="rename-inline">
+                          <input
+                            className="rename-input"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleRename(w.name);
+                              if (e.key === "Escape") setEditing(null);
                             }}
-                            title="Rename"
+                            autoFocus
+                          />
+                          <button className="btn-save" onClick={() => handleRename(w.name)}>
+                            Save
+                          </button>
+                          <button className="btn-cancel" onClick={() => setEditing(null)}>
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="name-cell">
+                          <span className="name-row">
+                            {w.name}
+                            {!w.agentRunning && !busyWorkers.has(w.name) && (
+                              <button
+                                className="btn-edit"
+                                onClick={() => {
+                                  setEditing(w.name);
+                                  setEditValue(w.name);
+                                }}
+                                title="Rename"
+                              >
+                                &#9998;
+                              </button>
+                            )}
+                          </span>
+                          <span className="name-path mono">
+                            {w.path}
+                            <button
+                              type="button"
+                              className={`btn-copy${copied === w.path ? " btn-copy-active" : ""}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(w.path);
+                              }}
+                              title={copied === w.path ? "Copied!" : "Copy path"}
+                              aria-label="Copy path"
+                            >
+                              <CopyIcon />
+                            </button>
+                          </span>
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="status-cell">
+                        {w.agentRunning ? (
+                          <span className="badge badge-running">Running</span>
+                        ) : (
+                          <span className="badge badge-stopped">Stopped</span>
+                        )}
+                        {w.agentRunning ? (
+                          <button
+                            type="button"
+                            className="btn-stop btn-media"
+                            disabled={busyWorkers.has(w.name)}
+                            onClick={() => handleStop(w.name)}
+                            aria-label="Stop agent"
+                            title="Stop agent"
                           >
-                            &#9998;
+                            &#9209;
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-start btn-media"
+                            disabled={busyWorkers.has(w.name)}
+                            onClick={() => handleStart(w.name)}
+                            aria-label="Start agent"
+                            title="Start agent"
+                          >
+                            &#9654;
                           </button>
                         )}
-                      </span>
-                    )}
-                  </td>
-                  <td className="mono">{w.branch}</td>
-                  <td>
-                    {w.agentRunning ? (
-                      <span className="badge badge-running">
-                        Running (PID {w.agentPid})
-                      </span>
-                    ) : (
-                      <span className="badge badge-stopped">Stopped</span>
-                    )}
-                  </td>
-                  <td>
-                    {w.agentRunning ? (
+                      </div>
+                    </td>
+                    <td className="actions-cell">
                       <button
-                        className="btn-stop"
-                        disabled={busy.has(w.name)}
-                        onClick={() => handleStop(w.name)}
+                        type="button"
+                        className="btn-delete-wt btn-media"
+                        disabled={busyWorkers.has(w.name)}
+                        onClick={() => setDeleteTarget(w)}
+                        aria-label={`Delete worker ${w.name}`}
+                        title="Delete worktree"
                       >
-                        Stop
+                        <TrashIcon />
                       </button>
-                    ) : (
-                      <button
-                        className="btn-start"
-                        disabled={busy.has(w.name)}
-                        onClick={() => handleStart(w.name)}
-                      >
-                        Start
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                  </tr>
+                ))}
+              </>
             )}
           </tbody>
         </table>
       </div>
 
-      {selected && selectedWorker && (
-        <div className="detail-pane">
-          <div className="detail-header">
-            <h2>{selectedWorker.name}</h2>
-            <span className="detail-branch mono">{selectedWorker.branch}</span>
-          </div>
+      {selectedName && (selectedFailedCreate || selectedWorker) && (
+        <DetailPane
+          selectedWorker={selectedWorker}
+          selectedFailedCreate={selectedFailedCreate}
+          workerDetails={workerDetails}
+          detailsLoading={detailsLoading}
+          noteValue={noteValue}
+          noteSaveError={noteSaveError}
+          onNoteChange={handleNoteChange}
+          onNoteBlur={handleNoteBlur}
+        />
+      )}
 
-          <div className="detail-section">
-            <h3>Git Status</h3>
-            {detailsLoading ? (
-              <p className="text-muted">Loading...</p>
-            ) : details && details.unstagedFiles.length > 0 ? (
-              <FileTree files={details.unstagedFiles} />
-            ) : (
-              <p className="text-muted">Clean working tree</p>
-            )}
-          </div>
-
-          <div className="detail-section">
-            <h3>Note</h3>
-            <textarea
-              className="note-area"
-              value={noteValue}
-              onChange={(e) => handleNoteChange(selected, e.target.value)}
-              onBlur={() => handleNoteBlur(selected)}
-              placeholder="What are you working on in this worktree?"
-              rows={4}
-            />
-          </div>
-        </div>
+      {deleteTarget && (
+        <DeleteModal
+          worker={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => void handleConfirmDelete()}
+        />
       )}
 
       {showCreateModal && (
-        <div
-          className="modal-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowCreateModal(false);
-          }}
-        >
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Create Worker</h2>
-              <button
-                className="btn-close"
-                onClick={() => setShowCreateModal(false)}
-              >
-                &times;
-              </button>
-            </div>
-            <form onSubmit={handleCreate}>
-              <div className="modal-body">
-                <div className="field">
-                  <label htmlFor="branch">Branch name</label>
-                  <input
-                    id="branch"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    placeholder="my-feature-branch"
-                    required
-                    autoFocus
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="source">Source branch</label>
-                  <input
-                    id="source"
-                    value={sourceBranch}
-                    onChange={(e) => setSourceBranch(e.target.value)}
-                    placeholder="origin/main"
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                {formStatus && (
-                  <div className={`form-status ${formStatus.type}`}>
-                    {formStatus.message}
-                  </div>
-                )}
-                <button
-                  type="submit"
-                  className="btn-create"
-                  disabled={formStatus?.type === "loading"}
-                >
-                  {formStatus?.type === "loading" ? "Creating..." : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreate}
+        />
       )}
     </div>
   );

@@ -8,8 +8,9 @@ import {
   writeFileSync,
   renameSync,
   mkdirSync,
+  unlinkSync,
 } from "fs";
-import { join, resolve } from "path";
+import { join, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 
 const PORT = Number(process.env.PORT ?? 8071);
@@ -18,7 +19,7 @@ const WORKTREES_DIR = "/root/psibase.worktrees";
 const REPO_ROOT = process.env.PSIBASE_ROOT ?? "/root/psibase";
 const CREATE_WORKER_SCRIPT = join(
   REPO_ROOT,
-  ".cursor/skills/create-worker/scripts/create-worker.sh",
+  ".cursor/skills/manage-agents/scripts/create-worker.sh",
 );
 
 const NOTES_DIR = join(resolve(fileURLToPath(import.meta.url), "../../"), "notes");
@@ -34,6 +35,7 @@ if (isProdEnv && existsSync(distDir)) {
 
 interface WorkerInfo {
   name: string;
+  path: string;
   branch: string;
   agentRunning: boolean;
   agentPid: number | null;
@@ -92,6 +94,7 @@ function listWorkers(): WorkerInfo[] {
     const pid = agents.get(fullPath) ?? null;
     workers.push({
       name: entry,
+      path: fullPath,
       branch,
       agentRunning: pid !== null,
       agentPid: pid,
@@ -356,6 +359,117 @@ app.post("/api/workers/:name/rename", (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: `Rename failed: ${err.message}` });
   }
+});
+
+const WORKER_NAME_RE = /^[a-zA-Z0-9._-]+$/;
+
+function resolveSafeWorkerDir(name: string): string | null {
+  if (!WORKER_NAME_RE.test(name)) return null;
+  const workerDir = join(WORKTREES_DIR, name);
+  const resolved = resolve(workerDir);
+  const base = resolve(WORKTREES_DIR);
+  if (resolved !== base && !resolved.startsWith(base + sep)) return null;
+  return workerDir;
+}
+
+app.delete("/api/workers/:name", async (req, res) => {
+  const { name } = req.params;
+  const workerDir = resolveSafeWorkerDir(name);
+  if (!workerDir) {
+    res.status(400).json({ error: "Invalid worker name" });
+    return;
+  }
+  if (!existsSync(workerDir)) {
+    res.status(404).json({ error: `Worktree ${name} not found` });
+    return;
+  }
+
+  const agents = getAgentProcesses();
+  const pid = agents.get(workerDir);
+  if (pid) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      /* ignore */
+    }
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0);
+      } catch {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  let branchForDelete = "";
+  try {
+    branchForDelete = execFileSync(
+      "git",
+      ["-C", workerDir, "rev-parse", "--abbrev-ref", "HEAD"],
+      { encoding: "utf-8" },
+    ).trim();
+  } catch {
+    branchForDelete = "";
+  }
+
+  const gitLogs: string[] = [];
+  const runGit = (args: string[]) => {
+    try {
+      const out = execFileSync("git", args, { encoding: "utf-8" });
+      if (out.trim()) gitLogs.push(out.trim());
+    } catch (e: any) {
+      const stderr = e.stderr?.toString?.() ?? e.message ?? String(e);
+      throw new Error(stderr.trim() || `git ${args.join(" ")} failed`);
+    }
+  };
+
+  try {
+    runGit(["-C", REPO_ROOT, "worktree", "remove", "--force", workerDir]);
+    runGit(["-C", REPO_ROOT, "worktree", "prune"]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? "Git worktree remove failed" });
+    return;
+  }
+
+  let branchDeleted = false;
+  let branchDeleteMessage: string | undefined;
+  const canDeleteBranch =
+    branchForDelete &&
+    branchForDelete !== "HEAD" &&
+    branchForDelete !== "(unknown)";
+
+  if (canDeleteBranch) {
+    try {
+      execFileSync("git", ["-C", REPO_ROOT, "branch", "-D", branchForDelete], {
+        encoding: "utf-8",
+      });
+      branchDeleted = true;
+    } catch (e: any) {
+      const stderr = e.stderr?.toString?.() ?? e.message ?? String(e);
+      branchDeleteMessage = stderr.trim() || "branch -D failed";
+    }
+  } else if (branchForDelete === "HEAD") {
+    branchDeleteMessage = "Skipped branch delete (detached HEAD)";
+  } else if (!branchForDelete || branchForDelete === "(unknown)") {
+    branchDeleteMessage = "Skipped branch delete (could not resolve branch)";
+  }
+
+  const noteFile = join(NOTES_DIR, `${name}.md`);
+  try {
+    if (existsSync(noteFile)) unlinkSync(noteFile);
+  } catch {
+    /* ignore */
+  }
+
+  res.json({
+    ok: true,
+    branch: branchForDelete || null,
+    branchDeleted,
+    branchDeleteMessage,
+    output: gitLogs.length ? gitLogs.join("\n") : undefined,
+  });
 });
 
 if (isProdEnv && existsSync(distDir)) {

@@ -16,24 +16,14 @@ if [ ! -d "$WORKTREES_DIR" ]; then
     exit 1
 fi
 
-# Pick the next available agentNN slot by scanning sibling worktrees.
-# Only directories matching exactly /^agent[0-9][0-9]$/ count toward the slot;
-# unrelated worktree names (like "agent" or feature-named ones) are ignored.
-next_n=1
-while :; do
-    candidate=$(printf 'agent%02d' "$next_n")
-    if [ ! -e "$WORKTREES_DIR/$candidate" ]; then
-        WORKTREE_NAME="$candidate"
-        break
-    fi
-    next_n=$((next_n + 1))
-    if [ "$next_n" -gt 99 ]; then
-        echo "No agentNN slots available (01-99 all taken)" >&2
-        exit 1
-    fi
-done
-
+# Worktree directory name matches the branch with '/' -> '-' (one path segment).
+WORKTREE_NAME="${NEW_BRANCH//\//-}"
 WORKTREE_PATH="$WORKTREES_DIR/$WORKTREE_NAME"
+
+if [ -e "$WORKTREE_PATH" ]; then
+    echo "Worktree directory already exists: $WORKTREE_PATH" >&2
+    exit 1
+fi
 
 echo "Creating worktree:"
 echo "  path:          $WORKTREE_PATH"
