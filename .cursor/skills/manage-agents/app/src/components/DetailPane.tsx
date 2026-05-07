@@ -1,3 +1,4 @@
+import { GitFork, GitPullRequest } from "lucide-react";
 import { FileTree } from "./FileTree";
 import type { WorkerInfo, WorkerDetails } from "../api";
 
@@ -61,18 +62,44 @@ export function DetailPane({
 
   if (!selectedWorker) return null;
 
+  if (detailsLoading) {
+    return (
+      <div className="detail-pane">
+        <div className="detail-loading">
+          <div className="detail-loading-spinner" />
+          <p>Loading details...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="detail-pane">
       <div className="detail-header">
-        <h2>{selectedWorker.name}</h2>
-        <span className="detail-branch mono">{selectedWorker.branch}</span>
+        <h2>
+          {selectedWorker.name}
+          {workerDetails?.pr && (
+            <a
+              href={workerDetails.pr.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`pr-icon pr-${workerDetails.pr.state}`}
+              title={`PR ${workerDetails.pr.state}`}
+            >
+              <GitPullRequest size={16} />
+            </a>
+          )}
+        </h2>
+        {workerDetails?.sourceBranch && (
+          <span className="detail-source-branch text-muted mono">
+            <GitFork size={12} /> {workerDetails.sourceBranch}
+          </span>
+        )}
       </div>
 
       <div className="detail-section">
         <h3>Git Status</h3>
-        {detailsLoading ? (
-          <p className="text-muted">Loading...</p>
-        ) : workerDetails && workerDetails.unstagedFiles.length > 0 ? (
+        {workerDetails && workerDetails.unstagedFiles.length > 0 ? (
           <FileTree files={workerDetails.unstagedFiles} />
         ) : (
           <p className="text-muted">Clean working tree</p>

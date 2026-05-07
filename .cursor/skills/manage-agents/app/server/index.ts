@@ -10,7 +10,7 @@ import {
 } from "fs";
 import { join, resolve, sep } from "path";
 import { fileURLToPath } from "url";
-import { getNote, upsertNote, renameNote, deleteNote } from "./db.js";
+import { getNote, upsertNote, renameNote, deleteNote, getStatus, upsertStatus, getSourceBranch, upsertSourceBranch, type WorkerStatus } from "./db.js";
 
 const PORT = Number(process.env.PORT ?? 8071);
 const PROD_PORT = 8070;
@@ -30,12 +30,19 @@ if (isProdEnv && existsSync(distDir)) {
   app.use(express.static(distDir));
 }
 
+interface PrInfo {
+  state: "open" | "closed" | "merged";
+  url: string;
+}
+
 interface WorkerInfo {
   name: string;
   path: string;
   branch: string;
   agentRunning: boolean;
   agentPid: number | null;
+  status: WorkerStatus;
+  pr: PrInfo | null;
 }
 
 function getAgentProcesses(): Map<string, number> {
@@ -65,10 +72,35 @@ function getAgentProcesses(): Map<string, number> {
   return result;
 }
 
+const PR_PRIORITY: Record<string, number> = { OPEN: 0, MERGED: 1, CLOSED: 2 };
+
+function fetchPrMap(): Map<string, PrInfo> {
+  const map = new Map<string, PrInfo>();
+  try {
+    const json = execFileSync(
+      "gh",
+      ["pr", "list", "--state", "all", "--json", "headRefName,state,url", "--limit", "200"],
+      { encoding: "utf-8", timeout: 15_000, cwd: REPO_ROOT },
+    );
+    const prs = JSON.parse(json) as { headRefName: string; state: string; url: string }[];
+    for (const pr of prs) {
+      const existing = map.get(pr.headRefName);
+      if (existing && PR_PRIORITY[existing.state.toUpperCase()] <= PR_PRIORITY[pr.state]) continue;
+      const raw = pr.state.toUpperCase();
+      const state = raw === "MERGED" ? "merged" : raw === "CLOSED" ? "closed" : "open";
+      map.set(pr.headRefName, { state, url: pr.url });
+    }
+  } catch {
+    // gh CLI unavailable or network error
+  }
+  return map;
+}
+
 function listWorkers(): WorkerInfo[] {
   if (!existsSync(WORKTREES_DIR)) return [];
 
   const agents = getAgentProcesses();
+  const prMap = fetchPrMap();
   const workers: WorkerInfo[] = [];
 
   for (const entry of readdirSync(WORKTREES_DIR)) {
@@ -95,6 +127,8 @@ function listWorkers(): WorkerInfo[] {
       branch,
       agentRunning: pid !== null,
       agentPid: pid,
+      status: getStatus(entry),
+      pr: prMap.get(branch) ?? null,
     });
   }
 
@@ -138,8 +172,14 @@ app.post("/api/workers", (req, res) => {
     const pathMatch = output.match(/WORKTREE_PATH=(\S+)/);
     const branchMatch = output.match(/BRANCH=(\S+)/);
 
+    const worktreeName = nameMatch?.[1] ?? null;
+    if (worktreeName) {
+      const resolvedSource = (sourceBranch && typeof sourceBranch === "string") ? sourceBranch : "origin/main";
+      upsertSourceBranch(worktreeName, resolvedSource);
+    }
+
     res.json({
-      worktreeName: nameMatch?.[1] ?? null,
+      worktreeName,
       worktreePath: pathMatch?.[1] ?? null,
       branch: branchMatch?.[1] ?? branch,
       output,
@@ -223,7 +263,35 @@ app.get("/api/workers/:name/details", (req, res) => {
     // git status failed
   }
 
-  res.json({ unstagedFiles, note: getNote(name) });
+  let branch = "";
+  try {
+    branch = execFileSync("git", ["-C", workerDir, "rev-parse", "--abbrev-ref", "HEAD"], {
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    // detached HEAD or not a repo
+  }
+
+  let pr: { state: "open" | "closed" | "merged"; url: string } | null = null;
+  if (branch && branch !== "HEAD") {
+    try {
+      const prJson = execFileSync(
+        "gh",
+        ["pr", "list", "--head", branch, "--state", "all", "--json", "state,url", "--limit", "1"],
+        { encoding: "utf-8", timeout: 10_000, cwd: workerDir },
+      );
+      const prs = JSON.parse(prJson) as { state: string; url: string }[];
+      if (prs.length > 0) {
+        const raw = prs[0].state.toUpperCase();
+        const state = raw === "MERGED" ? "merged" : raw === "CLOSED" ? "closed" : "open";
+        pr = { state, url: prs[0].url };
+      }
+    } catch {
+      // gh CLI unavailable or failed
+    }
+  }
+
+  res.json({ unstagedFiles, note: getNote(name), sourceBranch: getSourceBranch(name), pr });
 });
 
 app.put("/api/workers/:name/note", (req, res) => {
@@ -242,6 +310,27 @@ app.put("/api/workers/:name/note", (req, res) => {
   }
 
   upsertNote(name, note);
+  res.json({ ok: true });
+});
+
+const VALID_STATUSES = new Set<WorkerStatus>(["active", "blocked", "inactive"]);
+
+app.put("/api/workers/:name/status", (req, res) => {
+  const { name } = req.params;
+  const { status } = req.body ?? {};
+  const workerDir = join(WORKTREES_DIR, name);
+
+  if (!existsSync(workerDir)) {
+    res.status(404).json({ error: `Worktree ${name} not found` });
+    return;
+  }
+
+  if (typeof status !== "string" || !VALID_STATUSES.has(status as WorkerStatus)) {
+    res.status(400).json({ error: "status must be one of: active, blocked, inactive" });
+    return;
+  }
+
+  upsertStatus(name, status as WorkerStatus);
   res.json({ ok: true });
 });
 

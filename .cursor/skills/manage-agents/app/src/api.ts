@@ -1,12 +1,21 @@
 /** Used when the create form leaves source branch blank (matches create-worker.sh). */
 export const DEFAULT_SOURCE_BRANCH = "origin/main";
 
+export type WorkerStatus = "active" | "blocked" | "inactive";
+
+export interface PrInfo {
+  state: "open" | "closed" | "merged";
+  url: string;
+}
+
 export interface WorkerInfo {
   name: string;
   path: string;
   branch: string;
   agentRunning: boolean;
   agentPid: number | null;
+  status: WorkerStatus;
+  pr: PrInfo | null;
 }
 
 export interface CreateWorkerResult {
@@ -85,6 +94,8 @@ export interface FileEntry {
 export interface WorkerDetails {
   unstagedFiles: FileEntry[];
   note: string;
+  sourceBranch: string;
+  pr: PrInfo | null;
 }
 
 export async function fetchWorkerDetails(
@@ -107,6 +118,21 @@ export async function saveWorkerNote(
   if (!res.ok) {
     const data = await res.json();
     throw new Error(data.error ?? "Failed to save note");
+  }
+}
+
+export async function saveWorkerStatus(
+  name: string,
+  status: WorkerStatus,
+): Promise<void> {
+  const res = await fetch(`/api/workers/${name}/status`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error ?? "Failed to save status");
   }
 }
 
