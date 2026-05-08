@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
 import { useDebouncedNoteSave } from "../hooks/use-debounced-note-save";
@@ -11,9 +11,13 @@ interface Props {
 export function WorkerNoteEditor({ name, initialNote }: Props) {
   const [value, setValue] = useState(initialNote);
   const { scheduleSave, flush, isError } = useDebouncedNoteSave(name);
+  const prevName = useRef(name);
 
   useEffect(() => {
-    setValue(initialNote);
+    if (name !== prevName.current) {
+      setValue(initialNote);
+      prevName.current = name;
+    }
   }, [name, initialNote]);
 
   return (
@@ -27,7 +31,7 @@ export function WorkerNoteEditor({ name, initialNote }: Props) {
           setValue(e.target.value);
           scheduleSave(e.target.value);
         }}
-        onBlur={() => flush(value)}
+        onBlur={flush}
       />
       {isError && (
         <p className="text-xs text-destructive">Failed to save note.</p>

@@ -43,11 +43,11 @@ export function upsertNote(name: string, note: string): void {
   stmts.upsert.run(name, note);
 }
 
-export function renameNote(oldName: string, newName: string): void {
+export function renameWorker(oldName: string, newName: string): void {
   stmts.rename.run(newName, oldName);
 }
 
-export function deleteNote(name: string): void {
+export function deleteWorker(name: string): void {
   stmts.delete.run(name);
 }
 

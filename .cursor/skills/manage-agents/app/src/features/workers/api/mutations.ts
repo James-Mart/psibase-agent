@@ -12,6 +12,7 @@ import {
 import type {
   CreateWorkerResult,
   DeleteWorkerResult,
+  WorkerDetails,
   WorkerInfo,
   WorkerStatus,
 } from "@/lib/api/types";
@@ -72,8 +73,11 @@ export function useSaveWorkerNote() {
   const qc = useQueryClient();
   return useMutation<void, Error, { name: string; note: string }>({
     mutationFn: ({ name, note }) => saveWorkerNote(name, note),
-    onSuccess: (_data, { name }) =>
-      qc.invalidateQueries({ queryKey: workersKeys.details(name) }),
+    onMutate: ({ name, note }) => {
+      const key = workersKeys.details(name);
+      const prev = qc.getQueryData<WorkerDetails>(key);
+      if (prev) qc.setQueryData<WorkerDetails>(key, { ...prev, note });
+    },
   });
 }
 
