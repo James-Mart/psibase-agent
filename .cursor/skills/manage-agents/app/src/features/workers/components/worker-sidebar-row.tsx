@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GitPullRequest } from "lucide-react";
+import { GitPullRequest, Globe } from "lucide-react";
 import {
   SidebarMenuButton,
   SidebarMenuItem,
@@ -60,6 +60,18 @@ function WorkerSidebarRowContent({
         </span>
       </SidebarMenuButton>
       <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {worker.chainPort ? (
+          <a
+            href={`http://psibase.localhost:${worker.chainPort}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-primary hover:bg-sidebar-accent"
+            title={`Open chain (port ${worker.chainPort})`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Globe size={14} />
+          </a>
+        ) : null}
         <WorkerAgentToggle worker={worker} busy={busy} />
         {worker.isMain ? (
           <div className="h-7 w-7" aria-hidden />

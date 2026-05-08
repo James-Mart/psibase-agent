@@ -28,6 +28,7 @@ import { useSaveWorkerStatus } from "../api/mutations";
 import { useWorkersQuery } from "../api/queries";
 import { useWorkerUiStore } from "../store/use-worker-ui-store";
 import { CreateWorkerButton } from "./create-worker-button";
+import { DiskStatsBar } from "./disk-stats-bar";
 import {
   WorkerSidebarRow,
   WorkerSidebarRowOverlay,
@@ -160,7 +161,8 @@ export function WorkerSidebar() {
 
   return (
     <Sidebar variant="inset" side="left">
-      <SidebarHeader>
+      <SidebarHeader className="gap-2">
+        <DiskStatsBar />
         <CreateWorkerButton className="w-full" />
       </SidebarHeader>
       <SidebarContent>

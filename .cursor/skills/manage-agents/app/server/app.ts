@@ -3,7 +3,10 @@ import { join } from "path";
 import { distDir, hasBuiltClient, isProdEnv } from "./config.js";
 import { logRequest } from "./db.js";
 import { errorHandler } from "./errors.js";
+import { allBuildsRouter, buildsRouter } from "./routes/builds.js";
+import { allChainsRouter, chainsRouter } from "./routes/chains.js";
 import { gitRouter } from "./routes/git.js";
+import { diskRouter } from "./routes/disk.js";
 import { workersRouter } from "./routes/workers.js";
 
 function requestLogger(req: Request, res: Response, next: NextFunction): void {
@@ -36,7 +39,12 @@ export function createApp(): Express {
   }
 
   app.use("/api/git", gitRouter);
+  app.use("/api/disk", diskRouter);
   app.use("/api/workers", workersRouter);
+  app.use("/api/workers", buildsRouter);
+  app.use("/api/workers", chainsRouter);
+  app.use("/api/builds", allBuildsRouter);
+  app.use("/api/chains", allChainsRouter);
 
   if (serveStatic) {
     app.get("*", (_req, res) => {

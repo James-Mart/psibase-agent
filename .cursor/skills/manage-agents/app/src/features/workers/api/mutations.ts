@@ -16,13 +16,11 @@ import type {
   WorkerInfo,
   WorkerStatus,
 } from "@/lib/api/types";
+import { messageOf } from "@/lib/utils/error-message";
 import { useWorkerUiStore } from "../store/use-worker-ui-store";
 import { workersKeys } from "./keys";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const messageOf = (err: unknown) =>
-  err instanceof Error ? err.message : String(err);
 
 export function useStartAgent() {
   const qc = useQueryClient();

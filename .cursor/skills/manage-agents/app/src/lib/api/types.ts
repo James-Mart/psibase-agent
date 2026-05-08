@@ -20,6 +20,7 @@ export interface WorkerInfo {
   status: WorkerStatus;
   pr: PrInfo | null;
   isMain?: boolean;
+  chainPort: number | null;
 }
 
 export interface FileEntry {

@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ErrorBoundary } from "react-error-boundary";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { BuildNotifier } from "@/features/workers/components/build-notifier";
 import { createQueryClient } from "@/lib/query/client";
 import { ErrorFallback } from "./error-fallback";
 
@@ -20,6 +21,7 @@ export function Providers({ children }: Props) {
           {children}
         </ErrorBoundary>
       </TooltipProvider>
+      <BuildNotifier />
       <Toaster theme="dark" richColors position="top-right" />
       {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
     </QueryClientProvider>

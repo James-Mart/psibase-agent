@@ -8,10 +8,14 @@ import {
   WORKTREES_DIR,
 } from "../config.js";
 import {
+  deleteChainsForWorker,
+  deleteBuildsForWorker,
   deleteWorker as deleteWorkerRow,
   getNote,
   getSourceBranch,
   getStatus,
+  renameBuildsForWorker,
+  renameChainsForWorker,
   renameWorker as renameWorkerRow,
   upsertNote,
   upsertSourceBranch,
@@ -19,6 +23,15 @@ import {
   type WorkerStatus,
 } from "../db.js";
 import { HttpError } from "../errors.js";
+import {
+  assertNoRunningBuild,
+  cancelBuildIfRunning,
+} from "./builds.js";
+import {
+  assertNoRunningChain,
+  cancelChainIfRunning,
+  getActiveChainPort,
+} from "./chains.js";
 import type {
   CreateWorkerResult,
   DeleteWorkerResult,
@@ -53,7 +66,7 @@ export function resolveSafeWorkerDir(name: string): string | null {
   return workerDir;
 }
 
-function requireWorkerDir(name: string): string {
+export function requireWorkerDir(name: string): string {
   const dir = resolveSafeWorkerDir(name);
   if (!dir) throw new HttpError(400, "Invalid worker name");
   if (!existsSync(dir)) throw new HttpError(404, `Worktree ${name} not found`);
@@ -76,6 +89,7 @@ export function listWorkers(): WorkerInfo[] {
     status: getStatus(MAIN_WORKER_NAME),
     pr: prMap.get(mainBranch) ?? null,
     isMain: true,
+    chainPort: getActiveChainPort(MAIN_WORKER_NAME),
   });
 
   if (existsSync(WORKTREES_DIR)) {
@@ -97,6 +111,7 @@ export function listWorkers(): WorkerInfo[] {
         agentPid: pid,
         status: getStatus(entry),
         pr: prMap.get(branch) ?? null,
+        chainPort: getActiveChainPort(entry),
       });
     }
   }
@@ -245,6 +260,8 @@ export function renameWorker(
       "Cannot rename while agent is running. Stop it first.",
     );
   }
+  assertNoRunningBuild(name);
+  assertNoRunningChain(name);
 
   try {
     renameWorktreeOnDisk(oldWorkerDir, newWorkerDir, name, newName);
@@ -255,6 +272,8 @@ export function renameWorker(
   }
 
   renameWorkerRow(name, newName);
+  renameBuildsForWorker(name, newName);
+  renameChainsForWorker(name, newName);
   return { ok: true, newName };
 }
 
@@ -274,6 +293,9 @@ export async function deleteWorker(name: string): Promise<DeleteWorkerResult> {
     await waitForExit(pid, 8000);
   }
 
+  await cancelBuildIfRunning(name);
+  await cancelChainIfRunning(name);
+
   const branch = getCurrentBranch(workerDir);
 
   let logs: string[];
@@ -287,6 +309,8 @@ export async function deleteWorker(name: string): Promise<DeleteWorkerResult> {
 
   const { branchDeleted, branchDeleteMessage } = deleteBranch(REPO_ROOT, branch);
   deleteWorkerRow(name);
+  deleteBuildsForWorker(name);
+  deleteChainsForWorker(name);
 
   return {
     ok: true,
