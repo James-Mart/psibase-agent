@@ -16,6 +16,7 @@ import type {
   WorkerInfo,
   WorkerStatus,
 } from "@/lib/api/types";
+import { useWorkerUiStore } from "../store/use-worker-ui-store";
 import { workersKeys } from "./keys";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -44,15 +45,35 @@ export function useStopAgent() {
   });
 }
 
+interface DeleteContext {
+  previous?: WorkerInfo[];
+}
+
 export function useDeleteWorker() {
   const qc = useQueryClient();
-  return useMutation<DeleteWorkerResult, Error, string>({
+  return useMutation<DeleteWorkerResult, Error, string, DeleteContext>({
     mutationFn: (name) => deleteWorker(name),
-    onSuccess: (result) => {
-      if (result.branchDeleteMessage) toast.info(result.branchDeleteMessage);
-      qc.invalidateQueries({ queryKey: workersKeys.all });
+    onMutate: async (name) => {
+      await qc.cancelQueries({ queryKey: workersKeys.list() });
+      const previous = qc.getQueryData<WorkerInfo[]>(workersKeys.list());
+      if (previous) {
+        qc.setQueryData<WorkerInfo[]>(
+          workersKeys.list(),
+          previous.filter((w) => w.name !== name),
+        );
+      }
+      return { previous };
     },
-    onError: (err) => toast.error(messageOf(err)),
+    onSuccess: (result, name) => {
+      const { selectedName, selectWorker } = useWorkerUiStore.getState();
+      if (selectedName === name) selectWorker(null);
+      if (result.branchDeleteMessage) toast.info(result.branchDeleteMessage);
+    },
+    onError: (err, _name, ctx) => {
+      if (ctx?.previous) qc.setQueryData(workersKeys.list(), ctx.previous);
+      toast.error(messageOf(err));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: workersKeys.all }),
   });
 }
 
@@ -113,15 +134,18 @@ export function useSaveWorkerStatus() {
   });
 }
 
+export interface CreateWorkerVars {
+  branch: string;
+  sourceBranch?: string;
+  existingBranch?: boolean;
+  remoteOnly?: boolean;
+}
+
 export function useCreateWorker() {
   const qc = useQueryClient();
-  return useMutation<
-    CreateWorkerResult,
-    Error,
-    { branch: string; sourceBranch: string }
-  >({
-    mutationFn: ({ branch, sourceBranch }) =>
-      createWorker(branch, sourceBranch),
+  return useMutation<CreateWorkerResult, Error, CreateWorkerVars>({
+    mutationFn: ({ branch, sourceBranch, existingBranch, remoteOnly }) =>
+      createWorker(branch, { sourceBranch, existingBranch, remoteOnly }),
     onSuccess: () => qc.invalidateQueries({ queryKey: workersKeys.list() }),
   });
 }

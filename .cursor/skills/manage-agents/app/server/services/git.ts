@@ -58,6 +58,47 @@ export interface DeleteBranchResult {
   branchDeleteMessage?: string;
 }
 
+export function fetchOrigin(repoRoot: string): void {
+  git(["-C", repoRoot, "fetch", "origin", "--prune"], { timeoutMs: 30_000 });
+}
+
+export interface BranchCheckResult {
+  localExists: boolean;
+  remoteRef: string | null;
+}
+
+export function checkBranch(repoRoot: string, name: string): BranchCheckResult {
+  let localExists = false;
+  try {
+    git(["-C", repoRoot, "show-ref", "--verify", `refs/heads/${name}`]);
+    localExists = true;
+  } catch {}
+  let remoteRef: string | null = null;
+  try {
+    git(["-C", repoRoot, "show-ref", "--verify", `refs/remotes/origin/${name}`]);
+    remoteRef = `origin/${name}`;
+  } catch {}
+  return { localExists, remoteRef };
+}
+
+export function addWorktree(
+  repoRoot: string,
+  worktreePath: string,
+  branch: string,
+  opts: { source?: string; existing?: boolean },
+): void {
+  if (opts.existing) {
+    git(["-C", repoRoot, "worktree", "add", worktreePath, branch]);
+  } else {
+    const source = opts.source ?? "origin/main";
+    if (source.startsWith("origin/")) {
+      const remoteBranch = source.slice("origin/".length);
+      git(["-C", repoRoot, "fetch", "origin", remoteBranch], { timeoutMs: 30_000 });
+    }
+    git(["-C", repoRoot, "worktree", "add", "--no-track", "-b", branch, worktreePath, source]);
+  }
+}
+
 export function deleteBranch(repoRoot: string, branch: string): DeleteBranchResult {
   if (!branch) {
     return {

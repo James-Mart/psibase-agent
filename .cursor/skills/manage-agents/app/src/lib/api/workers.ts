@@ -15,23 +15,30 @@ export function listWorkers(): Promise<WorkerInfo[]> {
 
 export async function createWorker(
   branch: string,
-  sourceBranch?: string,
+  opts?: { sourceBranch?: string; existingBranch?: boolean; remoteOnly?: boolean },
 ): Promise<CreateWorkerResult> {
-  const resolved = sourceBranch?.trim() || DEFAULT_SOURCE_BRANCH;
+  const body: Record<string, unknown> = { branch };
+  if (opts?.existingBranch) {
+    body.existingBranch = true;
+  } else if (opts?.remoteOnly) {
+    body.remoteOnly = true;
+  } else {
+    body.sourceBranch = opts?.sourceBranch?.trim() || DEFAULT_SOURCE_BRANCH;
+  }
   try {
     return await request<CreateWorkerResult>("/api/workers", {
       method: "POST",
-      body: { branch, sourceBranch: resolved },
+      body,
     });
   } catch (err) {
     if (err instanceof ApiError) {
-      const body = err.body as
+      const respBody = err.body as
         | { stderr?: unknown; output?: unknown }
         | undefined;
       throw new CreateWorkerError(err.message, err.status, {
-        stderr: typeof body?.stderr === "string" ? body.stderr : undefined,
-        output: typeof body?.output === "string" ? body.output : undefined,
-        body,
+        stderr: typeof respBody?.stderr === "string" ? respBody.stderr : undefined,
+        output: typeof respBody?.output === "string" ? respBody.output : undefined,
+        body: respBody,
       });
     }
     throw err;

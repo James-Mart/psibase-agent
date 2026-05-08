@@ -8,6 +8,8 @@ const workerNameRe = /^[a-zA-Z0-9._-]+$/;
 export const createWorkerBody = z.object({
   branch: z.string().regex(branchNameRe, "Invalid branch name"),
   sourceBranch: z.string().min(1).optional(),
+  existingBranch: z.boolean().optional(),
+  remoteOnly: z.boolean().optional(),
 });
 
 export const renameWorkerBody = z.object({

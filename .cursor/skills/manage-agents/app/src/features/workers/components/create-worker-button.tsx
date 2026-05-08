@@ -1,13 +1,18 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils/cn";
 import { useWorkerUiStore } from "../store/use-worker-ui-store";
 
-export function CreateWorkerButton() {
+interface Props {
+  className?: string;
+}
+
+export function CreateWorkerButton({ className }: Props = {}) {
   const openCreateDialog = useWorkerUiStore((s) => s.openCreateDialog);
   return (
-    <Button onClick={openCreateDialog}>
+    <Button onClick={openCreateDialog} className={cn(className)}>
       <Plus />
-      Add Worker
+      Create worktree
     </Button>
   );
 }

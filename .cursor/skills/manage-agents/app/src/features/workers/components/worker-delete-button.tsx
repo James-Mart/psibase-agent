@@ -10,6 +10,7 @@ interface Props {
 
 export function WorkerDeleteButton({ worker, busy }: Props) {
   const setDeleteTarget = useWorkerUiStore((s) => s.setDeleteTarget);
+  if (worker.isMain) return null;
   return (
     <Button
       type="button"

@@ -17,6 +17,21 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS request_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status INTEGER NOT NULL,
+    duration_ms REAL NOT NULL
+  )
+`);
+
+db.exec(
+  `CREATE INDEX IF NOT EXISTS idx_request_log_ts ON request_log (ts)`,
+);
+
 const stmts = {
   get: db.prepare("SELECT note, status FROM workers WHERE name = ?"),
   upsert: db.prepare(
@@ -32,6 +47,9 @@ const stmts = {
   getSourceBranch: db.prepare("SELECT source_branch FROM workers WHERE name = ?"),
   rename: db.prepare("UPDATE workers SET name = ? WHERE name = ?"),
   delete: db.prepare("DELETE FROM workers WHERE name = ?"),
+  insertRequestLog: db.prepare(
+    "INSERT INTO request_log (method, path, status, duration_ms) VALUES (?, ?, ?, ?)",
+  ),
 };
 
 export function getNote(name: string): string {
@@ -71,4 +89,20 @@ export function getSourceBranch(name: string): string {
 
 export function upsertSourceBranch(name: string, sourceBranch: string): void {
   stmts.upsertSourceBranch.run(name, sourceBranch);
+}
+
+export interface RequestLogEntry {
+  method: string;
+  path: string;
+  status: number;
+  durationMs: number;
+}
+
+export function logRequest(entry: RequestLogEntry): void {
+  stmts.insertRequestLog.run(
+    entry.method,
+    entry.path,
+    entry.status,
+    entry.durationMs,
+  );
 }

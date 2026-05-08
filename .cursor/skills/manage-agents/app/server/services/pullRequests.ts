@@ -92,7 +92,7 @@ function fetchThreadCounts(prNumbers: number[]): Map<number, number> {
   return result;
 }
 
-export function fetchAllPrs(): Map<string, PrInfo> {
+function loadAllPrs(): Map<string, PrInfo> {
   const map = new Map<string, PrInfo>();
   let json: string;
   try {
@@ -154,45 +154,39 @@ export function fetchAllPrs(): Map<string, PrInfo> {
   return map;
 }
 
-export function fetchPrForBranch(branch: string, cwd: string): PrInfo | null {
+let prCache: Map<string, PrInfo> = new Map();
+let lastRefreshAt = 0;
+let inFlight: Promise<void> | null = null;
+
+const PR_CACHE_TTL_MS = 30_000;
+
+function refreshPrCacheAsync(): Promise<void> {
+  if (inFlight) return inFlight;
+  inFlight = new Promise<void>((resolve) => {
+    setImmediate(() => {
+      try {
+        prCache = loadAllPrs();
+        lastRefreshAt = Date.now();
+      } catch {}
+      inFlight = null;
+      resolve();
+    });
+  });
+  return inFlight;
+}
+
+export function fetchAllPrs(): Map<string, PrInfo> {
+  if (Date.now() - lastRefreshAt > PR_CACHE_TTL_MS) {
+    void refreshPrCacheAsync();
+  }
+  return prCache;
+}
+
+export function primePrCache(): Promise<void> {
+  return refreshPrCacheAsync();
+}
+
+export function fetchPrForBranch(branch: string): PrInfo | null {
   if (!branch || branch === "HEAD") return null;
-  let json: string;
-  try {
-    json = execFileSync(
-      "gh",
-      [
-        "pr",
-        "list",
-        "--head",
-        branch,
-        "--state",
-        "all",
-        "--json",
-        "state,url,reviewDecision,number",
-        "--limit",
-        "1",
-      ],
-      { encoding: "utf-8", timeout: 10_000, cwd },
-    );
-  } catch {
-    return null;
-  }
-
-  let prs: RawPr[];
-  try {
-    prs = JSON.parse(json) as RawPr[];
-  } catch {
-    return null;
-  }
-  if (prs.length === 0) return null;
-
-  const pr = prs[0];
-  const threadCounts = pr.number ? fetchThreadCounts([pr.number]) : new Map();
-
-  return {
-    state: normalizePrState(pr.state),
-    url: pr.url,
-    reviewDecision: normalizeReviewDecision(pr.reviewDecision),
-    unresolvedThreads: (pr.number && threadCounts.get(pr.number)) || 0,
-  };
+  return fetchAllPrs().get(branch) ?? null;
 }

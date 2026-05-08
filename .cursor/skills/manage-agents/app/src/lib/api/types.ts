@@ -19,6 +19,7 @@ export interface WorkerInfo {
   agentPid: number | null;
   status: WorkerStatus;
   pr: PrInfo | null;
+  isMain?: boolean;
 }
 
 export interface FileEntry {

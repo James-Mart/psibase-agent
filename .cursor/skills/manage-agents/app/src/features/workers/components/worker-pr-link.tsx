@@ -22,17 +22,14 @@ function buildTitle(pr: PrInfo): string {
   return parts.join(" · ");
 }
 
-export function WorkerPrLink({ pr, size = 16, className }: Props) {
-  if (!pr) return null;
+interface IconsProps {
+  pr: PrInfo;
+  size?: number;
+}
+
+export function WorkerPrIcons({ pr, size = 16 }: IconsProps) {
   return (
-    <a
-      href={pr.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={buildTitle(pr)}
-      className={cn("inline-flex items-center gap-1", stateClass[pr.state], className)}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       <GitPullRequest size={size} />
       {pr.reviewDecision === "approved" && (
         <CheckCircle2 size={12} className="[color:hsl(var(--success))]" />
@@ -46,6 +43,34 @@ export function WorkerPrLink({ pr, size = 16, className }: Props) {
           <span className="text-xs">{pr.unresolvedThreads}</span>
         </span>
       )}
+    </>
+  );
+}
+
+export function WorkerPrIndicator({ pr, size = 14, className }: Props) {
+  if (!pr) return null;
+  return (
+    <span
+      title={buildTitle(pr)}
+      className={cn("inline-flex items-center gap-1", stateClass[pr.state], className)}
+    >
+      <WorkerPrIcons pr={pr} size={size} />
+    </span>
+  );
+}
+
+export function WorkerPrLink({ pr, size = 16, className }: Props) {
+  if (!pr) return null;
+  return (
+    <a
+      href={pr.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={buildTitle(pr)}
+      className={cn("inline-flex items-center gap-1", stateClass[pr.state], className)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <WorkerPrIcons pr={pr} size={size} />
     </a>
   );
 }

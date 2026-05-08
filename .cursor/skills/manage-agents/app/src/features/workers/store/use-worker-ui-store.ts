@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { subscribeWithSelector } from "zustand/middleware";
+import { persist, subscribeWithSelector } from "zustand/middleware";
 import type { WorkerInfo } from "@/lib/api/types";
 import type { CreatePlaceholder } from "../types";
 
@@ -13,7 +13,6 @@ interface UiState {
   createPlaceholders: CreatePlaceholder[];
 
   selectWorker: (name: string | null) => void;
-  toggleSelected: (name: string) => void;
 
   startEditing: (name: string) => void;
   setEditValue: (value: string) => void;
@@ -38,63 +37,70 @@ interface UiState {
 }
 
 export const useWorkerUiStore = create<UiState>()(
-  subscribeWithSelector((set) => ({
-    selectedName: null,
-    editingName: null,
-    editValue: "",
-    showCreateDialog: false,
-    deleteTarget: null,
-    busyWorkers: new Set<string>(),
-    createPlaceholders: [],
+  subscribeWithSelector(
+    persist(
+      (set) => ({
+        selectedName: null,
+        editingName: null,
+        editValue: "",
+        showCreateDialog: false,
+        deleteTarget: null,
+        busyWorkers: new Set<string>(),
+        createPlaceholders: [],
 
-    selectWorker: (name) => set({ selectedName: name }),
-    toggleSelected: (name) =>
-      set((s) => ({ selectedName: s.selectedName === name ? null : name })),
+        selectWorker: (name) => set({ selectedName: name }),
 
-    startEditing: (name) => set({ editingName: name, editValue: name }),
-    setEditValue: (value) => set({ editValue: value }),
-    cancelEditing: () => set({ editingName: null, editValue: "" }),
+        startEditing: (name) => set({ editingName: name, editValue: name }),
+        setEditValue: (value) => set({ editValue: value }),
+        cancelEditing: () => set({ editingName: null, editValue: "" }),
 
-    openCreateDialog: () => set({ showCreateDialog: true }),
-    closeCreateDialog: () => set({ showCreateDialog: false }),
+        openCreateDialog: () => set({ showCreateDialog: true }),
+        closeCreateDialog: () => set({ showCreateDialog: false }),
 
-    setDeleteTarget: (worker) => set({ deleteTarget: worker }),
+        setDeleteTarget: (worker) => set({ deleteTarget: worker }),
 
-    markBusy: (name, busy) =>
-      set((s) => {
-        const next = new Set(s.busyWorkers);
-        if (busy) next.add(name);
-        else next.delete(name);
-        return { busyWorkers: next };
+        markBusy: (name, busy) =>
+          set((s) => {
+            const next = new Set(s.busyWorkers);
+            if (busy) next.add(name);
+            else next.delete(name);
+            return { busyWorkers: next };
+          }),
+
+        addPlaceholder: (placeholder) =>
+          set((s) => ({
+            createPlaceholders: [...s.createPlaceholders, placeholder],
+          })),
+
+        failPlaceholder: (id, err) =>
+          set((s) => ({
+            createPlaceholders: s.createPlaceholders.map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    phase: "failed",
+                    errorMessage: err.message,
+                    errorExtra: err.extra,
+                  }
+                : p,
+            ),
+          })),
+
+        removePlaceholder: (id) =>
+          set((s) => ({
+            createPlaceholders: s.createPlaceholders.filter((p) => p.id !== id),
+            selectedName: s.selectedName === id ? null : s.selectedName,
+          })),
+
+        renameSelected: (oldName, newName) =>
+          set((s) =>
+            s.selectedName === oldName ? { selectedName: newName } : {},
+          ),
       }),
-
-    addPlaceholder: (placeholder) =>
-      set((s) => ({
-        createPlaceholders: [...s.createPlaceholders, placeholder],
-      })),
-
-    failPlaceholder: (id, err) =>
-      set((s) => ({
-        createPlaceholders: s.createPlaceholders.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                phase: "failed",
-                errorMessage: err.message,
-                errorExtra: err.extra,
-              }
-            : p,
-        ),
-      })),
-
-    removePlaceholder: (id) =>
-      set((s) => ({
-        createPlaceholders: s.createPlaceholders.filter((p) => p.id !== id),
-      })),
-
-    renameSelected: (oldName, newName) =>
-      set((s) =>
-        s.selectedName === oldName ? { selectedName: newName } : {},
-      ),
-  })),
+      {
+        name: "manage-agents:worker-ui",
+        partialize: (state) => ({ selectedName: state.selectedName }),
+      },
+    ),
+  ),
 );

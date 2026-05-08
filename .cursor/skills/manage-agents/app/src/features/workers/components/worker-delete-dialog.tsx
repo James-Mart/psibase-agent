@@ -22,11 +22,8 @@ export function WorkerDeleteDialog() {
     if (!target) return;
     const name = target.name;
     setDeleteTarget(null);
-    del.mutate(name, {
-      onSuccess: () => {
-        if (selectedName === name) selectWorker(null);
-      },
-    });
+    if (selectedName === name) selectWorker(null);
+    del.mutate(name);
   };
 
   return (

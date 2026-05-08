@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { useWorkerUiStore } from "../store/use-worker-ui-store";
 import type { CreatePlaceholder } from "../types";
 
 interface Props {
@@ -5,13 +7,24 @@ interface Props {
 }
 
 export function WorkerDetailFailed({ placeholder }: Props) {
+  const removePlaceholder = useWorkerUiStore((s) => s.removePlaceholder);
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
-        <h2 className="text-lg font-semibold">Create worker failed</h2>
-        <p className="font-mono text-xs text-muted-foreground">
-          {placeholder.branch}
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Create worker failed</h2>
+          <p className="font-mono text-xs text-muted-foreground">
+            {placeholder.branch}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => removePlaceholder(placeholder.id)}
+        >
+          Dismiss
+        </Button>
       </header>
 
       <section className="space-y-1">

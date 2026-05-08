@@ -2,16 +2,8 @@ import { execFileSync, spawn } from "child_process";
 import { existsSync, readdirSync, statSync } from "fs";
 import { join, resolve, sep } from "path";
 
-function bash(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): string {
-  return execFileSync("bash", args, {
-    encoding: "utf-8",
-    timeout: opts.timeoutMs,
-    ...(opts.cwd ? { cwd: opts.cwd } : {}),
-  });
-}
-
 import {
-  CREATE_WORKER_SCRIPT,
+  MAIN_WORKER_NAME,
   REPO_ROOT,
   WORKTREES_DIR,
 } from "../config.js";
@@ -34,6 +26,7 @@ import type {
   WorkerInfo,
 } from "../types.js";
 import {
+  addWorktree,
   deleteBranch,
   getCurrentBranch,
   getStatusPorcelain,
@@ -51,6 +44,7 @@ const WORKER_NAME_RE = /^[a-zA-Z0-9._-]+$/;
 const DEFAULT_SOURCE_BRANCH = "origin/main";
 
 export function resolveSafeWorkerDir(name: string): string | null {
+  if (name === MAIN_WORKER_NAME) return REPO_ROOT;
   if (!WORKER_NAME_RE.test(name)) return null;
   const workerDir = join(WORKTREES_DIR, name);
   const resolved = resolve(workerDir);
@@ -67,31 +61,44 @@ function requireWorkerDir(name: string): string {
 }
 
 export function listWorkers(): WorkerInfo[] {
-  if (!existsSync(WORKTREES_DIR)) return [];
-
   const agents = getAgentProcesses();
   const prMap = fetchAllPrs();
   const workers: WorkerInfo[] = [];
 
-  for (const entry of readdirSync(WORKTREES_DIR)) {
-    const fullPath = join(WORKTREES_DIR, entry);
-    try {
-      if (!statSync(fullPath).isDirectory()) continue;
-    } catch {
-      continue;
-    }
+  const mainBranch = getCurrentBranch(REPO_ROOT) || "(unknown)";
+  const mainPid = agents.get(REPO_ROOT) ?? null;
+  workers.push({
+    name: MAIN_WORKER_NAME,
+    path: REPO_ROOT,
+    branch: mainBranch,
+    agentRunning: mainPid !== null,
+    agentPid: mainPid,
+    status: getStatus(MAIN_WORKER_NAME),
+    pr: prMap.get(mainBranch) ?? null,
+    isMain: true,
+  });
 
-    const branch = getCurrentBranch(fullPath) || "(unknown)";
-    const pid = agents.get(fullPath) ?? null;
-    workers.push({
-      name: entry,
-      path: fullPath,
-      branch,
-      agentRunning: pid !== null,
-      agentPid: pid,
-      status: getStatus(entry),
-      pr: prMap.get(branch) ?? null,
-    });
+  if (existsSync(WORKTREES_DIR)) {
+    for (const entry of readdirSync(WORKTREES_DIR)) {
+      const fullPath = join(WORKTREES_DIR, entry);
+      try {
+        if (!statSync(fullPath).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+
+      const branch = getCurrentBranch(fullPath) || "(unknown)";
+      const pid = agents.get(fullPath) ?? null;
+      workers.push({
+        name: entry,
+        path: fullPath,
+        branch,
+        agentRunning: pid !== null,
+        agentPid: pid,
+        status: getStatus(entry),
+        pr: prMap.get(branch) ?? null,
+      });
+    }
   }
 
   workers.sort((a, b) => a.name.localeCompare(b.name));
@@ -101,32 +108,60 @@ export function listWorkers(): WorkerInfo[] {
 export interface CreateWorkerInput {
   branch: string;
   sourceBranch?: string;
+  existingBranch?: boolean;
+  remoteOnly?: boolean;
 }
 
 export function createWorker(input: CreateWorkerInput): CreateWorkerResult {
-  const args = [CREATE_WORKER_SCRIPT, input.branch];
-  if (input.sourceBranch) args.push(input.sourceBranch);
+  const worktreeName = input.branch.replace(/\//g, "-");
+  const worktreePath = join(WORKTREES_DIR, worktreeName);
 
-  let output: string;
+  if (existsSync(worktreePath)) {
+    throw new HttpError(409, `Worktree directory already exists: ${worktreePath}`);
+  }
+
   try {
-    output = bash(args, { cwd: REPO_ROOT, timeoutMs: 300_000 });
+    if (input.existingBranch) {
+      addWorktree(REPO_ROOT, worktreePath, input.branch, { existing: true });
+    } else if (input.remoteOnly) {
+      addWorktree(REPO_ROOT, worktreePath, input.branch, { source: `origin/${input.branch}` });
+    } else {
+      const source = input.sourceBranch?.trim() || DEFAULT_SOURCE_BRANCH;
+      addWorktree(REPO_ROOT, worktreePath, input.branch, { source });
+    }
   } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string };
-    throw new HttpError(500, "create-worker.sh failed", {
+    const e = err as { stdout?: string; stderr?: unknown; message?: string };
+    const stderr = typeof e.stderr === "string"
+      ? e.stderr
+      : (e.stderr as { toString?: () => string } | undefined)?.toString?.() ?? "";
+    throw new HttpError(500, "git worktree add failed", {
       output: e.stdout ?? "",
+      stderr: stderr || e.message || "",
+    });
+  }
+
+  try {
+    execFileSync("bash", [".vscode/scripts/env-setup.sh"], {
+      cwd: worktreePath,
+      encoding: "utf-8",
+      timeout: 300_000,
+    });
+  } catch (err: unknown) {
+    const e = err as { stderr?: string };
+    throw new HttpError(500, "env-setup.sh failed", {
+      output: "",
       stderr: e.stderr ?? "",
     });
   }
 
-  const worktreeName = output.match(/WORKTREE_NAME=(\S+)/)?.[1] ?? null;
-  const worktreePath = output.match(/WORKTREE_PATH=(\S+)/)?.[1] ?? null;
-  const branch = output.match(/BRANCH=(\S+)/)?.[1] ?? input.branch;
+  const sourceBranch = input.existingBranch
+    ? input.branch
+    : input.remoteOnly
+      ? `origin/${input.branch}`
+      : (input.sourceBranch?.trim() || DEFAULT_SOURCE_BRANCH);
+  upsertSourceBranch(worktreeName, sourceBranch);
 
-  if (worktreeName) {
-    upsertSourceBranch(worktreeName, input.sourceBranch ?? DEFAULT_SOURCE_BRANCH);
-  }
-
-  return { worktreeName, worktreePath, branch, output };
+  return { worktreeName, worktreePath, branch: input.branch, output: "" };
 }
 
 export function startAgent(name: string): { pid: number | undefined } {
@@ -138,7 +173,11 @@ export function startAgent(name: string): { pid: number | undefined } {
     throw new HttpError(409, "Agent already running", { pid: existing });
   }
 
-  const child = spawn("agent", ["worker", "start", "--name", name], {
+  const args =
+    name === MAIN_WORKER_NAME
+      ? ["worker", "start", "--worker-dir", workerDir]
+      : ["worker", "start", "--name", name];
+  const child = spawn("agent", args, {
     cwd: workerDir,
     detached: true,
     stdio: "ignore",
@@ -148,7 +187,7 @@ export function startAgent(name: string): { pid: number | undefined } {
 }
 
 export function stopAgent(name: string): { ok: true; pid: number } {
-  const workerDir = join(WORKTREES_DIR, name);
+  const workerDir = requireWorkerDir(name);
   const pid = getAgentProcesses().get(workerDir);
   if (!pid) {
     throw new HttpError(404, `No running agent found for ${name}`);
@@ -161,7 +200,7 @@ export function getWorkerDetails(name: string): WorkerDetails {
   const workerDir = requireWorkerDir(name);
   const unstagedFiles = getStatusPorcelain(workerDir);
   const branch = getCurrentBranch(workerDir);
-  const pr = fetchPrForBranch(branch, workerDir);
+  const pr = fetchPrForBranch(branch);
   return {
     unstagedFiles,
     note: getNote(name),
@@ -189,6 +228,9 @@ export function renameWorker(
   name: string,
   newName: string,
 ): { ok: true; newName: string } {
+  if (name === MAIN_WORKER_NAME) {
+    throw new HttpError(403, "Cannot rename the main worktree");
+  }
   if (newName === name) {
     throw new HttpError(400, "New name is the same as the current name");
   }
@@ -217,6 +259,9 @@ export function renameWorker(
 }
 
 export async function deleteWorker(name: string): Promise<DeleteWorkerResult> {
+  if (name === MAIN_WORKER_NAME) {
+    throw new HttpError(403, "Cannot delete the main worktree");
+  }
   const workerDir = requireWorkerDir(name);
 
   const pid = getAgentProcesses().get(workerDir);

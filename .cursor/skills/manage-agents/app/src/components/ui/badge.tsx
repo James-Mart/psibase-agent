@@ -22,6 +22,8 @@ const badgeVariants = cva(
           "border-transparent bg-warning/20 [color:hsl(var(--warning))]",
         setupFailed:
           "border-transparent bg-destructive/20 [color:hsl(var(--destructive))]",
+        deleting:
+          "border-transparent bg-destructive/20 [color:hsl(var(--destructive))]",
       },
     },
     defaultVariants: {
