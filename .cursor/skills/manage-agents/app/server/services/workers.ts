@@ -2,6 +2,14 @@ import { execFileSync, spawn } from "child_process";
 import { existsSync, readdirSync, statSync } from "fs";
 import { join, resolve, sep } from "path";
 
+function bash(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): string {
+  return execFileSync("bash", args, {
+    encoding: "utf-8",
+    timeout: opts.timeoutMs,
+    ...(opts.cwd ? { cwd: opts.cwd } : {}),
+  });
+}
+
 import {
   CREATE_WORKER_SCRIPT,
   REPO_ROOT,
@@ -101,11 +109,7 @@ export function createWorker(input: CreateWorkerInput): CreateWorkerResult {
 
   let output: string;
   try {
-    output = execFileSync("bash", args, {
-      encoding: "utf-8",
-      cwd: REPO_ROOT,
-      timeout: 300_000,
-    });
+    output = bash(args, { cwd: REPO_ROOT, timeoutMs: 300_000 });
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string };
     throw new HttpError(500, "create-worker.sh failed", {

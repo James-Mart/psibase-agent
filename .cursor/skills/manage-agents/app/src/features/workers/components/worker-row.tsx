@@ -37,7 +37,7 @@ export const WorkerRow = memo(function WorkerRow({ worker }: Props) {
       <TableCell className="w-[130px]">
         <WorkerStatusSelect worker={worker} />
       </TableCell>
-      <TableCell className="w-8">
+      <TableCell className="w-20">
         <WorkerPrLink pr={worker.pr} />
       </TableCell>
       <TableCell>

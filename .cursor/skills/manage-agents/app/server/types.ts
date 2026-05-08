@@ -1,10 +1,13 @@
 import type { WorkerStatus } from "./db.js";
 
 export type PrState = "open" | "closed" | "merged";
+export type ReviewDecision = "approved" | "changes_requested" | "review_required";
 
 export interface PrInfo {
   state: PrState;
   url: string;
+  reviewDecision: ReviewDecision | null;
+  unresolvedThreads: number;
 }
 
 export interface WorkerInfo {

@@ -62,7 +62,7 @@ export function WorkerTable() {
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="w-[130px]">Status</TableHead>
-            <TableHead className="w-8">
+            <TableHead className="w-20">
               <span className="sr-only">PR</span>
             </TableHead>
             <TableHead>Name</TableHead>

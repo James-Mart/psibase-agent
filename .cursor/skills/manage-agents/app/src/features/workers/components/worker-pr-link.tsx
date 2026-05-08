@@ -1,4 +1,4 @@
-import { GitPullRequest } from "lucide-react";
+import { AlertCircle, CheckCircle2, GitPullRequest, MessageSquare } from "lucide-react";
 import type { PrInfo } from "@/lib/api/types";
 import { cn } from "@/lib/utils/cn";
 
@@ -14,6 +14,14 @@ const stateClass: Record<PrInfo["state"], string> = {
   closed: "[color:hsl(var(--destructive))]",
 };
 
+function buildTitle(pr: PrInfo): string {
+  const parts = [`PR ${pr.state}`];
+  if (pr.reviewDecision === "approved") parts.push("approved");
+  else if (pr.reviewDecision === "changes_requested") parts.push("changes requested");
+  if (pr.unresolvedThreads > 0) parts.push(`${pr.unresolvedThreads} unresolved`);
+  return parts.join(" · ");
+}
+
 export function WorkerPrLink({ pr, size = 16, className }: Props) {
   if (!pr) return null;
   return (
@@ -21,11 +29,23 @@ export function WorkerPrLink({ pr, size = 16, className }: Props) {
       href={pr.url}
       target="_blank"
       rel="noopener noreferrer"
-      title={`PR ${pr.state}`}
-      className={cn("inline-flex items-center", stateClass[pr.state], className)}
+      title={buildTitle(pr)}
+      className={cn("inline-flex items-center gap-1", stateClass[pr.state], className)}
       onClick={(e) => e.stopPropagation()}
     >
       <GitPullRequest size={size} />
+      {pr.reviewDecision === "approved" && (
+        <CheckCircle2 size={12} className="[color:hsl(var(--success))]" />
+      )}
+      {pr.reviewDecision === "changes_requested" && (
+        <AlertCircle size={12} className="[color:hsl(var(--warning))]" />
+      )}
+      {pr.unresolvedThreads > 0 && (
+        <span className="inline-flex items-center gap-px text-muted-foreground">
+          <MessageSquare size={12} />
+          <span className="text-xs">{pr.unresolvedThreads}</span>
+        </span>
+      )}
     </a>
   );
 }

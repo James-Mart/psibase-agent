@@ -2,9 +2,13 @@ export const DEFAULT_SOURCE_BRANCH = "origin/main";
 
 export type WorkerStatus = "active" | "blocked" | "inactive";
 
+export type ReviewDecision = "approved" | "changes_requested" | "review_required";
+
 export interface PrInfo {
   state: "open" | "closed" | "merged";
   url: string;
+  reviewDecision: ReviewDecision | null;
+  unresolvedThreads: number;
 }
 
 export interface WorkerInfo {
