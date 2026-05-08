@@ -11,6 +11,7 @@ import {
   deleteChainsForWorker,
   deleteBuildsForWorker,
   deleteWorker as deleteWorkerRow,
+  getChatAgentId,
   getNote,
   getSourceBranch,
   getStatus,
@@ -32,6 +33,7 @@ import {
   cancelChainIfRunning,
   getActiveChainPort,
 } from "./chains.js";
+import { getChatError, initWorkerChat } from "./chat.js";
 import type {
   CreateWorkerResult,
   DeleteWorkerResult,
@@ -90,6 +92,8 @@ export function listWorkers(): WorkerInfo[] {
     pr: prMap.get(mainBranch) ?? null,
     isMain: true,
     chainPort: getActiveChainPort(MAIN_WORKER_NAME),
+    chatAgentId: getChatAgentId(MAIN_WORKER_NAME),
+    chatError: getChatError(MAIN_WORKER_NAME),
   });
 
   if (existsSync(WORKTREES_DIR)) {
@@ -112,6 +116,8 @@ export function listWorkers(): WorkerInfo[] {
         status: getStatus(entry),
         pr: prMap.get(branch) ?? null,
         chainPort: getActiveChainPort(entry),
+        chatAgentId: getChatAgentId(entry),
+        chatError: getChatError(entry),
       });
     }
   }
@@ -198,6 +204,9 @@ export function startAgent(name: string): { pid: number | undefined } {
     stdio: "ignore",
   });
   child.unref();
+  void initWorkerChat(name, workerDir).catch((err) => {
+    console.error("chat init failed", name, err);
+  });
   return { pid: child.pid };
 }
 

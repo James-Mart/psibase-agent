@@ -17,6 +17,15 @@ export function getCurrentBranch(workerDir: string): string {
   }
 }
 
+export function getRemoteUrl(workerDir: string, remote = "origin"): string | null {
+  try {
+    const out = git(["-C", workerDir, "config", "--get", `remote.${remote}.url`]).trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
+
 export function getStatusPorcelain(workerDir: string): UnstagedFile[] {
   let out: string;
   try {

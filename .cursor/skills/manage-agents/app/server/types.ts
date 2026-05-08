@@ -1,4 +1,5 @@
 import type { WorkerStatus } from "./db.js";
+import type { ChatError } from "./services/chat.js";
 
 export type PrState = "open" | "closed" | "merged";
 export type ReviewDecision = "approved" | "changes_requested" | "review_required";
@@ -20,6 +21,8 @@ export interface WorkerInfo {
   pr: PrInfo | null;
   isMain?: boolean;
   chainPort: number | null;
+  chatAgentId: string | null;
+  chatError: ChatError | null;
 }
 
 export interface UnstagedFile {

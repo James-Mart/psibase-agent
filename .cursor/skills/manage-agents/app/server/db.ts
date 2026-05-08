@@ -19,9 +19,16 @@ db.exec(`
     note TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'active',
     source_branch TEXT NOT NULL DEFAULT 'origin/main',
-    chain_port INTEGER
+    chain_port INTEGER,
+    chat_agent_id TEXT
   )
 `);
+
+try {
+  db.exec(`ALTER TABLE workers ADD COLUMN chat_agent_id TEXT`);
+} catch {
+  // column already exists
+}
 
 
 db.exec(`
@@ -126,6 +133,10 @@ const stmts = {
   ),
   listAssignedChainPorts: db.prepare(
     "SELECT chain_port FROM workers WHERE chain_port IS NOT NULL",
+  ),
+  getChatAgentId: db.prepare("SELECT chat_agent_id FROM workers WHERE name = ?"),
+  upsertChatAgentId: db.prepare(
+    "INSERT INTO workers (name, chat_agent_id) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET chat_agent_id = excluded.chat_agent_id",
   ),
   insertChain: db.prepare(
     "INSERT INTO chains (worker_name, port, launch_pid, launch_started_at) VALUES (?, ?, ?, ?)",
@@ -282,6 +293,15 @@ export function upsertChainPort(name: string, port: number): void {
 export function listAssignedChainPorts(): number[] {
   const rows = stmts.listAssignedChainPorts.all() as { chain_port: number }[];
   return rows.map((r) => r.chain_port);
+}
+
+export function getChatAgentId(name: string): string | null {
+  const row = stmts.getChatAgentId.get(name) as { chat_agent_id: string | null } | undefined;
+  return row?.chat_agent_id ?? null;
+}
+
+export function upsertChatAgentId(name: string, agentId: string): void {
+  stmts.upsertChatAgentId.run(name, agentId);
 }
 
 // --- Chain run helpers ---

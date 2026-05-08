@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkerDetailsQuery, useWorkersQuery, useWorktreeDiskSizeQuery } from "../api/queries";
 import { useWorkerUiStore } from "../store/use-worker-ui-store";
 import { FileTree } from "./file-tree/file-tree";
+import { WorkerChatSection } from "./worker-chat-section";
 import { WorkerDetailFailed } from "./worker-detail-failed";
 import { WorkerDetailHeader } from "./worker-detail-header";
 import { WorkerNoteEditor } from "./worker-note-editor";
@@ -91,6 +92,11 @@ export function WorkerDetailPane() {
           )}
         </span>
       </div>
+
+      <WorkerChatSection
+        agentId={selectedWorker.chatAgentId}
+        error={selectedWorker.chatError}
+      />
 
       <WorkerToolsTabs name={selectedName} />
 

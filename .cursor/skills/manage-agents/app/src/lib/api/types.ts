@@ -11,6 +11,10 @@ export interface PrInfo {
   unresolvedThreads: number;
 }
 
+export type ChatError =
+  | { kind: "missing_api_key" }
+  | { kind: "sdk"; message: string };
+
 export interface WorkerInfo {
   name: string;
   path: string;
@@ -21,6 +25,8 @@ export interface WorkerInfo {
   pr: PrInfo | null;
   isMain?: boolean;
   chainPort: number | null;
+  chatAgentId: string | null;
+  chatError: ChatError | null;
 }
 
 export interface FileEntry {
