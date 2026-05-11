@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+snapshot="review-snapshot-$branch"
+
+if ! git show-ref --verify --quiet "refs/heads/$snapshot"; then
+    echo "MISSING $snapshot" >&2
+    exit 1
+fi
+
+git checkout --quiet "$snapshot"
+
+if ! git merge --quiet -X theirs --no-edit -m "REFRESH SNAPSHOT" "$branch"; then
+    git merge --abort
+    git checkout --quiet "$branch"
+    echo "CONFLICT" >&2
+    exit 1
+fi
+
+git checkout --quiet "$branch"
+
+echo "REFRESHED $snapshot"

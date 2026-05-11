@@ -1,0 +1,9 @@
+{
+  "name": "self-code-review",
+  "version": "0.1.0",
+  "description": "Stage a working tree as a series of compileable, semantically-grouped commits via a temporary snapshot branch and a panel of specialized subagents.",
+  "author": {
+    "name": "James Mart"
+  },
+  "keywords": ["git", "review", "commits", "workflow"]
+}
