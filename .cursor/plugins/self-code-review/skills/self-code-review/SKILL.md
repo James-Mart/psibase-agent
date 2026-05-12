@@ -1,6 +1,7 @@
 ---
 name: self-code-review
 description: Stage a large working tree as a sequence of compileable, semantically-grouped commits using a temporary snapshot branch. The user reviews each candidate as unstaged changes in their editor, runs the build between commits, and approves before committing. Delegates context-heavy reasoning to specialist subagents. Use only when manually prompted.
+disable-model-invocation: true
 ---
 
 # Self Code Review
@@ -9,7 +10,7 @@ Slice the working tree into a sequence of small, semantically-coherent commits. 
 
 ## Hard rules
 
-- **Never push.** Commit locally only.
+- **Never push.** Commit locally only. This applies to spin-off branches too.
 - **One `git commit` per approval.** Do not chain commits across a single response.
 - **Every intermediate commit must compile.** The full snapshot is assumed to compile, so any build failure means the current candidate is missing related hunks from the snapshot — never that the plan needs revising.
 - **The agent never runs the build.** Always ask the user to run their build/check and report.
@@ -18,7 +19,7 @@ Slice the working tree into a sequence of small, semantically-coherent commits. 
 
 ## Scripts
 
-The plugin ships four bash scripts under `.cursor/plugins/self-code-review/scripts/` that handle every git operation in this workflow. The agent invokes them; it does not run raw git plumbing for snapshot lifecycle or patch application.
+This skill ships five bash scripts under `scripts/` (relative to this skill's directory) that handle every git operation in the workflow. The agent invokes them; it does not run raw git plumbing for snapshot lifecycle or patch application.
 
 | Script | Purpose | Output (stdout on success / stderr on failure) |
 | --- | --- | --- |
@@ -26,8 +27,9 @@ The plugin ships four bash scripts under `.cursor/plugins/self-code-review/scrip
 | `apply-batch <patch>` | Apply a unified diff produced by a picker subagent. | `APPLIED\n<paths>` / `OUT_OF_SCOPE` / `REJECTED` / `MISSING_PATCH` / `MISSING <snapshot>` |
 | `snapshot-refresh` | Fold latest HEAD into the snapshot after a commit. | `REFRESHED <snapshot>` / `CONFLICT` / `MISSING <snapshot>` |
 | `snapshot-finalize` | Verify the snapshot has been fully consumed and delete it. | `DELETED <snapshot>` / `NONEMPTY <snapshot>` (followed by the diff) / `MISSING <snapshot>` |
+| `spinoff <source> <new-branch> <subject>` | Move the current batch onto a fresh branch off `<source>` instead of committing it on this branch; exclude it from the snapshot. | `SPUNOFF <new-branch> <sha>` / `MISSING <snapshot>` / `BAD_SOURCE <source>` / `BRANCH_EXISTS <new-branch>` / `EMPTY_BATCH` / `APPLY_CONFLICT` / `COMMIT_FAILED` / `SNAPSHOT_UPDATE_FAILED` |
 
-Always invoke them as `bash .cursor/plugins/self-code-review/scripts/<script>` from the workspace root. Scripts derive the branch / snapshot names themselves; only `apply-batch` takes an argument.
+Always invoke them as `bash scripts/<script>` (paths are resolved relative to this skill's root). Scripts derive the branch / snapshot names themselves; only `apply-batch` takes an argument.
 
 ## Workflow
 
@@ -38,14 +40,16 @@ Run `git status --short --untracked-files=all` to confirm there is work to revie
 Then:
 
 ```bash
-bash .cursor/plugins/self-code-review/scripts/snapshot-init
+bash scripts/snapshot-init
 ```
 
 - `NEW <snapshot>`: a fresh snapshot was created; the working tree is now clean and `<snapshot>` holds all the pending work as a single commit. Continue.
 - `RESUMED <snapshot>`: the snapshot already existed from a prior interrupted run; the snapshot is the source of truth for remaining work, and any current working-tree changes are the in-progress batch from before. Continue from step 3 with whichever theme that batch was on.
 - `CLEAN`: nothing to review. Stop.
 
-### 2. Plan themes (delegate to `self-review-surveyor`)
+### 2. Plan themes
+
+#### 2a. Survey (delegate to `self-review-surveyor`)
 
 Launch the `self-review-surveyor` subagent via the Task tool. Pass it:
 
@@ -54,9 +58,25 @@ Launch the `self-review-surveyor` subagent via the Task tool. Pass it:
 
 The main agent only retains the returned theme list, not the raw diff.
 
-Show the theme list to the user as context (no approval required at this stage; per-commit approval is the only gate).
+Show the theme list to the user, then proceed to step 2b to discuss it before any hunks are picked.
+
+#### 2b. Discuss the plan with the user
+
+Present the current theme list and ask the user how they'd like to adjust it before any hunks are picked. Loop on feedback until the user explicitly approves the plan; the approved order is what step 3 iterates through.
+
+Supported edits (agent applies them in-context, without re-dispatching the surveyor):
+
+- **Reorder**: move themes within the upstream-to-downstream constraint. Flag if the requested order would violate it.
+- **Merge**: combine two themes into one (the merged theme will pull all hunks from both originals when the picker runs).
+- **Split**: divide one theme into two; the user describes the split criterion.
+- **Drop**: remove a theme entirely. The hunks for a dropped theme stay in the snapshot and surface at step 4 as a non-empty diff for the user to decide what to do with.
+- **Add**: the user describes a theme the surveyor missed; agent appends it.
+
+If the user wants to verify scope ("what files does theme 3 actually touch?"), do **not** read the diff yourself — keep diffs out of main context. Offer to re-dispatch `self-review-surveyor` for a fresh pass, or proceed and let the hunk-picker reveal the scope batch-by-batch.
 
 ### 3. For each theme, in upstream-to-downstream order
+
+Between any two batches the user may say "revise the plan" — loop back to step 2b with the remaining (un-committed) themes. Already-committed themes stay committed; only the order/grouping of what's left changes.
 
 #### 3a. Pick hunks (delegate to `self-review-hunk-picker`)
 
@@ -69,7 +89,7 @@ It returns one of:
   ```bash
   patch_file=$(mktemp --suffix=.patch)
   # write the patch body into "$patch_file"
-  bash .cursor/plugins/self-code-review/scripts/apply-batch "$patch_file"
+  bash scripts/apply-batch "$patch_file"
   ```
 
   Outcomes:
@@ -125,12 +145,33 @@ Run `git commit` exactly once per approval. If a commit hook fails, stop and ask
 
 If the user changes the message, use their message verbatim.
 
+The user may instead choose to **spin this batch off onto a separate branch** (see step 3e′ below) rather than committing it on the current branch.
+
+#### 3e′. Spin off the batch (optional alternative to 3e)
+
+If the user wants this batch to live on a separate branch (so it can be PR'd independently from the rest of the in-flight work), do this instead of committing on the current branch.
+
+1. Ask the user for the source branch to fork from. Suggest `origin/main`.
+2. Ask for the new branch name. Suggest `spinoff/<sluggified-theme>` as a default.
+3. Use the `self-review-message-writer`'s draft as the commit subject; allow user override (same as regular 3e).
+4. Run:
+
+   ```bash
+   bash scripts/spinoff <source> <new-branch> "<subject>"
+   ```
+
+5. Handle outcomes:
+   - `SPUNOFF <new-branch> <sha>` → tell the user the new branch exists locally at that sha; remind them nothing was pushed (consistent with the never-push rule); the snapshot has been updated to exclude this batch; loop to step 3a for the next theme.
+   - `APPLY_CONFLICT` → the batch couldn't apply cleanly to `<source>` (likely because `<source>` has diverged from your branch in the touched regions). Working tree and original branch are restored. Offer the user: commit on the current branch instead (resume normal 3e), or retry with a different source branch.
+   - `SNAPSHOT_UPDATE_FAILED` → the spin-off succeeded (branch + commit exist) but the snapshot was not updated. Surface the script's recovery hint to the user and ask how to proceed; do not loop until resolved.
+   - `BRANCH_EXISTS` / `BAD_SOURCE` / `EMPTY_BATCH` / `COMMIT_FAILED` → relay the error and ask for corrected inputs.
+
 #### 3f. Refresh the snapshot
 
 Fold any in-flight edits the user made during step 3b back into the snapshot, so future batches see HEAD as their starting point:
 
 ```bash
-bash .cursor/plugins/self-code-review/scripts/snapshot-refresh
+bash scripts/snapshot-refresh
 ```
 
 - `REFRESHED <snapshot>` → loop to the next theme (back to step 3a).
@@ -141,7 +182,7 @@ bash .cursor/plugins/self-code-review/scripts/snapshot-refresh
 After all themes are committed and the snapshot has been refreshed for the last commit:
 
 ```bash
-bash .cursor/plugins/self-code-review/scripts/snapshot-finalize
+bash scripts/snapshot-finalize
 ```
 
 - `DELETED <snapshot>` → output the final summary (template below).

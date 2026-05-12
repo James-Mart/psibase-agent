@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -ne 3 ]; then
+    echo "usage: spinoff <source-branch> <new-branch> <commit-subject>" >&2
+    exit 2
+fi
+
+source=$1
+new_branch=$2
+subject=$3
+
+cd "$(git rev-parse --show-toplevel)"
+
+original=$(git rev-parse --abbrev-ref HEAD)
+snapshot="review-snapshot-$original"
+
+if ! git show-ref --verify --quiet "refs/heads/$snapshot"; then
+    echo "MISSING $snapshot" >&2
+    exit 1
+fi
+
+if ! git rev-parse --verify --quiet "$source^{commit}" >/dev/null 2>&1; then
+    echo "BAD_SOURCE $source" >&2
+    exit 1
+fi
+
+if git show-ref --verify --quiet "refs/heads/$new_branch"; then
+    echo "BRANCH_EXISTS $new_branch" >&2
+    exit 1
+fi
+
+if [ -z "$(git status --porcelain --untracked-files=all)" ]; then
+    echo "EMPTY_BATCH" >&2
+    exit 1
+fi
+
+git stash push --include-untracked --quiet --message "self-review-spinoff" \
+    || { echo "STASH_FAILED" >&2; exit 1; }
+stash_ref=$(git rev-parse "stash@{0}")
+
+restore_to_original() {
+    git checkout --quiet "$original" 2>/dev/null || true
+    git stash pop --quiet "$stash_ref" 2>/dev/null || true
+}
+
+if ! git checkout --quiet -B "$new_branch" "$source"; then
+    restore_to_original
+    echo "CHECKOUT_FAILED $source" >&2
+    exit 1
+fi
+
+if ! git stash apply --quiet "$stash_ref" 2>/dev/null; then
+    git checkout --quiet -- . 2>/dev/null || true
+    git checkout --quiet "$original" 2>/dev/null || true
+    git branch -D "$new_branch" --quiet 2>/dev/null || true
+    git stash pop --quiet "$stash_ref" 2>/dev/null || true
+    echo "APPLY_CONFLICT" >&2
+    exit 1
+fi
+
+git add -A
+if ! git commit --quiet -m "$subject"; then
+    git reset --hard --quiet "$source"
+    git checkout --quiet "$original"
+    git branch -D "$new_branch" --quiet
+    git stash pop --quiet "$stash_ref" 2>/dev/null || true
+    echo "COMMIT_FAILED" >&2
+    exit 1
+fi
+
+new_sha=$(git rev-parse HEAD)
+
+git checkout --quiet "$original"
+
+git checkout --quiet "$snapshot"
+patch_text=$(git stash show -p "$stash_ref" 2>/dev/null || true)
+if [ -z "$patch_text" ] || ! echo "$patch_text" | git apply -R --check 2>/dev/null; then
+    git checkout --quiet "$original"
+    {
+        echo "SNAPSHOT_UPDATE_FAILED"
+        echo "Spin-off branch $new_branch was created at $new_sha."
+        echo "Snapshot $snapshot was NOT updated; spun-off hunks may re-appear in future themes."
+        echo "Manual recovery options:"
+        echo "  1. Keep the new branch and drop those hunks if re-offered, OR"
+        echo "  2. git branch -D $new_branch && git stash pop $stash_ref   # then retry"
+    } >&2
+    exit 1
+fi
+
+echo "$patch_text" | git apply -R
+git add -A
+git commit --quiet -m "EXCLUDE spun-off batch ($new_branch)"
+
+git checkout --quiet "$original"
+git stash drop --quiet "$stash_ref"
+
+echo "SPUNOFF $new_branch $new_sha"

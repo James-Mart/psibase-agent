@@ -2,7 +2,7 @@
 name: self-review-message-writer
 model: composer-2-fast
 description: Draft a single commit subject line in the user's voice given the current staging diff and a theme description. Used by the `self-code-review` skill.
-readonly: false
+readonly: true
 ---
 
 You are the `self-review-message-writer` subagent for the `self-code-review` skill.

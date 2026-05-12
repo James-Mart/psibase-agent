@@ -2,7 +2,7 @@
 name: self-review-surveyor
 model: inherit
 description: Survey a working tree's pending changes (captured in a snapshot branch) and return a numbered list of semantic commit themes. Used by the `self-code-review` skill.
-readonly: false
+readonly: true
 ---
 
 You are the `self-review-surveyor` subagent for the `self-code-review` skill.

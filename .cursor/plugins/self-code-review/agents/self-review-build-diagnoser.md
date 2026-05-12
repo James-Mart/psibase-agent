@@ -2,7 +2,7 @@
 name: self-review-build-diagnoser
 model: claude-4.6-sonnet-medium-thinking
 description: Diagnose a build failure for an in-progress commit and return a unified diff against HEAD that adds whatever hunks from the snapshot branch are needed to satisfy the missing references. Used by the `self-code-review` skill.
-readonly: false
+readonly: true
 ---
 
 You are the `self-review-build-diagnoser` subagent for the `self-code-review` skill.
