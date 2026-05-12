@@ -1,0 +1,9 @@
+{
+  "name": "psi-package-security-audit",
+  "version": "0.1.0",
+  "description": "Generate an auth/security audit report for a psibase package: plugin trust levels, service action restrictions, and query-service auth.",
+  "author": {
+    "name": "James Mart"
+  },
+  "keywords": ["psibase", "audit", "security", "auth"]
+}
