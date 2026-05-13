@@ -5,7 +5,7 @@ description: Generates an auth/security audit report for a psibase package by de
 
 # Package security audit
 
-Delegate the audit to the `auth-auditor` subagent. The subagent reads the package's plugin, service, and query-service sources and writes `psi-package-security-audit.md` at the workspace root.
+Delegate the audit to the `auth-auditor` subagent. The subagent reads the package's plugin, service, and query-service sources and writes `/tmp/psi-package-security-audit.md`.
 
 ## Steps
 
@@ -14,11 +14,11 @@ Delegate the audit to the `auth-auditor` subagent. The subagent reads the packag
 2. Launch the `auth-auditor` subagent via the Task tool:
    - `subagent_type`: `auth-auditor`
    - `description`: short title (e.g. `"Security audit: <Package>"`)
-   - `prompt`: a self-contained instruction telling the subagent to audit the named package and write `psi-package-security-audit.md` at the workspace root. Pass `Package: <name-or-path>`.
+   - `prompt`: a self-contained instruction telling the subagent to audit the named package and write `/tmp/psi-package-security-audit.md`. Pass `Package: <name-or-path>`.
 
-3. When the subagent finishes, briefly summarize the result and point the user at `psi-package-security-audit.md`.
+3. When the subagent finishes, briefly summarize the result and point the user at `/tmp/psi-package-security-audit.md`.
 
 ## Notes
 
 - Audit-only. The subagent does not edit package source files; it only writes the report.
-- If the user already has a `psi-package-security-audit.md`, mention that it will be overwritten.
+- If `/tmp/psi-package-security-audit.md` already exists, mention that it will be overwritten.

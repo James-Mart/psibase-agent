@@ -1,9 +1,9 @@
 # psi-package-security-audit
 
-Cursor plugin that audits a psibase package's auth/security surface and writes a structured report to `psi-package-security-audit.md` at the workspace root. Covers:
+Cursor plugin that audits a psibase package's auth/security surface and writes a structured report to `/tmp/psi-package-security-audit.md`. Covers:
 
 - Plugin functions: trust level and whitelist for each exported function.
-- Service actions: caller restriction (e.g. `check_is_sender`, `check_fractal_auth!`, ad-hoc sender checks, or unrestricted) for each action, in both Rust and C++ services.
+- Service actions: caller restriction (e.g. `check_is_sender`, dynamic `<account>::isAuthSys` delegation, ad-hoc sender checks, or unrestricted) for each action, in both Rust and C++ services.
 - Query (rpc) service: per-resolver auth check and `serveSys` caller restriction.
 
 ## Install
