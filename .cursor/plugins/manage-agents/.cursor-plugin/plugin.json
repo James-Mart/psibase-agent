@@ -1,0 +1,9 @@
+{
+  "name": "manage-agents",
+  "version": "0.2.0",
+  "description": "Web UI for managing agent worktrees and workers, plus a Review History Synthesis capability that turns the diff between two refs into a clean reviewable commit history via Cursor SDK subagents.",
+  "author": {
+    "name": "James Mart"
+  },
+  "keywords": ["agents", "worktrees", "review", "history", "git"]
+}

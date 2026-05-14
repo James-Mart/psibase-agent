@@ -1,0 +1,91 @@
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useRhsRunStream } from "../hooks/use-rhs-run-stream";
+import type { RhsRunEvent } from "../types";
+
+interface Props {
+  workerName: string;
+  sessionId: string;
+}
+
+interface StreamLine {
+  ts: number;
+  text: string;
+}
+
+export function AgentRunStream({ workerName, sessionId }: Props) {
+  const [open, setOpen] = useState(false);
+  const [lines, setLines] = useState<StreamLine[]>([]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useRhsRunStream(sessionId, workerName, (event) => {
+    setLines((prev) => prev.concat(formatEvent(event)).slice(-300));
+  });
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [lines]);
+
+  return (
+    <div className="rounded-md border bg-card text-xs">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between p-2 text-left"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex items-center gap-2 font-medium">
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          Agent run stream
+        </span>
+      </button>
+      {open && (
+        <div
+          ref={scrollRef}
+          className="max-h-64 overflow-auto border-t bg-background p-2 font-mono text-[11px]"
+        >
+          {lines.length === 0 ? (
+            <p className="text-muted-foreground">(no events yet)</p>
+          ) : (
+            lines.map((line, idx) => (
+              <div key={idx} className="whitespace-pre-wrap break-all">
+                {line.text}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatEvent(event: RhsRunEvent): StreamLine {
+  const ts = Date.now();
+  const tag = `#${event.runId}@${event.targetNodeId.slice(0, 8)}`;
+  if (event.type === "sdk_message") {
+    const msg = event.payload as
+      | { type?: string; message?: { content?: Array<{ type: string; text?: string }> } }
+      | undefined;
+    if (msg?.type === "assistant" && msg.message?.content) {
+      const text = msg.message.content
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("");
+      return { ts, text: `[${tag} assistant] ${text}` };
+    }
+    if (msg?.type === "tool_call") {
+      const tc = event.payload as { name?: string; status?: string };
+      return { ts, text: `[${tag} tool ${tc.status ?? ""}] ${tc.name ?? ""}` };
+    }
+    return { ts, text: `[${tag} ${msg?.type ?? "msg"}]` };
+  }
+  if (event.type === "loop_progress") {
+    return { ts, text: `[${tag} loop] ${JSON.stringify(event.payload ?? {})}` };
+  }
+  return { ts, text: `[${tag} ${event.type}] ${JSON.stringify(event.payload ?? {})}` };
+}
