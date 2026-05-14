@@ -70,7 +70,7 @@ export function WorkerDetailPane() {
   const details = detailsQuery.data;
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div className="shrink-0 space-y-2">
         <WorkerDetailHeader worker={selectedWorker} busy={busy} pr={details.pr} />
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">

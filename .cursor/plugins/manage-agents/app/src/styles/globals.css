@@ -84,3 +84,45 @@
       "Helvetica Neue", sans-serif;
   }
 }
+
+.diff-viewer {
+  --diff-background-color: hsl(var(--card));
+  --diff-text-color: hsl(var(--foreground));
+  --diff-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  --diff-selection-background-color: hsl(var(--primary) / 0.35);
+  --diff-selection-text-color: hsl(var(--foreground));
+  --diff-gutter-insert-background-color: hsl(142 71% 35% / 0.25);
+  --diff-gutter-insert-text-color: hsl(var(--foreground));
+  --diff-gutter-delete-background-color: hsl(0 72% 45% / 0.25);
+  --diff-gutter-delete-text-color: hsl(var(--foreground));
+  --diff-gutter-selected-background-color: hsl(38 92% 50% / 0.25);
+  --diff-gutter-selected-text-color: hsl(var(--foreground));
+  --diff-code-insert-background-color: hsl(142 71% 35% / 0.12);
+  --diff-code-insert-text-color: hsl(var(--foreground));
+  --diff-code-delete-background-color: hsl(0 72% 45% / 0.12);
+  --diff-code-delete-text-color: hsl(var(--foreground));
+  --diff-code-insert-edit-background-color: hsl(142 71% 35% / 0.45);
+  --diff-code-insert-edit-text-color: hsl(var(--foreground));
+  --diff-code-delete-edit-background-color: hsl(0 72% 45% / 0.45);
+  --diff-code-delete-edit-text-color: hsl(var(--foreground));
+  --diff-code-selected-background-color: hsl(38 92% 50% / 0.18);
+  --diff-code-selected-text-color: hsl(var(--foreground));
+  --diff-omit-gutter-line-color: hsl(var(--muted-foreground));
+}
+
+.diff-viewer .diff,
+.diff-viewer .diff-line,
+.diff-viewer .diff-code {
+  font-size: 12px;
+}
+
+.diff-viewer .diff-code {
+  white-space: pre;
+  word-wrap: normal;
+  word-break: normal;
+}
+
+.diff-viewer .diff-gutter {
+  color: hsl(var(--muted-foreground));
+}

@@ -104,7 +104,7 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
     return (
       <div className="space-y-3">
         <ApiKeyBanner />
-        <SessionPreparingCard workerName={name} session={session} />
+        <SessionPreparingCard session={session} />
       </div>
     );
   }
@@ -123,7 +123,7 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <ApiKeyBanner />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
@@ -171,13 +171,13 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
       <Tabs
         value={innerTab}
         onValueChange={(v) => setInnerTab(v as "diff" | "refine")}
-        className="flex flex-1 min-h-0 flex-col"
+        className="flex flex-col"
       >
         <TabsList className="self-start">
           <TabsTrigger value="diff">Diff</TabsTrigger>
           <TabsTrigger value="refine">Refine</TabsTrigger>
         </TabsList>
-        <TabsContent value="diff" className="flex-1 min-h-0 overflow-auto">
+        <TabsContent value="diff">
           {!selectedNode ? (
             <p className="text-xs text-muted-foreground">Select a node.</p>
           ) : !selectedNode.parentNodeId ? (
@@ -194,7 +194,7 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
             <DiffViewer diff={diffQuery.data!.diff} />
           )}
         </TabsContent>
-        <TabsContent value="refine" className="flex-1 min-h-0 overflow-auto">
+        <TabsContent value="refine">
           {!selectedNode ? (
             <p className="text-xs text-muted-foreground">Select a node.</p>
           ) : (

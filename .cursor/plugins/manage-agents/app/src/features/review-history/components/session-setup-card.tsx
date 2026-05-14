@@ -30,13 +30,6 @@ export function SessionSetupCard({
         create.mutate({ baseRef: baseRef.trim(), sourceRef: sourceRef.trim() });
       }}
     >
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Start a review-history session</p>
-        <p className="text-xs text-muted-foreground">
-          Locked to branch <code className="rounded bg-muted px-1">{currentBranch}</code>{" "}
-          on this worker.
-        </p>
-      </div>
       <div className="grid gap-2">
         <Label htmlFor="rhs-baseRef" className="text-xs">
           Base ref

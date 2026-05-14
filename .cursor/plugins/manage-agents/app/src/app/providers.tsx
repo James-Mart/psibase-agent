@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ErrorBoundary } from "react-error-boundary";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,7 +22,6 @@ export function Providers({ children }: Props) {
       </TooltipProvider>
       <BuildNotifier />
       <Toaster theme="dark" richColors position="top-right" />
-      {import.meta.env.DEV && <ReactQueryDevtools buttonPosition="bottom-left" />}
     </QueryClientProvider>
   );
 }

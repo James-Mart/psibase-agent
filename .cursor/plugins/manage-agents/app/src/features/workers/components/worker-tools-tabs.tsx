@@ -11,28 +11,28 @@ interface Props {
 
 export function WorkerToolsTabs({ name }: Props) {
   return (
-    <Tabs defaultValue="note" className="flex flex-1 min-h-0 flex-col">
+    <Tabs defaultValue="note" className="flex flex-col">
       <TabsList className="self-start">
+        <TabsTrigger value="note">Note</TabsTrigger>
+        <TabsTrigger value="diff">Diff</TabsTrigger>
         <TabsTrigger value="build">Build</TabsTrigger>
         <TabsTrigger value="chain">Chain</TabsTrigger>
         <TabsTrigger value="commit-review">Commit Review</TabsTrigger>
-        <TabsTrigger value="diff">Diff</TabsTrigger>
-        <TabsTrigger value="note">Note</TabsTrigger>
       </TabsList>
-      <TabsContent value="build" className="flex-1 min-h-0 overflow-auto">
-        <WorkerBuildTab name={name} />
+      <TabsContent value="note">
+        <WorkerNoteTab name={name} />
       </TabsContent>
-      <TabsContent value="chain" className="flex-1 min-h-0 overflow-auto">
-        <WorkerChainTab name={name} />
-      </TabsContent>
-      <TabsContent value="commit-review" className="flex-1 min-h-0 overflow-auto">
-        <ReviewHistoryPanel name={name} />
-      </TabsContent>
-      <TabsContent value="diff" className="flex-1 min-h-0 overflow-auto">
+      <TabsContent value="diff">
         <WorkerDiffTab name={name} />
       </TabsContent>
-      <TabsContent value="note" className="flex-1 min-h-0 overflow-auto">
-        <WorkerNoteTab name={name} />
+      <TabsContent value="build">
+        <WorkerBuildTab name={name} />
+      </TabsContent>
+      <TabsContent value="chain">
+        <WorkerChainTab name={name} />
+      </TabsContent>
+      <TabsContent value="commit-review">
+        <ReviewHistoryPanel name={name} />
       </TabsContent>
     </Tabs>
   );

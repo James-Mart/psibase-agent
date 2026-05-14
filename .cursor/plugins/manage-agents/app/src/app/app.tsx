@@ -10,9 +10,9 @@ export function App() {
     <SidebarProvider>
       <WorkerSidebar />
       <SidebarInset>
-        <div className="flex h-svh w-full flex-col gap-4 px-6 py-6">
+        <div className="flex min-h-svh w-full flex-col gap-4 px-6 py-6">
           <ApiErrorBanner />
-          <div className="flex-1 min-h-0">
+          <div className="flex-1">
             <WorkerDetailPane />
           </div>
         </div>
