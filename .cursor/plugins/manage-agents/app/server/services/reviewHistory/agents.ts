@@ -33,6 +33,29 @@ import {
 } from "./sessions.js";
 import { unifiedDiff } from "./git.js";
 
+export type RhsRunPhase =
+  | "queued"
+  | "spawning_agent"
+  | "agent_ready"
+  | "sending_prompt"
+  | "awaiting_first_message"
+  | "streaming"
+  | "tool_running"
+  | "tool_done"
+  | "thinking"
+  | "finalizing"
+  | "finished"
+  | "error"
+  | "cancelled";
+
+export interface RhsRunPhasePayload {
+  phase: RhsRunPhase;
+  label: string;
+  elapsedMs: number;
+  phaseMs?: number;
+  detail?: string;
+}
+
 export interface RhsRunEvent {
   runId: number;
   sessionId: string;
@@ -45,7 +68,8 @@ export interface RhsRunEvent {
     | "finished"
     | "error"
     | "cancelled"
-    | "loop_progress";
+    | "loop_progress"
+    | "phase";
   payload?: unknown;
 }
 
@@ -58,6 +82,66 @@ interface ActiveRun {
 }
 
 const activeRuns = new Map<number, ActiveRun>();
+
+interface PhaseTracker {
+  mark(
+    phase: RhsRunPhase,
+    label: string,
+    detail?: string,
+    eventPhaseMsOverride?: number,
+  ): void;
+  summary(): void;
+  lastPhase(): RhsRunPhase | null;
+}
+
+const activePhaseTrackers = new Map<number, PhaseTracker>();
+
+function createPhaseTracker(
+  runId: number,
+  sessionId: string,
+  targetNodeId: string,
+  kind: RhsRunKind,
+): PhaseTracker {
+  const startNs = process.hrtime.bigint();
+  let prevNs = startNs;
+  let lastPhase: RhsRunPhase | null = null;
+  const breakdown: Record<string, number> = {};
+  return {
+    mark(phase, label, detail, eventPhaseMsOverride) {
+      const nowNs = process.hrtime.bigint();
+      const elapsedMs = Number(nowNs - startNs) / 1_000_000;
+      const actualPhaseMs = Number(nowNs - prevNs) / 1_000_000;
+      prevNs = nowNs;
+      const prev = lastPhase;
+      lastPhase = phase;
+      if (prev) breakdown[prev] = (breakdown[prev] ?? 0) + actualPhaseMs;
+      const reportedPhaseMs = Math.round(eventPhaseMsOverride ?? actualPhaseMs);
+      const payload: RhsRunPhasePayload = {
+        phase,
+        label,
+        elapsedMs: Math.round(elapsedMs),
+        phaseMs: reportedPhaseMs,
+        ...(detail ? { detail } : {}),
+      };
+      console.log(
+        `[rhs-run] runId=${runId} kind=${kind} phase=${phase} elapsedMs=${payload.elapsedMs} phaseMs=${reportedPhaseMs}${detail ? ` detail=${detail}` : ""}`,
+      );
+      emit({ runId, sessionId, targetNodeId, kind, type: "phase", payload });
+    },
+    summary() {
+      const totalMs = Math.round(Number(process.hrtime.bigint() - startNs) / 1_000_000);
+      const rounded = Object.fromEntries(
+        Object.entries(breakdown).map(([k, v]) => [k, Math.round(v)]),
+      );
+      console.log(
+        `[rhs-run-summary] runId=${runId} kind=${kind} totalMs=${totalMs} breakdown=${JSON.stringify(rounded)}`,
+      );
+    },
+    lastPhase() {
+      return lastPhase;
+    },
+  };
+}
 
 export function isApiKeyConfigured(): boolean {
   return Boolean(process.env.CURSOR_API_KEY && process.env.CURSOR_API_KEY.trim());
@@ -129,8 +213,17 @@ async function executeRun(
     kind: input.kind,
     type: "started",
   });
+  const tracker = createPhaseTracker(
+    runId,
+    input.sessionId,
+    input.targetNodeId,
+    input.kind,
+  );
+  activePhaseTrackers.set(runId, tracker);
+  tracker.mark("queued", "Queued");
   const collectedText: string[] = [];
   try {
+    tracker.mark("spawning_agent", "Spawning agent");
     agent = await Agent.create({
       apiKey,
       model: { id: session.modelId },
@@ -139,12 +232,22 @@ async function executeRun(
         settingSources: ["plugins"],
       },
     });
+    tracker.mark("agent_ready", "Agent ready");
+    tracker.mark("sending_prompt", "Sending prompt");
     run = await agent.send(prompt);
     activeRuns.set(runId, { agent, run });
+    tracker.mark("awaiting_first_message", "Awaiting first message");
 
+    const toolStartNs = new Map<string, bigint>();
+    let firstMessageSeen = false;
     const streamPromise = (async () => {
       for await (const message of run!.stream()) {
+        if (!firstMessageSeen) {
+          firstMessageSeen = true;
+          tracker.mark("streaming", "Streaming");
+        }
         captureAssistantText(message, collectedText);
+        applyMessageToTracker(tracker, message, toolStartNs);
         emit({
           runId,
           sessionId: input.sessionId,
@@ -158,6 +261,7 @@ async function executeRun(
 
     const result = await run.wait();
     await streamPromise;
+    tracker.mark("finalizing", "Finalizing");
 
     const finalText = collectedText.join("\n").trim();
     const parsed = parseResult(input.kind, finalText, result.result);
@@ -170,6 +274,8 @@ async function executeRun(
       type: "finished",
       payload: parsed,
     });
+    tracker.mark("finished", "Finished");
+    tracker.summary();
     return getRhsRun(runId)!;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -182,13 +288,49 @@ async function executeRun(
       type: "error",
       payload: { error: message },
     });
+    tracker.mark("error", "Error", message.slice(0, 200));
+    tracker.summary();
     return getRhsRun(runId)!;
   } finally {
     activeRuns.delete(runId);
+    activePhaseTrackers.delete(runId);
     if (agent) {
       try {
         await agent.close();
       } catch {}
+    }
+  }
+}
+
+function applyMessageToTracker(
+  tracker: PhaseTracker,
+  message: SDKMessage,
+  toolStartNs: Map<string, bigint>,
+): void {
+  if (message.type === "tool_call") {
+    if (message.status === "running") {
+      toolStartNs.set(message.call_id, process.hrtime.bigint());
+      tracker.mark("tool_running", `Tool: ${message.name}`, message.call_id);
+      return;
+    }
+    if (message.status === "completed" || message.status === "error") {
+      const startedAt = toolStartNs.get(message.call_id);
+      const overrideMs = startedAt
+        ? Number(process.hrtime.bigint() - startedAt) / 1_000_000
+        : undefined;
+      toolStartNs.delete(message.call_id);
+      tracker.mark(
+        "tool_done",
+        `Tool: ${message.name} (${message.status})`,
+        message.call_id,
+        overrideMs,
+      );
+    }
+    return;
+  }
+  if (message.type === "thinking") {
+    if (tracker.lastPhase() !== "thinking") {
+      tracker.mark("thinking", "Thinking");
     }
   }
 }
@@ -207,6 +349,11 @@ export async function cancelRun(runId: number): Promise<void> {
         kind: row.kind,
         type: "cancelled",
       });
+      const tracker = activePhaseTrackers.get(runId);
+      if (tracker) {
+        tracker.mark("cancelled", "Cancelled");
+        tracker.summary();
+      }
     }
     return;
   }
@@ -223,6 +370,11 @@ export async function cancelRun(runId: number): Promise<void> {
     kind: row.kind,
     type: "cancelled",
   });
+  const tracker = activePhaseTrackers.get(runId);
+  if (tracker) {
+    tracker.mark("cancelled", "Cancelled");
+    tracker.summary();
+  }
 }
 
 export interface ConstructAllRemainingResult {
@@ -264,6 +416,7 @@ export async function constructAllRemaining(
     }
 
     let action: RunActionResult;
+    const iterationStartNs = process.hrtime.bigint();
     try {
       action = runAction({
         sessionId,
@@ -276,15 +429,19 @@ export async function constructAllRemaining(
       return { runIds, status: "halted", haltedReason: message };
     }
     runIds.push(action.runId);
+    const iteration = runIds.length;
     emit({
       runId: action.runId,
       sessionId,
       targetNodeId,
       kind: "construct",
       type: "loop_progress",
-      payload: { itemId: next.id, position: runIds.length },
+      payload: { itemId: next.id, position: iteration },
     });
     const finished = await action.completion;
+    const runMs = Math.round(
+      Number(process.hrtime.bigint() - iterationStartNs) / 1_000_000,
+    );
     if (finished.status !== "finished") {
       return {
         runIds,
@@ -303,6 +460,7 @@ export async function constructAllRemaining(
       };
     }
     try {
+      const checkpointStartNs = process.hrtime.bigint();
       const parentNodeId = getSynthesisHeadNodeIdOrBefore(sessionId, targetNodeId);
       const node = checkpointSynthesisWorktree({
         sessionId,
@@ -312,13 +470,24 @@ export async function constructAllRemaining(
         metadata: { kind: "plan-item", planItemId: next.id },
       });
       advanceSynthesisHead(sessionId, targetNodeId, node.nodeId);
+      const checkpointMs = Math.round(
+        Number(process.hrtime.bigint() - checkpointStartNs) / 1_000_000,
+      );
+      console.log(
+        `[rhs-construct-loop] iteration=${iteration} itemId=${next.id} runMs=${runMs} checkpointMs=${checkpointMs}`,
+      );
       emit({
         runId: action.runId,
         sessionId,
         targetNodeId,
         kind: "construct",
         type: "loop_progress",
-        payload: { itemId: next.id, checkpointedNodeId: node.nodeId },
+        payload: {
+          itemId: next.id,
+          checkpointedNodeId: node.nodeId,
+          runMs,
+          checkpointMs,
+        },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

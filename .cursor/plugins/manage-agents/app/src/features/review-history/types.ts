@@ -132,6 +132,29 @@ export interface ExportResult {
   commits: { sha: string; subject: string }[];
 }
 
+export type RhsRunPhase =
+  | "queued"
+  | "spawning_agent"
+  | "agent_ready"
+  | "sending_prompt"
+  | "awaiting_first_message"
+  | "streaming"
+  | "tool_running"
+  | "tool_done"
+  | "thinking"
+  | "finalizing"
+  | "finished"
+  | "error"
+  | "cancelled";
+
+export interface RhsRunPhasePayload {
+  phase: RhsRunPhase;
+  label: string;
+  elapsedMs: number;
+  phaseMs?: number;
+  detail?: string;
+}
+
 export interface RhsRunEvent {
   runId: number;
   sessionId: string;
@@ -144,7 +167,8 @@ export interface RhsRunEvent {
     | "finished"
     | "error"
     | "cancelled"
-    | "loop_progress";
+    | "loop_progress"
+    | "phase";
   payload?: unknown;
 }
 

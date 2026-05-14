@@ -122,6 +122,19 @@ function formatEvent(event: RhsRunEvent): FormattedEvent {
       body: JSON.stringify(event.payload ?? {}),
     };
   }
+  if (event.type === "phase") {
+    const p = event.payload as
+      | { phase?: string; label?: string; elapsedMs?: number; phaseMs?: number; detail?: string }
+      | undefined;
+    const stamp = p?.phaseMs != null ? `+${p.phaseMs}ms` : `${p?.elapsedMs ?? 0}ms`;
+    const detail = p?.detail ? ` (${p.detail})` : "";
+    return {
+      tag,
+      kind: "other",
+      prefix: `[${tag} phase ${stamp}] `,
+      body: `${p?.label ?? p?.phase ?? ""}${detail}`,
+    };
+  }
   return {
     tag,
     kind: "other",

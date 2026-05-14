@@ -22,8 +22,8 @@ interface Props {
 
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 56;
-const X_GAP = 240;
-const Y_GAP = 90;
+const X_GAP = 220;
+const Y_GAP = 110;
 
 interface NodeData {
   node: VirtualNode;
@@ -45,7 +45,7 @@ export function VirtualNodeGraph({ sessionId, graph }: Props) {
   );
 
   return (
-    <div className="h-72 rounded-md border bg-card">
+    <div className="h-full min-h-[18rem] rounded-md border bg-card">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -100,7 +100,7 @@ function layout(
     for (const child of children) {
       const onChain = chainSet.has(child.nodeId);
       const childSlot = onChain ? slot : nextSlot++;
-      positions.set(child.nodeId, { x: depth * X_GAP, y: childSlot * Y_GAP });
+      positions.set(child.nodeId, { x: childSlot * X_GAP, y: -depth * Y_GAP });
       place(child.nodeId, depth + 1, childSlot);
     }
   }
@@ -168,7 +168,7 @@ const RhsNodeCard = memo(function RhsNodeCard({ data }: NodeProps) {
         boxShadow: isSelected ? "0 0 0 2px hsl(var(--ring)/0.25)" : undefined,
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} style={{ opacity: 0 }} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left text-[10px] leading-tight">
         <span
           className={cn(
@@ -205,7 +205,7 @@ const RhsNodeCard = memo(function RhsNodeCard({ data }: NodeProps) {
           <Check className="h-3 w-3" />
         </button>
       )}
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Top} style={{ opacity: 0 }} />
     </div>
   );
 });

@@ -138,93 +138,104 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <ApiKeyBanner />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Session for{" "}
-          <code className="rounded bg-muted px-1">{session.workerBranch}</code>{" "}
-          (base: <code>{session.baseRef}</code>, source:{" "}
-          <code>{session.sourceRef}</code>)
-        </p>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs text-destructive"
-          disabled={deleteSession.isPending}
-          onClick={() => deleteSession.mutate()}
-        >
-          Delete session
-        </Button>
-      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="md:order-2 md:sticky md:top-2 md:self-start md:h-[calc(100vh-1rem)]">
+          {graphQuery.data && (
+            <VirtualNodeGraph sessionId={session.id} graph={graphQuery.data} />
+          )}
+        </div>
 
-      <ModelSettingsCard
-        workerName={name}
-        session={session}
-        disabled={hasInflightRun}
-      />
-
-      {graphQuery.data && (
-        <VirtualNodeGraph sessionId={session.id} graph={graphQuery.data} />
-      )}
-
-      {inProgressRefinement &&
-        inProgressRefinement.targetNodeId !== selectedNodeId && (
-          <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
-            <span>
-              A refinement is in progress on a different node. Click it to focus.
-            </span>
+        <div className="flex min-w-0 flex-col gap-3 md:order-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Session for{" "}
+              <code className="rounded bg-muted px-1">
+                {session.workerBranch}
+              </code>{" "}
+              (base: <code>{session.baseRef}</code>, source:{" "}
+              <code>{session.sourceRef}</code>)
+            </p>
             <Button
               type="button"
               size="sm"
-              onClick={() => setSelectedNode(inProgressRefinement.targetNodeId)}
+              variant="ghost"
+              className="h-7 text-xs text-destructive"
+              disabled={deleteSession.isPending}
+              onClick={() => deleteSession.mutate()}
             >
-              Focus refinement
+              Delete session
             </Button>
           </div>
-        )}
 
-      <Tabs
-        value={innerTab}
-        onValueChange={(v) => setInnerTab(v as "diff" | "refine")}
-        className="flex flex-col"
-      >
-        <TabsList className="self-start">
-          <TabsTrigger value="diff">Diff</TabsTrigger>
-          <TabsTrigger value="refine">Refine</TabsTrigger>
-        </TabsList>
-        <TabsContent value="diff">
-          {!selectedNode ? (
-            <p className="text-xs text-muted-foreground">Select a node.</p>
-          ) : !selectedNode.parentNodeId ? (
-            <p className="text-xs text-muted-foreground">
-              Base node has no incoming edge.
-            </p>
-          ) : diffQuery.isPending ? (
-            <Skeleton className="h-24 w-full" />
-          ) : diffQuery.isError ? (
-            <p className="text-xs text-destructive">
-              Failed to load diff: {diffQuery.error?.message ?? "unknown"}
-            </p>
-          ) : (
-            <DiffViewer diff={diffQuery.data!.diff} />
-          )}
-        </TabsContent>
-        <TabsContent value="refine">
-          {!selectedNode ? (
-            <p className="text-xs text-muted-foreground">Select a node.</p>
-          ) : (
-            <RefineSurface
-              workerName={name}
-              session={session}
-              selectedNode={selectedNode}
-              hasInflightRun={hasInflightRun}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+          <ModelSettingsCard
+            workerName={name}
+            session={session}
+            disabled={hasInflightRun}
+          />
 
-      <ExportCard session={session} hasInflightRun={hasInflightRun} />
-      <AgentRunStream workerName={name} sessionId={session.id} />
+          {inProgressRefinement &&
+            inProgressRefinement.targetNodeId !== selectedNodeId && (
+              <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
+                <span>
+                  A refinement is in progress on a different node. Click it to
+                  focus.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() =>
+                    setSelectedNode(inProgressRefinement.targetNodeId)
+                  }
+                >
+                  Focus refinement
+                </Button>
+              </div>
+            )}
+
+          <Tabs
+            value={innerTab}
+            onValueChange={(v) => setInnerTab(v as "diff" | "refine")}
+            className="flex flex-col"
+          >
+            <TabsList className="self-start">
+              <TabsTrigger value="diff">Diff</TabsTrigger>
+              <TabsTrigger value="refine">Refine</TabsTrigger>
+            </TabsList>
+            <TabsContent value="diff">
+              {!selectedNode ? (
+                <p className="text-xs text-muted-foreground">Select a node.</p>
+              ) : !selectedNode.parentNodeId ? (
+                <p className="text-xs text-muted-foreground">
+                  Base node has no incoming edge.
+                </p>
+              ) : diffQuery.isPending ? (
+                <Skeleton className="h-24 w-full" />
+              ) : diffQuery.isError ? (
+                <p className="text-xs text-destructive">
+                  Failed to load diff: {diffQuery.error?.message ?? "unknown"}
+                </p>
+              ) : (
+                <DiffViewer diff={diffQuery.data!.diff} />
+              )}
+            </TabsContent>
+            <TabsContent value="refine">
+              {!selectedNode ? (
+                <p className="text-xs text-muted-foreground">Select a node.</p>
+              ) : (
+                <RefineSurface
+                  workerName={name}
+                  session={session}
+                  selectedNode={selectedNode}
+                  hasInflightRun={hasInflightRun}
+                />
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <ExportCard session={session} hasInflightRun={hasInflightRun} />
+          <AgentRunStream workerName={name} sessionId={session.id} />
+        </div>
+      </div>
     </div>
   );
 }

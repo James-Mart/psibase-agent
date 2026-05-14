@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { RhsRunEvent } from "../types";
+import type { RhsRunEvent, RhsRunPhasePayload } from "../types";
 import { rhsKeys } from "../api/keys";
+import { useRhsUiStore } from "../store/use-rhs-ui-store";
 
 export function useRhsRunStream(
   sessionId: string | null,
@@ -17,7 +18,13 @@ export function useRhsRunStream(
       try {
         const event = JSON.parse(msg.data) as RhsRunEvent;
         onEvent?.(event);
+        if (event.type === "phase") {
+          useRhsUiStore
+            .getState()
+            .setRunPhase(event.runId, event.payload as RhsRunPhasePayload);
+        }
         if (event.type === "finished" || event.type === "error" || event.type === "cancelled") {
+          useRhsUiStore.getState().clearRunPhase(event.runId);
           qc.invalidateQueries({
             queryKey: rhsKeys.edge(sessionId, event.targetNodeId),
           });

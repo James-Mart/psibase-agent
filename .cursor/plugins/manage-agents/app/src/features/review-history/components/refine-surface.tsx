@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Loader2,
@@ -21,6 +21,7 @@ import {
   useStartEdgeRun,
 } from "../api/mutations";
 import { useEdgeRefinementQuery } from "../api/queries";
+import { useRhsUiStore } from "../store/use-rhs-ui-store";
 import type {
   ChangeSurvey,
   EdgeRefinementIntermediateItem,
@@ -280,22 +281,11 @@ function InProgressRefinement({
       </div>
 
       {inflight && (
-        <div className="flex items-center justify-between rounded border border-primary/30 bg-primary/5 p-2">
-          <span>
-            Run #{inflight.id} ({inflight.kind}
-            {inflight.item_id ? `: ${inflight.item_id}` : ""}) running…
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            className="h-6"
-            disabled={cancelRun.isPending}
-            onClick={() => cancelRun.mutate(inflight.id)}
-          >
-            <Square className="h-3 w-3" /> Cancel
-          </Button>
-        </div>
+        <RunInflightBanner
+          run={inflight}
+          cancelDisabled={cancelRun.isPending}
+          onCancel={() => cancelRun.mutate(inflight.id)}
+        />
       )}
 
       <Step
@@ -370,6 +360,50 @@ function Step({ title, body }: { title: string; body: React.ReactNode }) {
     <div className="space-y-1 rounded border bg-background/50 p-2">
       <p className="font-medium">{title}</p>
       {body}
+    </div>
+  );
+}
+
+interface RunInflightBannerProps {
+  run: RhsRun;
+  cancelDisabled: boolean;
+  onCancel: () => void;
+}
+
+function RunInflightBanner({ run, cancelDisabled, onCancel }: RunInflightBannerProps) {
+  const phase = useRhsUiStore((s) => s.runPhases[run.id]);
+  const [tickNow, setTickNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!phase) return;
+    const id = window.setInterval(() => setTickNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [phase]);
+  const phaseSeconds = phase
+    ? Math.max(0, Math.floor((tickNow - phase.phaseStartedAtMs) / 1000))
+    : null;
+  return (
+    <div className="flex items-center justify-between rounded border border-primary/30 bg-primary/5 p-2">
+      <span>
+        Run #{run.id} ({run.kind}
+        {run.item_id ? `: ${run.item_id}` : ""}) —{" "}
+        {phase ? (
+          <>
+            {phase.label} · {phaseSeconds}s
+          </>
+        ) : (
+          "Starting…"
+        )}
+      </span>
+      <Button
+        type="button"
+        size="sm"
+        variant="destructive"
+        className="h-6"
+        disabled={cancelDisabled}
+        onClick={onCancel}
+      >
+        <Square className="h-3 w-3" /> Cancel
+      </Button>
     </div>
   );
 }
