@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -67,6 +68,15 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
     sessionId,
     innerTab === "diff" ? selectedNodeId : null,
   );
+
+  if (deleteSession.isPending) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border bg-card p-4 text-xs">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Cleaning up session worktree… this can take ~10 seconds.</span>
+      </div>
+    );
+  }
 
   if (sessionQuery.isLoading) {
     return (

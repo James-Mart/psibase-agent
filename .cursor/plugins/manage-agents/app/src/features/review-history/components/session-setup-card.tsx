@@ -17,7 +17,6 @@ export function SessionSetupCard({
   defaultBaseRef,
 }: Props) {
   const [baseRef, setBaseRef] = useState(defaultBaseRef);
-  const [sourceRef, setSourceRef] = useState(currentBranch);
   const create = useCreateSession(workerName);
   const apiKeyOk = useApiKeyAvailable();
 
@@ -27,9 +26,14 @@ export function SessionSetupCard({
       onSubmit={(e) => {
         e.preventDefault();
         if (!apiKeyOk) return;
-        create.mutate({ baseRef: baseRef.trim(), sourceRef: sourceRef.trim() });
+        create.mutate({ baseRef: baseRef.trim() });
       }}
     >
+      <p className="text-xs text-muted-foreground">
+        Source ref:{" "}
+        <code className="rounded bg-muted px-1">{currentBranch}</code> (the
+        worker's current branch)
+      </p>
       <div className="grid gap-2">
         <Label htmlFor="rhs-baseRef" className="text-xs">
           Base ref
@@ -42,22 +46,11 @@ export function SessionSetupCard({
           className="h-8 text-xs"
           required
         />
-        <Label htmlFor="rhs-sourceRef" className="text-xs">
-          Source ref
-        </Label>
-        <Input
-          id="rhs-sourceRef"
-          value={sourceRef}
-          onChange={(e) => setSourceRef(e.target.value)}
-          placeholder={currentBranch}
-          className="h-8 text-xs"
-          required
-        />
       </div>
       <Button
         type="submit"
         size="sm"
-        disabled={!apiKeyOk || create.isPending || !baseRef.trim() || !sourceRef.trim()}
+        disabled={!apiKeyOk || create.isPending || !baseRef.trim()}
       >
         {create.isPending ? "Creating..." : "Create session"}
       </Button>

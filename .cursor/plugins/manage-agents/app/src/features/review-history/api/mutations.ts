@@ -25,7 +25,7 @@ import { rhsKeys } from "./keys";
 export function useCreateSession(workerName: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { baseRef: string; sourceRef: string; modelId?: string }) =>
+    mutationFn: (body: { baseRef: string; modelId?: string }) =>
       createSession(workerName, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: rhsKeys.sessionForWorker(workerName) });

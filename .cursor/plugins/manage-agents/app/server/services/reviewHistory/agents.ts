@@ -1,6 +1,8 @@
-import { EventEmitter } from "events";
+import { EventEmitter, setMaxListeners } from "events";
 
 import { Agent, type Run, type SDKAgent, type SDKMessage } from "@cursor/sdk";
+
+setMaxListeners(50);
 
 import {
   getRhsRun,
@@ -45,6 +47,7 @@ export interface RhsRunEvent {
 }
 
 export const runEvents = new EventEmitter();
+runEvents.setMaxListeners(50);
 
 interface ActiveRun {
   agent: SDKAgent;

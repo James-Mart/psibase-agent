@@ -26,6 +26,15 @@ export function resolveTree(ref: string, repoRoot: string = REPO_ROOT): string {
   return git(["-C", repoRoot, "rev-parse", `${ref}^{tree}`]).trim();
 }
 
+export function mergeBaseTree(
+  refA: string,
+  refB: string,
+  repoRoot: string = REPO_ROOT,
+): string {
+  const mb = git(["-C", repoRoot, "merge-base", refA, refB]).trim();
+  return git(["-C", repoRoot, "rev-parse", `${mb}^{tree}`]).trim();
+}
+
 export function resolveCommit(ref: string, repoRoot: string = REPO_ROOT): string {
   return git(["-C", repoRoot, "rev-parse", `${ref}^{commit}`]).trim();
 }

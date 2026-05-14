@@ -51,7 +51,6 @@ const edgeRunIdParam = edgeParam.extend({
 
 const createSessionBody = z.object({
   baseRef: z.string().min(1),
-  sourceRef: z.string().min(1),
   modelId: z.string().min(1).optional(),
 });
 
@@ -132,11 +131,18 @@ reviewHistoryWorkerRouter.post(
   validate({ params: workerNameParam, body: createSessionBody }),
   asyncHandler((req, res) => {
     const dir = requireWorkerDir(req.params.name);
+    const sourceRef = getCurrentBranch(dir);
+    if (!sourceRef || sourceRef === "(unknown)") {
+      throw new HttpError(
+        400,
+        "Worker is on an unknown or detached branch; cannot create review-history session",
+      );
+    }
     const session = createSession({
       workerName: req.params.name,
       workerDir: dir,
       baseRef: req.body.baseRef,
-      sourceRef: req.body.sourceRef,
+      sourceRef,
       modelId: req.body.modelId,
     });
     res.status(201).json(annotateSession(session, session.workerBranch));

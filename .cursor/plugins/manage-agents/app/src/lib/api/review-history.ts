@@ -34,7 +34,7 @@ export function fetchSessionForWorker(
 
 export function createSession(
   workerName: string,
-  body: { baseRef: string; sourceRef: string; modelId?: string },
+  body: { baseRef: string; modelId?: string },
 ): Promise<RhsSession> {
   return request(
     `/api/workers/${encodeURIComponent(workerName)}/review-history/session`,

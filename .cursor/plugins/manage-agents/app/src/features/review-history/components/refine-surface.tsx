@@ -392,26 +392,38 @@ function SurveyStep({
   const [feedback, setFeedback] = useState("");
   const accepted = !!survey;
   const lastFinished = latestRun?.status === "finished" ? latestRun : null;
+  const lastFinishedOutput = lastFinished ? parseRunOutput(lastFinished) : null;
   return (
     <div className="space-y-2">
       {accepted ? (
-        <div className="flex items-center gap-2 text-[hsl(var(--success))]">
-          <Check className="h-3 w-3" /> Survey accepted
-        </div>
+        <>
+          <div className="flex items-center gap-2 text-[hsl(var(--success))]">
+            <Check className="h-3 w-3" /> Survey accepted
+          </div>
+          <SurveyContent survey={survey} />
+        </>
       ) : lastFinished ? (
-        <div className="flex items-center justify-between">
-          <span>
-            Survey run #{lastFinished.id} finished. Review the output and
-            accept to lock it in.
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onAccept(lastFinished.id)}
-          >
-            Accept survey
-          </Button>
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <span>
+              Survey run #{lastFinished.id} finished. Review the output and
+              accept to lock it in.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onAccept(lastFinished.id)}
+              disabled={!lastFinishedOutput?.data}
+            >
+              Accept survey
+            </Button>
+          </div>
+          {lastFinishedOutput?.data ? (
+            <SurveyContent survey={lastFinishedOutput.data as ChangeSurvey} />
+          ) : (
+            <RawOutputFallback output={lastFinishedOutput} />
+          )}
+        </>
       ) : (
         <p className="text-muted-foreground">
           No survey yet. Run the surveyor to produce one.
@@ -431,6 +443,36 @@ function SurveyStep({
       >
         <PlayCircle className="h-3 w-3" /> Run surveyor
       </Button>
+    </div>
+  );
+}
+
+function SurveyContent({ survey }: { survey: ChangeSurvey }) {
+  return (
+    <div className="space-y-2 rounded border bg-background/60 p-2">
+      {survey.summary && (
+        <p className="whitespace-pre-wrap">{survey.summary}</p>
+      )}
+      <SurveyList label="Touched areas" items={survey.touchedAreas} />
+      <SurveyList label="Notable changes" items={survey.notableChanges} />
+      <SurveyList
+        label="Ambiguous or risky areas"
+        items={survey.ambiguousOrRiskyAreas}
+      />
+    </div>
+  );
+}
+
+function SurveyList({ label, items }: { label: string; items: string[] | undefined }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div>
+      <p className="font-medium">{label}</p>
+      <ul className="list-disc space-y-0.5 pl-5">
+        {items.map((item, idx) => (
+          <li key={idx} className="whitespace-pre-wrap">{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -457,25 +499,42 @@ function PlanStep({
   const [feedback, setFeedback] = useState("");
   const accepted = !!semanticPlan;
   const lastFinished = latestRun?.status === "finished" ? latestRun : null;
+  const lastFinishedOutput = lastFinished ? parseRunOutput(lastFinished) : null;
+  const acceptedItems = useMemo(() => getPlanItems(semanticPlan), [semanticPlan]);
+  const proposedItems = useMemo(
+    () => (lastFinishedOutput?.data ? getPlanItems(lastFinishedOutput.data as SemanticPlan | EdgeRefinementPlan) : []),
+    [lastFinishedOutput?.data],
+  );
   return (
     <div className="space-y-2">
       {accepted ? (
-        <div className="flex items-center gap-2 text-[hsl(var(--success))]">
-          <Check className="h-3 w-3" /> Plan accepted
-        </div>
+        <>
+          <div className="flex items-center gap-2 text-[hsl(var(--success))]">
+            <Check className="h-3 w-3" /> Plan accepted
+          </div>
+          <PlanItemsList items={acceptedItems} />
+        </>
       ) : lastFinished ? (
-        <div className="flex items-center justify-between">
-          <span>
-            Plan run #{lastFinished.id} finished. Accept to lock it in.
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onAccept(lastFinished.id)}
-          >
-            Accept plan
-          </Button>
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <span>
+              Plan run #{lastFinished.id} finished. Accept to lock it in.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => onAccept(lastFinished.id)}
+              disabled={proposedItems.length === 0}
+            >
+              Accept plan
+            </Button>
+          </div>
+          {proposedItems.length > 0 ? (
+            <PlanItemsList items={proposedItems} />
+          ) : (
+            <RawOutputFallback output={lastFinishedOutput} />
+          )}
+        </>
       ) : (
         <p className="text-muted-foreground">
           {mode === "partition"
@@ -503,6 +562,63 @@ function PlanStep({
         <PlayCircle className="h-3 w-3" /> Run planner
       </Button>
     </div>
+  );
+}
+
+function PlanItemsList({ items }: { items: PlanItem[] }) {
+  return (
+    <ol className="space-y-1 rounded border bg-background/60 p-2 font-mono">
+      {items.map((item, idx) => (
+        <li key={item.id} className="space-y-0.5">
+          <div>
+            <span className="text-muted-foreground">{idx + 1}.</span>{" "}
+            <span className="text-muted-foreground">{item.id}:</span>{" "}
+            {item.title ?? item.intent}
+          </div>
+          {item.title && item.intent !== item.title && (
+            <div className="pl-4 text-muted-foreground whitespace-pre-wrap">
+              {item.intent}
+            </div>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+interface ParsedRunOutput {
+  data: unknown | null;
+  text: string | null;
+  reason: string | null;
+}
+
+function parseRunOutput(run: RhsRun): ParsedRunOutput {
+  if (!run.result_json) return { data: null, text: null, reason: null };
+  try {
+    const p = JSON.parse(run.result_json) as {
+      ok?: boolean;
+      data?: unknown;
+      text?: string;
+      reason?: string;
+    };
+    return {
+      data: p.ok && p.data ? p.data : null,
+      text: p.text ?? null,
+      reason: p.reason ?? null,
+    };
+  } catch {
+    return { data: null, text: null, reason: "result_json is not valid JSON" };
+  }
+}
+
+function RawOutputFallback({ output }: { output: ParsedRunOutput | null }) {
+  if (!output) return null;
+  const body = output.reason ?? output.text;
+  if (!body) return null;
+  return (
+    <pre className="max-h-64 overflow-auto rounded border bg-background/60 p-2 text-[11px] whitespace-pre-wrap">
+      {body}
+    </pre>
   );
 }
 

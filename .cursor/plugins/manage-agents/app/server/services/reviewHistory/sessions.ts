@@ -42,6 +42,7 @@ import {
   commitTree,
   createBranchInMainRepo,
   listBranchCommitsSinceMergeBase,
+  mergeBaseTree,
   readFileAtTree,
   removeInternalWorktree,
   resetWorktreeToCommit,
@@ -197,7 +198,7 @@ export function createSession(input: CreateSessionInput): SessionView {
   let baseTree: string;
   let finalTree: string;
   try {
-    baseTree = resolveTree(input.baseRef, input.workerDir);
+    baseTree = mergeBaseTree(input.baseRef, input.sourceRef, input.workerDir);
     finalTree = resolveTree(input.sourceRef, input.workerDir);
   } catch (err) {
     throw new HttpError(400, "Failed to resolve base/source ref to a tree", {

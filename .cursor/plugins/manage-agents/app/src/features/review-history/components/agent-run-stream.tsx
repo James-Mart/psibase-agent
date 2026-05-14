@@ -8,10 +8,14 @@ interface Props {
   sessionId: string;
 }
 
-interface StreamLine {
-  ts: number;
-  text: string;
+interface FormattedEvent {
+  tag: string;
+  kind: "assistant" | "other";
+  prefix: string;
+  body: string;
 }
+
+type StreamLine = FormattedEvent;
 
 export function AgentRunStream({ workerName, sessionId }: Props) {
   const [open, setOpen] = useState(false);
@@ -19,7 +23,7 @@ export function AgentRunStream({ workerName, sessionId }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useRhsRunStream(sessionId, workerName, (event) => {
-    setLines((prev) => prev.concat(formatEvent(event)).slice(-300));
+    setLines((prev) => appendEvent(prev, formatEvent(event)));
   });
 
   useEffect(() => {
@@ -54,7 +58,8 @@ export function AgentRunStream({ workerName, sessionId }: Props) {
           ) : (
             lines.map((line, idx) => (
               <div key={idx} className="whitespace-pre-wrap break-all">
-                {line.text}
+                {line.prefix}
+                {line.body}
               </div>
             ))
           )}
@@ -64,8 +69,23 @@ export function AgentRunStream({ workerName, sessionId }: Props) {
   );
 }
 
-function formatEvent(event: RhsRunEvent): StreamLine {
-  const ts = Date.now();
+const MAX_LINES = 300;
+
+function appendEvent(prev: StreamLine[], next: FormattedEvent): StreamLine[] {
+  const last = prev[prev.length - 1];
+  if (
+    last &&
+    last.kind === "assistant" &&
+    next.kind === "assistant" &&
+    last.tag === next.tag
+  ) {
+    const merged: StreamLine = { ...last, body: last.body + next.body };
+    return [...prev.slice(0, -1), merged].slice(-MAX_LINES);
+  }
+  return [...prev, next].slice(-MAX_LINES);
+}
+
+function formatEvent(event: RhsRunEvent): FormattedEvent {
   const tag = `#${event.runId}@${event.targetNodeId.slice(0, 8)}`;
   if (event.type === "sdk_message") {
     const msg = event.payload as
@@ -76,16 +96,36 @@ function formatEvent(event: RhsRunEvent): StreamLine {
         .filter((b) => b.type === "text")
         .map((b) => b.text ?? "")
         .join("");
-      return { ts, text: `[${tag} assistant] ${text}` };
+      return {
+        tag,
+        kind: "assistant",
+        prefix: `[${tag} assistant] `,
+        body: text,
+      };
     }
     if (msg?.type === "tool_call") {
       const tc = event.payload as { name?: string; status?: string };
-      return { ts, text: `[${tag} tool ${tc.status ?? ""}] ${tc.name ?? ""}` };
+      return {
+        tag,
+        kind: "other",
+        prefix: `[${tag} tool ${tc.status ?? ""}] `,
+        body: tc.name ?? "",
+      };
     }
-    return { ts, text: `[${tag} ${msg?.type ?? "msg"}]` };
+    return { tag, kind: "other", prefix: `[${tag} ${msg?.type ?? "msg"}]`, body: "" };
   }
   if (event.type === "loop_progress") {
-    return { ts, text: `[${tag} loop] ${JSON.stringify(event.payload ?? {})}` };
+    return {
+      tag,
+      kind: "other",
+      prefix: `[${tag} loop] `,
+      body: JSON.stringify(event.payload ?? {}),
+    };
   }
-  return { ts, text: `[${tag} ${event.type}] ${JSON.stringify(event.payload ?? {})}` };
+  return {
+    tag,
+    kind: "other",
+    prefix: `[${tag} ${event.type}] `,
+    body: JSON.stringify(event.payload ?? {}),
+  };
 }
