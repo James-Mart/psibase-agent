@@ -1,6 +1,5 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
-  fetchActiveChain,
   fetchApiKeyStatus,
   fetchAvailableModels,
   fetchChangedFiles,
@@ -9,7 +8,7 @@ import {
   fetchNodeDiff,
   fetchNodeGraph,
   fetchSessionForWorker,
-  fetchValidateHead,
+  fetchValidateCanonicalChain,
 } from "@/lib/api/review-history";
 import type {
   AvailableModel,
@@ -19,7 +18,6 @@ import type {
   NodeGraph,
   RhsSessionEnvelope,
   ValidationResult,
-  VirtualNode,
 } from "../types";
 import { rhsKeys } from "./keys";
 
@@ -70,19 +68,6 @@ export function useNodeGraphQuery(
   });
 }
 
-export function useActiveChainQuery(
-  sessionId: string | null,
-): UseQueryResult<VirtualNode[], Error> {
-  return useQuery({
-    queryKey: sessionId
-      ? rhsKeys.activeChain(sessionId)
-      : rhsKeys.activeChain("__none__"),
-    queryFn: () => fetchActiveChain(sessionId as string),
-    enabled: !!sessionId,
-    staleTime: 0,
-  });
-}
-
 export function useNodeDiffQuery(
   sessionId: string | null,
   nodeId: string | null,
@@ -113,14 +98,14 @@ export function useChangedFilesQuery(
   });
 }
 
-export function useValidateHeadQuery(
+export function useValidateCanonicalChainQuery(
   sessionId: string | null,
 ): UseQueryResult<ValidationResult, Error> {
   return useQuery({
     queryKey: sessionId
-      ? rhsKeys.validateHead(sessionId)
-      : rhsKeys.validateHead("__none__"),
-    queryFn: () => fetchValidateHead(sessionId as string),
+      ? rhsKeys.validateCanonicalChain(sessionId)
+      : rhsKeys.validateCanonicalChain("__none__"),
+    queryFn: () => fetchValidateCanonicalChain(sessionId as string),
     enabled: !!sessionId,
     staleTime: 0,
   });

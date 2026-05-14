@@ -14,6 +14,7 @@ import {
 } from "../../db.js";
 import { HttpError } from "../../errors.js";
 import {
+  advanceSynthesisHead,
   checkpointSynthesisWorktree,
   ensureNoRunningRun,
   ensureSessionReady,
@@ -21,7 +22,9 @@ import {
   getIntermediateNodeIds,
   getNode,
   getSessionById,
-  rollbackSynthesisToActiveHead,
+  getSynthesisHeadCommit,
+  getSynthesisHeadNodeIdOrBefore,
+  rollbackSynthesisForInProgressRefinement,
   setAcceptedPlanForEdge,
   setAcceptedSurveyForEdge,
   type EdgeRefinementView,
@@ -212,7 +215,7 @@ export async function cancelRun(runId: number): Promise<void> {
   } catch {}
   setRhsRunFinished(runId, "cancelled", JSON.stringify({ cancelled: true }));
   const row = getRhsRun(runId)!;
-  rollbackSynthesisToActiveHead(row.session_id);
+  rollbackSynthesisForInProgressRefinement(row.session_id);
   emit({
     runId,
     sessionId: row.session_id,
@@ -300,14 +303,15 @@ export async function constructAllRemaining(
       };
     }
     try {
-      const session = getSessionById(sessionId);
+      const parentNodeId = getSynthesisHeadNodeIdOrBefore(sessionId, targetNodeId);
       const node = checkpointSynthesisWorktree({
         sessionId,
-        parentNodeId: session.activeHeadId,
+        parentNodeId,
         title: next.id,
         message: null,
         metadata: { kind: "plan-item", planItemId: next.id },
       });
+      advanceSynthesisHead(sessionId, targetNodeId, node.nodeId);
       emit({
         runId: action.runId,
         sessionId,
@@ -601,7 +605,7 @@ function constructPrompt(
   if (!refinement.semanticPlan) {
     throw new HttpError(409, "No accepted plan for this edge");
   }
-  const head = getNode(session.id, session.activeHeadId);
+  const previousCommit = getSynthesisHeadCommit(session.id, refinement.targetNodeId);
 
   if (refinement.mode === "partition") {
     if (!refinement.changeSurvey)
@@ -615,7 +619,7 @@ function constructPrompt(
       "Use the rhs-node-constructor subagent to implement ONE plan item by editing the synthesis worktree.",
       "",
       `SynthesisWorktree: ${session.synthesisWorktree}`,
-      `PreviousCommit: ${head.commitSha}`,
+      `PreviousCommit: ${previousCommit}`,
       `TargetTree: ${target.treeId}`,
       `PlanItemJson:\n${fenced(item)}`,
       `AcceptedPlanJson:\n${fenced(plan)}`,
@@ -640,7 +644,7 @@ function constructPrompt(
     "Use the rhs-edge-intermediate-constructor subagent to implement ONE intermediate item.",
     "",
     `SynthesisWorktree: ${session.synthesisWorktree}`,
-    `PreviousCommit: ${head.commitSha}`,
+    `PreviousCommit: ${previousCommit}`,
     `TargetCommit: ${target.commitSha}`,
     `IntermediateItemJson:\n${fenced(item)}`,
     `RefinementPlanJson:\n${fenced(plan)}`,

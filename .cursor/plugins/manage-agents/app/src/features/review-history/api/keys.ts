@@ -8,14 +8,12 @@ export const rhsKeys = {
     [...rhsKeys.all, "session", sessionId] as const,
   graph: (sessionId: string) =>
     [...rhsKeys.all, "graph", sessionId] as const,
-  activeChain: (sessionId: string) =>
-    [...rhsKeys.all, "active-chain", sessionId] as const,
   nodeDiff: (sessionId: string, nodeId: string) =>
     [...rhsKeys.all, "node-diff", sessionId, nodeId] as const,
   changedFiles: (sessionId: string, nodeId: string) =>
     [...rhsKeys.all, "changed-files", sessionId, nodeId] as const,
-  validateHead: (sessionId: string) =>
-    [...rhsKeys.all, "validate-head", sessionId] as const,
+  validateCanonicalChain: (sessionId: string) =>
+    [...rhsKeys.all, "validate-canonical-chain", sessionId] as const,
   edge: (sessionId: string, targetNodeId: string) =>
     [...rhsKeys.all, "edge", sessionId, targetNodeId] as const,
   inProgressRefinement: (sessionId: string) =>

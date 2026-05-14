@@ -71,12 +71,19 @@ export function deleteSessionById(sessionId: string): Promise<{ ok: true }> {
   });
 }
 
-export function fetchActiveChain(sessionId: string): Promise<VirtualNode[]> {
-  return request(`/api/review-history/sessions/${sessionId}/active-chain`);
-}
-
 export function fetchNodeGraph(sessionId: string): Promise<NodeGraph> {
   return request(`/api/review-history/sessions/${sessionId}/graph`);
+}
+
+export function setNodeCanonical(
+  sessionId: string,
+  nodeId: string,
+  isCanonical: boolean,
+): Promise<VirtualNode> {
+  return request(
+    `/api/review-history/sessions/${sessionId}/nodes/${nodeId}/canonical`,
+    { method: "POST", body: { isCanonical } },
+  );
 }
 
 export function fetchNodeDiff(
@@ -97,9 +104,11 @@ export function fetchChangedFiles(
   );
 }
 
-export function fetchValidateHead(sessionId: string): Promise<ValidationResult> {
+export function fetchValidateCanonicalChain(
+  sessionId: string,
+): Promise<ValidationResult> {
   return request(
-    `/api/review-history/sessions/${sessionId}/validate-head`,
+    `/api/review-history/sessions/${sessionId}/validate-canonical-chain`,
   );
 }
 

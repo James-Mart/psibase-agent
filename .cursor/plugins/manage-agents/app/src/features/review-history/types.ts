@@ -56,7 +56,6 @@ export interface RhsSession {
   baseTree: string;
   finalTree: string;
   baseNodeId: string;
-  activeHeadId: string;
   synthesisWorktree: string;
   prepStatus: RhsPrepStatus;
   prepError: string | null;
@@ -79,14 +78,15 @@ export interface VirtualNode {
   title: string;
   message: string | null;
   metadata: Record<string, unknown> | null;
+  isCanonical: boolean;
   createdAt: string;
 }
 
 export interface NodeGraph {
   baseNodeId: string;
-  activeHeadId: string;
   nodes: VirtualNode[];
-  activeChainIds: string[];
+  canonicalNodeIds: string[];
+  canonicalChainIds: string[];
 }
 
 export interface RhsRun {

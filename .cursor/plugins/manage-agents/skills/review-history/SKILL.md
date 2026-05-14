@@ -26,9 +26,10 @@ Drive the seven-step workflow from `ReviewHistorySynthesis.md` end to end. Each 
 | 4. Propose semantic plan | `POST /api/review-history/sessions/:sessionId/runs` `{ kind: "plan" }` | `rhs-semantic-partitioner` |
 | 5. Accept plan | `POST /api/review-history/sessions/:sessionId/plan/accept` `{ runId }` | — |
 | 6. Construct nodes | `POST /api/review-history/sessions/:sessionId/runs` `{ kind: "construct", itemId? }` | `rhs-node-constructor` |
-| 7a. Validate head | `GET /api/review-history/sessions/:sessionId/validate-head` | — |
-| 7b. Export | `POST /api/review-history/sessions/:sessionId/export` `{ branchName }` | — |
-| 7c. Verify export | `POST /api/review-history/sessions/:sessionId/verify` `{ branchName }` | — |
+| 7a. Mark canonical | `POST /api/review-history/sessions/:sessionId/nodes/:nodeId/canonical` `{ isCanonical }` | — |
+| 7b. Validate canonical chain | `GET /api/review-history/sessions/:sessionId/validate-canonical-chain` | — |
+| 7c. Export | `POST /api/review-history/sessions/:sessionId/export` `{ branchName }` | — |
+| 7d. Verify export | `POST /api/review-history/sessions/:sessionId/verify` `{ branchName }` | — |
 
 ## Iterative refinement
 
@@ -53,15 +54,14 @@ POST /api/review-history/sessions/:sessionId/runs               { kind: "refine-
 POST /api/review-history/sessions/:sessionId/refinement/complete { targetNodeId }
 ```
 
-`completeEdgeRefinement` enforces `tree(B') == tree(B)` and reparents downstream nodes. Activate the new path with the next validate / export.
+`completeEdgeRefinement` enforces `tree(B') == tree(B)` and reparents the original `B`'s children onto the last intermediate. The original `B` is kept alive as a leaf alternative; the user (or this skill) must mark the new chain canonical via `/nodes/:nodeId/canonical` for the canonical chain to switch to the new path.
 
 ## Inspection (read-only)
 
 | Need | Endpoint |
 | --- | --- |
 | Current session for a worker | `GET /api/workers/:name/review-history/session` |
-| Full node graph | `GET /api/review-history/sessions/:sessionId/graph` |
-| Linear active chain | `GET /api/review-history/sessions/:sessionId/active-chain` |
+| Full node graph (includes `canonicalNodeIds` and `canonicalChainIds`) | `GET /api/review-history/sessions/:sessionId/graph` |
 | Node's diff vs parent | `GET /api/review-history/sessions/:sessionId/nodes/:nodeId/diff` |
 | Files changed in a node | `GET /api/review-history/sessions/:sessionId/nodes/:nodeId/changed-files` |
 | One file at a node | `GET /api/review-history/sessions/:sessionId/nodes/:nodeId/files/<path>` |
@@ -74,5 +74,5 @@ The backend invokes each subagent itself via `@cursor/sdk` (`Agent.prompt`) with
 ## Hard rules
 
 - Never edit the user's main worktree from this skill or from any subagent it invokes. Only the synthesis worktree owned by the backend is writable.
-- Never push or fetch from the export step. `exportActiveHistoryToBranch` writes a local branch only.
-- A failed validation (`tree(activeHead) != finalTree` or `tree(B') != tree(B)`) is a stop condition. Surface the discrepancy and ask the user; do not retry construction blindly.
+- Never push or fetch from the export step. `exportCanonicalHistoryToBranch` writes a local branch only.
+- A failed validation (canonical chain does not reach a final-tree node, or `tree(B') != tree(B)`) is a stop condition. Surface the discrepancy and ask the user; do not retry construction blindly.

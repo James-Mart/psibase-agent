@@ -22,8 +22,7 @@ import {
   completeEdgeRefinement,
   createSession,
   deleteSession,
-  exportActiveHistoryToBranch,
-  getActiveChain,
+  exportCanonicalHistoryToBranch,
   getChangedFilesBetweenNodes,
   getEdgeRefinement,
   getInProgressRefinement,
@@ -34,8 +33,9 @@ import {
   getNodeGraph,
   getSessionById,
   getSessionForWorkerBranch,
+  setNodeCanonical,
   updateModelId,
-  validateActiveHeadEqualsFinal,
+  validateCanonicalChain,
   verifyExportMatchesFinal,
   type SessionView,
 } from "../services/reviewHistory/sessions.js";
@@ -90,8 +90,9 @@ const checkpointBody = z.object({
   title: z.string().min(1),
   message: z.string().optional().nullable(),
   metadata: z.record(z.string(), z.unknown()).optional(),
-  setAsActiveHead: z.boolean().optional(),
 });
+
+const canonicalBody = z.object({ isCanonical: z.boolean() });
 
 const fileQuery = z.object({ path: z.string().min(1) });
 
@@ -217,14 +218,6 @@ reviewHistoryRouter.delete(
 );
 
 reviewHistoryRouter.get(
-  "/sessions/:sessionId/active-chain",
-  validate({ params: sessionIdParam }),
-  asyncHandler((req, res) => {
-    res.json(getActiveChain(req.params.sessionId));
-  }),
-);
-
-reviewHistoryRouter.get(
   "/sessions/:sessionId/graph",
   validate({ params: sessionIdParam }),
   asyncHandler((req, res) => {
@@ -269,10 +262,24 @@ reviewHistoryRouter.get(
 );
 
 reviewHistoryRouter.get(
-  "/sessions/:sessionId/validate-head",
+  "/sessions/:sessionId/validate-canonical-chain",
   validate({ params: sessionIdParam }),
   asyncHandler((req, res) => {
-    res.json(validateActiveHeadEqualsFinal(req.params.sessionId));
+    res.json(validateCanonicalChain(req.params.sessionId));
+  }),
+);
+
+reviewHistoryRouter.post(
+  "/sessions/:sessionId/nodes/:nodeId/canonical",
+  validate({ params: nodeIdParam, body: canonicalBody }),
+  asyncHandler((req, res) => {
+    res.json(
+      setNodeCanonical(
+        req.params.sessionId,
+        req.params.nodeId,
+        req.body.isCanonical,
+      ),
+    );
   }),
 );
 
@@ -311,7 +318,6 @@ reviewHistoryRouter.post(
         title: req.body.title,
         message: req.body.message ?? null,
         metadata: req.body.metadata,
-        setAsActiveHead: req.body.setAsActiveHead,
       }),
     );
   }),
@@ -434,7 +440,7 @@ reviewHistoryRouter.post(
   validate({ params: sessionIdParam, body: exportBody }),
   asyncHandler((req, res) => {
     res.json(
-      exportActiveHistoryToBranch({
+      exportCanonicalHistoryToBranch({
         sessionId: req.params.sessionId,
         branchName: req.body.branchName,
         force: req.body.force,

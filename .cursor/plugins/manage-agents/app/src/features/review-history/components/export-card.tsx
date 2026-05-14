@@ -4,13 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useExportBranch, useVerifyExport } from "../api/mutations";
-import { useValidateHeadQuery } from "../api/queries";
+import { useValidateCanonicalChainQuery } from "../api/queries";
 import type { ExportResult, RhsSession, ValidationResult } from "../types";
 
 interface Props {
   session: RhsSession;
   hasInflightRun: boolean;
 }
+
+const INCOMPLETE_INSTRUCTION =
+  "Exporting is only available once you have marked a complete canonical chain from base to a node whose tree matches the final tree.";
 
 function defaultBranchName(session: RhsSession): string {
   const safe = session.sourceRef.replace(/^origin\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-");
@@ -21,26 +24,33 @@ export function ExportCard({ session, hasInflightRun }: Props) {
   const [branchName, setBranchName] = useState(defaultBranchName(session));
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [verifyResult, setVerifyResult] = useState<ValidationResult | null>(null);
-  const validation = useValidateHeadQuery(session.id);
+  const validation = useValidateCanonicalChainQuery(session.id);
   const doExport = useExportBranch(session.id);
   const doVerify = useVerifyExport(session.id);
 
-  const invariantOk = validation.data?.ok === true;
+  const chainComplete = validation.data?.ok === true;
+  const exportDisabled =
+    !chainComplete || hasInflightRun || doExport.isPending || !branchName.trim();
 
   return (
     <div className="space-y-3 rounded-md border bg-card p-3 text-xs">
-      <div className="flex items-center gap-2">
-        {invariantOk ? (
-          <ShieldCheck className="h-4 w-4 text-success" />
+      <div
+        className={`flex items-start gap-2 rounded-md border p-2 ${
+          chainComplete
+            ? "border-success/40 bg-success/10 text-[hsl(var(--success))]"
+            : "border-destructive/40 bg-destructive/10 text-destructive"
+        }`}
+      >
+        {chainComplete ? (
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         ) : (
-          <ShieldAlert className="h-4 w-4 text-destructive" />
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
         )}
-        <span className="font-medium">
-          tree(activeHead) {invariantOk ? "==" : "≠"} finalTree
+        <span>
+          {chainComplete
+            ? "Canonical chain is complete and matches the final tree."
+            : INCOMPLETE_INSTRUCTION}
         </span>
-        {!invariantOk && validation.data?.detail && (
-          <span className="text-muted-foreground">{validation.data.detail}</span>
-        )}
       </div>
       <div className="space-y-1">
         <Label htmlFor="rhs-branch" className="text-xs">
@@ -57,7 +67,8 @@ export function ExportCard({ session, hasInflightRun }: Props) {
         <Button
           type="button"
           size="sm"
-          disabled={!invariantOk || hasInflightRun || doExport.isPending || !branchName.trim()}
+          disabled={exportDisabled}
+          title={!chainComplete ? INCOMPLETE_INSTRUCTION : undefined}
           onClick={async () => {
             const result = await doExport.mutateAsync({ branchName: branchName.trim() });
             setExportResult(result);

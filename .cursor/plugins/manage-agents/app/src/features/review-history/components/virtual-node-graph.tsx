@@ -1,16 +1,22 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   Background,
+  Handle,
+  Position,
   type Edge,
   type Node,
+  type NodeProps,
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useSetNodeCanonical } from "../api/mutations";
 import { useRhsUiStore } from "../store/use-rhs-ui-store";
 import type { NodeGraph, VirtualNode } from "../types";
 
 interface Props {
+  sessionId: string;
   graph: NodeGraph;
 }
 
@@ -19,33 +25,31 @@ const NODE_HEIGHT = 56;
 const X_GAP = 240;
 const Y_GAP = 90;
 
-export function VirtualNodeGraph({ graph }: Props) {
-  const { nodes, edges } = useMemo(() => layout(graph), [graph]);
+interface NodeData {
+  node: VirtualNode;
+  isBase: boolean;
+  isSelected: boolean;
+  sessionId: string;
+  [key: string]: unknown;
+}
+
+export function VirtualNodeGraph({ sessionId, graph }: Props) {
   const setSelectedNode = useRhsUiStore((s) => s.setSelectedNode);
   const selectedNodeId = useRhsUiStore((s) => s.selectedNodeId);
 
-  const decoratedNodes = useMemo<Node[]>(
-    () =>
-      nodes.map((n) =>
-        n.id === selectedNodeId
-          ? {
-              ...n,
-              style: {
-                ...n.style,
-                border: "2px solid hsl(var(--primary))",
-                boxShadow: "0 0 0 2px hsl(var(--ring)/0.25)",
-              },
-            }
-          : n,
-      ),
-    [nodes, selectedNodeId],
+  const nodeTypes = useMemo(() => ({ rhs: RhsNodeCard }), []);
+
+  const { nodes, edges } = useMemo(
+    () => layout(graph, sessionId, selectedNodeId),
+    [graph, sessionId, selectedNodeId],
   );
 
   return (
     <div className="h-72 rounded-md border bg-card">
       <ReactFlow
-        nodes={decoratedNodes}
+        nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
         fitView
         nodesDraggable={false}
         nodesConnectable={false}
@@ -60,12 +64,24 @@ export function VirtualNodeGraph({ graph }: Props) {
 }
 
 interface LayoutResult {
-  nodes: Node[];
+  nodes: Node<NodeData>[];
   edges: Edge[];
 }
 
-function layout(graph: NodeGraph): LayoutResult {
-  const activeChain = new Set(graph.activeChainIds);
+function layout(
+  graph: NodeGraph,
+  sessionId: string,
+  selectedNodeId: string | null,
+): LayoutResult {
+  const canonicalSet = new Set(graph.canonicalNodeIds);
+  const chainSet = new Set(graph.canonicalChainIds);
+  const chainPairs = new Set<string>();
+  for (let i = 1; i < graph.canonicalChainIds.length; i++) {
+    chainPairs.add(
+      `${graph.canonicalChainIds[i - 1]}->${graph.canonicalChainIds[i]}`,
+    );
+  }
+
   const childrenByParent = new Map<string | null, VirtualNode[]>();
   for (const node of graph.nodes) {
     const list = childrenByParent.get(node.parentNodeId) ?? [];
@@ -74,75 +90,122 @@ function layout(graph: NodeGraph): LayoutResult {
   }
 
   const positions = new Map<string, { x: number; y: number }>();
-  const branchSlot = new Map<string, number>();
   let nextSlot = 1;
 
-  function place(nodeId: string | null, depth: number, slot: number): void {
+  function place(nodeId: string, depth: number, slot: number): void {
     const children = childrenByParent.get(nodeId) ?? [];
-    children.sort((a, b) => Number(activeChain.has(b.nodeId)) - Number(activeChain.has(a.nodeId)));
+    children.sort(
+      (a, b) => Number(chainSet.has(b.nodeId)) - Number(chainSet.has(a.nodeId)),
+    );
     for (const child of children) {
-      const isActive = activeChain.has(child.nodeId);
-      const childSlot = isActive ? slot : nextSlot++;
-      branchSlot.set(child.nodeId, childSlot);
+      const onChain = chainSet.has(child.nodeId);
+      const childSlot = onChain ? slot : nextSlot++;
       positions.set(child.nodeId, { x: depth * X_GAP, y: childSlot * Y_GAP });
       place(child.nodeId, depth + 1, childSlot);
     }
   }
 
-  const baseSlot = 0;
-  positions.set(graph.baseNodeId, { x: 0, y: baseSlot * Y_GAP });
-  branchSlot.set(graph.baseNodeId, baseSlot);
-  place(graph.baseNodeId, 1, baseSlot);
+  positions.set(graph.baseNodeId, { x: 0, y: 0 });
+  place(graph.baseNodeId, 1, 0);
 
-  const nodes: Node[] = graph.nodes.map((n) => {
+  const nodes: Node<NodeData>[] = graph.nodes.map((n) => {
     const pos = positions.get(n.nodeId) ?? { x: 0, y: 0 };
-    const isActive = activeChain.has(n.nodeId);
     return {
       id: n.nodeId,
-      type: "default",
+      type: "rhs",
       position: pos,
       data: {
-        label: (
-          <div
-            className={cn(
-              "flex flex-col gap-0.5 px-2 py-1 text-left text-[10px] leading-tight",
-              isActive ? "" : "opacity-60",
-            )}
-          >
-            <span className={cn("truncate font-medium", isActive && "text-primary")}>
-              {n.title}
-            </span>
-            <span className="truncate text-muted-foreground">
-              {n.commitSha.slice(0, 7)} · {n.treeId.slice(0, 7)}
-            </span>
-          </div>
-        ),
-      },
-      style: {
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        padding: 0,
-        background: isActive ? "hsl(var(--card))" : "hsl(var(--muted))",
-        border: isActive
-          ? "1px solid hsl(var(--primary))"
-          : "1px solid hsl(var(--border))",
-        borderRadius: 6,
+        node: { ...n, isCanonical: canonicalSet.has(n.nodeId) },
+        isBase: n.nodeId === graph.baseNodeId,
+        isSelected: n.nodeId === selectedNodeId,
+        sessionId,
       },
     };
   });
 
   const edges: Edge[] = graph.nodes
     .filter((n) => n.parentNodeId)
-    .map((n) => ({
-      id: `${n.parentNodeId}->${n.nodeId}`,
-      source: n.parentNodeId as string,
-      target: n.nodeId,
-      type: "smoothstep",
-      style: {
-        stroke: activeChain.has(n.nodeId) ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
-        strokeWidth: activeChain.has(n.nodeId) ? 2 : 1,
-      },
-    }));
+    .map((n) => {
+      const onChain = chainPairs.has(`${n.parentNodeId}->${n.nodeId}`);
+      return {
+        id: `${n.parentNodeId}->${n.nodeId}`,
+        source: n.parentNodeId as string,
+        target: n.nodeId,
+        type: "smoothstep",
+        style: {
+          stroke: onChain
+            ? "hsl(var(--success))"
+            : "hsl(var(--muted-foreground))",
+          strokeWidth: onChain ? 2 : 1,
+        },
+      };
+    });
 
   return { nodes, edges };
 }
+
+const RhsNodeCard = memo(function RhsNodeCard({ data }: NodeProps) {
+  const { node, isBase, isSelected, sessionId } = data as NodeData;
+  const mutation = useSetNodeCanonical(sessionId);
+
+  const borderColor = node.isCanonical
+    ? "hsl(var(--success))"
+    : isSelected
+      ? "hsl(var(--primary))"
+      : "hsl(var(--border))";
+  const borderWidth = node.isCanonical || isSelected ? 2 : 1;
+
+  return (
+    <div
+      className={cn(
+        "relative flex h-full w-full items-center gap-1 rounded-md bg-card px-2 py-1",
+        node.isCanonical ? "" : "opacity-90",
+      )}
+      style={{
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        border: `${borderWidth}px solid ${borderColor}`,
+        boxShadow: isSelected ? "0 0 0 2px hsl(var(--ring)/0.25)" : undefined,
+      }}
+    >
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left text-[10px] leading-tight">
+        <span
+          className={cn(
+            "truncate font-medium",
+            node.isCanonical && "text-[hsl(var(--success))]",
+          )}
+        >
+          {node.title}
+        </span>
+        <span className="truncate text-muted-foreground">
+          {node.commitSha.slice(0, 7)} · {node.treeId.slice(0, 7)}
+        </span>
+      </div>
+      {!isBase && (
+        <button
+          type="button"
+          aria-label={node.isCanonical ? "Unmark canonical" : "Mark canonical"}
+          title={node.isCanonical ? "Unmark canonical" : "Mark canonical"}
+          disabled={mutation.isPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            mutation.mutate({
+              nodeId: node.nodeId,
+              isCanonical: !node.isCanonical,
+            });
+          }}
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+            node.isCanonical
+              ? "border-[hsl(var(--success))] bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]"
+              : "border-border bg-background text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Check className="h-3 w-3" />
+        </button>
+      )}
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+    </div>
+  );
+});

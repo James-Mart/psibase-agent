@@ -16,13 +16,13 @@ The goal: turn a worker's `baseRef → sourceRef` diff into a clean, *reviewable
 
 We represent this work as a **virtual node graph**:
 
-- Each **node** is a full cumulative tree state plus a commit sha pointing at that tree.
+- Each **node** is a full cumulative tree state plus a commit sha pointing at that tree, plus a per-node `is_canonical` bit the user can toggle.
 - Each **edge** is the diff between a node and its parent.
-- A session always has a `base` node (tree of `baseRef`) and an `active head`.
-- A session is initialised with `base → final`, where `final` is `tree(sourceRef)`. `active_head_id = finalNodeId` on creation.
-- Export collapses the active chain (from `base` to `active_head`) into a fresh branch with one commit per non-base node, in chain order.
+- A session always has a `base` node (tree of `baseRef`) and starts with a single `final` node (tree of `sourceRef`) parented on `base`. No node is canonical at session creation.
+- The **canonical chain** is the unique linear path obtained by walking from `base` and, at each step, advancing to the single canonical child if there is exactly one. The walk stops on zero or ambiguous canonical children.
+- Export collapses the canonical chain (from `base` to the chain's last node) into a fresh branch with one commit per non-base node, in chain order. Export is gated on the chain ending at a node whose `tree == finalTree`.
 
-The user's job is to **refine edges** until the chain from `base` to `active_head` reads like a good PR.
+The user's job is to **refine edges** and **mark canonical nodes** until the chain from `base` to a final-tree node reads like a good PR.
 
 ## The single primitive: edge refinement
 
@@ -48,11 +48,13 @@ Both modes converge to the same shape: an ordered list of plan items, each const
 
 ### Lifecycle of a refinement
 
-1. **begin**: insert a `rhs_edge_refinements` row keyed by `(session_id, target_node_id)` with `status = 'in_progress'`. Reset the synthesis worktree to the parent commit. Set `active_head_id = parent`.
+1. **begin**: insert a `rhs_edge_refinements` row keyed by `(session_id, target_node_id)` with `status = 'in_progress'` and `synthesis_head_node_id = NULL`. Reset the synthesis worktree to the parent commit.
 2. **survey / plan**: run the appropriate subagent. Accept the result to lock it into the refinement row.
-3. **construct**: for each plan item in order, dispatch a constructor subagent against the synthesis worktree, then checkpoint the worktree as a new intermediate node parented on the current active head. After each successful checkpoint, `active_head_id` advances to the new intermediate.
-4. **complete**: reparent any children of the original target node onto the last intermediate, **delete the original target node row**, set `active_head_id` to the last intermediate.
-5. **abandon**: delete all intermediate node rows created during this refinement, reset `active_head_id` to the original target, hard-reset the synthesis worktree to the target's commit, delete the refinement row.
+3. **construct**: for each plan item in order, dispatch a constructor subagent against the synthesis worktree, then checkpoint the worktree as a new intermediate node parented on the current `synthesis_head_node_id` (or `before` if NULL). After each successful checkpoint, `synthesis_head_node_id` advances to the new intermediate.
+4. **complete**: reparent any children of the original target node onto the last intermediate. **Keep the original target node alive as a leaf alternative.** Flip the refinement row to `status = 'completed'`. The user must mark whichever path they want canonical themselves.
+5. **abandon**: walk from `synthesis_head_node_id` up parent links to `before` and delete each intermediate row. Hard-reset the synthesis worktree to `before.commit`. Delete the refinement row.
+
+`synthesis_head_node_id` is purely internal to the in-progress refinement; it is never exposed to users and is meaningless once the refinement is `completed`.
 
 After completion the refinement leaves the row in `status = 'completed'`; that edge is "consumed" and cannot be refined again. The user refines downstream edges to make further changes.
 
@@ -62,17 +64,19 @@ The synthesis worktree is shared per session, so **only one refinement may be `i
 
 ## Invariants the system relies on
 
-- `active_head_id` is always either the base node or a node reachable from the base by walking child links.
-- `tree(active_head) == finalTree` is the **export gate**. Until this holds, exporting refuses.
-- A successful refinement preserves the export gate: the last intermediate has the same tree as the deleted target, and any downstream chain unchanged from the target onward is reparented intact.
+- Marking a node N canonical clears `is_canonical` on every other node in the session that shares N's tree (same-tree dedup; the "competition" rule). No two canonical nodes ever share the same tree.
+- The base node is never marked canonical: it is always implicitly the start of the canonical chain.
+- The canonical chain ends at a node whose tree equals `finalTree` is the **export gate**. Until this holds, exporting refuses.
+- A successful refinement preserves the option to satisfy the gate via the new chain: the last intermediate has the same tree as the original target, and the original target's downstream chain is reparented onto the last intermediate.
+- The original target is kept alive as a leaf alternative; it is the user's job to mark whichever path they want canonical.
 - Run rows always carry `(session_id, target_node_id)` so the SSE stream and the per-edge UI can stay correctly scoped.
 - The schema is single-DB SQLite (`app/manage-agents.db`); cascades are implemented in the helper functions, not via FK ON DELETE, because rows live on disk-coupled worktree state.
 
 ## What goes in `rhs_*` tables
 
-- `rhs_sessions`: one row per `(worker, worker_branch)`. Holds `base_tree`, `final_tree`, `base_node_id`, `active_head_id`, `synthesis_worktree`, `model_id`.
-- `rhs_nodes`: every virtual node. Tree, commit sha, parent, title, optional metadata.
-- `rhs_edge_refinements`: keyed by `(session_id, target_node_id)`. Holds `mode`, `user_concern`, accepted survey/plan JSON, status (`in_progress` | `completed`).
+- `rhs_sessions`: one row per `(worker, worker_branch)`. Holds `base_tree`, `final_tree`, `base_node_id`, `synthesis_worktree`, `model_id`.
+- `rhs_nodes`: every virtual node. Tree, commit sha, parent, title, `is_canonical`, optional metadata.
+- `rhs_edge_refinements`: keyed by `(session_id, target_node_id)`. Holds `mode`, `user_concern`, accepted survey/plan JSON, status (`in_progress` | `completed`), and `synthesis_head_node_id` (NULL or the most recent in-progress intermediate node).
 - `rhs_runs`: every subagent run. Carries `session_id`, `target_node_id`, `kind` (`survey` | `plan` | `construct`), `status`, `item_id`, `result_json`.
 
 If you add data, add it here, not to ad-hoc tables.
@@ -100,6 +104,7 @@ If you find yourself wanting to:
 - attach survey/plan state to a session instead of an edge,
 - mutate nodes in place,
 - run multiple refinements concurrently in one session,
-- introduce a separate "preserved" copy of the target node on completion,
+- delete the original target node when a refinement completes,
+- reintroduce a session-level "active head" pointer in addition to `is_canonical`,
 
 stop and re-read this file. Those shapes were considered and explicitly rejected during the design.

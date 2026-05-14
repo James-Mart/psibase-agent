@@ -52,10 +52,13 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
 
   useEffect(() => {
     if (!session || !graphQuery.data) return;
+    const graph = graphQuery.data;
     const graphHas = (id: string | null) =>
-      !!id && graphQuery.data!.nodes.some((n) => n.nodeId === id);
+      !!id && graph.nodes.some((n) => n.nodeId === id);
     if (!graphHas(selectedNodeId)) {
-      setSelectedNode(graphQuery.data.activeHeadId);
+      const lastChainId =
+        graph.canonicalChainIds[graph.canonicalChainIds.length - 1];
+      setSelectedNode(lastChainId ?? graph.baseNodeId);
     }
   }, [session, graphQuery.data, selectedNodeId, setSelectedNode]);
 
@@ -160,7 +163,9 @@ export function ReviewHistoryPanel({ name, defaultBaseRef }: Props) {
         disabled={hasInflightRun}
       />
 
-      {graphQuery.data && <VirtualNodeGraph graph={graphQuery.data} />}
+      {graphQuery.data && (
+        <VirtualNodeGraph sessionId={session.id} graph={graphQuery.data} />
+      )}
 
       {inProgressRefinement &&
         inProgressRefinement.targetNodeId !== selectedNodeId && (

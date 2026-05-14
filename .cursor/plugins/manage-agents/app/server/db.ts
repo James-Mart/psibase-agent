@@ -86,7 +86,6 @@ db.exec(`
     base_tree TEXT NOT NULL,
     final_tree TEXT NOT NULL,
     base_node_id TEXT NOT NULL,
-    active_head_id TEXT NOT NULL,
     synthesis_worktree TEXT NOT NULL,
     prep_status TEXT NOT NULL DEFAULT 'preparing',
     prep_error TEXT,
@@ -110,6 +109,7 @@ db.exec(`
     title TEXT NOT NULL,
     message TEXT,
     metadata_json TEXT,
+    is_canonical INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     PRIMARY KEY (session_id, node_id)
   )
@@ -153,10 +153,32 @@ db.exec(`
     change_survey_json TEXT,
     plan_json TEXT,
     status TEXT NOT NULL DEFAULT 'in_progress',
+    synthesis_head_node_id TEXT,
     created_at TEXT NOT NULL,
     PRIMARY KEY (session_id, target_node_id)
   )
 `);
+
+function tableHasColumn(table: string, column: string): boolean {
+  const rows = db
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as { name: string }[];
+  return rows.some((r) => r.name === column);
+}
+
+if (tableHasColumn("rhs_sessions", "active_head_id")) {
+  db.exec(`ALTER TABLE rhs_sessions DROP COLUMN active_head_id`);
+}
+if (!tableHasColumn("rhs_nodes", "is_canonical")) {
+  db.exec(
+    `ALTER TABLE rhs_nodes ADD COLUMN is_canonical INTEGER NOT NULL DEFAULT 0`,
+  );
+}
+if (!tableHasColumn("rhs_edge_refinements", "synthesis_head_node_id")) {
+  db.exec(
+    `ALTER TABLE rhs_edge_refinements ADD COLUMN synthesis_head_node_id TEXT`,
+  );
+}
 
 const stmts = {
   get: db.prepare("SELECT note, status FROM workers WHERE name = ?"),
@@ -243,8 +265,8 @@ const stmts = {
   insertRhsSession: db.prepare(
     `INSERT INTO rhs_sessions
        (id, worker_name, worker_branch, base_ref, source_ref, base_tree, final_tree,
-        base_node_id, active_head_id, synthesis_worktree, model_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        base_node_id, synthesis_worktree, model_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   getRhsSessionById: db.prepare("SELECT * FROM rhs_sessions WHERE id = ?"),
   getRhsSessionByWorkerBranch: db.prepare(
@@ -255,9 +277,6 @@ const stmts = {
   ),
   setRhsSessionPrep: db.prepare(
     "UPDATE rhs_sessions SET prep_status = ?, prep_error = ? WHERE id = ?",
-  ),
-  setRhsSessionActiveHead: db.prepare(
-    "UPDATE rhs_sessions SET active_head_id = ? WHERE id = ?",
   ),
   setRhsSessionModel: db.prepare(
     "UPDATE rhs_sessions SET model_id = ? WHERE id = ?",
@@ -271,11 +290,17 @@ const stmts = {
   ),
   insertRhsNode: db.prepare(
     `INSERT INTO rhs_nodes
-       (session_id, node_id, parent_node_id, tree_id, commit_sha, title, message, metadata_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (session_id, node_id, parent_node_id, tree_id, commit_sha, title, message, metadata_json, is_canonical, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
   ),
   getRhsNode: db.prepare(
     "SELECT * FROM rhs_nodes WHERE session_id = ? AND node_id = ?",
+  ),
+  setRhsNodeCanonical: db.prepare(
+    "UPDATE rhs_nodes SET is_canonical = ? WHERE session_id = ? AND node_id = ?",
+  ),
+  clearRhsCanonicalForTree: db.prepare(
+    "UPDATE rhs_nodes SET is_canonical = 0 WHERE session_id = ? AND tree_id = ? AND node_id != ?",
   ),
   listRhsNodesForSession: db.prepare(
     "SELECT * FROM rhs_nodes WHERE session_id = ? ORDER BY created_at ASC",
@@ -329,6 +354,9 @@ const stmts = {
   ),
   setRhsEdgeRefinementStatus: db.prepare(
     "UPDATE rhs_edge_refinements SET status = ? WHERE session_id = ? AND target_node_id = ?",
+  ),
+  setRhsEdgeRefinementSynthesisHead: db.prepare(
+    "UPDATE rhs_edge_refinements SET synthesis_head_node_id = ? WHERE session_id = ? AND target_node_id = ?",
   ),
   deleteRhsEdgeRefinement: db.prepare(
     "DELETE FROM rhs_edge_refinements WHERE session_id = ? AND target_node_id = ?",
@@ -544,7 +572,6 @@ export interface RhsSessionRow {
   base_tree: string;
   final_tree: string;
   base_node_id: string;
-  active_head_id: string;
   synthesis_worktree: string;
   prep_status: RhsPrepStatus;
   prep_error: string | null;
@@ -561,7 +588,6 @@ export interface InsertRhsSessionInput {
   baseTree: string;
   finalTree: string;
   baseNodeId: string;
-  activeHeadId: string;
   synthesisWorktree: string;
   modelId: string;
 }
@@ -576,7 +602,6 @@ export function insertRhsSession(input: InsertRhsSessionInput): void {
     input.baseTree,
     input.finalTree,
     input.baseNodeId,
-    input.activeHeadId,
     input.synthesisWorktree,
     input.modelId,
     new Date().toISOString(),
@@ -606,10 +631,6 @@ export function setRhsSessionPrep(
   error: string | null,
 ): void {
   stmts.setRhsSessionPrep.run(status, error, id);
-}
-
-export function setRhsSessionActiveHead(id: string, nodeId: string): void {
-  stmts.setRhsSessionActiveHead.run(nodeId, id);
 }
 
 export function setRhsSessionModel(id: string, modelId: string): void {
@@ -647,6 +668,7 @@ export interface RhsNodeRow {
   title: string;
   message: string | null;
   metadata_json: string | null;
+  is_canonical: number;
   created_at: string;
 }
 
@@ -693,6 +715,26 @@ export function updateRhsNodeParent(
 ): void {
   stmts.updateRhsNodeParent.run(parentNodeId, sessionId, nodeId);
 }
+
+export function setRhsNodeCanonical(
+  sessionId: string,
+  nodeId: string,
+  isCanonical: boolean,
+): void {
+  stmts.setRhsNodeCanonical.run(isCanonical ? 1 : 0, sessionId, nodeId);
+}
+
+export function clearRhsCanonicalForTree(
+  sessionId: string,
+  treeId: string,
+  exceptNodeId: string,
+): void {
+  stmts.clearRhsCanonicalForTree.run(sessionId, treeId, exceptNodeId);
+}
+
+export const dbTransaction = <Args extends unknown[], R>(
+  fn: (...args: Args) => R,
+): ((...args: Args) => R) => db.transaction(fn);
 
 export function deleteRhsNode(sessionId: string, nodeId: string): void {
   stmts.deleteRhsNode.run(sessionId, nodeId);
@@ -793,6 +835,7 @@ export interface RhsEdgeRefinementRow {
   change_survey_json: string | null;
   plan_json: string | null;
   status: RhsEdgeRefinementStatus;
+  synthesis_head_node_id: string | null;
   created_at: string;
 }
 
@@ -854,6 +897,14 @@ export function setRhsEdgeRefinementStatus(
   status: RhsEdgeRefinementStatus,
 ): void {
   stmts.setRhsEdgeRefinementStatus.run(status, sessionId, targetNodeId);
+}
+
+export function setRhsEdgeRefinementSynthesisHead(
+  sessionId: string,
+  targetNodeId: string,
+  nodeId: string | null,
+): void {
+  stmts.setRhsEdgeRefinementSynthesisHead.run(nodeId, sessionId, targetNodeId);
 }
 
 export function deleteRhsEdgeRefinement(

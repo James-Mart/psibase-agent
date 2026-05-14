@@ -6,6 +6,8 @@ import { promisify } from "util";
 
 import { REPO_ROOT, WORKTREES_DIR } from "../../config.js";
 import {
+  clearRhsCanonicalForTree,
+  dbTransaction,
   deleteRhsSession as dbDeleteSession,
   deleteRhsEdgeRefinement,
   deleteRhsNode,
@@ -23,7 +25,8 @@ import {
   setRhsEdgeRefinementPlan,
   setRhsEdgeRefinementStatus,
   setRhsEdgeRefinementSurvey,
-  setRhsSessionActiveHead,
+  setRhsEdgeRefinementSynthesisHead,
+  setRhsNodeCanonical as dbSetRhsNodeCanonical,
   setRhsSessionModel,
   setRhsSessionPrep,
   updateRhsNodeParent,
@@ -71,6 +74,7 @@ export interface VirtualNodeView {
   title: string;
   message: string | null;
   metadata: Record<string, unknown> | null;
+  isCanonical: boolean;
   createdAt: string;
 }
 
@@ -83,7 +87,6 @@ export interface SessionView {
   baseTree: string;
   finalTree: string;
   baseNodeId: string;
-  activeHeadId: string;
   synthesisWorktree: string;
   prepStatus: RhsSessionRow["prep_status"];
   prepError: string | null;
@@ -99,6 +102,7 @@ export interface EdgeRefinementView {
   changeSurvey: unknown | null;
   semanticPlan: unknown | null;
   status: RhsEdgeRefinementStatus;
+  synthesisHeadNodeId: string | null;
   createdAt: string;
 }
 
@@ -112,7 +116,6 @@ function rowToSessionView(row: RhsSessionRow): SessionView {
     baseTree: row.base_tree,
     finalTree: row.final_tree,
     baseNodeId: row.base_node_id,
-    activeHeadId: row.active_head_id,
     synthesisWorktree: row.synthesis_worktree,
     prepStatus: row.prep_status,
     prepError: row.prep_error,
@@ -132,6 +135,7 @@ function rowToNodeView(row: RhsNodeRow): VirtualNodeView {
     metadata: row.metadata_json
       ? (JSON.parse(row.metadata_json) as Record<string, unknown>)
       : null,
+    isCanonical: row.is_canonical === 1,
     createdAt: row.created_at,
   };
 }
@@ -147,6 +151,7 @@ function rowToEdgeRefinementView(row: RhsEdgeRefinementRow): EdgeRefinementView 
       : null,
     semanticPlan: row.plan_json ? JSON.parse(row.plan_json) : null,
     status: row.status,
+    synthesisHeadNodeId: row.synthesis_head_node_id,
     createdAt: row.created_at,
   };
 }
@@ -248,7 +253,6 @@ export function createSession(input: CreateSessionInput): SessionView {
     baseTree,
     finalTree,
     baseNodeId,
-    activeHeadId: finalNodeId,
     synthesisWorktree,
     modelId: input.modelId ?? DEFAULT_MODEL_ID,
   });
@@ -330,40 +334,72 @@ export function listNodes(sessionId: string): VirtualNodeView[] {
 
 export interface NodeGraph {
   baseNodeId: string;
-  activeHeadId: string;
   nodes: VirtualNodeView[];
-  activeChainIds: string[];
+  canonicalNodeIds: string[];
+  canonicalChainIds: string[];
 }
 
 export function getNodeGraph(sessionId: string): NodeGraph {
   const session = getSessionById(sessionId);
   const nodes = listNodes(sessionId);
+  const canonicalNodeIds = nodes.filter((n) => n.isCanonical).map((n) => n.nodeId);
+  const canonicalChainIds = walkCanonicalChainIds(session.baseNodeId, nodes);
   return {
     baseNodeId: session.baseNodeId,
-    activeHeadId: session.activeHeadId,
     nodes,
-    activeChainIds: getActiveChainIds(sessionId),
+    canonicalNodeIds,
+    canonicalChainIds,
   };
 }
 
-function getActiveChainIds(sessionId: string): string[] {
-  const session = getSessionById(sessionId);
-  const ids: string[] = [];
-  let current: string | null = session.activeHeadId;
-  const seen = new Set<string>();
-  while (current) {
-    if (seen.has(current)) break;
-    seen.add(current);
-    ids.push(current);
-    const row = getRhsNode(sessionId, current);
-    if (!row) break;
-    current = row.parent_node_id;
+function walkCanonicalChainIds(
+  baseNodeId: string,
+  nodes: VirtualNodeView[],
+): string[] {
+  const childrenByParent = new Map<string, VirtualNodeView[]>();
+  for (const node of nodes) {
+    if (!node.parentNodeId) continue;
+    const list = childrenByParent.get(node.parentNodeId) ?? [];
+    list.push(node);
+    childrenByParent.set(node.parentNodeId, list);
   }
-  return ids.reverse();
+  const ids: string[] = [baseNodeId];
+  let current = baseNodeId;
+  while (true) {
+    const children = childrenByParent.get(current) ?? [];
+    const canonicalChildren = children.filter((c) => c.isCanonical);
+    if (canonicalChildren.length !== 1) break;
+    const next = canonicalChildren[0]!;
+    ids.push(next.nodeId);
+    current = next.nodeId;
+  }
+  return ids;
 }
 
-export function getActiveChain(sessionId: string): VirtualNodeView[] {
-  return getActiveChainIds(sessionId).map((id) => getNode(sessionId, id));
+export function getCanonicalChain(sessionId: string): VirtualNodeView[] {
+  const graph = getNodeGraph(sessionId);
+  const byId = new Map(graph.nodes.map((n) => [n.nodeId, n]));
+  return graph.canonicalChainIds.map((id) => byId.get(id)!);
+}
+
+export function setNodeCanonical(
+  sessionId: string,
+  nodeId: string,
+  isCanonical: boolean,
+): VirtualNodeView {
+  const session = getSessionById(sessionId);
+  if (nodeId === session.baseNodeId) {
+    throw new HttpError(400, "The base node cannot be marked canonical");
+  }
+  const node = getNode(sessionId, nodeId);
+  const apply = dbTransaction((target: VirtualNodeView, flag: boolean) => {
+    dbSetRhsNodeCanonical(sessionId, target.nodeId, flag);
+    if (flag) {
+      clearRhsCanonicalForTree(sessionId, target.treeId, target.nodeId);
+    }
+  });
+  apply(node, isCanonical);
+  return getNode(sessionId, nodeId);
 }
 
 export function getNodeDiff(sessionId: string, nodeId: string): {
@@ -411,13 +447,22 @@ export interface ValidationResult {
   actualTree?: string;
 }
 
-export function validateActiveHeadEqualsFinal(sessionId: string): ValidationResult {
+export function validateCanonicalChain(sessionId: string): ValidationResult {
   const session = getSessionById(sessionId);
-  const head = getNode(sessionId, session.activeHeadId);
+  const chain = getCanonicalChain(sessionId);
+  const head = chain[chain.length - 1]!;
+  if (head.nodeId === session.baseNodeId) {
+    return {
+      ok: false,
+      detail: "no canonical nodes selected",
+      expectedTree: session.finalTree,
+      actualTree: head.treeId,
+    };
+  }
   if (head.treeId === session.finalTree) return { ok: true };
   return {
     ok: false,
-    detail: "active head's tree does not match final tree",
+    detail: "canonical chain does not reach a node whose tree matches the final tree",
     expectedTree: session.finalTree,
     actualTree: head.treeId,
   };
@@ -429,7 +474,6 @@ export interface CheckpointInput {
   title: string;
   message?: string | null;
   metadata?: Record<string, unknown>;
-  setAsActiveHead?: boolean;
 }
 
 export function checkpointSynthesisWorktree(
@@ -452,9 +496,6 @@ export function checkpointSynthesisWorktree(
     message: input.message ?? null,
     metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
   });
-  if (input.setAsActiveHead !== false) {
-    setRhsSessionActiveHead(input.sessionId, nodeId);
-  }
   return getNode(input.sessionId, nodeId);
 }
 
@@ -529,7 +570,6 @@ export function beginEdgeRefinement(
   });
 
   resetWorktreeToCommit(session.synthesisWorktree, before.commitSha);
-  setRhsSessionActiveHead(sessionId, before.nodeId);
 
   return {
     sessionId,
@@ -583,8 +623,6 @@ export function completeEdgeRefinement(
     }
   }
 
-  deleteRhsNode(sessionId, target.nodeId);
-  setRhsSessionActiveHead(sessionId, lastIntermediate.nodeId);
   setRhsEdgeRefinementStatus(sessionId, target.nodeId, "completed");
 
   return {
@@ -606,39 +644,37 @@ export function abandonEdgeRefinement(
   }
   const before = getNode(sessionId, target.parentNodeId);
 
-  for (const intermediate of collectIntermediates(sessionId, before.nodeId, target.nodeId)) {
+  for (const intermediate of collectInProgressIntermediates(
+    sessionId,
+    refinement.synthesis_head_node_id,
+    before.nodeId,
+  )) {
     deleteRhsNode(sessionId, intermediate.nodeId);
   }
 
   const session = getSessionById(sessionId);
-  setRhsSessionActiveHead(sessionId, target.nodeId);
   if (existsSync(session.synthesisWorktree)) {
-    resetWorktreeToCommit(session.synthesisWorktree, target.commitSha);
+    resetWorktreeToCommit(session.synthesisWorktree, before.commitSha);
   }
   deleteRhsEdgeRefinement(sessionId, target.nodeId);
 }
 
-function collectIntermediates(
+function collectInProgressIntermediates(
   sessionId: string,
+  synthesisHeadNodeId: string | null,
   beforeNodeId: string,
-  targetNodeId: string,
 ): VirtualNodeView[] {
-  const allNodes = listNodes(sessionId);
-  const byParent = new Map<string, VirtualNodeView[]>();
-  for (const node of allNodes) {
-    if (!node.parentNodeId) continue;
-    const list = byParent.get(node.parentNodeId) ?? [];
-    list.push(node);
-    byParent.set(node.parentNodeId, list);
-  }
+  if (!synthesisHeadNodeId) return [];
   const out: VirtualNodeView[] = [];
-  const stack: VirtualNodeView[] = byParent.get(beforeNodeId) ?? [];
-  while (stack.length) {
-    const node = stack.pop()!;
-    if (node.nodeId === targetNodeId) continue;
-    out.push(node);
-    const children = byParent.get(node.nodeId);
-    if (children) stack.push(...children);
+  const seen = new Set<string>();
+  let current: string | null = synthesisHeadNodeId;
+  while (current && current !== beforeNodeId) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    const row = getRhsNode(sessionId, current);
+    if (!row) break;
+    out.push(rowToNodeView(row));
+    current = row.parent_node_id;
   }
   return out;
 }
@@ -649,19 +685,58 @@ export function getIntermediateNodeIds(
 ): string[] {
   const refinement = getRhsEdgeRefinement(sessionId, targetNodeId);
   if (!refinement || refinement.status !== "in_progress") return [];
-  const session = getSessionById(sessionId);
   const target = getNode(sessionId, targetNodeId);
   if (!target.parentNodeId) return [];
   const before = getNode(sessionId, target.parentNodeId);
-  const ids: string[] = [];
-  let current: string | null = session.activeHeadId;
-  while (current && current !== before.nodeId) {
-    ids.push(current);
-    const node = getRhsNode(sessionId, current);
-    if (!node) break;
-    current = node.parent_node_id;
+  return collectInProgressIntermediates(
+    sessionId,
+    refinement.synthesis_head_node_id,
+    before.nodeId,
+  )
+    .map((n) => n.nodeId)
+    .reverse();
+}
+
+export function advanceSynthesisHead(
+  sessionId: string,
+  targetNodeId: string,
+  nodeId: string,
+): void {
+  setRhsEdgeRefinementSynthesisHead(sessionId, targetNodeId, nodeId);
+}
+
+export function getSynthesisHeadCommit(
+  sessionId: string,
+  targetNodeId: string,
+): string {
+  const refinement = getRhsEdgeRefinement(sessionId, targetNodeId);
+  if (!refinement) {
+    throw new HttpError(404, "No refinement for this edge");
   }
-  return ids.reverse();
+  if (refinement.synthesis_head_node_id) {
+    return getNode(sessionId, refinement.synthesis_head_node_id).commitSha;
+  }
+  const target = getNode(sessionId, targetNodeId);
+  if (!target.parentNodeId) {
+    throw new HttpError(500, "Refinement target has no parent");
+  }
+  return getNode(sessionId, target.parentNodeId).commitSha;
+}
+
+export function getSynthesisHeadNodeIdOrBefore(
+  sessionId: string,
+  targetNodeId: string,
+): string {
+  const refinement = getRhsEdgeRefinement(sessionId, targetNodeId);
+  if (!refinement) {
+    throw new HttpError(404, "No refinement for this edge");
+  }
+  if (refinement.synthesis_head_node_id) return refinement.synthesis_head_node_id;
+  const target = getNode(sessionId, targetNodeId);
+  if (!target.parentNodeId) {
+    throw new HttpError(500, "Refinement target has no parent");
+  }
+  return target.parentNodeId;
 }
 
 export function setAcceptedSurveyForEdge(
@@ -703,12 +778,12 @@ export interface ExportResult {
   commits: { sha: string; subject: string }[];
 }
 
-export function exportActiveHistoryToBranch(input: ExportInput): ExportResult {
-  const validation = validateActiveHeadEqualsFinal(input.sessionId);
+export function exportCanonicalHistoryToBranch(input: ExportInput): ExportResult {
+  const validation = validateCanonicalChain(input.sessionId);
   if (!validation.ok) {
     throw new HttpError(
       409,
-      "Cannot export: active head tree does not match final tree",
+      "Cannot export: canonical chain is incomplete",
       { ...validation } as Record<string, unknown>,
     );
   }
@@ -723,9 +798,9 @@ export function exportActiveHistoryToBranch(input: ExportInput): ExportResult {
     );
   }
 
-  const chain = getActiveChain(input.sessionId);
+  const chain = getCanonicalChain(input.sessionId);
   if (chain.length < 2) {
-    throw new HttpError(400, "Active chain has no commits to export");
+    throw new HttpError(400, "Canonical chain has no commits to export");
   }
 
   let parent = chain[0]!.commitSha;
@@ -772,12 +847,13 @@ export function verifyExportMatchesFinal(
   };
 }
 
-export function rollbackSynthesisToActiveHead(sessionId: string): void {
+export function rollbackSynthesisForInProgressRefinement(sessionId: string): void {
+  const refinement = getInProgressEdgeRefinementForSession(sessionId);
+  if (!refinement) return;
   const session = getSessionById(sessionId);
-  const head = getNode(sessionId, session.activeHeadId);
-  if (existsSync(session.synthesisWorktree)) {
-    resetWorktreeToCommit(session.synthesisWorktree, head.commitSha);
-  }
+  if (!existsSync(session.synthesisWorktree)) return;
+  const commit = getSynthesisHeadCommit(sessionId, refinement.target_node_id);
+  resetWorktreeToCommit(session.synthesisWorktree, commit);
 }
 
 export function tearDownAllSessionsForWorker(workerName: string): void {
@@ -790,12 +866,6 @@ export function tearDownAllSessionsForWorker(workerName: string): void {
       } catch {}
     }
   }
-}
-
-export function getActiveHeadCommit(sessionId: string): string {
-  const session = getSessionById(sessionId);
-  const head = getNode(sessionId, session.activeHeadId);
-  return head.commitSha;
 }
 
 export function resolveSourceRefCommit(

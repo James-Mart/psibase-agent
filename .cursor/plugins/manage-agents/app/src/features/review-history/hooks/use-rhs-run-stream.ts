@@ -25,8 +25,9 @@ export function useRhsRunStream(
             queryKey: rhsKeys.inProgressRefinement(sessionId),
           });
           qc.invalidateQueries({ queryKey: rhsKeys.graph(sessionId) });
-          qc.invalidateQueries({ queryKey: rhsKeys.activeChain(sessionId) });
-          qc.invalidateQueries({ queryKey: rhsKeys.validateHead(sessionId) });
+          qc.invalidateQueries({
+            queryKey: rhsKeys.validateCanonicalChain(sessionId),
+          });
           if (workerName) {
             qc.invalidateQueries({
               queryKey: rhsKeys.sessionForWorker(workerName),
@@ -38,7 +39,9 @@ export function useRhsRunStream(
             queryKey: rhsKeys.edge(sessionId, event.targetNodeId),
           });
           qc.invalidateQueries({ queryKey: rhsKeys.graph(sessionId) });
-          qc.invalidateQueries({ queryKey: rhsKeys.activeChain(sessionId) });
+          qc.invalidateQueries({
+            queryKey: rhsKeys.validateCanonicalChain(sessionId),
+          });
         }
       } catch {
         // ignore malformed event payloads

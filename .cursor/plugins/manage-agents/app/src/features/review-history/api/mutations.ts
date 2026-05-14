@@ -13,6 +13,7 @@ import {
   deleteSessionForWorker,
   exportBranch,
   patchModel,
+  setNodeCanonical,
   startEdgeRun,
   verifyExport,
 } from "@/lib/api/review-history";
@@ -181,6 +182,21 @@ export function useExportBranch(sessionId: string) {
 export function useVerifyExport(sessionId: string) {
   return useMutation({
     mutationFn: (branchName: string) => verifyExport(sessionId, branchName),
+    onError: (err) => toast.error(messageOf(err)),
+  });
+}
+
+export function useSetNodeCanonical(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { nodeId: string; isCanonical: boolean }) =>
+      setNodeCanonical(sessionId, vars.nodeId, vars.isCanonical),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: rhsKeys.graph(sessionId) });
+      qc.invalidateQueries({
+        queryKey: rhsKeys.validateCanonicalChain(sessionId),
+      });
+    },
     onError: (err) => toast.error(messageOf(err)),
   });
 }
