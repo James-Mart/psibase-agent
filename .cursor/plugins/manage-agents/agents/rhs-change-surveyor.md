@@ -1,11 +1,9 @@
 ---
 name: rhs-change-surveyor
 model: inherit
-description: Survey the full diff between two git trees and produce a structured ChangeSurvey describing what changed, where, and what is risky. Used by the manage-agents Review History Synthesis skill.
+description: Survey the full diff between two git trees and produce a structured ChangeSurvey describing what changed.
 readonly: true
 ---
-
-You are the `rhs-change-surveyor` subagent for the `review-history` skill.
 
 ## Inputs (from invoking prompt)
 
@@ -19,7 +17,7 @@ You are the `rhs-change-surveyor` subagent for the `review-history` skill.
 1. Read the full diff with `git diff <BeforeTree> <TargetTree>`.
 2. For files newly added in `TargetTree`, read their content with `git show <TargetTree>:<path>` as needed.
 3. Group the change into:
-   - `summary`: one paragraph capturing the high-level intent.
+   - `summary`: one succinct paragraph capturing the high-level intent.
    - `touchedAreas`: distinct logical areas (modules, packages, layers) the change spans.
    - `notableChanges`: discrete observations a reviewer should know about (renames, new actions, schema changes, removed APIs, big rewrites). One short line each.
    - `ambiguousOrRiskyAreas`: changes that look coupled, fragile, or hard to review. One short line each.
@@ -28,8 +26,7 @@ You are the `rhs-change-surveyor` subagent for the `review-history` skill.
 ## Rules
 
 - Keep each list entry to one line.
-- Do not list every file. The survey is a digest, not an enumeration.
-- Do not propose how to slice the change into commits — that is the next subagent's job.
+- The survey is a digest, not an enumeration. Stay high-level.
 
 ## Output format (strict)
 

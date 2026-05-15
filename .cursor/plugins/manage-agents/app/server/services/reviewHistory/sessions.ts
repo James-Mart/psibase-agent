@@ -1,8 +1,6 @@
-import { execFile } from "child_process";
 import { existsSync, mkdirSync, rmSync } from "fs";
 import { dirname, join } from "path";
 import { randomUUID } from "crypto";
-import { promisify } from "util";
 
 import { REPO_ROOT, WORKTREES_DIR } from "../../config.js";
 import {
@@ -56,8 +54,6 @@ import {
   unifiedDiff,
   writeTree,
 } from "./git.js";
-
-const execFileP = promisify(execFile);
 
 const REVIEW_SYNTHESIS_ROOT = join(WORKTREES_DIR, "_review-synthesis");
 const DEFAULT_MODEL_ID = "composer-2";
@@ -140,7 +136,9 @@ function rowToNodeView(row: RhsNodeRow): VirtualNodeView {
   };
 }
 
-function rowToEdgeRefinementView(row: RhsEdgeRefinementRow): EdgeRefinementView {
+function rowToEdgeRefinementView(
+  row: RhsEdgeRefinementRow,
+): EdgeRefinementView {
   return {
     sessionId: row.session_id,
     targetNodeId: row.target_node_id,
@@ -270,10 +268,6 @@ async function prepareSynthesisWorktreeAsync(
   try {
     mkdirSync(dirname(synthesisWorktree), { recursive: true });
     addInternalWorktree(baseCommit, synthesisWorktree);
-    await execFileP("bash", [".vscode/scripts/env-setup.sh"], {
-      cwd: synthesisWorktree,
-      timeout: 300_000,
-    });
     setRhsSessionPrep(sessionId, "ready", null);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -306,7 +300,11 @@ export function ensureNoRunningRun(sessionId: string): void {
     throw new HttpError(
       409,
       `Run ${running.id} is already in progress for this session`,
-      { runId: running.id, kind: running.kind, targetNodeId: running.target_node_id },
+      {
+        runId: running.id,
+        kind: running.kind,
+        targetNodeId: running.target_node_id,
+      },
     );
   }
 }
@@ -342,7 +340,9 @@ export interface NodeGraph {
 export function getNodeGraph(sessionId: string): NodeGraph {
   const session = getSessionById(sessionId);
   const nodes = listNodes(sessionId);
-  const canonicalNodeIds = nodes.filter((n) => n.isCanonical).map((n) => n.nodeId);
+  const canonicalNodeIds = nodes
+    .filter((n) => n.isCanonical)
+    .map((n) => n.nodeId);
   const canonicalChainIds = walkCanonicalChainIds(session.baseNodeId, nodes);
   return {
     baseNodeId: session.baseNodeId,
@@ -402,7 +402,10 @@ export function setNodeCanonical(
   return getNode(sessionId, nodeId);
 }
 
-export function getNodeDiff(sessionId: string, nodeId: string): {
+export function getNodeDiff(
+  sessionId: string,
+  nodeId: string,
+): {
   parentTree: string | null;
   tree: string;
   diff: string;
@@ -462,7 +465,8 @@ export function validateCanonicalChain(sessionId: string): ValidationResult {
   if (head.treeId === session.finalTree) return { ok: true };
   return {
     ok: false,
-    detail: "canonical chain does not reach a node whose tree matches the final tree",
+    detail:
+      "canonical chain does not reach a node whose tree matches the final tree",
     expectedTree: session.finalTree,
     actualTree: head.treeId,
   };
@@ -593,7 +597,10 @@ export function completeEdgeRefinement(
   intermediateNodeIds: string[],
 ): EdgeRefinementResult {
   if (intermediateNodeIds.length === 0) {
-    throw new HttpError(400, "Refinement requires at least one intermediate node");
+    throw new HttpError(
+      400,
+      "Refinement requires at least one intermediate node",
+    );
   }
   const refinement = getRhsEdgeRefinement(sessionId, targetNodeId);
   if (!refinement || refinement.status !== "in_progress") {
@@ -731,7 +738,8 @@ export function getSynthesisHeadNodeIdOrBefore(
   if (!refinement) {
     throw new HttpError(404, "No refinement for this edge");
   }
-  if (refinement.synthesis_head_node_id) return refinement.synthesis_head_node_id;
+  if (refinement.synthesis_head_node_id)
+    return refinement.synthesis_head_node_id;
   const target = getNode(sessionId, targetNodeId);
   if (!target.parentNodeId) {
     throw new HttpError(500, "Refinement target has no parent");
@@ -778,20 +786,17 @@ export interface ExportResult {
   commits: { sha: string; subject: string }[];
 }
 
-export function exportCanonicalHistoryToBranch(input: ExportInput): ExportResult {
+export function exportCanonicalHistoryToBranch(
+  input: ExportInput,
+): ExportResult {
   const validation = validateCanonicalChain(input.sessionId);
   if (!validation.ok) {
-    throw new HttpError(
-      409,
-      "Cannot export: canonical chain is incomplete",
-      { ...validation } as Record<string, unknown>,
-    );
+    throw new HttpError(409, "Cannot export: canonical chain is incomplete", {
+      ...validation,
+    } as Record<string, unknown>);
   }
 
-  if (
-    branchExistsInMainRepo(input.branchName, REPO_ROOT) &&
-    !input.force
-  ) {
+  if (branchExistsInMainRepo(input.branchName, REPO_ROOT) && !input.force) {
     throw new HttpError(
       409,
       `Branch ${input.branchName} already exists; pass force=true to overwrite`,
@@ -806,7 +811,11 @@ export function exportCanonicalHistoryToBranch(input: ExportInput): ExportResult
   let parent = chain[0]!.commitSha;
   for (let i = 1; i < chain.length; i++) {
     const node = chain[i]!;
-    const newCommit = commitTree(node.treeId, parent, formatExportSubject(node));
+    const newCommit = commitTree(
+      node.treeId,
+      parent,
+      formatExportSubject(node),
+    );
     parent = newCommit;
   }
 
@@ -847,7 +856,9 @@ export function verifyExportMatchesFinal(
   };
 }
 
-export function rollbackSynthesisForInProgressRefinement(sessionId: string): void {
+export function rollbackSynthesisForInProgressRefinement(
+  sessionId: string,
+): void {
   const refinement = getInProgressEdgeRefinementForSession(sessionId);
   if (!refinement) return;
   const session = getSessionById(sessionId);

@@ -1,11 +1,9 @@
 ---
 name: rhs-edge-refinement-planner
 model: inherit
-description: Propose a sequence of intermediate semantic items that split one virtual-history edge into smaller reviewable steps while preserving the destination tree. Used by the manage-agents Review History Synthesis skill.
+description: Propose a sequence of intermediate semantic items that split one virtual-history edge into smaller reviewable steps while preserving the destination tree.
 readonly: true
 ---
-
-You are the `rhs-edge-refinement-planner` subagent for the `review-history` skill.
 
 ## Inputs (from invoking prompt)
 
@@ -29,6 +27,10 @@ You are the `rhs-edge-refinement-planner` subagent for the `review-history` skil
 - `intent`: one or two sentences explaining what this intermediate commit is for.
 - `dependencies`: array of ids of earlier intermediate items this one depends on. Empty when none.
 - `message`: one-line commit subject in imperative voice.
+
+## Slicing strategy
+
+Prefer **vertical (tracer-bullet) slices** over horizontal (layer-at-a-time) splits. Each intermediate item should deliver one thin end-to-end capability that cuts through every architectural layer touched by the diff (e.g. service action + bindings + plugin function + UI surface) rather than grouping all changes in one layer together. This makes each item independently reviewable as a coherent feature increment.
 
 ## Rules
 
