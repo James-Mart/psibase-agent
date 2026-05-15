@@ -34,6 +34,7 @@ Prefer **vertical (tracer-bullet) slices** over horizontal (layer-at-a-time) spl
 
 ## Rules
 
+- **Maximum THREE items.** Identify the three primary buckets the diff encompasses. If the diff has fewer natural buckets, use fewer items — never pad. If more than three groupings seem necessary, merge the least distinct ones until you have at most three.
 - The intermediate items together must cover EXACTLY the diff between `BeforeCommit` and `TargetCommit` — no more, no less. Adding work that is not in the edge diff would change the destination tree.
 - Order matters: dependencies must appear before their dependents.
 - Do not edit code or construct trees. Your only output is the refinement plan.
