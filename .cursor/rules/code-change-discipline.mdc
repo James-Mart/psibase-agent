@@ -1,0 +1,11 @@
+---
+description: Code change discipline for C++ and Rust (generality, API use, diff hygiene)
+globs: '**/*.{hpp,cpp,rs}'
+alwaysApply: false
+---
+
+# Code Change Discipline
+
+- Solve at the natural level of generality: when the same logic can be written in terms of values already in scope, prefer that over hard-coding one special case — provided it needs no extra machinery.
+- Before hand-rolling logic against a framework or library API, enumerate the inputs and hooks it already exposes for the problem and use them, rather than reimplementing or ignoring them.
+- Don't reformat, reindent, or restructure code unrelated to your change. If a refactor forces large reindentation, isolate it in its own commit so the substantive diff stays reviewable.
