@@ -43,6 +43,7 @@ import type {
 import {
   addWorktree,
   deleteBranch,
+  ensureGitHubHttpsAuth,
   getCurrentBranch,
   getStatusPorcelain,
   removeWorktree,
@@ -169,6 +170,7 @@ export function createWorker(input: CreateWorkerInput): CreateWorkerResult {
   }
 
   try {
+    ensureGitHubHttpsAuth(REPO_ROOT);
     execFileSync("bash", [".vscode/scripts/env-setup.sh"], {
       cwd: worktreePath,
       encoding: "utf-8",

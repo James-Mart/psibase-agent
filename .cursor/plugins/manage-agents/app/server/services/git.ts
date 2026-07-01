@@ -9,6 +9,41 @@ function git(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): s
   });
 }
 
+const GITHUB_HTTPS_PREFIX = "https://github.com/";
+const GITHUB_SSH_PREFIX = "git@github.com:";
+const GITHUB_SSH_INSTEADOF_KEY = `url.${GITHUB_SSH_PREFIX}.insteadOf`;
+
+function sshGithubToHttps(url: string): string | null {
+  if (url.startsWith(GITHUB_HTTPS_PREFIX)) return null;
+  const scpMatch = url.match(/^git@github\.com:([^/]+\/[^/]+?)(?:\.git)?$/);
+  if (scpMatch) {
+    const repoPath = scpMatch[1].replace(/\.git$/, "");
+    return `${GITHUB_HTTPS_PREFIX}${repoPath}.git`;
+  }
+  const sshMatch = url.match(/^ssh:\/\/git@github\.com\/(.+?)(?:\.git)?$/);
+  if (sshMatch) return `${GITHUB_HTTPS_PREFIX}${sshMatch[1]}.git`;
+  return null;
+}
+
+/** Use HTTPS + gh credential helper; this environment has no SSH keys. */
+export function ensureGitHubHttpsAuth(repoRoot: string): void {
+  try {
+    git(["-C", repoRoot, "config", "--local", "--unset-all", GITHUB_SSH_INSTEADOF_KEY]);
+  } catch {}
+
+  let originUrl: string;
+  try {
+    originUrl = git(["-C", repoRoot, "remote", "get-url", "origin"]).trim();
+  } catch {
+    return;
+  }
+
+  const httpsUrl = sshGithubToHttps(originUrl);
+  if (httpsUrl) {
+    git(["-C", repoRoot, "remote", "set-url", "origin", httpsUrl]);
+  }
+}
+
 export function getCurrentBranch(workerDir: string): string {
   try {
     return git(["-C", workerDir, "rev-parse", "--abbrev-ref", "HEAD"]).trim();
@@ -59,6 +94,7 @@ export interface DeleteBranchResult {
 }
 
 export function fetchOrigin(repoRoot: string): void {
+  ensureGitHubHttpsAuth(repoRoot);
   git(["-C", repoRoot, "fetch", "origin", "--prune"], { timeoutMs: 30_000 });
 }
 
@@ -87,6 +123,7 @@ export function addWorktree(
   branch: string,
   opts: { source?: string; existing?: boolean },
 ): void {
+  ensureGitHubHttpsAuth(repoRoot);
   if (opts.existing) {
     git(["-C", repoRoot, "worktree", "add", worktreePath, branch]);
   } else {
