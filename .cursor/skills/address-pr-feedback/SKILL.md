@@ -43,8 +43,8 @@ query {
    - Relevant **code context** (read the cited file/lines; cite real line numbers).
    - Your **recommended resolution(s)**, investigating the code as needed to make the recommendation concrete and correct.
    Then use `AskQuestion` to let the user pick a strategy (offer your recommendation first, labeled "(Recommended)", plus alternatives and a "skip / handle separately" option). Keep investigating and re-asking when the user pushes back or wants more detail; do not move on until the user resolves that comment.
-5. As each strategy is approved, accumulate it. After all comments are triaged, call `CreatePlan` with one todo per actionable comment. Explicitly list deferred/skipped comments and why. Follow the repo's planning rules (no ambiguity: a single definitive approach per item).
-6. Prompt the user (via `AskQuestion`) whether to start implementation now.
+5. Build the plan **incrementally, in view of the user** -- do not save all plan updates for the end. As soon as the first comment's strategy is approved, call `CreatePlan` to create the plan with that one todo. After each subsequent comment is resolved, update the plan by editing the plan file directly (add the new todo and any deferred/skipped notes). This way the plan visibly grows as triage proceeds.
+6. Once all comments are triaged, do a final pass over the plan file: confirm one todo per actionable comment, and that deferred/skipped comments are listed with why. Follow the repo's planning rules (no ambiguity: a single definitive approach per item).
 
 ## Phase 2: Implementation (one item at a time, human-in-the-loop)
 
