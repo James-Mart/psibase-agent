@@ -1,4 +1,5 @@
 import { PARENT_KIND, type Issue, type IssueKind, type Problem } from "../schemas.js";
+import { branchDependencyIds } from "../order.js";
 
 function checkReferent(
   issue: Issue,
@@ -22,6 +23,47 @@ function checkReferent(
       message: `${relation} "${refId}" must be a ${expectedKind}, not a ${referent.kind}`,
     });
   }
+}
+
+function dependencyCycles(
+  issues: Issue[],
+  byId: Map<string, Issue>,
+): Set<string> {
+  const edges = new Map<string, string[]>();
+  for (const issue of issues) {
+    if (issue.kind !== "branch") continue;
+    edges.set(
+      issue.id,
+      branchDependencyIds(issue).filter(
+        (id) => byId.get(id)?.kind === "branch",
+      ),
+    );
+  }
+
+  const inCycle = new Set<string>();
+  const visiting = new Set<string>();
+  const done = new Set<string>();
+  const stack: string[] = [];
+
+  const visit = (id: string): void => {
+    visiting.add(id);
+    stack.push(id);
+    for (const next of edges.get(id) ?? []) {
+      if (visiting.has(next)) {
+        for (let i = stack.lastIndexOf(next); i < stack.length; i += 1) {
+          inCycle.add(stack[i]);
+        }
+      } else if (!done.has(next)) {
+        visit(next);
+      }
+    }
+    stack.pop();
+    visiting.delete(id);
+    done.add(id);
+  };
+
+  for (const id of edges.keys()) if (!done.has(id)) visit(id);
+  return inCycle;
 }
 
 export function checkIntegrity(issues: Issue[]): Problem[] {
@@ -55,6 +97,13 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
         checkReferent(issue, dep, "branch", "blockedBy", byId, problems);
       }
     }
+  }
+
+  for (const id of dependencyCycles(issues, byId)) {
+    problems.push({
+      id,
+      message: "part of a stackedOn/blockedBy dependency cycle",
+    });
   }
 
   return problems;

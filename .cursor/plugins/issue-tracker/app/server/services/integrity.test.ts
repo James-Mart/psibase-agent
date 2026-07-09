@@ -115,11 +115,93 @@ describe("checkIntegrity", () => {
   });
 });
 
+describe("checkIntegrity - cycles", () => {
+  it("flags a branch stacked on itself", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      branch("b1", "e1", { stackedOn: "b1" }),
+    ]);
+    expect(problems.some((p) => p.id === "b1" && /cycle/i.test(p.message))).toBe(
+      true,
+    );
+  });
+
+  it("flags a two-branch stackedOn cycle on both members", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      branch("a", "e1", { stackedOn: "b" }),
+      branch("b", "e1", { stackedOn: "a" }),
+    ]);
+    const cycleIds = problems
+      .filter((p) => /cycle/i.test(p.message))
+      .map((p) => p.id)
+      .sort();
+    expect(cycleIds).toEqual(["a", "b"]);
+  });
+
+  it("flags a mixed stackedOn/blockedBy cycle", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      branch("a", "e1", { stackedOn: "b" }),
+      branch("b", "e1", { blockedBy: ["c"] }),
+      branch("c", "e1", { stackedOn: "a" }),
+    ]);
+    const cycleIds = problems
+      .filter((p) => /cycle/i.test(p.message))
+      .map((p) => p.id)
+      .sort();
+    expect(cycleIds).toEqual(["a", "b", "c"]);
+  });
+
+  it("does not flag a well-formed dependency chain", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      branch("a", "e1"),
+      branch("b", "e1", { stackedOn: "a" }),
+      branch("c", "e1", { stackedOn: "b", blockedBy: ["a"] }),
+    ]);
+    expect(problems.filter((p) => /cycle/i.test(p.message))).toEqual([]);
+  });
+});
+
 describe("problemsFor", () => {
   it("returns only problems attributed to the given id", () => {
     const issues = [commit("c1", "ghost"), commit("c2", "ghost2")];
     const only = problemsFor("c1", issues);
     expect(only).toHaveLength(1);
     expect(only[0].id).toBe("c1");
+  });
+});
+
+describe("validate-at-write (problemsFor against a prospective state)", () => {
+  it("rejects a write that would close a stackedOn cycle", () => {
+    const prospective = [
+      epic("e1"),
+      branch("a", "e1", { stackedOn: "b" }),
+      branch("b", "e1", { stackedOn: "a" }),
+    ];
+    expect(problemsFor("b", prospective).length).toBeGreaterThan(0);
+  });
+
+  it("rejects a write with a dangling blockedBy", () => {
+    const prospective = [
+      epic("e1"),
+      branch("b", "e1", { blockedBy: ["ghost"] }),
+    ];
+    expect(problemsFor("b", prospective)[0].message).toContain("unknown issue");
+  });
+
+  it("rejects a write with a kind violation", () => {
+    const prospective = [epic("e1"), commit("c", "e1")];
+    expect(problemsFor("c", prospective)[0].message).toContain("must be a branch");
+  });
+
+  it("accepts a valid write", () => {
+    const prospective = [
+      epic("e1"),
+      branch("a", "e1"),
+      branch("b", "e1", { stackedOn: "a" }),
+    ];
+    expect(problemsFor("b", prospective)).toEqual([]);
   });
 });

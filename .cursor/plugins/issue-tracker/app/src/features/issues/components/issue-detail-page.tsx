@@ -11,6 +11,7 @@ import { KIND_LABEL } from "../lib/kind";
 import { linkNotFoundMessage } from "../lib/links";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
+import { GitStackPanel } from "./git-stack-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 
 export function IssueDetailPage() {
@@ -101,6 +102,7 @@ export function IssueDetailPage() {
           ) : (
             <>
               <IssueMetaPanel issue={issue} />
+              {issue.kind !== "epic" ? <GitStackPanel issue={issue} /> : null}
               <div className="rounded-lg border bg-card p-6">
                 {issue.description.trim() ? (
                   <Markdown>{issue.description}</Markdown>

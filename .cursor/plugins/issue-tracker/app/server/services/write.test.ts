@@ -1,0 +1,75 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const AT = "2026-07-09T14:00:00.000Z";
+let dir: string;
+
+function writeIssue(id: string, body: Record<string, unknown>): void {
+  mkdirSync(join(dir, id), { recursive: true });
+  writeFileSync(join(dir, id, "issue.json"), JSON.stringify({ id, ...body }));
+}
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "issue-tracker-write-"));
+  vi.resetModules();
+  vi.stubEnv("ISSUES_DIR", dir);
+  writeIssue("e", { kind: "epic", title: "E", createdAt: AT, updatedAt: AT });
+  writeIssue("a", {
+    kind: "branch",
+    title: "A",
+    partOf: "e",
+    createdAt: AT,
+    updatedAt: AT,
+  });
+  writeIssue("b", {
+    kind: "branch",
+    title: "B",
+    partOf: "e",
+    stackedOn: "a",
+    createdAt: AT,
+    updatedAt: AT,
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+async function loadService() {
+  return import("./issues.js");
+}
+
+describe("validate-at-write on the service layer", () => {
+  it("rejects an update that would introduce a stackedOn cycle", async () => {
+    const { update } = await loadService();
+    await expect(update("a", { stackedOn: "b" })).rejects.toThrow(/cycle/i);
+  });
+
+  it("rejects an update with a dangling stackedOn", async () => {
+    const { update } = await loadService();
+    await expect(update("b", { stackedOn: "ghost" })).rejects.toThrow(
+      /unknown issue/,
+    );
+  });
+
+  it("rejects an update that would introduce a blockedBy cycle", async () => {
+    const { update } = await loadService();
+    await expect(update("a", { blockedBy: ["b"] })).rejects.toThrow(/cycle/i);
+  });
+
+  it("rejects a create whose stackedOn is not a branch", async () => {
+    const { create } = await loadService();
+    await expect(
+      create({ kind: "branch", title: "C", partOf: "e", stackedOn: "e" }),
+    ).rejects.toThrow(/must be a branch/);
+  });
+
+  it("accepts a valid stackedOn update", async () => {
+    const { update } = await loadService();
+    const record = await update("a", { branchName: "feat/a" });
+    expect(record.kind === "branch" && record.branchName).toBe("feat/a");
+  });
+});

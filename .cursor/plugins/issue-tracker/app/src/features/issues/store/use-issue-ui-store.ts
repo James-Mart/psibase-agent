@@ -6,7 +6,11 @@ interface NewIssueTarget {
   presetParent?: string;
 }
 
+export type IssueView = "tree" | "ready";
+
 interface IssueUiState {
+  view: IssueView;
+  setView: (value: IssueView) => void;
   search: string;
   setSearch: (value: string) => void;
   expanded: Record<string, boolean>;
@@ -20,6 +24,8 @@ interface IssueUiState {
 }
 
 export const useIssueUiStore = create<IssueUiState>((set) => ({
+  view: "tree",
+  setView: (value) => set({ view: value }),
   search: "",
   setSearch: (value) => set({ search: value }),
   expanded: {},

@@ -7,12 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
-
-const STATUS_CLASS: Record<CommitStatus, string> = {
-  todo: "text-muted-foreground",
-  "in-progress": "[color:hsl(var(--warning))]",
-  done: "[color:hsl(var(--success))]",
-};
+import { COMMIT_STATUS_CLASS } from "../lib/derived";
 
 export function CommitStatusSelect({
   id,
@@ -32,7 +27,7 @@ export function CommitStatusSelect({
         }
       >
         <SelectTrigger
-          className={`h-6 w-28 border-transparent bg-muted px-2 text-xs ${STATUS_CLASS[status]}`}
+          className={`h-6 w-28 border-transparent bg-muted px-2 text-xs ${COMMIT_STATUS_CLASS[status]}`}
         >
           <SelectValue />
         </SelectTrigger>

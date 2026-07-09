@@ -20,7 +20,8 @@ import {
   type Problem,
 } from "../schemas.js";
 import { IssueError } from "./errors.js";
-import { checkIntegrity, problemsFor } from "./integrity.js";
+import { derive } from "./derive.js";
+import { problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import { uniqueSlug } from "./slug.js";
 
@@ -100,9 +101,12 @@ function readAll(): { issues: Issue[]; problems: Problem[] } {
 
 export function list(): IssuesResponse {
   const { issues, problems } = readAll();
+  const derived = derive(issues);
   return {
     issues: issues.map(toRecord),
-    problems: [...problems, ...checkIntegrity(issues)],
+    problems: [...problems, ...derived.problems],
+    derived: derived.byId,
+    ready: derived.ready,
   };
 }
 

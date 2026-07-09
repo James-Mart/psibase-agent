@@ -4,17 +4,29 @@ import {
   FileText,
   GitBranch,
   GitCommitHorizontal,
+  GitPullRequest,
   Layers,
   Plus,
   Trash2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CHILD_KIND, type IssueKind, type IssueRecord } from "@server/schemas";
+import {
+  CHILD_KIND,
+  type DerivedState,
+  type IssueKind,
+  type IssueRecord,
+} from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
+import {
+  BRANCH_STATUS_CLASS,
+  BRANCH_STATUS_LABEL,
+  EPIC_STATUS_CLASS,
+  EPIC_STATUS_LABEL,
+} from "../lib/derived";
 import { CommitStatusSelect } from "./commit-status-select";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
@@ -23,12 +35,48 @@ const KIND_ICON: Record<IssueKind, typeof Layers> = {
   commit: GitCommitHorizontal,
 };
 
-function GitChip({ issue }: { issue: IssueRecord }) {
-  if (issue.kind === "branch" && issue.branchName) {
+function GitChip({
+  issue,
+  derived,
+}: {
+  issue: IssueRecord;
+  derived?: DerivedState;
+}) {
+  if (issue.kind === "branch") {
     return (
-      <span className="font-mono text-xs text-muted-foreground">
-        {issue.branchName}
-        {issue.merged ? " (merged)" : ""}
+      <span className="flex items-center gap-2 text-xs">
+        {issue.branchName ? (
+          <span className="font-mono text-muted-foreground">
+            {issue.branchName}
+          </span>
+        ) : null}
+        {derived?.base ? (
+          <span className="text-muted-foreground/70">on {derived.base}</span>
+        ) : null}
+        {issue.prUrl ? (
+          <a
+            href={issue.prUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={issue.prUrl}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GitPullRequest className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+        {derived?.branchStatus ? (
+          <span className={BRANCH_STATUS_CLASS[derived.branchStatus]}>
+            {BRANCH_STATUS_LABEL[derived.branchStatus]}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  if (issue.kind === "epic" && derived?.epicStatus) {
+    return (
+      <span className={`text-xs ${EPIC_STATUS_CLASS[derived.epicStatus]}`}>
+        {EPIC_STATUS_LABEL[derived.epicStatus]}
       </span>
     );
   }
@@ -77,12 +125,23 @@ function RowActions({ issue }: { issue: IssueRecord }) {
   );
 }
 
-function TreeRow({ node, depth }: { node: IssueNode; depth: number }) {
+type DerivedMap = Record<string, DerivedState>;
+
+function TreeRow({
+  node,
+  depth,
+  derived,
+}: {
+  node: IssueNode;
+  depth: number;
+  derived: DerivedMap;
+}) {
   const { issue } = node;
   const expanded = useIssueUiStore((s) => s.expanded[issue.id] ?? true);
   const toggle = useIssueUiStore((s) => s.toggle);
   const hasChildren = node.children.length > 0;
   const Icon = KIND_ICON[issue.kind];
+  const state = derived[issue.id];
 
   return (
     <div>
@@ -90,6 +149,7 @@ function TreeRow({ node, depth }: { node: IssueNode; depth: number }) {
         className={cn(
           "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
           hasChildren && "cursor-pointer",
+          state?.blocked && "opacity-40",
         )}
         style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
         onClick={hasChildren ? () => toggle(issue.id) : undefined}
@@ -112,7 +172,12 @@ function TreeRow({ node, depth }: { node: IssueNode; depth: number }) {
           {issue.title}
         </Link>
         <span className="ml-auto flex items-center gap-2">
-          <GitChip issue={issue} />
+          {state?.blocked ? (
+            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              blocked
+            </span>
+          ) : null}
+          <GitChip issue={issue} derived={state} />
           {issue.hasDescription ? (
             <FileText className="h-3.5 w-3.5 text-muted-foreground" />
           ) : null}
@@ -125,7 +190,12 @@ function TreeRow({ node, depth }: { node: IssueNode; depth: number }) {
       {hasChildren && expanded ? (
         <div>
           {node.children.map((child) => (
-            <TreeRow key={child.issue.id} node={child} depth={depth + 1} />
+            <TreeRow
+              key={child.issue.id}
+              node={child}
+              depth={depth + 1}
+              derived={derived}
+            />
           ))}
         </div>
       ) : null}
@@ -133,7 +203,13 @@ function TreeRow({ node, depth }: { node: IssueNode; depth: number }) {
   );
 }
 
-export function IssueTree({ nodes }: { nodes: IssueNode[] }) {
+export function IssueTree({
+  nodes,
+  derived,
+}: {
+  nodes: IssueNode[];
+  derived: DerivedMap;
+}) {
   if (nodes.length === 0) {
     return (
       <p className="px-2 py-8 text-center text-sm text-muted-foreground">
@@ -144,7 +220,7 @@ export function IssueTree({ nodes }: { nodes: IssueNode[] }) {
   return (
     <div className="flex flex-col">
       {nodes.map((node) => (
-        <TreeRow key={node.issue.id} node={node} depth={0} />
+        <TreeRow key={node.issue.id} node={node} depth={0} derived={derived} />
       ))}
     </div>
   );

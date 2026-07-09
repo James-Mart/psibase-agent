@@ -9,7 +9,7 @@ program
   .description("File-backed Epic > Branch > Commit tracker")
   .showHelpAfterError();
 
-async function run(action: () => Promise<unknown>): Promise<void> {
+async function run(action: () => unknown): Promise<void> {
   try {
     const result = await action();
     if (result && typeof result === "object" && "id" in result) {
@@ -87,8 +87,61 @@ program
   );
 
 program
+  .command("set-commit")
+  .argument("<id>", "commit id")
+  .argument("<sha>", "git commit sha")
+  .action((id, sha) => run(() => update(id, { commitSha: sha })));
+
+program
+  .command("set-branch-name")
+  .argument("<id>", "branch id")
+  .argument("<name>", "git branch name")
+  .action((id, name) => run(() => update(id, { branchName: name })));
+
+program
+  .command("set-stacked-on")
+  .argument("<id>", "branch id")
+  .argument("<branch>", "fork-point branch id")
+  .action((id, branch) => run(() => update(id, { stackedOn: branch })));
+
+program
+  .command("block")
+  .argument("<id>", "branch id")
+  .requiredOption("--by <branchIds...>", "blocking branch ids")
+  .action((id, opts) => run(() => update(id, { blockedBy: opts.by })));
+
+program
+  .command("open-pr")
+  .argument("<id>", "branch id")
+  .argument("<url>", "pull request url")
+  .action((id, url) => run(() => update(id, { prUrl: url })));
+
+program
+  .command("set-merged")
+  .argument("<id>", "branch id")
+  .action((id) => run(() => update(id, { merged: true })));
+
+program
+  .command("ready")
+  .description("print the ready set (next actionable commits + startable branches)")
+  .action(() =>
+    run(() => {
+      const { issues, ready } = list();
+      const byId = new Map(issues.map((issue) => [issue.id, issue]));
+      if (ready.length === 0) {
+        console.log("nothing ready");
+        return;
+      }
+      for (const id of ready) {
+        const issue = byId.get(id);
+        if (issue) console.log(`${issue.kind}\t${id}\t${issue.title}`);
+      }
+    }),
+  );
+
+program
   .command("list")
-  .description("print all issues and any problems as JSON")
+  .description("print all issues, derived state, and any problems as JSON")
   .action(() => {
     console.log(JSON.stringify(list(), null, 2));
   });

@@ -79,6 +79,6 @@ describe("list() malformed filter", () => {
     vi.stubEnv("ISSUES_DIR", missing);
     vi.resetModules();
     const list = await loadList();
-    expect(list()).toEqual({ issues: [], problems: [] });
+    expect(list()).toEqual({ issues: [], problems: [], derived: {}, ready: [] });
   });
 });
