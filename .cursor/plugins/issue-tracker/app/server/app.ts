@@ -7,6 +7,7 @@ import express, {
 import { join } from "path";
 import { distDir, hasBuiltClient, isProdEnv } from "./config.js";
 import { errorHandler } from "./errors.js";
+import { eventsRouter } from "./routes/events.js";
 import { issuesRouter } from "./routes/issues.js";
 
 function requestLogger(req: Request, res: Response, next: NextFunction): void {
@@ -32,6 +33,7 @@ export function createApp(): Express {
   }
 
   app.use("/api/issues", issuesRouter);
+  app.use("/api/events", eventsRouter);
 
   if (serveStatic) {
     app.get("*", (_req, res) => {

@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
-import type { CreateInput, IssuePatch, IssueRecord } from "@server/schemas";
+import type {
+  CreateInput,
+  IssueDetail,
+  IssuePatch,
+  IssueRecord,
+} from "@server/schemas";
 import { issuesKeys } from "./keys";
 
 function messageOf(err: unknown): string {
@@ -20,17 +25,15 @@ export function useCreateIssue() {
 
 export function useUpdateIssue() {
   const qc = useQueryClient();
-  return useMutation<IssueRecord, Error, { id: string; patch: IssuePatch }>({
+  return useMutation<IssueDetail, Error, { id: string; patch: IssuePatch }>({
     mutationFn: ({ id, patch }) =>
-      request<IssueRecord>(`/api/issues/${id}`, {
+      request<IssueDetail>(`/api/issues/${id}`, {
         method: "PATCH",
         body: patch,
       }),
     onError: (err) => toast.error(messageOf(err)),
-    onSettled: (_data, _err, { id }) => {
-      qc.invalidateQueries({ queryKey: issuesKeys.list() });
-      qc.invalidateQueries({ queryKey: issuesKeys.detail(id) });
-    },
+    onSuccess: (data) => qc.setQueryData(issuesKeys.detail(data.id), data),
+    onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.list() }),
   });
 }
 

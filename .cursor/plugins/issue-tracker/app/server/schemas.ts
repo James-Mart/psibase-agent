@@ -90,11 +90,21 @@ export interface FilePresence {
 
 export type IssueRecord = Issue & FilePresence;
 
-export type IssueDetail = IssueRecord & { description: string };
+export type IssueDetail = IssueRecord & {
+  description: string;
+  version: string;
+};
 
 export interface Problem {
   id: string;
   message: string;
+}
+
+export type IssueEventType = "add" | "change" | "unlink" | "unlink-dir";
+
+export interface IssueEvent {
+  type: IssueEventType;
+  id: string;
 }
 
 export type BranchStatus = "not-started" | "in-progress" | "pr-open" | "merged";

@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { AlertTriangle } from "lucide-react";
 import {
   COMMIT_STATUSES,
   type CommitStatus,
@@ -23,6 +24,41 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
+import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
+
+interface FormState {
+  title: string;
+  description: string;
+  assignee: string;
+  needsAttention: boolean;
+  attentionReason: string;
+  partOf: string;
+  status: CommitStatus;
+  commitSha: string;
+  branchName: string;
+  stackedOn: string;
+  prUrl: string;
+  merged: boolean;
+  blockedBy: string;
+}
+
+function formStateFromIssue(issue: IssueDetail): FormState {
+  return {
+    title: issue.title,
+    description: issue.description,
+    assignee: issue.assignee ?? "",
+    needsAttention: issue.needsAttention,
+    attentionReason: issue.attentionReason ?? "",
+    partOf: "partOf" in issue ? issue.partOf : "",
+    status: issue.kind === "commit" ? issue.status : "todo",
+    commitSha: issue.kind === "commit" ? issue.commitSha ?? "" : "",
+    branchName: issue.kind === "branch" ? issue.branchName ?? "" : "",
+    stackedOn: issue.kind === "branch" ? issue.stackedOn ?? "" : "",
+    prUrl: issue.kind === "branch" ? issue.prUrl ?? "" : "",
+    merged: issue.kind === "branch" ? issue.merged : false,
+    blockedBy: issue.kind === "branch" ? issue.blockedBy.join(" ") : "",
+  };
+}
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -49,38 +85,16 @@ export function IssueDetailEdit({
   onDone: () => void;
 }) {
   const update = useUpdateIssue();
+  const [form, setForm] = useState<FormState>(() => formStateFromIssue(issue));
+  const { hasConflict, acknowledge } = useExternalEditConflict(issue);
 
-  const [title, setTitle] = useState(issue.title);
-  const [description, setDescription] = useState(issue.description);
-  const [assignee, setAssignee] = useState(issue.assignee ?? "");
-  const [needsAttention, setNeedsAttention] = useState(issue.needsAttention);
-  const [attentionReason, setAttentionReason] = useState(
-    issue.attentionReason ?? "",
-  );
-  const [partOf, setPartOf] = useState("partOf" in issue ? issue.partOf : "");
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
-  const [status, setStatus] = useState<CommitStatus>(
-    issue.kind === "commit" ? issue.status : "todo",
-  );
-  const [commitSha, setCommitSha] = useState(
-    issue.kind === "commit" ? issue.commitSha ?? "" : "",
-  );
-
-  const [branchName, setBranchName] = useState(
-    issue.kind === "branch" ? issue.branchName ?? "" : "",
-  );
-  const [stackedOn, setStackedOn] = useState(
-    issue.kind === "branch" ? issue.stackedOn ?? "" : "",
-  );
-  const [prUrl, setPrUrl] = useState(
-    issue.kind === "branch" ? issue.prUrl ?? "" : "",
-  );
-  const [merged, setMerged] = useState(
-    issue.kind === "branch" ? issue.merged : false,
-  );
-  const [blockedBy, setBlockedBy] = useState(
-    issue.kind === "branch" ? issue.blockedBy.join(" ") : "",
-  );
+  const reload = () => {
+    setForm(formStateFromIssue(issue));
+    acknowledge();
+  };
 
   const buildPatch = (): IssuePatch => {
     const patch: IssuePatch = {};
@@ -94,34 +108,34 @@ export function IssueDetailEdit({
       patch[key] = next === "" ? null : next;
     };
 
-    const trimmedTitle = title.trim();
+    const trimmedTitle = form.title.trim();
     if (trimmedTitle && trimmedTitle !== issue.title) patch.title = trimmedTitle;
-    if (description !== issue.description) patch.description = description;
+    if (form.description !== issue.description)
+      patch.description = form.description;
 
-    setClearable("assignee", assignee, issue.assignee);
+    setClearable("assignee", form.assignee, issue.assignee);
 
-    if (needsAttention !== issue.needsAttention)
-      patch.needsAttention = needsAttention;
-    const reason = needsAttention ? attentionReason.trim() || null : null;
-    if (reason !== (issue.attentionReason ?? null))
-      patch.attentionReason = reason;
+    if (form.needsAttention !== issue.needsAttention)
+      patch.needsAttention = form.needsAttention;
+    const reason = form.needsAttention ? form.attentionReason.trim() || null : null;
+    if (reason !== (issue.attentionReason ?? null)) patch.attentionReason = reason;
 
     if ("partOf" in issue) {
-      const nextParent = partOf.trim();
+      const nextParent = form.partOf.trim();
       if (nextParent && nextParent !== issue.partOf) patch.partOf = nextParent;
     }
 
     if (issue.kind === "commit") {
-      if (status !== issue.status) patch.status = status;
-      setClearable("commitSha", commitSha, issue.commitSha);
+      if (form.status !== issue.status) patch.status = form.status;
+      setClearable("commitSha", form.commitSha, issue.commitSha);
     }
 
     if (issue.kind === "branch") {
-      setClearable("branchName", branchName, issue.branchName);
-      setClearable("stackedOn", stackedOn, issue.stackedOn);
-      setClearable("prUrl", prUrl, issue.prUrl);
-      if (merged !== issue.merged) patch.merged = merged;
-      const nextBlocked = parseIds(blockedBy);
+      setClearable("branchName", form.branchName, issue.branchName);
+      setClearable("stackedOn", form.stackedOn, issue.stackedOn);
+      setClearable("prUrl", form.prUrl, issue.prUrl);
+      if (form.merged !== issue.merged) patch.merged = form.merged;
+      const nextBlocked = parseIds(form.blockedBy);
       if (JSON.stringify(nextBlocked) !== JSON.stringify(issue.blockedBy))
         patch.blockedBy = nextBlocked;
     }
@@ -140,7 +154,10 @@ export function IssueDetailEdit({
 
   const controls: Record<BranchFieldKey | CommitFieldKey, ReactNode> = {
     status: (
-      <Select value={status} onValueChange={(v) => setStatus(v as CommitStatus)}>
+      <Select
+        value={form.status}
+        onValueChange={(v) => set("status", v as CommitStatus)}
+      >
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
@@ -155,58 +172,81 @@ export function IssueDetailEdit({
     ),
     commitSha: (
       <Input
-        value={commitSha}
-        onChange={(e) => setCommitSha(e.target.value)}
+        value={form.commitSha}
+        onChange={(e) => set("commitSha", e.target.value)}
         className="font-mono"
       />
     ),
     branchName: (
       <Input
-        value={branchName}
-        onChange={(e) => setBranchName(e.target.value)}
+        value={form.branchName}
+        onChange={(e) => set("branchName", e.target.value)}
         className="font-mono"
       />
     ),
     stackedOn: (
       <Input
-        value={stackedOn}
-        onChange={(e) => setStackedOn(e.target.value)}
+        value={form.stackedOn}
+        onChange={(e) => set("stackedOn", e.target.value)}
         className="font-mono"
         placeholder="branch id"
       />
     ),
     blockedBy: (
       <Input
-        value={blockedBy}
-        onChange={(e) => setBlockedBy(e.target.value)}
+        value={form.blockedBy}
+        onChange={(e) => set("blockedBy", e.target.value)}
         className="font-mono"
         placeholder="space-separated branch ids"
       />
     ),
-    prUrl: <Input value={prUrl} onChange={(e) => setPrUrl(e.target.value)} />,
+    prUrl: (
+      <Input value={form.prUrl} onChange={(e) => set("prUrl", e.target.value)} />
+    ),
     merged: (
       <label className="flex h-9 items-center gap-2 text-sm text-muted-foreground">
         <input
           type="checkbox"
           className="h-4 w-4 accent-primary"
-          checked={merged}
-          onChange={(e) => setMerged(e.target.checked)}
+          checked={form.merged}
+          onChange={(e) => set("merged", e.target.checked)}
         />
-        {merged ? "merged" : "not merged"}
+        {form.merged ? "merged" : "not merged"}
       </label>
     ),
   };
 
   return (
     <div className="flex flex-col gap-4">
+      {hasConflict ? (
+        <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+          <div className="flex items-center gap-2 font-medium [color:hsl(var(--warning))]">
+            <AlertTriangle className="h-4 w-4" />
+            This issue changed on disk while you were editing.
+          </div>
+          <p className="text-muted-foreground">
+            Reload to discard your edits and load the disk version, or keep your
+            edits (saving will overwrite the disk changes).
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={reload}>
+              Reload from disk
+            </Button>
+            <Button size="sm" variant="ghost" onClick={acknowledge}>
+              Keep my edits
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <Field label={FIELD_LABELS.title}>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+        <Input value={form.title} onChange={(e) => set("title", e.target.value)} />
       </Field>
 
       <Field label="Description (Markdown)">
         <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
           className="min-h-[280px] font-mono"
         />
       </Field>
@@ -214,13 +254,16 @@ export function IssueDetailEdit({
       <div className="grid grid-cols-2 gap-4">
         {"partOf" in issue ? (
           <Field label={FIELD_LABELS.partOf}>
-            <Input value={partOf} onChange={(e) => setPartOf(e.target.value)} />
+            <Input
+              value={form.partOf}
+              onChange={(e) => set("partOf", e.target.value)}
+            />
           </Field>
         ) : null}
         <Field label={FIELD_LABELS.assignee}>
           <Input
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
+            value={form.assignee}
+            onChange={(e) => set("assignee", e.target.value)}
             placeholder="unassigned"
           />
         </Field>
@@ -241,15 +284,15 @@ export function IssueDetailEdit({
           <input
             type="checkbox"
             className="h-4 w-4 accent-primary"
-            checked={needsAttention}
-            onChange={(e) => setNeedsAttention(e.target.checked)}
+            checked={form.needsAttention}
+            onChange={(e) => set("needsAttention", e.target.checked)}
           />
           {FIELD_LABELS.needsAttention}
         </label>
-        {needsAttention ? (
+        {form.needsAttention ? (
           <Input
-            value={attentionReason}
-            onChange={(e) => setAttentionReason(e.target.value)}
+            value={form.attentionReason}
+            onChange={(e) => set("attentionReason", e.target.value)}
             placeholder="Reason"
           />
         ) : null}
@@ -259,7 +302,7 @@ export function IssueDetailEdit({
         <Button variant="ghost" onClick={onDone} disabled={update.isPending}>
           Cancel
         </Button>
-        <Button onClick={save} disabled={update.isPending}>
+        <Button onClick={save} disabled={update.isPending || hasConflict}>
           Save
         </Button>
       </div>

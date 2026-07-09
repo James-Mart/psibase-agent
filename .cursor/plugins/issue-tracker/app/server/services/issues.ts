@@ -7,6 +7,7 @@ import {
   statSync,
   writeFileSync,
 } from "fs";
+import { createHash } from "crypto";
 import { join } from "path";
 import { issuesDir } from "../config.js";
 import {
@@ -51,21 +52,26 @@ function scanIds(): string[] {
   );
 }
 
-function readRaw(id: string): { issue?: Issue; problem?: Problem } {
+function readRaw(id: string): {
+  issue?: Issue;
+  problem?: Problem;
+  text?: string;
+} {
   const jsonPath = jsonPathOf(id);
   if (!existsSync(jsonPath)) {
     return { problem: { id, message: "missing issue.json" } };
   }
+  const text = readFileSync(jsonPath, "utf8");
   let raw: unknown;
   try {
-    raw = JSON.parse(readFileSync(jsonPath, "utf8"));
+    raw = JSON.parse(text);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    return { problem: { id, message: `invalid issue.json: ${detail}` } };
+    return { problem: { id, message: `invalid issue.json: ${detail}` }, text };
   }
   const parsed = parseIssue(raw);
   if (!parsed.ok) {
-    return { problem: { id, message: parsed.message } };
+    return { problem: { id, message: parsed.message }, text };
   }
   if (parsed.issue.id !== id) {
     return {
@@ -74,9 +80,10 @@ function readRaw(id: string): { issue?: Issue; problem?: Problem } {
         id,
         message: `issue.json id "${parsed.issue.id}" does not match directory name`,
       },
+      text,
     };
   }
-  return { issue: parsed.issue };
+  return { issue: parsed.issue, text };
 }
 
 function toRecord(issue: Issue): IssueRecord {
@@ -115,9 +122,33 @@ function readDescription(id: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
+// The version covers issue.json + description.md, the two files a user edits;
+// chat.jsonl is intentionally excluded (M5 will fold it in).
+export function versionOf(jsonText: string, description: string): string {
+  return createHash("sha1")
+    .update(jsonText)
+    .update("\0")
+    .update(description)
+    .digest("hex");
+}
+
+function toDetail(issue: Issue, jsonText: string, description: string): IssueDetail {
+  return {
+    ...toRecord(issue),
+    description,
+    version: versionOf(jsonText, description),
+  };
+}
+
 export function read(id: string): IssueDetail {
-  const issue = readIssueOrThrow(id);
-  return { ...toRecord(issue), description: readDescription(id) };
+  if (!existsSync(dirOf(id))) {
+    throw new IssueError("not_found", `unknown issue "${id}"`);
+  }
+  const { issue, problem, text } = readRaw(id);
+  if (!issue || text === undefined) {
+    throw new IssueError("validation", problem?.message ?? `invalid issue "${id}"`);
+  }
+  return toDetail(issue, text, readDescription(id));
 }
 
 function readIssueOrThrow(id: string): Issue {
@@ -131,10 +162,14 @@ function readIssueOrThrow(id: string): Issue {
   return issue;
 }
 
-function persist(issue: Issue): void {
+function serializeIssue(issue: Issue): string {
+  return `${JSON.stringify(issue, null, 2)}\n`;
+}
+
+function persist(issue: Issue, jsonText: string): void {
   const dir = dirOf(issue.id);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(jsonPathOf(issue.id), `${JSON.stringify(issue, null, 2)}\n`);
+  writeFileSync(jsonPathOf(issue.id), jsonText);
 }
 
 function assertWritable(target: Issue, all: Issue[]): void {
@@ -187,7 +222,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
 
     assertWritable(parsed.issue, issues);
-    persist(parsed.issue);
+    persist(parsed.issue, serializeIssue(parsed.issue));
     writeFileSync(
       join(dirOf(id), "description.md"),
       input.description ?? `# ${title}\n`,
@@ -196,7 +231,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
   });
 }
 
-export function update(id: string, patch: IssuePatch): Promise<IssueRecord> {
+export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
   return serialize(() => {
     const existing = readIssueOrThrow(id);
     const { issues } = readAll();
@@ -220,16 +255,19 @@ export function update(id: string, patch: IssuePatch): Promise<IssueRecord> {
     const jsonUnchanged =
       JSON.stringify(parsed.issue) === JSON.stringify(existing);
     if (jsonUnchanged && description === undefined) {
-      return toRecord(existing);
+      return read(id);
     }
 
     parsed.issue.updatedAt = new Date().toISOString();
     assertWritable(parsed.issue, issues);
-    persist(parsed.issue);
+    const jsonText = serializeIssue(parsed.issue);
+    persist(parsed.issue, jsonText);
     if (description !== undefined) {
       writeFileSync(join(dirOf(id), "description.md"), description);
     }
-    return toRecord(parsed.issue);
+    const finalDescription =
+      description !== undefined ? description : readDescription(id);
+    return toDetail(parsed.issue, jsonText, finalDescription);
   });
 }
 
