@@ -69,7 +69,27 @@
   }
 }
 
+@keyframes chat-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @layer components {
+  .chat-shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted-foreground)) 0%,
+      hsl(var(--foreground)) 50%,
+      hsl(var(--muted-foreground)) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: chat-shimmer 1.6s linear infinite;
+  }
+
   .prose-issue {
     @apply text-sm leading-relaxed text-foreground;
   }

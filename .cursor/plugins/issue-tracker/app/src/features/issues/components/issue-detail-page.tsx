@@ -11,8 +11,10 @@ import { KIND_LABEL } from "../lib/kind";
 import { linkNotFoundMessage } from "../lib/links";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
+import { IssueBadges } from "./issue-badges";
 import { GitStackPanel } from "./git-stack-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
+import { ChatPanel } from "./chat-panel";
 
 export function IssueDetailPage() {
   const { id = "" } = useParams();
@@ -72,6 +74,7 @@ export function IssueDetailPage() {
               <span className="font-mono text-xs text-muted-foreground">
                 {issue.id}
               </span>
+              <IssueBadges issue={issue} className="mt-2" />
             </div>
             {!editing ? (
               <div className="flex shrink-0 gap-2">
@@ -112,6 +115,7 @@ export function IssueDetailPage() {
                   </p>
                 )}
               </div>
+              <ChatPanel id={issue.id} />
             </>
           )}
         </>

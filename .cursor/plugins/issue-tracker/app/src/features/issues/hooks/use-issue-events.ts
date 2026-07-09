@@ -11,8 +11,13 @@ const HEARTBEAT_TIMEOUT_MS = 25_000;
 
 function parseEvent(data: string): IssueEvent | null {
   try {
-    const parsed = JSON.parse(data) as IssueEvent;
-    return parsed.id ? parsed : null;
+    const parsed = JSON.parse(data) as Partial<IssueEvent>;
+    if (!parsed.id || !parsed.type) return null;
+    return {
+      type: parsed.type,
+      id: parsed.id,
+      scope: parsed.scope === "chat" ? "chat" : "issue",
+    };
   } catch (err) {
     if (import.meta.env.DEV) {
       console.warn("ignoring malformed issue event:", data, err);
@@ -33,9 +38,19 @@ export function useIssueEvents(): void {
     const resync = () => qc.invalidateQueries({ queryKey: issuesKeys.all });
 
     const applyEvent = (event: IssueEvent) => {
+      if (event.scope === "chat") {
+        qc.invalidateQueries({ queryKey: issuesKeys.chat(event.id) });
+        // hasChat / chat-health only change when the file appears or vanishes,
+        // not on every append — so refresh the tree list only then.
+        if (event.type === "add" || event.type === "unlink") {
+          qc.invalidateQueries({ queryKey: issuesKeys.list() });
+        }
+        return;
+      }
       qc.invalidateQueries({ queryKey: issuesKeys.list() });
       if (event.type === "unlink-dir") {
         qc.removeQueries({ queryKey: issuesKeys.detail(event.id) });
+        qc.removeQueries({ queryKey: issuesKeys.chat(event.id) });
       } else {
         qc.invalidateQueries({ queryKey: issuesKeys.detail(event.id) });
       }

@@ -6,6 +6,24 @@ export const COMMIT_STATUSES = ["todo", "in-progress", "done"] as const;
 
 const nonEmpty = z.string().min(1);
 
+export const chatMessageSchema = z.object({
+  role: nonEmpty,
+  name: z.string().optional(),
+  body: nonEmpty,
+  at: nonEmpty,
+});
+
+// The write-time input is the stored shape minus the server-stamped `at`.
+export const chatMessageInputSchema = chatMessageSchema.omit({ at: true });
+
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type ChatMessageInput = z.infer<typeof chatMessageInputSchema>;
+
+export interface ChatResponse {
+  messages: ChatMessage[];
+  problems: Problem[];
+}
+
 const mutableCommon = {
   title: nonEmpty,
   assignee: z.string().optional(),
@@ -101,10 +119,12 @@ export interface Problem {
 }
 
 export type IssueEventType = "add" | "change" | "unlink" | "unlink-dir";
+export type IssueEventScope = "issue" | "chat";
 
 export interface IssueEvent {
   type: IssueEventType;
   id: string;
+  scope: IssueEventScope;
 }
 
 export type BranchStatus = "not-started" | "in-progress" | "pr-open" | "merged";
@@ -139,5 +159,25 @@ function formatError(error: z.ZodError): string {
 export function parseIssue(raw: unknown): ParseResult {
   const result = issueSchema.safeParse(raw);
   if (result.success) return { ok: true, issue: result.data };
+  return { ok: false, message: formatError(result.error) };
+}
+
+export type ChatParseResult =
+  | { ok: true; message: ChatMessage }
+  | { ok: false; message: string };
+
+export function parseChatMessage(raw: unknown): ChatParseResult {
+  const result = chatMessageSchema.safeParse(raw);
+  if (result.success) return { ok: true, message: result.data };
+  return { ok: false, message: formatError(result.error) };
+}
+
+export type ChatInputParseResult =
+  | { ok: true; input: ChatMessageInput }
+  | { ok: false; message: string };
+
+export function parseChatMessageInput(raw: unknown): ChatInputParseResult {
+  const result = chatMessageInputSchema.safeParse(raw);
+  if (result.success) return { ok: true, input: result.data };
   return { ok: false, message: formatError(result.error) };
 }

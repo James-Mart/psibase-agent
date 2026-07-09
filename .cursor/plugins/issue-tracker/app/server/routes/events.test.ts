@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { issueIdFromPath } from "./events.js";
+import { issueIdFromPath, scopeFromPath } from "./events.js";
 
 describe("issueIdFromPath", () => {
   it("derives the id from a file inside an issue dir", () => {
@@ -21,5 +21,17 @@ describe("issueIdFromPath", () => {
   it("returns null for the base dir and outside paths", () => {
     expect(issueIdFromPath("/issues", "/issues")).toBeNull();
     expect(issueIdFromPath("/issues", "/other/thing")).toBeNull();
+  });
+});
+
+describe("scopeFromPath", () => {
+  it("classifies chat.jsonl writes as chat scope", () => {
+    expect(scopeFromPath("/issues/add-auth/chat.jsonl")).toBe("chat");
+  });
+
+  it("classifies other files as issue scope", () => {
+    expect(scopeFromPath("/issues/add-auth/issue.json")).toBe("issue");
+    expect(scopeFromPath("/issues/add-auth/description.md")).toBe("issue");
+    expect(scopeFromPath("/issues/add-auth")).toBe("issue");
   });
 });

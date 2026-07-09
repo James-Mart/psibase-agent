@@ -1,6 +1,18 @@
 import { Router, type RequestHandler } from "express";
-import { create, list, read, remove, update } from "../services/issues.js";
-import type { CreateInput, IssuePatch } from "../schemas.js";
+import {
+  appendMessage,
+  create,
+  list,
+  read,
+  readChat,
+  remove,
+  update,
+} from "../services/issues.js";
+import type {
+  ChatMessageInput,
+  CreateInput,
+  IssuePatch,
+} from "../schemas.js";
 
 const asyncRoute =
   (handler: RequestHandler): RequestHandler =>
@@ -20,11 +32,26 @@ issuesRouter.get(
   }),
 );
 
+issuesRouter.get(
+  "/:id/chat",
+  asyncRoute((req, res) => {
+    res.json(readChat(req.params.id));
+  }),
+);
+
 issuesRouter.post(
   "/",
   asyncRoute(async (req, res) => {
     const record = await create(req.body as CreateInput);
     res.status(201).json(record);
+  }),
+);
+
+issuesRouter.post(
+  "/:id/messages",
+  asyncRoute(async (req, res) => {
+    const message = await appendMessage(req.params.id, req.body as ChatMessageInput);
+    res.status(201).json(message);
   }),
 );
 

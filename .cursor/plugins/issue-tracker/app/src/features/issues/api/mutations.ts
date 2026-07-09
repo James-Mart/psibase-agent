@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { request } from "@/lib/api/client";
 import type {
+  ChatMessage,
+  ChatMessageInput,
   CreateInput,
   IssueDetail,
   IssuePatch,
@@ -37,6 +39,19 @@ export function useUpdateIssue() {
   });
 }
 
+export function usePostMessage(id: string) {
+  const qc = useQueryClient();
+  return useMutation<ChatMessage, Error, ChatMessageInput>({
+    mutationFn: (input) =>
+      request<ChatMessage>(`/api/issues/${id}/messages`, {
+        method: "POST",
+        body: input,
+      }),
+    onError: (err) => toast.error(messageOf(err)),
+    onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.chat(id) }),
+  });
+}
+
 export function useDeleteIssue() {
   const qc = useQueryClient();
   return useMutation<{ id: string }, Error, string>({
@@ -46,6 +61,7 @@ export function useDeleteIssue() {
     onSettled: (_data, _err, id) => {
       qc.invalidateQueries({ queryKey: issuesKeys.list() });
       qc.removeQueries({ queryKey: issuesKeys.detail(id) });
+      qc.removeQueries({ queryKey: issuesKeys.chat(id) });
     },
   });
 }

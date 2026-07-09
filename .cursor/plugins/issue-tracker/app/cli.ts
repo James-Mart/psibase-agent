@@ -1,6 +1,12 @@
 #!/usr/bin/env -S npx tsx
 import { Command } from "commander";
-import { create, list, remove, update } from "./server/services/issues.js";
+import {
+  appendMessage,
+  create,
+  list,
+  remove,
+  update,
+} from "./server/services/issues.js";
 import { COMMIT_STATUSES, type CommitStatus } from "./server/schemas.js";
 
 const program = new Command();
@@ -120,6 +126,46 @@ program
   .command("set-merged")
   .argument("<id>", "branch id")
   .action((id) => run(() => update(id, { merged: true })));
+
+program
+  .command("comment")
+  .argument("<id>", "issue id")
+  .requiredOption("--role <role>", "message author role (e.g. agent, human)")
+  .requiredOption("--body <text>", "message body (Markdown)")
+  .option("--name <name>", "author display name")
+  .action((id, opts) =>
+    run(async () => {
+      const message = await appendMessage(id, {
+        role: opts.role,
+        name: opts.name,
+        body: opts.body,
+      });
+      console.log(`commented on ${id} as ${message.name ?? message.role}`);
+    }),
+  );
+
+program
+  .command("attention")
+  .argument("<id>", "issue id")
+  .option("--reason <text>", "why the issue needs attention")
+  .option("--clear", "clear the attention flag")
+  .action((id, opts) =>
+    run(() => {
+      if (opts.clear) {
+        return update(id, { needsAttention: false, attentionReason: null });
+      }
+      if (!opts.reason) {
+        throw new Error("provide --reason <text> or --clear");
+      }
+      return update(id, { needsAttention: true, attentionReason: opts.reason });
+    }),
+  );
+
+program
+  .command("assign")
+  .argument("<id>", "issue id")
+  .argument("<who>", "assignee id (human or agent)")
+  .action((id, who) => run(() => update(id, { assignee: who })));
 
 program
   .command("ready")

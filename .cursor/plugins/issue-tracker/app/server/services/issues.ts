@@ -1,4 +1,5 @@
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -11,7 +12,12 @@ import { createHash } from "crypto";
 import { join } from "path";
 import { issuesDir } from "../config.js";
 import {
+  parseChatMessage,
+  parseChatMessageInput,
   parseIssue,
+  type ChatMessage,
+  type ChatMessageInput,
+  type ChatResponse,
   type CreateInput,
   type Issue,
   type IssueDetail,
@@ -43,6 +49,10 @@ function dirOf(id: string): string {
 
 function jsonPathOf(id: string): string {
   return join(dirOf(id), "issue.json");
+}
+
+function chatPathOf(id: string): string {
+  return join(dirOf(id), "chat.jsonl");
 }
 
 function scanIds(): string[] {
@@ -109,9 +119,13 @@ function readAll(): { issues: Issue[]; problems: Problem[] } {
 export function list(): IssuesResponse {
   const { issues, problems } = readAll();
   const derived = derive(issues);
+  // Parse each chat.jsonl so out-of-band corruption surfaces in the tree/CLI,
+  // not just the chat panel. Chats are small local files, so the extra reads
+  // are cheap; list() is not invalidated on every chat append (see events).
+  const chatProblems = issues.flatMap((issue) => readChat(issue.id).problems);
   return {
     issues: issues.map(toRecord),
-    problems: [...problems, ...derived.problems],
+    problems: [...problems, ...chatProblems, ...derived.problems],
     derived: derived.byId,
     ready: derived.ready,
   };
@@ -122,8 +136,9 @@ function readDescription(id: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
-// The version covers issue.json + description.md, the two files a user edits;
-// chat.jsonl is intentionally excluded (M5 will fold it in).
+// The version covers issue.json + description.md, the two files the edit form
+// mutates. chat.jsonl is excluded on purpose: append-only chat updates live
+// through its own SSE-fed query and must not trip the external-edit banner.
 export function versionOf(jsonText: string, description: string): string {
   return createHash("sha1")
     .update(jsonText)
@@ -268,6 +283,47 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     const finalDescription =
       description !== undefined ? description : readDescription(id);
     return toDetail(parsed.issue, jsonText, finalDescription);
+  });
+}
+
+export function readChat(id: string): ChatResponse {
+  if (!existsSync(dirOf(id))) {
+    throw new IssueError("not_found", `unknown issue "${id}"`);
+  }
+  const path = chatPathOf(id);
+  if (!existsSync(path)) return { messages: [], problems: [] };
+
+  const messages: ChatMessage[] = [];
+  const problems: Problem[] = [];
+  const lines = readFileSync(path, "utf8").split("\n");
+  lines.forEach((line, index) => {
+    if (!line.trim()) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      problems.push({ id, message: `chat.jsonl line ${index + 1}: ${detail}` });
+      return;
+    }
+    const parsed = parseChatMessage(raw);
+    if (parsed.ok) messages.push(parsed.message);
+    else problems.push({ id, message: `chat.jsonl line ${index + 1}: ${parsed.message}` });
+  });
+  return { messages, problems };
+}
+
+export function appendMessage(
+  id: string,
+  input: ChatMessageInput,
+): Promise<ChatMessage> {
+  return serialize(() => {
+    readIssueOrThrow(id);
+    const parsed = parseChatMessageInput(input);
+    if (!parsed.ok) throw new IssueError("validation", parsed.message);
+    const message: ChatMessage = { ...parsed.input, at: new Date().toISOString() };
+    appendFileSync(chatPathOf(id), `${JSON.stringify(message)}\n`);
+    return message;
   });
 }
 

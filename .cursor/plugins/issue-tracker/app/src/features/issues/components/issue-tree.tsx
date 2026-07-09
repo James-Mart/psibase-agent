@@ -6,6 +6,7 @@ import {
   GitCommitHorizontal,
   GitPullRequest,
   Layers,
+  MessageSquare,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
   EPIC_STATUS_LABEL,
 } from "../lib/derived";
 import { CommitStatusSelect } from "./commit-status-select";
+import { IssueBadges } from "./issue-badges";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
   epic: Layers,
@@ -177,9 +179,13 @@ function TreeRow({
               blocked
             </span>
           ) : null}
+          <IssueBadges issue={issue} compact />
           <GitChip issue={issue} derived={state} />
           {issue.hasDescription ? (
             <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          ) : null}
+          {issue.hasChat ? (
+            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
           ) : null}
           {issue.kind === "commit" ? (
             <CommitStatusSelect id={issue.id} status={issue.status} />

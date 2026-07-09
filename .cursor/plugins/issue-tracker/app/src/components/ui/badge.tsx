@@ -18,6 +18,7 @@ const badgeVariants = cva(
         inProgress:
           "border-transparent bg-warning/20 [color:hsl(var(--warning))]",
         done: "border-transparent bg-success/20 [color:hsl(var(--success))]",
+        warning: "border-warning/40 bg-warning/15 [color:hsl(var(--warning))]",
       },
     },
     defaultVariants: {

@@ -5,6 +5,7 @@ import type { IssuesResponse, IssueRecord } from "@server/schemas";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { issuePath } from "../lib/links";
 import { issueMatchesSearch } from "../lib/search";
+import { IssueBadges } from "./issue-badges";
 import { EPIC_BASE } from "@server/services/derive";
 
 function ReadyRow({
@@ -27,6 +28,7 @@ function ReadyRow({
     >
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="truncate text-sm">{issue.title}</span>
+      <IssueBadges issue={issue} compact />
       <span className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
         <span className="font-mono">{context}</span>
         <span className="uppercase tracking-wide">

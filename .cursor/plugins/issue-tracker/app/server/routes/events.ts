@@ -1,8 +1,12 @@
 import { Router, type Response } from "express";
 import chokidar, { type FSWatcher } from "chokidar";
-import { relative, sep } from "path";
+import { basename, relative, sep } from "path";
 import { issuesDir } from "../config.js";
-import type { IssueEvent, IssueEventType } from "../schemas.js";
+import type {
+  IssueEvent,
+  IssueEventScope,
+  IssueEventType,
+} from "../schemas.js";
 
 const HEARTBEAT_MS = 10_000;
 
@@ -31,6 +35,10 @@ export function issueIdFromPath(baseDir: string, filePath: string): string | nul
   return id || null;
 }
 
+export function scopeFromPath(filePath: string): IssueEventScope {
+  return basename(filePath) === "chat.jsonl" ? "chat" : "issue";
+}
+
 function broadcast(event: IssueEvent): void {
   const payload = `event: issue\ndata: ${JSON.stringify(event)}\n\n`;
   for (const res of clients) send(res, payload);
@@ -38,7 +46,7 @@ function broadcast(event: IssueEvent): void {
 
 function emit(type: IssueEventType, filePath: string): void {
   const id = issueIdFromPath(issuesDir, filePath);
-  if (id) broadcast({ type, id });
+  if (id) broadcast({ type, id, scope: scopeFromPath(filePath) });
 }
 
 function startWatcher(): void {

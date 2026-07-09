@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { request } from "@/lib/api/client";
-import type { IssueDetail, IssuesResponse } from "@server/schemas";
+import type { ChatResponse, IssueDetail, IssuesResponse } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { issuesKeys } from "./keys";
 
@@ -17,6 +17,16 @@ export function useIssueDetailQuery(
   return useQuery({
     queryKey: issuesKeys.detail(id),
     queryFn: () => request<IssueDetail>(`/api/issues/${id}`),
+    enabled: Boolean(id),
+    retry: (count, error) =>
+      !(error instanceof ApiError && error.status === 404) && count < 2,
+  });
+}
+
+export function useChatQuery(id: string): UseQueryResult<ChatResponse, Error> {
+  return useQuery({
+    queryKey: issuesKeys.chat(id),
+    queryFn: () => request<ChatResponse>(`/api/issues/${id}/chat`),
     enabled: Boolean(id),
     retry: (count, error) =>
       !(error instanceof ApiError && error.status === 404) && count < 2,
