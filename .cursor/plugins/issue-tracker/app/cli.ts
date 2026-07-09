@@ -4,7 +4,6 @@ import {
   appendMessage,
   create,
   list,
-  remove,
   update,
 } from "./server/services/issues.js";
 import { COMMIT_STATUSES, type CommitStatus } from "./server/schemas.js";
