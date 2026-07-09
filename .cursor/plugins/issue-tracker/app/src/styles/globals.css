@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 8% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 65% 47%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 5.9% 10%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", sans-serif;
+  }
+}
+
+@layer components {
+  .prose-issue {
+    @apply text-sm leading-relaxed text-foreground;
+  }
+  .prose-issue > :first-child {
+    @apply mt-0;
+  }
+  .prose-issue h1 {
+    @apply mb-3 mt-6 text-xl font-semibold;
+  }
+  .prose-issue h2 {
+    @apply mb-2 mt-5 text-lg font-semibold;
+  }
+  .prose-issue h3 {
+    @apply mb-2 mt-4 text-base font-semibold;
+  }
+  .prose-issue p {
+    @apply my-3;
+  }
+  .prose-issue ul {
+    @apply my-3 list-disc pl-6;
+  }
+  .prose-issue ol {
+    @apply my-3 list-decimal pl-6;
+  }
+  .prose-issue li {
+    @apply my-1;
+  }
+  .prose-issue a {
+    @apply text-primary underline underline-offset-4 hover:no-underline;
+  }
+  .prose-issue code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+  .prose-issue pre {
+    @apply my-3 overflow-x-auto rounded-md bg-muted p-3;
+  }
+  .prose-issue pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-issue blockquote {
+    @apply my-3 border-l-2 border-border pl-4 text-muted-foreground;
+  }
+  .prose-issue table {
+    @apply my-3 w-full border-collapse text-left;
+  }
+  .prose-issue th,
+  .prose-issue td {
+    @apply border border-border px-3 py-1.5;
+  }
+  .prose-issue th {
+    @apply bg-muted font-semibold;
+  }
+  .prose-issue hr {
+    @apply my-4 border-border;
+  }
+}
