@@ -1,4 +1,6 @@
 #!/usr/bin/env -S npx tsx
+// One-time setup to invoke this CLI as `issue <verb>` instead of `npx tsx cli.ts <verb>`:
+//   cd .cursor/plugins/issue-tracker/app && npm link
 import { readFileSync } from "fs";
 import { Command } from "commander";
 import {
@@ -195,7 +197,7 @@ function resolveDescription(opts: {
 
 const program = new Command();
 program
-  .name("issue-tracker")
+  .name("issue")
   .description("File-backed Epic > Branch > Commit tracker")
   .showHelpAfterError();
 
