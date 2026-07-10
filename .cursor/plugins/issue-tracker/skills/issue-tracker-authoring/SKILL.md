@@ -48,6 +48,8 @@ assign <id> <who>                                     set assignee (human | agen
 delete <id>                                           delete issue: cascades to contained children, splices dependents' stackedOn, drops blockedBy
 ready --project <id>                                  a project's ready set: kind<TAB>id<TAB>title, or "nothing ready"
 list --project <id>                                   a project's state JSON: {issues,problems,derived,ready}
+show <id> [--chat]                                    print an issue's metadata + description (--chat adds the chat log)
+tree [--project <id>|--epic <id>]                     print an indented Epic > Branch > Commit outline with derived chips
 ```
 
 Updates are partial merges (only the named field changes). The CLI sets but never

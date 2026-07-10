@@ -62,4 +62,5 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   delegating each commit to fresh subagents (implement/validate/revise) and
   recording git progress through the CLI.
 - **`issue-tracker-authoring`** — the CLI command reference and create/update
-  semantics; the shared tool doc the other two build on.
+  semantics, plus read-only inspection with `show <id>` and `tree`; the shared
+  tool doc the other two build on.

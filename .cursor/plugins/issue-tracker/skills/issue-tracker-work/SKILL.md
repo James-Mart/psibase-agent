@@ -2,10 +2,10 @@
 name: issue-tracker-work
 description: >-
   Coordinate implementation of one tracked Epic without doing the work yourself:
-  walk its Branch > Commit tree depth-first, delegating each commit to fresh
-  subagents (implement, validate, revise) and recording git facts through the
-  CLI. Use when an agent works a tracked Epic to completion. Assumes the CLI from
-  issue-tracker-authoring; glossary in SPEC.md.
+  walk its `tree --epic <id>` outline top-to-bottom, delegating each commit to
+  fresh subagents (implement, validate, revise) and recording git facts through
+  the CLI. Use when an agent works a tracked Epic to completion. Assumes the CLI
+  from issue-tracker-authoring; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
@@ -17,10 +17,12 @@ subagents that start with fresh context, and reserve the weaker/cheaper model
 for the review jobs.
 
 **You do not write code, run the app, or verify the work yourself.** You read
-tracker state, run git, record facts through the CLI, spawn subagents, and decide
-when to advance. The tracker is metadata-only: **you** run git, then record the
-result. Never set status on a Branch or Epic — Branch/Epic status derives
-automatically (see SPEC.md).
+the plan with `tree`, run git, record facts through the CLI, and spawn subagents.
+Do **essentially no reasoning**: every coordinator step below is a CLI
+invocation, a git command, or a fixed linear action — this skill is meant to be
+replaced by a deterministic script. The tracker is metadata-only: **you** run
+git, then record the result. Never set status on a Branch or Epic — Branch/Epic
+status derives automatically (see SPEC.md).
 
 ## Argument
 
@@ -31,32 +33,35 @@ changes live in the UI.
 
 ## Setup
 
-1. Read the whole tree once with `list`. If it reports `problems`, resolve them
-   first (see issue-tracker-authoring) — do not work a tree with integrity
-   problems.
-2. From `list`, take the Epic's Branches and their `stackedOn`/`blockedBy` edges
-   and compute a **depth-first branch order**: root Branches (no `stackedOn`)
-   first, each immediately followed by the Branches stacked on it, ties broken by
-   creation order (`createdAt` ascending, then `id`). This order is derived
-   directly from the tree — this skill does **not** use the derived `ready` set,
-   whose merged-gated readiness is wrong here (you do not merge during the run).
-3. Mirror the Branches and their Commits into your own todo list so you can track
-   progress; keep exactly one Commit `in_progress` at a time.
-4. Every subagent starts fresh — always pass it the **Epic id**, the **specific
-   issue id + its title**, and an instruction to rebuild its own context from
-   `list`, the issue's `description.md`, and the SPEC.md glossary.
+1. Read the plan with `tree --epic <id>`. This one outline **is** your plan. It
+   prints the Epic's Branches in stacked order (a Branch stacked on another is
+   nested under it) and, under each Branch, its Commits in sequence. Every Branch
+   line carries `base=<base>` and `branch=<branchName>` chips; every Commit line
+   carries `status=` and, once done, `sha=`. The branch order (walk top-to-
+   bottom), each branch's git base and name, and each commit sequence all come
+   straight from this output — do **not** derive any of them by hand.
+2. Run `list` once and read its `problems` array. If `problems` is non-empty,
+   **stop and hand back to the user** — do not reason about or attempt fixes, and
+   do not work a tree with integrity problems.
+3. Mirror the Branches and their Commits, in `tree` order, into your own todo
+   list so you can track progress; keep exactly one Commit `in_progress` at a
+   time.
+4. Every subagent starts fresh. Pass it **only** the **Epic id** and the
+   **specific issue id + its title**, plus an instruction to rebuild its own
+   context from `list`, `show <id>` (the issue's `description.md`), and the
+   SPEC.md glossary. Do not gather descriptions, read diffs, or ingest reports
+   into your own context.
 
-A dependency counts as **satisfied when its commits are all `done`**, not when
-merged (nothing merges during the run). Because traversal is depth-first and
-finishes each Branch before its stacked children, a stacked Branch's parent
-already has its git branch and `done` commits by the time you start the child.
+Because `tree` lists each Branch after the Branch it is stacked on, walking the
+outline top-to-bottom always reaches a stacked Branch only after its parent's git
+branch and `done` commits already exist.
 
 ## Models and subagent roles
 
 | Role | When | Model | Mode |
 |------|------|-------|------|
 | Implementation subagent | Build one Commit's work in the working tree (uncommitted) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
-| Code-quality validator | After a Commit's implementation reports done | Composer 2.5 (`composer-2.5`) | read-only |
+| Code-quality validator | After a Commit's implementation signals finished | Composer 2.5 (`composer-2.5`) | read-only |
 | Revision subagent | Address a validator's feedback (per commit and per branch) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
 | Spec-conformance validator | After a Branch's last Commit lands | Composer 2.5 (`composer-2.5`) | read-only |
 
@@ -68,24 +73,28 @@ visible in the UI.
 
 ## The loop
 
-Walk the Branches in the depth-first order from Setup. For each Branch, work its
-`todo` Commits in sequence to completion before moving to the Branches stacked on
-it.
+Walk the Branches in the order `tree` printed them (top-to-bottom). For each
+Branch, work its not-`done` Commits in the sequence `tree` lists them, to
+completion, before moving to the Branches nested under it.
 
 ### Start a Branch
 
-If the Branch has no git branch yet, create it before its first commit: its base
-is its `stackedOn` Branch's `branchName` (else `main` — never fork from a
-`blockedBy` branch). Run `git checkout <base>`, then `git checkout -b <name>`,
-then record it with `set-branch-name <branch> <name>`.
+If the Branch has no git branch yet, create it before its first commit. Read the
+Branch's `base=<base>` and `branch=<branchName>` chips straight from `tree` — do
+not re-derive the base. Run `git checkout <base>`, then
+`git checkout -b <branchName>`, then record it with `set-branch-name <branchId>
+<branchName>`.
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
 1. **Mark in-progress.** `set-status <commit> in-progress`.
-2. **Implement.** Spawn one implementation subagent (Opus 4.8 High). It edits the
-   working tree, **leaves the changes uncommitted**, verifies its work per the
-   Commit's own `description.md` (whatever "how to verify" it specifies — tests,
-   build, manual check), and reports what it did. Wait for it to finish.
+2. **Implement.** Spawn one implementation subagent (Opus 4.8 High), passing only
+   the Epic id and the Commit's id + title. It rebuilds its own context, edits the
+   working tree, **leaves the changes uncommitted**, and verifies its work per the
+   Commit's `description.md` (tests, build, dev server, browser — all the
+   subagent's concern, never yours). Wait for its terminal signal only: finished,
+   or blocked (it raised `attention <id>`). Do not read its diff or ingest a
+   report.
 3. **Validate (code quality).** Spawn one code-quality validator (Composer 2.5,
    read-only). It reviews the **uncommitted** diff for introduced redundancy and
    poor abstraction/encapsulation and posts its findings as a `comment` on the
@@ -122,24 +131,27 @@ of guessing, and surface the block to the user rather than forcing progress.
 ## Completion
 
 The loop ends when every Commit in the Epic is `done`. Give a short final
-summary: which Branches were built, any validator findings a revision agent
-explicitly declined (with its reasoning), and anything still open or escalated.
-Remind the user that PRs are theirs to open and merge.
+summary: which Branches were built, and anything still open or escalated
+(`attention`). For validator findings and what each revision agent accepted or
+declined, point the user at the tracker comments (`show <id> --chat`) rather than
+collecting them into your context. Remind the user that PRs are theirs to open
+and merge.
 
 Everything lives on disk and every derived fact is recomputed on read, so the
-loop is fully **resumable**: re-running the skill on the Epic re-reads `list`,
-recomputes the order, and continues from the first not-`done` Commit.
+loop is fully **resumable**: re-running the skill on the Epic re-reads
+`tree --epic <id>` and continues from the first not-`done` Commit.
 
 ## Subagent prompt templates
 
 Adapt these; always inline the Epic id and the specific issue id + title.
 
 **Implementation subagent**
-> Rebuild your context from `list`, the issue's `description.md`, and SPEC.md's
-> glossary. Implement Commit `<id>` (`<title>`) in Epic `<epicId>`. Edit the
+> Rebuild your context from `list`, `show <id>` (the issue's `description.md`),
+> and SPEC.md's glossary. Implement Commit `<id>` (`<title>`) in Epic `<epicId>`. Edit the
 > working tree but **do not commit or stage** — leave your changes uncommitted so
 > a reviewer can inspect the live diff. Verify your work as the Commit's
-> `description.md` specifies. Report what you did.
+> `description.md` specifies. If you get blocked, raise `attention <id> --reason
+> "..."` instead of guessing; otherwise finish and stop.
 
 **Code-quality validator (read-only)**
 > Inspect the current **uncommitted** working-tree diff for Commit `<id>`
@@ -164,8 +176,8 @@ Adapt these; always inline the Epic id and the specific issue id + title.
 
 - Never implement, verify, or run the app yourself — always delegate. You own
   only git, the CLI, and coordination.
-- Work one Epic, one Commit at a time, in depth-first Branch order; finish a
-  Branch before the Branches stacked on it.
+- Work one Epic, one Commit at a time, in the Branch order `tree` prints; finish
+  a Branch before the Branches stacked on it.
 - The implementor leaves work uncommitted; **you** commit (message = Commit
   title) only after the per-commit cycle passes.
 - Exactly one revision pass per validator tier (code-quality per commit,
