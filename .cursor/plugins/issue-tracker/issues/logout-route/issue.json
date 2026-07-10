@@ -1,9 +1,0 @@
-{
-  "id": "logout-route",
-  "kind": "commit",
-  "title": "Add logout route",
-  "partOf": "auth-endpoints",
-  "status": "in-progress",
-  "createdAt": "2026-07-09T14:52:00.000Z",
-  "updatedAt": "2026-07-09T15:00:00.000Z"
-}
