@@ -90,9 +90,18 @@ issues/<id>/
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
   (there are no path fields, so there can be no dangling file refs). Both are
   optional; absent means empty.
-- `<id>` = directory name = a slug derived from the title at creation, mirrored
-  in `issue.json.id`, and **stable** across title edits. It is globally unique
-  across all kinds; collisions get a numeric suffix (`add-auth`, `add-auth-2`).
+- `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
+  edits, and globally unique across all kinds. Its *origin* depends on the
+  writer, but the result is the same kind of id either way:
+  - the imperative `create*` verbs **derive** it as a slug from the title at
+    creation, adding a numeric suffix on collision (`add-auth`, `add-auth-2`);
+  - the declarative [`apply`](#apply-doc-format) doc requires an
+    **author-chosen** id on every node (kebab, unique, slug-safe, and
+    title-independent, so it survives retitles and lets `issue:<id>` cross-links
+    be authored before anything exists).
+
+  An id is never *only* a title-slug: once written it is a stable handle
+  decoupled from the title, whatever produced it.
 
 ## `issue.json` schema
 
@@ -269,6 +278,108 @@ validated relationships, so they are left untouched.
 **Invariant.** After `remove()`, `list().problems` gains no new
 dangling-reference, wrong-kind, or cycle problem — guaranteed by construction in
 `planDeletion()` and re-validated against the surviving set before any write.
+
+## `apply` doc format
+
+`apply` (`app/server/services/apply.ts`, schema in `apply-schema.ts`) is the
+**declarative writer**: it reconciles a whole Project subtree from one nested
+YAML doc, complementing the imperative one-shot verbs. Authoring guidance lives
+in [issue-tracker-decompose](skills/issue-tracker-decompose/SKILL.md); this
+section is the format + semantics reference.
+
+### Shape
+
+One doc describes exactly one Project subtree. Kind is implied by **which child
+key** a node sits under, never written:
+
+```yaml
+project:
+  id: my-product              # author-chosen kebab id (required on every node)
+  title: My Product
+  description: |              # optional inline block scalar -> description.md
+    Overview prose.
+  epics:
+    - id: my-epic
+      title: My Epic
+      description: |
+        Cross-cutting invariants.
+      branches:
+        - id: base-branch      # a root Branch (no `stacked` parent) -> forks main
+          title: Base Branch
+          description: |
+            This unit's full prose.
+          commits:
+            - id: first-commit
+              title: First commit
+              description: |
+                Implementor-resolution detail + how to verify.
+          stacked:             # Branches that fork off `base-branch`
+            - id: follow-up
+              title: Follow-up
+              blockedBy: [other-branch]   # extra deps beyond the fork point
+              commits:
+                - id: follow-up-commit
+                  title: Follow-up commit
+```
+
+- **Kind by nesting.** `project` → its `epics` are Epics → their `branches` are
+  Branches → their `commits` are Commits; a Branch's `stacked` entries are
+  Branches that fork off it.
+- **Inferred `partOf`.** Each node's containment is its enclosing container (a
+  Commit's Branch, a Branch's Epic, an Epic's Project). Never written in the
+  doc.
+- **Inferred `stackedOn`.** A Branch nested under another Branch's `stacked`
+  forks from it; a Branch directly under `branches` is a root Branch (forks the
+  Epic's base, `main`). Never written in the doc.
+- **Explicit `blockedBy`.** The one cross-reference authored by hand: a list of
+  Branch ids this Branch depends on but does **not** fork from. Uses the same
+  kebab id rule as node ids.
+- **Inline descriptions.** Each node's optional `description` is a block scalar
+  (`|`) written to that issue's `description.md`; omitting it on create seeds the
+  default `# <title>`. This is what lets authors write Markdown without shell
+  escaping.
+- **Author-chosen ids** on every node (see the [id model](#on-disk-layout)):
+  required, kebab, unique across the doc, slug-safe, title-independent.
+
+### Semantics
+
+- **Upsert.** A node whose id exists (within the declared Project's subtree) is
+  updated; a new id is created. Ids are matched, not titles, so retitling a node
+  in the doc renames its `title` in place rather than creating a duplicate.
+- **Prune by default.** Any issue in the declared Project's on-disk subtree that
+  the doc no longer lists is deleted. `apply` is therefore the full desired state
+  of that Project's tree, not a patch. (An out-of-project `blockedBy` edge into a
+  pruned Branch is dropped, mirroring the [deletion policy](#deletion-policy).)
+- **Atomic + validated.** The entire prospective set is run through
+  `checkIntegrity` in one pass before any write; a doc that would introduce a
+  problem (dangling/wrong-kind referent, cross-Epic `stackedOn`, cycle, duplicate
+  or non-slug id, or an id that already exists in a *different* Project) is
+  refused with no on-disk change. Same validator, same guarantees as the
+  imperative writer.
+- **Idempotent.** Re-applying an unchanged doc rewrites nothing (unchanged nodes
+  keep their `updatedAt`), so it is safe to re-`apply` an evolving plan.
+
+### Declarative/imperative field seam
+
+`apply` owns only **plan shape + prose** and must **never** touch runtime state.
+This is enforced in `buildIssue`, which reads the doc for its owned fields and
+preserves everything else from the existing same-kind issue.
+
+| field | writer |
+| --- | --- |
+| `title` | `apply` (from the doc) |
+| `description` (`description.md`) | `apply` (from the doc) |
+| `blockedBy` | `apply` (explicit in the doc) |
+| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly |
+| `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
+| `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
+| `branchName`, `prUrl`, `merged` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`); `apply` preserves |
+| `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
+| `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
+
+So authoring/decomposition is declarative through `apply`, while working the
+stack (progress, git facts, escalation, chat) stays on the one-shot imperative
+verbs — the two never fight over a field.
 
 ## Derived state
 
