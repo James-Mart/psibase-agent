@@ -36,7 +36,12 @@ import { uniqueSlug } from "./slug.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
-function serialize<T>(fn: () => T): Promise<T> {
+// Exported, with `readAll`/`readDescription`/`commitIssueBatch`, so sibling
+// writers in the service layer (e.g. `apply`) can read the current graph and
+// commit a validated batch inside this same in-process write chain, and so
+// cannot race HTTP/CLI writes. These four are the whole seam: the low-level FS
+// primitives stay private to this module.
+export function serialize<T>(fn: () => T): Promise<T> {
   const run = writeChain.then(fn, fn);
   writeChain = run.then(
     () => undefined,
@@ -107,7 +112,7 @@ function toRecord(issue: Issue): IssueRecord {
   };
 }
 
-function readAll(): { issues: Issue[]; problems: Problem[] } {
+export function readAll(): { issues: Issue[]; problems: Problem[] } {
   const issues: Issue[] = [];
   const problems: Problem[] = [];
   for (const id of scanIds()) {
@@ -133,7 +138,7 @@ export function list(): IssuesResponse {
   };
 }
 
-function readDescription(id: string): string {
+export function readDescription(id: string): string {
   const path = join(dirOf(id), "description.md");
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
@@ -187,6 +192,33 @@ function persist(issue: Issue, jsonText: string): void {
   const dir = dirOf(issue.id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(jsonPathOf(issue.id), jsonText);
+}
+
+// A single issue to (re)write: its parsed record plus, when provided, the
+// description.md body to overwrite. An `undefined` description leaves any
+// existing description.md untouched.
+export interface IssueWrite {
+  issue: Issue;
+  description?: string;
+}
+
+// Commit a validated batch of issue writes and directory deletions in one shot.
+// This keeps the raw filesystem layout (issue.json / description.md paths and
+// recursive directory removal) private to this module, so sibling writers like
+// `apply` stay off the low-level `persist`/`dirOf`/`rmSync` primitives and there
+// is still exactly one place that touches issue storage. Callers must run this
+// inside `serialize`, and only after the whole prospective set has passed
+// `checkIntegrity` — this function performs no validation of its own.
+export function commitIssueBatch(writes: IssueWrite[], deletes: string[]): void {
+  for (const { issue, description } of writes) {
+    persist(issue, serializeIssue(issue));
+    if (description !== undefined) {
+      writeFileSync(join(dirOf(issue.id), "description.md"), description);
+    }
+  }
+  for (const id of deletes) {
+    rmSync(dirOf(id), { recursive: true, force: true });
+  }
 }
 
 function assertWritable(target: Issue, all: Issue[]): void {

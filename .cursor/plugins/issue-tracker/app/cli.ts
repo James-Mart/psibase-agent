@@ -1,6 +1,7 @@
 #!/usr/bin/env -S npx tsx
 import { readFileSync } from "fs";
 import { Command } from "commander";
+import { parse as parseYaml } from "yaml";
 import {
   appendMessage,
   create,
@@ -13,27 +14,9 @@ import {
   type CommitStatus,
   type IssueRecord,
 } from "./server/schemas.js";
-
-// The set of ids contained by a project: the project itself plus every issue
-// transitively `partOf` it (epics, their branches, and those branches' commits).
-function projectSubtreeIds(issues: IssueRecord[], projectId: string): Set<string> {
-  const childrenOf = new Map<string, string[]>();
-  for (const issue of issues) {
-    if (issue.kind === "project") continue;
-    const bucket = childrenOf.get(issue.partOf) ?? [];
-    bucket.push(issue.id);
-    childrenOf.set(issue.partOf, bucket);
-  }
-  const ids = new Set<string>();
-  const queue = [projectId];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (ids.has(current)) continue;
-    ids.add(current);
-    for (const child of childrenOf.get(current) ?? []) queue.push(child);
-  }
-  return ids;
-}
+import { projectSubtreeIds } from "./server/services/subtree.js";
+import { apply } from "./server/services/apply.js";
+import { parseApplyDoc } from "./server/services/apply-schema.js";
 
 function requireProject(issues: IssueRecord[], projectId: string): void {
   const project = issues.find(
@@ -143,6 +126,26 @@ program
         description: resolveDescription(opts),
       }),
     ),
+  );
+
+program
+  .command("apply")
+  .argument("<file>", "path to the nested YAML doc to apply")
+  .description(
+    "upsert a whole Project > Epic > Branch > Commit tree from one nested YAML doc",
+  )
+  .action((file) =>
+    run(async () => {
+      const raw = parseYaml(readFileSync(file, "utf8"));
+      const parsed = parseApplyDoc(raw);
+      if (!parsed.ok) throw new Error(parsed.message);
+      const summary = await apply(parsed.doc);
+      const line = (label: string, ids: string[]): string =>
+        `${label}: ${ids.length}${ids.length ? ` (${ids.join(", ")})` : ""}`;
+      console.log(line("created", summary.created));
+      console.log(line("updated", summary.updated));
+      console.log(line("deleted", summary.deleted));
+    }),
   );
 
 program
