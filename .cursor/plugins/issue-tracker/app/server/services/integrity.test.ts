@@ -93,6 +93,29 @@ describe("checkIntegrity", () => {
     ).toBe(true);
   });
 
+  it("flags a stackedOn in a different epic", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      epic("e2"),
+      branch("b1", "e1"),
+      branch("b2", "e2", { stackedOn: "b1" }),
+    ]);
+    expect(
+      problems.some(
+        (p) => p.id === "b2" && p.message.includes("same Epic"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag a same-epic stackedOn", () => {
+    const problems = checkIntegrity([
+      epic("e1"),
+      branch("b1", "e1"),
+      branch("b2", "e1", { stackedOn: "b1" }),
+    ]);
+    expect(problems.some((p) => p.message.includes("same Epic"))).toBe(false);
+  });
+
   it("flags a dangling blockedBy referent", () => {
     const problems = checkIntegrity([
       epic("e1"),

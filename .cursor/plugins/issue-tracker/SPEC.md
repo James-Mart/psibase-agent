@@ -117,7 +117,7 @@ Branch — common fields plus:
 | --- | --- | --- |
 | `partOf` | string | the Epic id (required) |
 | `branchName` | string? | set once the git branch is created |
-| `stackedOn` | string? | single fork-point Branch id; absent => base `main` |
+| `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => base `main` |
 | `blockedBy` | string[] | additional Branch deps; defaults `[]` |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false` |
@@ -133,10 +133,17 @@ Commit — common fields plus:
 Deliberately excluded: `rank`/priority (ordering is derived), `label`, inline
 `description`/`messages` (they are separate files), and status history.
 
-**Sibling display order.** Commits are ordered by sequence (`createdAt`
-ascending, tie-broken by `id`). Branches are ordered topologically by their
-`stackedOn`/`blockedBy` edges, falling back to the same sequence when there is
-no dependency between two siblings. Epics are ordered by sequence.
+**Tree nesting and sibling order.** The tree nests a Branch under the Branch it
+forks from: a Branch renders as a child of its `stackedOn` Branch (which must be
+in the same Epic — see below), so indentation mirrors the git stack depth. A
+Branch with no `stackedOn` is a *root* Branch, rendered directly under its Epic.
+Under a Branch, its own Commits render first, then the Branches stacked on it.
+`blockedBy` is not shown in the tree (it lives in the detail panel); it only
+affects sibling ordering. Within one nesting level, Commits are ordered by
+sequence (`createdAt` ascending, tie-broken by `id`); sibling Branches are
+ordered topologically by their `stackedOn`/`blockedBy` edges, falling back to the
+same sequence when there is no dependency between two siblings. Epics are ordered
+by sequence.
 
 ## `chat.jsonl` message shape
 
@@ -174,8 +181,9 @@ prevented here, so no consumer can persist a broken file.
   and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
-- `remove(id)` — deletes the issue dir (exposed over HTTP as
-  `DELETE /api/issues/:id`).
+- `remove(id)` — deletes the issue and its containment subtree, repairing every
+  surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
+  over HTTP as `DELETE /api/issues/:id` and via the CLI `delete` command.
 - `appendMessage(id, {role, name?, body})` — appends one JSONL line to
   `chat.jsonl` with a server-stamped `at`.
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
@@ -185,8 +193,9 @@ prevented here, so no consumer can persist a broken file.
 
 - **Validate-at-write.** `create`/`update` run the integrity checks against the
   *prospective* state and refuse any write that would introduce a `problem` — a
-  bad or missing `partOf`/`stackedOn` referent, a referent of the wrong kind, or
-  a cycle-inducing `stackedOn`/`blockedBy`. On failure the CLI exits nonzero
+  bad or missing `partOf`/`stackedOn` referent, a referent of the wrong kind, a
+  `stackedOn` in a different Epic, or a cycle-inducing `stackedOn`/`blockedBy`.
+  On failure the CLI exits nonzero
   with a clear message and HTTP returns 4xx with detail.
 - **Read-time validation.** Hand-edited or out-of-band files are still validated
   on read and surfaced as `problems`; they never crash a read. A directory whose
@@ -197,6 +206,41 @@ prevented here, so no consumer can persist a broken file.
   `description.md`) so the UI can detect out-of-band edits to the open issue.
   `chat.jsonl` is deliberately excluded from the version so chat appends do not
   trip the external-edit banner.
+
+### Deletion policy
+
+Deleting an issue must leave the remaining graph valid — no dangling
+`partOf`/`stackedOn`/`blockedBy` and no new problem. `remove()` computes the
+outcome with the pure, filesystem-free `planDeletion()`
+(`app/server/services/deletion.ts`), validates the prospective surviving set,
+and only then persists repairs and removes directories, so a deletion that could
+not leave the graph valid is refused without side effects.
+
+**Cascade by deleted kind (the `partOf` containment closure — the "delete
+set"):**
+
+- **Commit** — removes only that Commit (Commits have no children).
+- **Branch** — removes the Branch and every Commit `partOf` it.
+- **Epic** — removes the Epic, every Branch `partOf` it, and every Commit
+  `partOf` those Branches (transitive).
+
+**Foreign-reference resolution.** After the delete set is computed, every
+surviving issue (across all Epics, not just descendants) is scanned for edges
+into it, and each edge type resolves deterministically:
+
+| edge into delete set | resolution |
+| --- | --- |
+| `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
+| `stackedOn` (a deleted Branch; always same-Epic) | **Splice**: repoint the surviving Branch to the deleted branch's own `stackedOn`, walking up until a surviving Branch, or absent (forks `main`) if none. Preserves the stack minus the removed node. |
+| `blockedBy` (a deleted Branch; may cross Epics) | **Drop**: remove the deleted id from the list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge allowed to cross Epics. |
+| `stackedOn`/`blockedBy` → a deleted Commit | Impossible — those edges only ever reference Branches. |
+
+`issue:` cross-links inside `description.md` are freeform Markdown, not
+validated relationships, so they are left untouched.
+
+**Invariant.** After `remove()`, `list().problems` gains no new
+dangling-reference, wrong-kind, or cycle problem — guaranteed by construction in
+`planDeletion()` and re-validated against the surviving set before any write.
 
 ## Derived state
 
@@ -221,8 +265,10 @@ so cannot drift:
 - **problems** — the integrity checks `derive()` runs over the parsed issues:
   dependency cycles over `stackedOn`/`blockedBy`; dangling
   `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn`/`blockedBy`
-  entry is not a Branch; a Commit whose `partOf` is not a Branch; and a Branch
-  whose `partOf` is not an Epic. These are only the *derive-time* problems; the
+  entry is not a Branch; a Branch whose `stackedOn` is in a different Epic
+  (`stackedOn` must stay within one Epic; `blockedBy` may cross Epics); a Commit
+  whose `partOf` is not a Branch; and a Branch whose `partOf` is not an Epic.
+  These are only the *derive-time* problems; the
   `problems` array returned by `list()` also includes the *read-time* problems
   raised while loading files (malformed or missing `issue.json`, an id that
   disagrees with its directory name, and malformed `chat.jsonl` lines — see the
@@ -239,6 +285,14 @@ files an agent, a human, or git can read and diff. There is no schema migration,
 no server required to inspect state, and the on-disk tree *is* the data model.
 `description.md` and `chat.jsonl` are found by convention from the id, so a file
 reference can never dangle.
+
+**The complete design lives distributed across tiers.** The Epic replaces a
+giant plan/spec only when the whole design is captured in the tree: overview and
+cross-cutting invariants in the Epic, standalone unit prose in each Branch,
+implementor-resolution detail in each Commit. Companion material is inlined
+where it is used. Verbatim copy into the Epic with empty children is not
+sufficient — distribution and a completeness pass are what make the tracker a
+standalone basis for a future implementor.
 
 **One validated service layer is the only writer.** The CLI (for agents) and the
 HTTP routes (for the UI) are both thin adapters over `services/issues.ts`. Every

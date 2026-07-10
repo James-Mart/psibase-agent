@@ -9,6 +9,7 @@ import type {
   IssuePatch,
   IssueRecord,
 } from "@server/schemas";
+import type { DeletionResult } from "@server/services/deletion";
 import { issuesKeys } from "./keys";
 
 function messageOf(err: unknown): string {
@@ -54,14 +55,16 @@ export function usePostMessage(id: string) {
 
 export function useDeleteIssue() {
   const qc = useQueryClient();
-  return useMutation<{ id: string }, Error, string>({
+  return useMutation<DeletionResult, Error, string>({
     mutationFn: (id) =>
-      request<{ id: string }>(`/api/issues/${id}`, { method: "DELETE" }),
+      request<DeletionResult>(`/api/issues/${id}`, { method: "DELETE" }),
     onError: (err) => toast.error(messageOf(err)),
-    onSettled: (_data, _err, id) => {
+    onSettled: (data, _err, id) => {
       qc.invalidateQueries({ queryKey: issuesKeys.list() });
-      qc.removeQueries({ queryKey: issuesKeys.detail(id) });
-      qc.removeQueries({ queryKey: issuesKeys.chat(id) });
+      for (const deletedId of data?.deleted ?? [id]) {
+        qc.removeQueries({ queryKey: issuesKeys.detail(deletedId) });
+        qc.removeQueries({ queryKey: issuesKeys.chat(deletedId) });
+      }
     },
   });
 }

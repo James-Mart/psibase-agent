@@ -92,6 +92,16 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
           byId,
           problems,
         );
+        const stackedOn = byId.get(issue.stackedOn);
+        if (
+          stackedOn?.kind === "branch" &&
+          stackedOn.partOf !== issue.partOf
+        ) {
+          problems.push({
+            id: issue.id,
+            message: `stackedOn "${issue.stackedOn}" must be in the same Epic`,
+          });
+        }
       }
       for (const dep of issue.blockedBy) {
         checkReferent(issue, dep, "branch", "blockedBy", byId, problems);

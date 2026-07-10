@@ -73,3 +73,63 @@ describe("validate-at-write on the service layer", () => {
     expect(record.kind === "branch" && record.branchName).toBe("feat/a");
   });
 });
+
+describe("cascade delete + reference repair on remove", () => {
+  it("deletes a branch, its commits, and leaves the graph valid", async () => {
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "b",
+      status: "todo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { remove, list } = await loadService();
+    const result = await remove("b");
+    expect([...result.deleted].sort()).toEqual(["b", "c1"]);
+
+    const after = list();
+    expect(after.problems).toEqual([]);
+    expect(after.issues.map((i) => i.id).sort()).toEqual(["a", "e"]);
+  });
+
+  it("splices a dependent branch when its fork point is deleted", async () => {
+    const { remove, list } = await loadService();
+    // b.stackedOn === "a"; deleting "a" must repoint b to main (stackedOn cleared).
+    const result = await remove("a");
+    expect(result.deleted).toEqual(["a"]);
+    expect(result.repointed).toEqual([{ id: "b", to: undefined }]);
+
+    const after = list();
+    expect(after.problems).toEqual([]);
+    const b = after.issues.find((i) => i.id === "b");
+    expect(b && b.kind === "branch" ? b.stackedOn : "missing").toBeUndefined();
+  });
+
+  it("drops a deleted branch from another branch's blockedBy", async () => {
+    writeIssue("d", {
+      kind: "branch",
+      title: "D",
+      partOf: "e",
+      blockedBy: ["a"],
+      merged: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { remove, list } = await loadService();
+    // Deleting "a" splices b -> main and drops "a" from d.blockedBy.
+    await remove("a");
+
+    const after = list();
+    expect(after.problems).toEqual([]);
+    const d = after.issues.find((i) => i.id === "d");
+    expect(d && "blockedBy" in d ? d.blockedBy : ["unexpected"]).toEqual([]);
+  });
+
+  it("deletes an entire epic subtree", async () => {
+    const { remove, list } = await loadService();
+    const result = await remove("e");
+    expect([...result.deleted].sort()).toEqual(["a", "b", "e"]);
+    expect(list().issues).toEqual([]);
+  });
+});

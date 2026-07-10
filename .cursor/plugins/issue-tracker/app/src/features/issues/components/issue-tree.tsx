@@ -131,11 +131,9 @@ type DerivedMap = Record<string, DerivedState>;
 
 function TreeRow({
   node,
-  depth,
   derived,
 }: {
   node: IssueNode;
-  depth: number;
   derived: DerivedMap;
 }) {
   const { issue } = node;
@@ -153,7 +151,6 @@ function TreeRow({
           hasChildren && "cursor-pointer",
           state?.blocked && "opacity-40",
         )}
-        style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
         onClick={hasChildren ? () => toggle(issue.id) : undefined}
       >
         <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
@@ -194,14 +191,9 @@ function TreeRow({
         </span>
       </div>
       {hasChildren && expanded ? (
-        <div>
+        <div className="ml-4 border-l border-border/60 pl-2">
           {node.children.map((child) => (
-            <TreeRow
-              key={child.issue.id}
-              node={child}
-              depth={depth + 1}
-              derived={derived}
-            />
+            <TreeRow key={child.issue.id} node={child} derived={derived} />
           ))}
         </div>
       ) : null}
@@ -226,7 +218,7 @@ export function IssueTree({
   return (
     <div className="flex flex-col">
       {nodes.map((node) => (
-        <TreeRow key={node.issue.id} node={node} depth={0} derived={derived} />
+        <TreeRow key={node.issue.id} node={node} derived={derived} />
       ))}
     </div>
   );

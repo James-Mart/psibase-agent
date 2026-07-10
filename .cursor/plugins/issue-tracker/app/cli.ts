@@ -1,12 +1,25 @@
 #!/usr/bin/env -S npx tsx
+import { readFileSync } from "fs";
 import { Command } from "commander";
 import {
   appendMessage,
   create,
   list,
+  remove,
   update,
 } from "./server/services/issues.js";
 import { COMMIT_STATUSES, type CommitStatus } from "./server/schemas.js";
+
+// Resolve a description from either inline text or a file path. `--description-file`
+// wins when both are given; returns undefined when neither is provided so callers
+// can fall back to the default `# <title>` seed.
+function resolveDescription(opts: {
+  description?: string;
+  descriptionFile?: string;
+}): string | undefined {
+  if (opts.descriptionFile) return readFileSync(opts.descriptionFile, "utf8");
+  return opts.description;
+}
 
 const program = new Command();
 program
@@ -31,13 +44,14 @@ program
   .argument("<title>", "epic title")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
+  .option("--description-file <path>", "read description.md contents from a file")
   .action((title, opts) =>
     run(() =>
       create({
         kind: "epic",
         title,
         assignee: opts.assignee,
-        description: opts.description,
+        description: resolveDescription(opts),
       }),
     ),
   );
@@ -48,6 +62,8 @@ program
   .requiredOption("--part-of <epic>", "parent epic id")
   .option("--stacked-on <branch>", "fork-point branch id")
   .option("--assignee <who>", "assignee id")
+  .option("--description <text>", "description.md contents")
+  .option("--description-file <path>", "read description.md contents from a file")
   .action((title, opts) =>
     run(() =>
       create({
@@ -56,6 +72,7 @@ program
         partOf: opts.partOf,
         stackedOn: opts.stackedOn,
         assignee: opts.assignee,
+        description: resolveDescription(opts),
       }),
     ),
   );
@@ -65,6 +82,8 @@ program
   .argument("<title>", "commit title")
   .requiredOption("--part-of <branch>", "parent branch id")
   .option("--assignee <who>", "assignee id")
+  .option("--description <text>", "description.md contents")
+  .option("--description-file <path>", "read description.md contents from a file")
   .action((title, opts) =>
     run(() =>
       create({
@@ -72,6 +91,7 @@ program
         title,
         partOf: opts.partOf,
         assignee: opts.assignee,
+        description: resolveDescription(opts),
       }),
     ),
   );
@@ -165,6 +185,40 @@ program
   .argument("<id>", "issue id")
   .argument("<who>", "assignee id (human or agent)")
   .action((id, who) => run(() => update(id, { assignee: who })));
+
+program
+  .command("set-description")
+  .argument("<id>", "issue id")
+  .option("--description <text>", "description.md contents")
+  .option("--description-file <path>", "read description.md contents from a file")
+  .action((id, opts) =>
+    run(() => {
+      const description = resolveDescription(opts);
+      if (description === undefined) {
+        throw new Error("provide --description <text> or --description-file <path>");
+      }
+      return update(id, { description });
+    }),
+  );
+
+program
+  .command("delete")
+  .argument("<id>", "issue id")
+  .description(
+    "delete an issue: cascades to contained children, splices stackedOn, drops blockedBy",
+  )
+  .action((id) =>
+    run(async () => {
+      const result = await remove(id);
+      console.log(`deleted ${result.deleted.join(", ")}`);
+      for (const { id: bid, to } of result.repointed) {
+        console.log(`  repointed ${bid}.stackedOn -> ${to ?? "main"}`);
+      }
+      for (const { id: bid } of result.unblocked) {
+        console.log(`  dropped deleted blocker from ${bid}.blockedBy`);
+      }
+    }),
+  );
 
 program
   .command("ready")

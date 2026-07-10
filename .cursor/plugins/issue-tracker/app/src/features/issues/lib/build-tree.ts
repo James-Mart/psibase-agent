@@ -36,10 +36,36 @@ function orderSiblings(children: IssueRecord[]): IssueRecord[] {
   return ordered;
 }
 
+// Commits first (the branch's own work), then the branches stacked on it.
+function orderChildren(children: IssueRecord[]): IssueRecord[] {
+  const commits = children
+    .filter((child) => child.kind === "commit")
+    .sort(bySequence);
+  const branches = orderSiblings(
+    children.filter((child) => child.kind === "branch"),
+  );
+  return [...commits, ...branches];
+}
+
 export function buildTree(issues: IssueRecord[]): IssueNode[] {
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
+
+  // A branch nests under the branch it forks from (its stackedOn) when that
+  // referent is a branch in the same epic and present here; otherwise it falls
+  // back to its epic as a root branch.
+  const visualParent = (issue: IssueRecord): string | undefined => {
+    if (issue.kind === "branch" && issue.stackedOn) {
+      const base = byId.get(issue.stackedOn);
+      if (base?.kind === "branch" && base.partOf === issue.partOf) {
+        return base.id;
+      }
+    }
+    return parentOf(issue);
+  };
+
   const childrenOf = new Map<string, IssueRecord[]>();
   for (const issue of issues) {
-    const parent = parentOf(issue);
+    const parent = visualParent(issue);
     if (!parent) continue;
     const bucket = childrenOf.get(parent) ?? [];
     bucket.push(issue);
@@ -48,7 +74,7 @@ export function buildTree(issues: IssueRecord[]): IssueNode[] {
 
   const toNode = (issue: IssueRecord): IssueNode => ({
     issue,
-    children: orderSiblings(childrenOf.get(issue.id) ?? []).map(toNode),
+    children: orderChildren(childrenOf.get(issue.id) ?? []).map(toNode),
   });
 
   return issues

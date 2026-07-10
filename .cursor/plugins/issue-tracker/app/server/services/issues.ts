@@ -28,8 +28,9 @@ import {
 } from "../schemas.js";
 import { IssueError } from "./errors.js";
 import { derive } from "./derive.js";
-import { problemsFor } from "./integrity.js";
+import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
+import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
@@ -327,12 +328,65 @@ export function appendMessage(
   });
 }
 
-export function remove(id: string): Promise<{ id: string }> {
+// Deleting an issue removes the whole containment subtree (the issue plus every
+// descendant `partOf` it) and repairs every surviving foreign reference into it:
+// a branch stacked on a deleted branch is spliced to the deleted branch's own
+// fork point, and deleted ids are dropped from any branch's `blockedBy`. The
+// prospective surviving set is validated before anything is written, so a
+// deletion that could not leave the graph valid is refused without side effects.
+export function remove(id: string): Promise<DeletionResult> {
   return serialize(() => {
     if (!existsSync(dirOf(id))) {
       throw new IssueError("not_found", `unknown issue "${id}"`);
     }
-    rmSync(dirOf(id), { recursive: true, force: true });
-    return { id };
+
+    const { issues } = readAll();
+    const plan = planDeletion(issues, id);
+    const deleteSet = new Set(plan.deleteIds);
+
+    const patchOf = new Map<string, IssuePatch>();
+    for (const { id: bid, to } of plan.repoint) {
+      const patch = patchOf.get(bid) ?? {};
+      patch.stackedOn = to ?? null;
+      patchOf.set(bid, patch);
+    }
+    for (const { id: bid, blockedBy } of plan.unblock) {
+      const patch = patchOf.get(bid) ?? {};
+      patch.blockedBy = blockedBy;
+      patchOf.set(bid, patch);
+    }
+
+    const now = new Date().toISOString();
+    const survivors: Issue[] = [];
+    const toPersist: Issue[] = [];
+    for (const issue of issues) {
+      if (deleteSet.has(issue.id)) continue;
+      const patch = patchOf.get(issue.id);
+      if (!patch) {
+        survivors.push(issue);
+        continue;
+      }
+      const parsed = parseIssue(mergeIssue(issue, patch));
+      if (!parsed.ok) throw new IssueError("validation", parsed.message);
+      parsed.issue.updatedAt = now;
+      survivors.push(parsed.issue);
+      toPersist.push(parsed.issue);
+    }
+
+    const problems = checkIntegrity(survivors);
+    if (problems.length > 0) {
+      throw new IssueError("validation", problems.map((p) => p.message).join("; "));
+    }
+
+    for (const issue of toPersist) persist(issue, serializeIssue(issue));
+    for (const delId of plan.deleteIds) {
+      rmSync(dirOf(delId), { recursive: true, force: true });
+    }
+
+    return {
+      deleted: plan.deleteIds,
+      repointed: plan.repoint,
+      unblocked: plan.unblock,
+    };
   });
 }
