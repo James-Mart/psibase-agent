@@ -307,6 +307,12 @@ program
   .action((id, branch) => run(() => update(id, { stackedOn: branch })));
 
 program
+  .command("set-part-of")
+  .argument("<id>", "issue id")
+  .argument("<parent>", "new parent id (commit>branch, branch>epic, epic>project)")
+  .action((id, parent) => run(() => update(id, { partOf: parent })));
+
+program
   .command("block")
   .argument("<id>", "branch id")
   .option("--by <branchIds...>", "replace blockedBy with exactly these ids")
