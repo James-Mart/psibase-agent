@@ -13,27 +13,7 @@ import {
   type CommitStatus,
   type IssueRecord,
 } from "./server/schemas.js";
-
-// The set of ids contained by a project: the project itself plus every issue
-// transitively `partOf` it (epics, their branches, and those branches' commits).
-function projectSubtreeIds(issues: IssueRecord[], projectId: string): Set<string> {
-  const childrenOf = new Map<string, string[]>();
-  for (const issue of issues) {
-    if (issue.kind === "project") continue;
-    const bucket = childrenOf.get(issue.partOf) ?? [];
-    bucket.push(issue.id);
-    childrenOf.set(issue.partOf, bucket);
-  }
-  const ids = new Set<string>();
-  const queue = [projectId];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (ids.has(current)) continue;
-    ids.add(current);
-    for (const child of childrenOf.get(current) ?? []) queue.push(child);
-  }
-  return ids;
-}
+import { projectSubtreeIds } from "./server/services/subtree.js";
 
 function requireProject(issues: IssueRecord[], projectId: string): void {
   const project = issues.find(
