@@ -51,14 +51,19 @@ instead of `npx tsx cli.ts <verb>`.
 
 ### The new verbs
 
-- **`apply <file>`** — the declarative authoring path: upsert a whole
-  Project > Epic > Branch > Commit tree from one nested YAML doc. It is
+- **`apply <file>`** — the declarative authoring path: upsert a nested
+  Project > Epic > Branch > Commit tree from one YAML doc. It is
   **idempotent** (re-applying an unchanged doc is a no-op), **atomic** (the whole
   prospective set is integrity-checked before any write; a bad doc changes
-  nothing), and **prune-by-default** (an in-project node the doc omits is
-  deleted). It writes only plan shape + prose and preserves all runtime/progress
-  fields, so it is safe to re-apply mid-run. Prints `created`/`updated`/`deleted`
-  counts. Doc format and field seam: [SPEC.md](../../SPEC.md). Use it via
+  nothing), and **prune-by-default** (a node the doc omits within its root's
+  subtree is deleted). The doc can be rooted at a **Project** (whole tree), an
+  **Epic** (one epic in an existing project), or a **Branch** (one branch + its
+  commits in an existing epic), so prune stays bounded to that root — edit one
+  epic/branch without disturbing siblings. It writes only plan shape + prose and
+  preserves all runtime/progress fields, so it is safe to re-apply mid-run.
+  Prints `created`/`updated`/`deleted` counts, then echoes the resulting subtree
+  the doc is rooted at (the same outline `tree` prints), so no follow-up `tree`
+  is needed. Doc format and field seam: [SPEC.md](../../SPEC.md). Use it via
   issue-tracker-decompose.
 - **`show <id>`** — print one issue's metadata + rendered `description.md`;
   `--chat` also prints the chat log. Self-verify a single issue without piping

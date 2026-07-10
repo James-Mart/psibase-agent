@@ -19,9 +19,14 @@ import {
   type DerivedState,
   type IssueRecord,
 } from "./server/schemas.js";
-import { projectSubtreeIds } from "./server/services/subtree.js";
+import { subtreeIds } from "./server/services/subtree.js";
 import { apply } from "./server/services/apply.js";
-import { parseApplyDoc } from "./server/services/apply-schema.js";
+import {
+  parseApplyDoc,
+  isBranchDoc,
+  isEpicDoc,
+  type ApplyDoc,
+} from "./server/services/apply-schema.js";
 import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { EPIC_BASE } from "./server/services/derive.js";
@@ -144,6 +149,34 @@ function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string
   return lines;
 }
 
+// Render the subtree an `apply` doc is rooted at (Project, Epic, or Branch), so
+// `apply` can echo the resulting shape the way `tree` would for the same scope.
+function renderApplyRoot(doc: ApplyDoc, issues: IssueRecord[], ctx: TreeContext): string[] {
+  if (isBranchDoc(doc)) {
+    const branch = ctx.branchById.get(doc.branch.id);
+    if (!branch) return [];
+    const lines = [nodeLine(0, "branch", branch.id, branch.title, branchChips(branch, ctx.derived))];
+    for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
+      lines.push(nodeLine(1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)));
+    }
+    return lines;
+  }
+  if (isEpicDoc(doc)) {
+    const epic = issues.find((i) => i.id === doc.epic.id && i.kind === "epic");
+    return epic ? renderEpic(epic, 0, ctx) : [];
+  }
+  const projectId = doc.project.id;
+  const project = issues.find((i) => i.id === projectId && i.kind === "project");
+  if (!project) return [];
+  const lines = [nodeLine(0, "project", project.id, project.title, [])];
+  for (const epic of issues
+    .filter((i) => i.kind === "epic" && i.partOf === projectId)
+    .sort(bySequence)) {
+    lines.push(...renderEpic(epic, 1, ctx));
+  }
+  return lines;
+}
+
 // Resolve a description from either inline text or a file path. `--description-file`
 // wins when both are given; returns undefined when neither is provided so callers
 // can fall back to the default `# <title>` seed.
@@ -256,7 +289,7 @@ program
   .command("apply")
   .argument("<file>", "path to the nested YAML doc to apply")
   .description(
-    "upsert a whole Project > Epic > Branch > Commit tree from one nested YAML doc",
+    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Branch (one branch + its commits in an existing epic); prunes within the declared root's subtree only",
   )
   .action((file) =>
     run(async () => {
@@ -269,6 +302,15 @@ program
       console.log(line("created", summary.created));
       console.log(line("updated", summary.updated));
       console.log(line("deleted", summary.deleted));
+
+      // Echo the resulting subtree the doc is rooted at, so callers don't have
+      // to follow up with a separate `tree` invocation.
+      const { issues, derived } = list();
+      const treeLines = renderApplyRoot(parsed.doc, issues, buildTreeContext(issues, derived));
+      if (treeLines.length > 0) {
+        console.log();
+        console.log(treeLines.join("\n"));
+      }
     }),
   );
 
@@ -518,7 +560,7 @@ program
     run(() => {
       const { issues, ready } = list();
       const projectId = resolveProjectId(issues, opts.project);
-      const scope = projectSubtreeIds(issues, projectId);
+      const scope = subtreeIds(issues, projectId);
       const byId = new Map(issues.map((issue) => [issue.id, issue]));
       const scoped = ready.filter((id) => scope.has(id));
       if (scoped.length === 0) {
@@ -540,7 +582,7 @@ program
     run(() => {
       const full = list();
       const projectId = resolveProjectId(full.issues, opts.project);
-      const scope = projectSubtreeIds(full.issues, projectId);
+      const scope = subtreeIds(full.issues, projectId);
       const scoped = {
         issues: full.issues.filter((issue) => scope.has(issue.id)),
         problems: full.problems.filter((problem) => scope.has(problem.id)),

@@ -1,6 +1,6 @@
-import { parseIssue, type Issue, type IssuePatch } from "../schemas.js";
+import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../schemas.js";
 import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
-import { flattenApplyDoc } from "./apply-schema.js";
+import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
 import {
   commitIssueBatch,
   readAll,
@@ -11,7 +11,7 @@ import {
 import { checkIntegrity } from "./integrity.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
-import { projectSubtreeIds } from "./subtree.js";
+import { subtreeIds } from "./subtree.js";
 
 // What `apply` changed, by id. On an idempotent re-apply all three are empty.
 export interface ApplySummary {
@@ -34,6 +34,7 @@ function buildIssue(
   desired: DesiredIssue,
   existing: Issue | undefined,
   now: string,
+  preserveStackedOn: boolean,
 ): Issue {
   const draft: Record<string, unknown> = {
     id: desired.id,
@@ -57,7 +58,14 @@ function buildIssue(
   if (desired.kind === "branch") {
     const prior = existing && existing.kind === "branch" ? existing : undefined;
     draft.blockedBy = desired.blockedBy ?? [];
-    if (desired.stackedOn) draft.stackedOn = desired.stackedOn;
+    // Normally `stackedOn` is doc-owned (inferred from nesting). A branch-rooted
+    // doc has no parent nesting, so `preserveStackedOn` keeps the on-disk fork
+    // point instead of clearing it — a branch doc never moves its fork point.
+    if (preserveStackedOn) {
+      if (prior?.stackedOn !== undefined) draft.stackedOn = prior.stackedOn;
+    } else if (desired.stackedOn) {
+      draft.stackedOn = desired.stackedOn;
+    }
     if (prior) {
       draft.merged = prior.merged;
       if (prior.branchName !== undefined) draft.branchName = prior.branchName;
@@ -78,10 +86,10 @@ function buildIssue(
   return parsed.issue;
 }
 
-// Repair a surviving issue's references into the prune set. In-project branches
-// are fully rebuilt from the doc, so only out-of-project survivors can dangle,
+// Repair a surviving issue's references into the prune set. In-scope branches
+// are fully rebuilt from the doc, so only out-of-scope survivors can dangle,
 // and only via `blockedBy` (the sole cross-Epic edge); `stackedOn` stays within
-// one Epic so it never crosses a project boundary. Mirrors the drop rule in
+// one Epic so it never crosses a scope boundary. Mirrors the drop rule in
 // deletion.ts. Returns the (possibly rewritten) issue and whether it changed.
 function repairSurvivor(
   issue: Issue,
@@ -98,23 +106,81 @@ function repairSurvivor(
   return { issue: parsed.issue, changed: true };
 }
 
-// Reconcile the whole declared project subtree to match `doc`: create new
-// nodes, update existing ones (preserving imperative/progress state), and prune
-// on-disk issues in the project that the doc omits. The entire prospective set
-// is validated with a single `checkIntegrity` pass before any write, so a doc
-// that would leave the graph broken is refused with no changes on disk. Runs
-// inside the shared write chain so it cannot race HTTP/CLI writes.
+interface ResolvedRoot {
+  // The node whose on-disk subtree bounds the reconcile/prune scope.
+  rootId: string;
+  rootKind: IssueKind;
+  // Branch-rooted docs preserve the on-disk `stackedOn`; see `buildIssue`.
+  preserveStackedOn: boolean;
+}
+
+// Resolve which node roots the doc and validate any enclosing parents it names
+// by id. An epic- or branch-rooted doc reconciles a sub-scope of an existing
+// tree, so its parents must already exist with the right kind and containment;
+// a violation is refused here before any write. A project-rooted doc has no
+// parent to check.
+function resolveRoot(
+  doc: ApplyDoc,
+  onDiskById: Map<string, Issue>,
+): ResolvedRoot {
+  const requireKind = (id: string, kind: IssueKind): void => {
+    const issue = onDiskById.get(id);
+    if (!issue) {
+      throw new IssueError("validation", `${kind} "${id}" does not exist`);
+    }
+    if (issue.kind !== kind) {
+      throw new IssueError(
+        "validation",
+        `"${id}" must be a ${kind}, not a ${issue.kind}`,
+      );
+    }
+  };
+  // If the root already exists on disk, its parent must match the one the doc
+  // declares — an epic/branch cannot be reparented across containers by apply.
+  const requireContainment = (childId: string, parentId: string): void => {
+    const existing = onDiskById.get(childId);
+    if (existing && "partOf" in existing && existing.partOf !== parentId) {
+      throw new IssueError(
+        "validation",
+        `cannot apply "${childId}": it already belongs to "${existing.partOf}", not "${parentId}"`,
+      );
+    }
+  };
+
+  if (isBranchDoc(doc)) {
+    requireKind(doc.project, "project");
+    requireKind(doc.epic, "epic");
+    requireContainment(doc.epic, doc.project);
+    requireContainment(doc.branch.id, doc.epic);
+    return { rootId: doc.branch.id, rootKind: "branch", preserveStackedOn: true };
+  }
+  if (isEpicDoc(doc)) {
+    requireKind(doc.project, "project");
+    requireContainment(doc.epic.id, doc.project);
+    return { rootId: doc.epic.id, rootKind: "epic", preserveStackedOn: false };
+  }
+  return { rootId: doc.project.id, rootKind: "project", preserveStackedOn: false };
+}
+
+// Reconcile the declared root's subtree to match `doc`: create new nodes, update
+// existing ones (preserving imperative/progress state), and prune on-disk issues
+// in that subtree the doc omits. The root is a Project, an Epic, or a Branch (see
+// `resolveRoot`), so the scope can be a whole project, one epic, or one branch's
+// commit list. The entire prospective set is validated with a single
+// `checkIntegrity` pass before any write, so a doc that would leave the graph
+// broken is refused with no changes on disk. Runs inside the shared write chain
+// so it cannot race HTTP/CLI writes.
 export function apply(doc: ApplyDoc): Promise<ApplySummary> {
   return serialize(() => {
     const now = new Date().toISOString();
     const desired = flattenApplyDoc(doc);
-    const projectId = doc.project.id;
 
     const { issues } = readAll();
     const onDiskById = new Map(issues.map((issue) => [issue.id, issue]));
-    // Scope is bounded to the declared project's on-disk subtree; anything else
+    const { rootId, rootKind, preserveStackedOn } = resolveRoot(doc, onDiskById);
+    // Scope is bounded to the declared root's on-disk subtree; anything else
     // is untouched except for reference repair when a pruned branch is a blocker.
-    const scope = projectSubtreeIds(issues, projectId);
+    const scope = subtreeIds(issues, rootId);
     const desiredIds = new Set(desired.map((node) => node.id));
 
     const created: string[] = [];
@@ -129,11 +195,11 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
       if (existing && !scope.has(node.id)) {
         throw new IssueError(
           "validation",
-          `cannot apply "${node.id}": id already exists outside project "${projectId}"`,
+          `cannot apply "${node.id}": id already exists outside the target ${rootKind} "${rootId}"`,
         );
       }
 
-      const next = buildIssue(node, existing, now);
+      const next = buildIssue(node, existing, now, preserveStackedOn);
 
       if (!existing) {
         prospective.set(next.id, next);
@@ -163,18 +229,18 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
       updated.push(next.id);
     }
 
-    // Prune: on-disk issues in the project subtree the doc no longer declares.
+    // Prune: on-disk issues in the root's subtree the doc no longer declares.
     // This deliberately does not delegate to `planDeletion`/`remove()`. That
     // planner's job is to *inherit* a deleted branch's fork point onto surviving
-    // stacked branches; here every in-project reference has already been rebuilt
+    // stacked branches; here every in-scope reference has already been rebuilt
     // from the doc's nesting, so re-inheriting fork points would fight the doc.
-    // The only edge that can still dangle is an out-of-project `blockedBy` into
+    // The only edge that can still dangle is an out-of-scope `blockedBy` into
     // the prune set, repaired below (see `repairSurvivor`).
     const deleteSet = new Set(
       [...scope].filter((id) => !desiredIds.has(id)),
     );
 
-    // Fold surviving out-of-project issues (with blockedBy repair) into the set.
+    // Fold surviving out-of-scope issues (with blockedBy repair) into the set.
     for (const issue of issues) {
       if (deleteSet.has(issue.id) || desiredIds.has(issue.id)) continue;
       const { issue: repaired, changed } = repairSurvivor(issue, deleteSet, now);

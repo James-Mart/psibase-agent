@@ -67,6 +67,22 @@ const epicNode = z
 
 export type EpicNode = z.infer<typeof epicNode>;
 
+// A branch-rooted doc reconciles only the branch's own subtree (the branch plus
+// its commits). Stacked children live under the *Epic* (`partOf` the Epic, not
+// the branch), so they are outside a branch's subtree and cannot be declared
+// here — hence a non-recursive node with no `stacked` key.
+const rootBranchNode = z
+  .object({
+    id: idField,
+    title: titleField,
+    description: descriptionField,
+    blockedBy: z.array(idField).optional(),
+    commits: z.array(commitNode).optional(),
+  })
+  .strict();
+
+export type RootBranchNode = z.infer<typeof rootBranchNode>;
+
 const projectNode = z
   .object({
     id: idField,
@@ -76,13 +92,29 @@ const projectNode = z
   })
   .strict();
 
-export const applyDocSchema = z
-  .object({
-    project: projectNode,
-  })
+// The doc may be rooted at a Project, an Epic, or a Branch. The root node is
+// upserted and pruned within its own subtree; any enclosing parent (named by id)
+// is a reference that must already exist and is never upserted or pruned. Forms
+// are told apart by which root key holds an object (see `parseApplyDoc`).
+const projectApplyDoc = z.object({ project: projectNode }).strict();
+const epicApplyDoc = z.object({ project: idField, epic: epicNode }).strict();
+const branchApplyDoc = z
+  .object({ project: idField, epic: idField, branch: rootBranchNode })
   .strict();
 
-export type ApplyDoc = z.infer<typeof applyDocSchema>;
+export type ProjectApplyDoc = z.infer<typeof projectApplyDoc>;
+export type EpicApplyDoc = z.infer<typeof epicApplyDoc>;
+export type BranchApplyDoc = z.infer<typeof branchApplyDoc>;
+export type ApplyDoc = ProjectApplyDoc | EpicApplyDoc | BranchApplyDoc;
+
+// A branch-rooted doc is the only one with a `branch` key; an epic-rooted doc
+// is the only remaining one with an `epic` key. Anything else is project-rooted.
+export function isBranchDoc(doc: ApplyDoc): doc is BranchApplyDoc {
+  return "branch" in doc;
+}
+export function isEpicDoc(doc: ApplyDoc): doc is EpicApplyDoc {
+  return "epic" in doc && !("branch" in doc);
+}
 
 // The doc-owned subset of each Issue kind (the fields `apply` is allowed to
 // write), derived from the canonical `Issue` union so it can never drift from
@@ -100,16 +132,27 @@ export type ApplyParseResult =
 
 function collectIds(doc: ApplyDoc): string[] {
   const ids: string[] = [];
-  const visitBranch = (branch: BranchNode): void => {
+  const visitBranch = (branch: BranchNode | RootBranchNode): void => {
     ids.push(branch.id);
     for (const commit of branch.commits ?? []) ids.push(commit.id);
-    for (const stacked of branch.stacked ?? []) visitBranch(stacked);
+    for (const stacked of ("stacked" in branch ? branch.stacked : undefined) ??
+      [])
+      visitBranch(stacked);
   };
-  ids.push(doc.project.id);
-  for (const epic of doc.project.epics ?? []) {
+  const visitEpic = (epic: EpicNode): void => {
     ids.push(epic.id);
     for (const branch of epic.branches ?? []) visitBranch(branch);
+  };
+  if (isBranchDoc(doc)) {
+    visitBranch(doc.branch);
+    return ids;
   }
+  if (isEpicDoc(doc)) {
+    visitEpic(doc.epic);
+    return ids;
+  }
+  ids.push(doc.project.id);
+  for (const epic of doc.project.epics ?? []) visitEpic(epic);
   return ids;
 }
 
@@ -126,7 +169,12 @@ function firstDuplicate(ids: string[]): string | undefined {
 // ids, and cross-doc id uniqueness. Returns a clear message instead of throwing
 // so callers can surface it verbatim.
 export function parseApplyDoc(raw: unknown): ApplyParseResult {
-  const result = applyDocSchema.safeParse(raw);
+  // Route to the specific form by root-key shape before parsing so validation
+  // errors point at the intended form rather than a noisy union aggregate.
+  const keyed = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const schema =
+    "branch" in keyed ? branchApplyDoc : "epic" in keyed ? epicApplyDoc : projectApplyDoc;
+  const result = schema.safeParse(raw);
   if (!result.success) {
     return { ok: false, message: formatZodError(result.error, "invalid apply doc") };
   }
@@ -144,7 +192,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
   const desired: DesiredIssue[] = [];
 
   const emitBranch = (
-    branch: BranchNode,
+    branch: BranchNode | RootBranchNode,
     epicId: string,
     stackedOn: string | undefined,
   ): void => {
@@ -171,11 +219,41 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       });
     }
     // A stacked branch lives in the same Epic as its fork point; only its
-    // `stackedOn` reflects the nesting under this branch.
-    for (const stacked of branch.stacked ?? []) {
+    // `stackedOn` reflects the nesting under this branch. A `RootBranchNode`
+    // (branch-rooted doc) has no `stacked`, so this is a no-op there.
+    for (const stacked of ("stacked" in branch ? branch.stacked : undefined) ??
+      []) {
       emitBranch(stacked, epicId, branch.id);
     }
   };
+
+  const emitEpic = (epic: EpicNode, projectId: string): void => {
+    desired.push({
+      id: epic.id,
+      kind: "epic",
+      title: epic.title,
+      partOf: projectId,
+      ...(epic.description !== undefined
+        ? { description: epic.description }
+        : {}),
+    });
+    for (const branch of epic.branches ?? []) {
+      emitBranch(branch, epic.id, undefined);
+    }
+  };
+
+  // A branch- or epic-rooted doc names its enclosing parent(s) by id only; the
+  // parent issues already exist and are not part of the desired set. `stackedOn`
+  // for a branch-rooted branch is intentionally omitted here and preserved from
+  // disk by `apply` (a branch doc never moves its fork point).
+  if (isBranchDoc(doc)) {
+    emitBranch(doc.branch, doc.epic, undefined);
+    return desired;
+  }
+  if (isEpicDoc(doc)) {
+    emitEpic(doc.epic, doc.project);
+    return desired;
+  }
 
   const project = doc.project;
   desired.push({
@@ -186,20 +264,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       ? { description: project.description }
       : {}),
   });
-  for (const epic of project.epics ?? []) {
-    desired.push({
-      id: epic.id,
-      kind: "epic",
-      title: epic.title,
-      partOf: project.id,
-      ...(epic.description !== undefined
-        ? { description: epic.description }
-        : {}),
-    });
-    for (const branch of epic.branches ?? []) {
-      emitBranch(branch, epic.id, undefined);
-    }
-  }
+  for (const epic of project.epics ?? []) emitEpic(epic, project.id);
 
   return desired;
 }

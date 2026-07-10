@@ -221,3 +221,137 @@ describe("flattenApplyDoc", () => {
     expect(map.get("phase-0b")?.description).toBeUndefined();
   });
 });
+
+// An epic-rooted doc names its project by id (a reference) and reconciles a
+// single epic subtree.
+const epicDoc = {
+  project: "my-product",
+  epic: {
+    id: "epic-a",
+    title: "Epic A",
+    branches: [
+      {
+        id: "b1",
+        title: "Branch one",
+        commits: [{ id: "c1", title: "Commit one" }],
+        stacked: [{ id: "b1s", title: "Stacked on one" }],
+      },
+    ],
+  },
+};
+
+// A branch-rooted doc names its project and epic by id and reconciles a single
+// branch's own subtree (the branch plus its commits — no stacked children).
+const branchDoc = {
+  project: "my-product",
+  epic: "epic-a",
+  branch: {
+    id: "b1",
+    title: "Branch one",
+    blockedBy: ["b2"],
+    commits: [{ id: "c1", title: "Commit one" }],
+  },
+};
+
+describe("parseApplyDoc — epic form", () => {
+  it("accepts an epic-rooted doc with a project id reference", () => {
+    expect(parseApplyDoc(epicDoc).ok).toBe(true);
+  });
+
+  it("rejects a non-kebab project reference", () => {
+    const result = parseApplyDoc({ ...epicDoc, project: "Not A Slug" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain("kebab-case");
+  });
+
+  it("detects a duplicate id within the epic subtree", () => {
+    const result = parseApplyDoc({
+      project: "my-product",
+      epic: {
+        id: "dupe",
+        title: "E",
+        branches: [{ id: "dupe", title: "clash" }],
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain('duplicate id "dupe"');
+  });
+});
+
+describe("parseApplyDoc — branch form", () => {
+  it("accepts a branch-rooted doc with project + epic id references", () => {
+    expect(parseApplyDoc(branchDoc).ok).toBe(true);
+  });
+
+  it("rejects a stacked key on a branch-rooted branch", () => {
+    const result = parseApplyDoc({
+      ...branchDoc,
+      branch: { ...branchDoc.branch, stacked: [{ id: "x", title: "X" }] },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("detects a duplicate id between the branch and one of its commits", () => {
+    const result = parseApplyDoc({
+      project: "my-product",
+      epic: "epic-a",
+      branch: {
+        id: "b",
+        title: "B",
+        commits: [{ id: "b", title: "collides with branch" }],
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain('duplicate id "b"');
+  });
+});
+
+describe("flattenApplyDoc — epic form", () => {
+  const result = parseApplyDoc(epicDoc);
+  if (!result.ok) throw new Error(`epic doc should parse: ${result.message}`);
+  const map = byId(flattenApplyDoc(result.doc));
+
+  it("does not emit a project node (the project is a reference)", () => {
+    expect(map.has("my-product")).toBe(false);
+  });
+
+  it("roots the epic under the referenced project", () => {
+    const epic = map.get("epic-a");
+    expect(epic?.kind).toBe("epic");
+    expect(epic && "partOf" in epic && epic.partOf).toBe("my-product");
+  });
+
+  it("still infers containment and the fork point below the epic", () => {
+    const branch = map.get("b1");
+    const commit = map.get("c1");
+    const stacked = map.get("b1s");
+    if (branch?.kind !== "branch" || stacked?.kind !== "branch") {
+      throw new Error("missing branch");
+    }
+    expect(branch.partOf).toBe("epic-a");
+    expect(commit && "partOf" in commit && commit.partOf).toBe("b1");
+    expect(stacked.partOf).toBe("epic-a");
+    expect(stacked.stackedOn).toBe("b1");
+  });
+});
+
+describe("flattenApplyDoc — branch form", () => {
+  const result = parseApplyDoc(branchDoc);
+  if (!result.ok) throw new Error(`branch doc should parse: ${result.message}`);
+  const map = byId(flattenApplyDoc(result.doc));
+
+  it("emits only the branch and its commits", () => {
+    expect(map.has("my-product")).toBe(false);
+    expect(map.has("epic-a")).toBe(false);
+    expect([...map.keys()].sort()).toEqual(["b1", "c1"]);
+  });
+
+  it("roots the branch under the referenced epic without a fork point", () => {
+    const branch = map.get("b1");
+    if (branch?.kind !== "branch") throw new Error("missing branch");
+    expect(branch.partOf).toBe("epic-a");
+    // stackedOn is preserved from disk by apply, never emitted from the doc.
+    expect(branch.stackedOn).toBeUndefined();
+    expect(branch.blockedBy).toEqual(["b2"]);
+  });
+});

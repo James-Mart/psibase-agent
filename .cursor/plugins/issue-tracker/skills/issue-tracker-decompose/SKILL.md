@@ -46,6 +46,14 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   (status, git facts, assignee, attention, chat), so re-applying an edited doc
   mid-implementation is safe. Keep the doc as the editable source and re-`apply`
   rather than patching the tree with one-off imperative verbs.
+- **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
+  To edit one epic or branch without touching its siblings, root the doc there
+  and reference the enclosing parents by id: an **epic form** (`project: <id>`
+  string + `epic:` object) reconciles just that epic within the project, and a
+  **branch form** (`project: <id>` + `epic: <id>` strings + `branch:` object)
+  reconciles just that branch and its commit list within the epic. A branch doc
+  owns only its own commits (stacked children belong to the epic) and preserves
+  the branch's fork point. Full shapes in [SPEC.md](../../SPEC.md#apply-doc-format).
 
 ## Grain: Branch vs Commit
 
@@ -60,6 +68,14 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
 - **Commit** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Tree nesting supplies context, so
   linking commit → epic is unnecessary.
+
+**Each Branch must be independently mergeable to `main`.** Branches merge to
+`main` (stacked children after their fork-point Branch, in stack order), and only
+Branches merge — Commits are internal steps that ship together as the Branch's
+one PR. So never split one cohesive change across Branches such that merging one
+leaves `main` broken (e.g. a schema change in one Branch and the code that
+consumes it in another): keep it in a single Branch as multiple Commits. See the
+stacked-PR merge model in [SPEC.md](../../SPEC.md).
 
 A plan's *phases* are the Branch grain, its *todos/steps* the Commit grain. Group
 related todos into one Branch and land them as commits; split only a genuinely

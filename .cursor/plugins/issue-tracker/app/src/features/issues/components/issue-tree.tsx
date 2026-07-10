@@ -20,6 +20,12 @@ import {
 } from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
@@ -102,17 +108,54 @@ function RowActions({ issue }: { issue: IssueRecord }) {
   return (
     <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
       {childKind ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title={`Add ${childKind}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            openNew({ presetKind: childKind, presetParent: issue.id });
-          }}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        issue.kind === "branch" ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Add child"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openNew({ presetKind: "commit", presetParent: issue.id });
+                }}
+              >
+                Add commit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openNew({
+                    presetKind: "branch",
+                    presetParent: issue.partOf,
+                    presetStackedOn: issue.id,
+                  });
+                }}
+              >
+                Add stacked branch
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={`Add ${childKind}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openNew({ presetKind: childKind, presetParent: issue.id });
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        )
       ) : null}
       <Button
         variant="ghost"

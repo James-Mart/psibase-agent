@@ -57,7 +57,8 @@ the recommended `composer-2.5` model instead of continuing.
    do not work a tree with integrity problems.
 3. Mirror the Branches and their Commits, in `tree` order, into your own todo
    list so you can track progress; keep exactly one Commit `in_progress` at a
-   time.
+   time. This mirror is a cache of the outline — re-sync it from a fresh
+   `tree --epic <id>` each time control returns to you (see The loop).
 4. Every subagent starts fresh. Pass it **only** the **Epic id** and the
    **specific issue id + its title**, plus an instruction to rebuild its own
    context from `list`, `show <id>` (the issue's `description.md`), and the
@@ -89,6 +90,13 @@ visible in the UI.
 Walk the Branches in the order `tree` printed them (top-to-bottom). For each
 Branch, work its not-`done` Commits in the sequence `tree` lists them, to
 completion, before moving to the Branches nested under it.
+
+**Re-read `tree --epic <id>` every time control returns to you** — after every
+subagent finishes and before you choose the next action — and re-sync your todo
+list to it. The tree is the live plan, not a one-time snapshot: Branches or
+Commits can be injected into the in-progress Epic mid-run (for example when
+someone `apply`s an epic- or branch-rooted doc), and only a fresh `tree` picks
+them up. Never act from a cached outline.
 
 ### Start a Branch
 
@@ -203,6 +211,9 @@ Adapt these; always inline the Epic id and the specific issue id + title.
   only git, the CLI, and coordination.
 - Work one Epic, one Commit at a time, in the Branch order `tree` prints; finish
   a Branch before the Branches stacked on it.
+- Re-read `tree --epic <id>` every time control returns to you and re-sync your
+  todo list, so Branches or Commits injected into the in-progress Epic mid-run
+  are picked up. Never act from a cached outline.
 - The implementor leaves work uncommitted; **you** commit (message = Commit
   title) only after the per-commit cycle passes.
 - Exactly one revision pass per validator tier (code-quality per commit,

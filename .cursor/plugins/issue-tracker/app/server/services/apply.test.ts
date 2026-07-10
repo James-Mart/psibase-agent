@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApplyDoc } from "./apply-schema.js";
+import type { ApplyDoc, ProjectApplyDoc } from "./apply-schema.js";
 
 const AT = "2026-07-09T14:00:00.000Z";
 let dir: string;
@@ -63,7 +63,7 @@ async function loadService() {
 // (b1 blocks on b2, which is declared after it in the same epic). The stacked
 // edge (b1s -> b1) and the blockedBy edge (b1 -> b2) are deliberately distinct
 // so the dependency graph stays acyclic.
-function baseDoc(): ApplyDoc {
+function baseDoc(): ProjectApplyDoc {
   return {
     project: {
       id: "proj",
@@ -379,11 +379,156 @@ describe("apply — atomic rejection", () => {
         ],
       },
     };
-    await expect(apply(doc)).rejects.toThrow(/already exists outside project/);
+    await expect(apply(doc)).rejects.toThrow(
+      /already exists outside the target project/,
+    );
 
     // The doc's project was never created, and the orphan is untouched.
     expect(existsSync(join(dir, "p1"))).toBe(false);
     expect(existsSync(join(dir, "e1"))).toBe(false);
     expect(snapshot()).toBe(before);
+  });
+});
+
+describe("apply — epic-scoped doc", () => {
+  // p1 has two epics: e1 (b1 kept + b-old to prune) and e2 (b2). Rooting the doc
+  // at e1 must prune only within e1 and leave e2, b2, and the project alone.
+  function seedTwoEpicProject(): void {
+    writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
+    writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", createdAt: AT, updatedAt: AT });
+    writeIssue("b1", { kind: "branch", title: "B1", partOf: "e1", createdAt: AT, updatedAt: AT });
+    writeIssue("b-old", { kind: "branch", title: "Old", partOf: "e1", createdAt: AT, updatedAt: AT });
+    writeIssue("e2", { kind: "epic", title: "E2", partOf: "p1", createdAt: AT, updatedAt: AT });
+    writeIssue("b2", { kind: "branch", title: "B2", partOf: "e2", createdAt: AT, updatedAt: AT });
+  }
+
+  it("prunes within the target epic only and leaves siblings + project untouched", async () => {
+    seedTwoEpicProject();
+    const { apply, list } = await loadService();
+
+    const doc = {
+      project: "p1",
+      epic: { id: "e1", title: "E1", branches: [{ id: "b1", title: "B1" }] },
+    } as ApplyDoc;
+    const summary = await apply(doc);
+
+    expect(summary.deleted).toEqual(["b-old"]);
+    expect(existsSync(join(dir, "b-old"))).toBe(false);
+    // Everything outside e1's subtree survives unchanged.
+    expect(list().issues.map((i) => i.id).sort()).toEqual(
+      ["b1", "b2", "e1", "e2", "p1"].sort(),
+    );
+  });
+
+  it("rejects when the referenced project does not exist", async () => {
+    const { apply } = await loadService();
+    const doc = { project: "ghost", epic: { id: "e1", title: "E1" } } as ApplyDoc;
+    await expect(apply(doc)).rejects.toThrow(/project "ghost" does not exist/);
+  });
+
+  it("rejects when the epic already belongs to a different project", async () => {
+    writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
+    writeIssue("p2", { kind: "project", title: "P2", createdAt: AT, updatedAt: AT });
+    writeIssue("e1", { kind: "epic", title: "E1", partOf: "p2", createdAt: AT, updatedAt: AT });
+    const { apply } = await loadService();
+    const before = snapshot();
+
+    const doc = { project: "p1", epic: { id: "e1", title: "E1" } } as ApplyDoc;
+    await expect(apply(doc)).rejects.toThrow(/already belongs to "p2"/);
+    expect(snapshot()).toBe(before);
+  });
+});
+
+describe("apply — branch-scoped doc", () => {
+  // A stacked branch `feat` (forked off `base`) with one commit, plus `base` and
+  // its own commit. Rooting the doc at `feat` reconciles only feat + its commits;
+  // base and its commit are outside feat's subtree, and feat's fork point (which
+  // a branch doc cannot express) must be preserved.
+  function seedStack(): void {
+    writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
+    writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", createdAt: AT, updatedAt: AT });
+    writeIssue("base", { kind: "branch", title: "Base", partOf: "e1", createdAt: AT, updatedAt: AT });
+    writeIssue("base-c", {
+      kind: "commit",
+      title: "Base commit",
+      partOf: "base",
+      status: "todo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("feat", {
+      kind: "branch",
+      title: "Feat",
+      partOf: "e1",
+      stackedOn: "base",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("feat-old", {
+      kind: "commit",
+      title: "Old commit",
+      partOf: "feat",
+      status: "todo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+  }
+
+  it("reconciles the branch's commit list, preserves the fork point, and leaves the rest", async () => {
+    seedStack();
+    const { apply, list } = await loadService();
+
+    const doc = {
+      project: "p1",
+      epic: "e1",
+      branch: {
+        id: "feat",
+        title: "Feat",
+        commits: [{ id: "feat-new", title: "New commit" }],
+      },
+    } as ApplyDoc;
+    const summary = await apply(doc);
+
+    expect(summary.created).toEqual(["feat-new"]);
+    expect(summary.deleted).toEqual(["feat-old"]);
+    expect(existsSync(join(dir, "feat-old"))).toBe(false);
+
+    const byId = new Map(list().issues.map((i) => [i.id, i]));
+    // The fork point is preserved even though the branch doc never declared it.
+    const feat = byId.get("feat");
+    expect(feat?.kind === "branch" ? feat.stackedOn : undefined).toBe("base");
+    // base and its commit sit outside feat's subtree, so they are untouched.
+    expect(byId.get("base")?.kind).toBe("branch");
+    expect(byId.get("base-c")?.kind).toBe("commit");
+    expect(list().problems).toEqual([]);
+  });
+
+  it("rejects when the epic is not in the referenced project", async () => {
+    writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
+    writeIssue("p2", { kind: "project", title: "P2", createdAt: AT, updatedAt: AT });
+    writeIssue("e1", { kind: "epic", title: "E1", partOf: "p2", createdAt: AT, updatedAt: AT });
+    const { apply } = await loadService();
+
+    const doc = {
+      project: "p1",
+      epic: "e1",
+      branch: { id: "b", title: "B" },
+    } as ApplyDoc;
+    await expect(apply(doc)).rejects.toThrow(/already belongs to "p2"/);
+  });
+
+  it("rejects when the branch already belongs to a different epic", async () => {
+    writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
+    writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", createdAt: AT, updatedAt: AT });
+    writeIssue("e-other", { kind: "epic", title: "Other", partOf: "p1", createdAt: AT, updatedAt: AT });
+    writeIssue("feat", { kind: "branch", title: "Feat", partOf: "e-other", createdAt: AT, updatedAt: AT });
+    const { apply } = await loadService();
+
+    const doc = {
+      project: "p1",
+      epic: "e1",
+      branch: { id: "feat", title: "Feat" },
+    } as ApplyDoc;
+    await expect(apply(doc)).rejects.toThrow(/already belongs to "e-other"/);
   });
 });

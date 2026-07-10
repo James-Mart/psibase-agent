@@ -54,6 +54,19 @@ chain `A -> B -> C` would destroy the A/B parallelism; keeping `stackedOn`
 singular and `blockedBy` a list preserves it. `stackedOn` answers "what is my
 git base?"; `blockedBy` answers "what else must land first?".
 
+#### The stacked-PR merge model
+
+Every Branch is a PR that merges **to `main`**, never into its `stackedOn`
+parent. A stacked Branch merges after the Branch it forks from, so a stack lands
+bottom-up: the parent goes to `main` first, then each child to `main` in stack
+order. Consequently **each Branch must be independently mergeable** — merging it
+must leave `main` building and self-consistent on its own. Only Branches merge;
+Commits are internal steps that ship together as their Branch's single PR, so an
+individual Commit need not be shippable but the Branch as a whole must be. Never
+split one cohesive change (for example a schema change and the code that consumes
+it) across separate Branches such that merging one would leave `main` broken —
+keep it in one Branch as multiple Commits.
+
 ### Derived terms
 
 These are computed by `derive()` and never written to disk (see
@@ -282,15 +295,17 @@ dangling-reference, wrong-kind, or cycle problem — guaranteed by construction 
 ## `apply` doc format
 
 `apply` (`app/server/services/apply.ts`, schema in `apply-schema.ts`) is the
-**declarative writer**: it reconciles a whole Project subtree from one nested
-YAML doc, complementing the imperative one-shot verbs. Authoring guidance lives
-in [issue-tracker-decompose](skills/issue-tracker-decompose/SKILL.md); this
-section is the format + semantics reference.
+**declarative writer**: it reconciles a subtree from one nested YAML doc,
+complementing the imperative one-shot verbs. The doc may be rooted at a Project,
+an Epic, or a Branch, so a single `apply` can own a whole project, one epic, or
+one branch's commit list. Authoring guidance lives in
+[issue-tracker-decompose](skills/issue-tracker-decompose/SKILL.md); this section
+is the format + semantics reference.
 
 ### Shape
 
-One doc describes exactly one Project subtree. Kind is implied by **which child
-key** a node sits under, never written:
+The most common doc describes one Project subtree. Kind is implied by **which
+child key** a node sits under, never written:
 
 ```yaml
 project:
@@ -341,21 +356,61 @@ project:
 - **Author-chosen ids** on every node (see the [id model](#on-disk-layout)):
   required, kebab, unique across the doc, slug-safe, title-independent.
 
+### Rooted forms: epic and branch scope
+
+A project doc reconciles the whole project, so it prunes every epic the doc
+omits. To edit a single epic or branch without disturbing its siblings, root the
+doc at that node and name the enclosing parents by **id** (a reference — never
+upserted, never pruned):
+
+```yaml
+# Epic form: reconciles just my-epic within an existing project.
+project: my-product        # existing project id (reference)
+epic:
+  id: my-epic
+  title: My Epic
+  branches: [ ... ]        # same branch/commit/stacked shape as above
+```
+
+```yaml
+# Branch form: reconciles just my-branch + its commits within an existing epic.
+project: my-product        # existing project id (reference)
+epic: my-epic              # existing epic id (reference)
+branch:
+  id: my-branch
+  title: My Branch
+  blockedBy: [ ... ]
+  commits: [ ... ]
+```
+
+- **Form by root key.** An object `project` is the project form; a string
+  `project` + object `epic` is the epic form; string `project` + string `epic` +
+  object `branch` is the branch form.
+- **Parents must exist.** The referenced parent(s) must already be on disk with
+  the right kind and containment (the epic must be in the project; a pre-existing
+  root node must already sit under the declared parent), else the doc is refused.
+- **Branch scope is branch + commits only.** A branch's `stacked` children are
+  `partOf` the *Epic*, not the branch, so they fall outside a branch's subtree; a
+  branch doc has no `stacked` key and only owns its own commit list.
+- **Fork point preserved.** `stackedOn` is normally inferred from nesting, but a
+  branch-rooted doc has no parent nesting, so it **preserves the on-disk
+  `stackedOn`** rather than clearing it — a branch doc never moves the fork point.
+
 ### Semantics
 
-- **Upsert.** A node whose id exists (within the declared Project's subtree) is
+- **Upsert.** A node whose id exists (within the declared root's subtree) is
   updated; a new id is created. Ids are matched, not titles, so retitling a node
   in the doc renames its `title` in place rather than creating a duplicate.
-- **Prune by default.** Any issue in the declared Project's on-disk subtree that
+- **Prune by default.** Any issue in the declared root's on-disk subtree that
   the doc no longer lists is deleted. `apply` is therefore the full desired state
-  of that Project's tree, not a patch. (An out-of-project `blockedBy` edge into a
+  of that root's subtree, not a patch. (An out-of-scope `blockedBy` edge into a
   pruned Branch is dropped, mirroring the [deletion policy](#deletion-policy).)
 - **Atomic + validated.** The entire prospective set is run through
   `checkIntegrity` in one pass before any write; a doc that would introduce a
   problem (dangling/wrong-kind referent, cross-Epic `stackedOn`, cycle, duplicate
-  or non-slug id, or an id that already exists in a *different* Project) is
-  refused with no on-disk change. Same validator, same guarantees as the
-  imperative writer.
+  or non-slug id, or an id that already exists outside the declared root's
+  subtree) is refused with no on-disk change. Same validator, same guarantees as
+  the imperative writer.
 - **Idempotent.** Re-applying an unchanged doc rewrites nothing (unchanged nodes
   keep their `updatedAt`), so it is safe to re-`apply` an evolving plan.
 
@@ -370,7 +425,7 @@ preserves everything else from the existing same-kind issue.
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` | `apply` (explicit in the doc) |
-| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly |
+| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
 | `branchName`, `prUrl`, `merged` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`); `apply` preserves |

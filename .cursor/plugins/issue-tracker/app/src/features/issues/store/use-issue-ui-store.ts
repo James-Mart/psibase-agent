@@ -4,6 +4,7 @@ import type { IssueKind } from "@server/schemas";
 interface NewIssueTarget {
   presetKind?: IssueKind;
   presetParent?: string;
+  presetStackedOn?: string;
 }
 
 // The project-create/rename dialog target. `id` present => rename that project.

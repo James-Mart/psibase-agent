@@ -35,6 +35,7 @@ export function NewIssueDialog() {
   const [kind, setKind] = useState<IssueKind>("epic");
   const [title, setTitle] = useState("");
   const [parent, setParent] = useState<string>("");
+  const [stackedOn, setStackedOn] = useState<string>("");
 
   const kindLocked = Boolean(target?.presetKind);
   const parentLocked = Boolean(target?.presetParent);
@@ -43,6 +44,7 @@ export function NewIssueDialog() {
     if (!target) return;
     setKind(target.presetKind ?? "epic");
     setParent(target.presetParent ?? "");
+    setStackedOn(target.presetStackedOn ?? "");
     setTitle("");
   }, [target]);
 
@@ -65,6 +67,7 @@ export function NewIssueDialog() {
         kind,
         title: title.trim(),
         partOf: needsParent ? parent : undefined,
+        stackedOn: stackedOn || undefined,
       },
       { onSuccess: () => closeNew() },
     );
@@ -138,6 +141,12 @@ export function NewIssueDialog() {
           {parentLocked ? (
             <p className="text-xs text-muted-foreground">
               Part of <span className="font-mono">{parent}</span>
+            </p>
+          ) : null}
+
+          {target?.presetStackedOn ? (
+            <p className="text-xs text-muted-foreground">
+              Stacked on <span className="font-mono">{stackedOn}</span>
             </p>
           ) : null}
         </div>
