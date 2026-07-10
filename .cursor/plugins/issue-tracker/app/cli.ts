@@ -13,8 +13,11 @@ import {
 import {
   COMMIT_STATUSES,
   type CommitStatus,
+  type DerivedState,
   type IssueRecord,
 } from "./server/schemas.js";
+import { bySequence, stackedBranchOrder } from "./server/order.js";
+import { EPIC_BASE } from "./server/services/derive.js";
 
 // The set of ids contained by a project: the project itself plus every issue
 // transitively `partOf` it (epics, their branches, and those branches' commits).
@@ -42,6 +45,124 @@ function requireProject(issues: IssueRecord[], projectId: string): void {
     (issue) => issue.id === projectId && issue.kind === "project",
   );
   if (!project) throw new Error(`unknown project "${projectId}"`);
+}
+
+type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
+type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
+
+// Shared context for the `tree` renderer: the children of each parent bucketed
+// by kind, and the derived state. Commits are pre-sorted into their execution
+// sequence; Branches are ordered per-Epic via `stackedBranchOrder`.
+interface TreeContext {
+  branchesOf: Map<string, BranchRecord[]>;
+  commitsOf: Map<string, CommitRecord[]>;
+  branchById: Map<string, BranchRecord>;
+  derived: Record<string, DerivedState>;
+}
+
+function buildTreeContext(
+  issues: IssueRecord[],
+  derived: Record<string, DerivedState>,
+): TreeContext {
+  const branchesOf = new Map<string, BranchRecord[]>();
+  const commitsOf = new Map<string, CommitRecord[]>();
+  const branchById = new Map<string, BranchRecord>();
+  for (const issue of issues) {
+    if (issue.kind === "branch") {
+      branchById.set(issue.id, issue);
+      const bucket = branchesOf.get(issue.partOf) ?? [];
+      bucket.push(issue);
+      branchesOf.set(issue.partOf, bucket);
+    } else if (issue.kind === "commit") {
+      const bucket = commitsOf.get(issue.partOf) ?? [];
+      bucket.push(issue);
+      commitsOf.set(issue.partOf, bucket);
+    }
+  }
+  for (const bucket of commitsOf.values()) bucket.sort(bySequence);
+  return { branchesOf, commitsOf, branchById, derived };
+}
+
+// The git-stack depth of a Branch within its Epic: how many `stackedOn` hops it
+// takes to reach a root Branch. Drives the extra indentation a stacked Branch
+// gets under the one it forks from.
+function branchDepth(
+  branch: BranchRecord,
+  inSet: Set<string>,
+  branchById: Map<string, BranchRecord>,
+): number {
+  let depth = 0;
+  let current = branch;
+  const seen = new Set<string>();
+  while (current.stackedOn && inSet.has(current.stackedOn) && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = branchById.get(current.stackedOn);
+    if (!parent) break;
+    current = parent;
+    depth += 1;
+  }
+  return depth;
+}
+
+function nodeLine(
+  indent: number,
+  kind: string,
+  id: string,
+  title: string,
+  chips: string[],
+): string {
+  const pad = "  ".repeat(indent);
+  const tail = chips.length > 0 ? `  [${chips.join(" ")}]` : "";
+  return `${pad}${kind} ${id}  ${title}${tail}`;
+}
+
+function attentionChip(issue: IssueRecord): string[] {
+  if (issue.kind === "project" || !issue.needsAttention) return [];
+  return [`attention=${issue.attentionReason ?? "(no reason)"}`];
+}
+
+function epicChips(epic: IssueRecord, derived: Record<string, DerivedState>): string[] {
+  const d = derived[epic.id];
+  const chips: string[] = [];
+  if (d?.epicStatus) chips.push(`status=${d.epicStatus}`);
+  return [...chips, ...attentionChip(epic)];
+}
+
+function branchChips(branch: BranchRecord, derived: Record<string, DerivedState>): string[] {
+  const d = derived[branch.id];
+  const chips: string[] = [];
+  if (d?.branchStatus) chips.push(`status=${d.branchStatus}`);
+  chips.push(`base=${d?.base ?? EPIC_BASE}`);
+  chips.push(`branch=${branch.branchName ?? "(unset)"}`);
+  if (branch.prUrl) chips.push(`pr=${branch.prUrl}`);
+  if (branch.merged) chips.push("merged");
+  if (d?.blocked) chips.push("blocked");
+  return [...chips, ...attentionChip(branch)];
+}
+
+function commitChips(commit: CommitRecord, derived: Record<string, DerivedState>): string[] {
+  const chips = [`status=${commit.status}`];
+  if (commit.commitSha) chips.push(`sha=${commit.commitSha.slice(0, 7)}`);
+  if (derived[commit.id]?.blocked) chips.push("blocked");
+  return [...chips, ...attentionChip(commit)];
+}
+
+// Render one Epic subtree starting at `indent`. Branches print in stacked
+// depth-first order (roots first, each followed by what forks from it); within
+// a Branch its Commits print first (in sequence) and its stacked children
+// after, so indentation mirrors the git stack.
+function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string[] {
+  const lines = [nodeLine(indent, "epic", epic.id, epic.title, epicChips(epic, ctx.derived))];
+  const branches = stackedBranchOrder(ctx.branchesOf.get(epic.id) ?? []);
+  const inSet = new Set(branches.map((b) => b.id));
+  for (const branch of branches) {
+    const level = indent + 1 + branchDepth(branch, inSet, ctx.branchById);
+    lines.push(nodeLine(level, "branch", branch.id, branch.title, branchChips(branch, ctx.derived)));
+    for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
+      lines.push(nodeLine(level + 1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)));
+    }
+  }
+  return lines;
 }
 
 // Resolve a description from either inline text or a file path. `--description-file`
@@ -392,6 +513,59 @@ program
         ready: full.ready.filter((id) => scope.has(id)),
       };
       console.log(JSON.stringify(scoped, null, 2));
+    }),
+  );
+
+program
+  .command("tree")
+  .description(
+    "print an indented Project > Epic > Branch > Commit outline with derived chips",
+  )
+  .option("--project <id>", "scope the outline to a project subtree")
+  .option("--epic <id>", "scope the outline to a single epic subtree")
+  .action((opts) =>
+    run(() => {
+      const { issues, derived } = list();
+      const ctx = buildTreeContext(issues, derived);
+
+      if (opts.epic) {
+        const epic = issues.find(
+          (issue) => issue.id === opts.epic && issue.kind === "epic",
+        );
+        if (!epic) throw new Error(`unknown epic "${opts.epic}"`);
+        console.log(renderEpic(epic, 0, ctx).join("\n"));
+        return;
+      }
+
+      const epicsOf = new Map<string, IssueRecord[]>();
+      for (const issue of issues) {
+        if (issue.kind !== "epic") continue;
+        const bucket = epicsOf.get(issue.partOf) ?? [];
+        bucket.push(issue);
+        epicsOf.set(issue.partOf, bucket);
+      }
+
+      const projects = issues
+        .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
+          issue.kind === "project" && (!opts.project || issue.id === opts.project),
+        )
+        .sort(bySequence);
+      if (opts.project && projects.length === 0) {
+        throw new Error(`unknown project "${opts.project}"`);
+      }
+
+      const lines: string[] = [];
+      for (const project of projects) {
+        lines.push(nodeLine(0, "project", project.id, project.title, []));
+        for (const epic of (epicsOf.get(project.id) ?? []).sort(bySequence)) {
+          lines.push(...renderEpic(epic, 1, ctx));
+        }
+      }
+      if (lines.length === 0) {
+        console.log("no projects");
+        return;
+      }
+      console.log(lines.join("\n"));
     }),
   );
 
