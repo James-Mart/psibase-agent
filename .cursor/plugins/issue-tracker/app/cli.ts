@@ -1,6 +1,7 @@
 #!/usr/bin/env -S npx tsx
 import { readFileSync } from "fs";
 import { Command } from "commander";
+import { parse as parseYaml } from "yaml";
 import {
   appendMessage,
   create,
@@ -14,6 +15,8 @@ import {
   type IssueRecord,
 } from "./server/schemas.js";
 import { projectSubtreeIds } from "./server/services/subtree.js";
+import { apply } from "./server/services/apply.js";
+import { parseApplyDoc } from "./server/services/apply-schema.js";
 
 function requireProject(issues: IssueRecord[], projectId: string): void {
   const project = issues.find(
@@ -123,6 +126,26 @@ program
         description: resolveDescription(opts),
       }),
     ),
+  );
+
+program
+  .command("apply")
+  .argument("<file>", "path to the nested YAML doc to apply")
+  .description(
+    "upsert a whole Project > Epic > Branch > Commit tree from one nested YAML doc",
+  )
+  .action((file) =>
+    run(async () => {
+      const raw = parseYaml(readFileSync(file, "utf8"));
+      const parsed = parseApplyDoc(raw);
+      if (!parsed.ok) throw new Error(parsed.message);
+      const summary = await apply(parsed.doc);
+      const line = (label: string, ids: string[]): string =>
+        `${label}: ${ids.length}${ids.length ? ` (${ids.join(", ")})` : ""}`;
+      console.log(line("created", summary.created));
+      console.log(line("updated", summary.updated));
+      console.log(line("deleted", summary.deleted));
+    }),
   );
 
 program
