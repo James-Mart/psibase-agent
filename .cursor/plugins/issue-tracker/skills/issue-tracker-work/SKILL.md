@@ -13,8 +13,12 @@ description: >-
 Coordinate the implementation of one **Epic** without doing the implementation
 yourself. You (the agent invoked with the Epic) are the **coordinator**. Your
 context is precious: delegate all implementation, verification, and review to
-subagents that start with fresh context, and reserve the weaker/cheaper model
-for the review jobs.
+subagents that start with fresh context.
+
+The coordinator does no real reasoning — it reads tracker state, runs git and the
+CLI, and spawns subagents in a fixed order — so it should itself run on the cheap
+model, **Composer 2.5 (`composer-2.5`)**, not a premium model. Reserve the senior
+model for the implementation/revision subagents that actually write code.
 
 **You do not write code, run the app, or verify the work yourself.** You read
 tracker state, run git, record facts through the CLI, spawn subagents, and decide
@@ -29,11 +33,23 @@ one. This skill works exactly one Epic; to work several at once, start several
 agents. Use the default `issues/` dir (do not set `ISSUES_DIR`) so the human sees
 changes live in the UI.
 
+## Preflight: confirm the coordinator model
+
+Before doing anything else, check what model you are. If you are **not** Composer
+2.5 (`composer-2.5`), stop and ask the user whether they really want to proceed
+with the coordinator running as `<your current model>` — the coordinator is meant
+to be dumb and cheap. If they do not confirm, have them re-invoke this skill with
+the recommended `composer-2.5` model instead of continuing.
+
 ## Setup
 
 1. Read the whole tree once with `list`. If it reports `problems`, resolve them
    first (see issue-tracker-authoring) — do not work a tree with integrity
-   problems.
+   problems. To self-verify without piping the `list` JSON through a script, use
+   `tree --epic <id>` for a readable outline of the stack (it already prints in
+   the canonical depth-first branch order with status/base/branch chips) and
+   `show <id>` to inspect a single issue's metadata + description
+   (`show <id> --chat` to include its comments).
 2. From `list`, take the Epic's Branches and their `stackedOn`/`blockedBy` edges
    and compute a **depth-first branch order**: root Branches (no `stackedOn`)
    first, each immediately followed by the Branches stacked on it, ties broken by
@@ -55,6 +71,7 @@ already has its git branch and `done` commits by the time you start the child.
 
 | Role | When | Model | Mode |
 |------|------|-------|------|
+| Coordinator (you) | Drive the whole run: git, CLI, spawn subagents | Composer 2.5 (`composer-2.5`) | writes (git/CLI only) |
 | Implementation subagent | Build one Commit's work in the working tree (uncommitted) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
 | Code-quality validator | After a Commit's implementation reports done | Composer 2.5 (`composer-2.5`) | read-only |
 | Revision subagent | Address a validator's feedback (per commit and per branch) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
@@ -88,12 +105,16 @@ then record it with `set-branch-name <branch> <name>`.
    build, manual check), and reports what it did. Wait for it to finish.
 3. **Validate (code quality).** Spawn one code-quality validator (Composer 2.5,
    read-only). It reviews the **uncommitted** diff for introduced redundancy and
-   poor abstraction/encapsulation and posts its findings as a `comment` on the
-   Commit issue.
+   poor abstraction/encapsulation and posts only **actionable problems** as a
+   `comment` on the Commit issue — no "this is correct/fine" confirmations, since
+   the implementor treats anything unmentioned as acceptable.
 4. **Revise (one pass).** Spawn one revision subagent (Opus 4.8 High). Tell it to
    read the Commit issue's comments to find the feedback and address it. As the
    senior model it may **push back** (with reasoning) on findings it disagrees
-   with. This is a single pass — do not re-run the validator or loop.
+   with. It posts a succinct `comment` on the Commit issue replying to the
+   validator (what it changed, what it declined and why). This is a single pass —
+   do not re-run the validator or loop. You do not expect any particular reply
+   from the subagent; the response lives on the issue.
 5. **Commit + record.** `git add` the work and `git commit -m "<Commit title>"`
    (the commit message is the Commit issue's title). Then `set-status <commit>
    done` and `set-commit <commit> <sha>`.
@@ -109,7 +130,10 @@ After a Branch's last Commit is `done`:
    deviations, and missing behavior as a `comment` on the Branch.
 2. **Revise (one pass).** Spawn one revision subagent (Opus 4.8 High) to read the
    Branch's comments and address the feedback — a single pass; it may push back
-   with reasoning. If it lands new work, commit it as above.
+   with reasoning, and posts a succinct `comment` on the Branch replying to the
+   validator (what it changed, what it declined and why). If it lands new work,
+   commit it as above. You do not expect any particular reply from the subagent;
+   the response lives on the issue.
 3. **Advance** to the next Branch. **Do not open a PR** — the human opens and
    merges PRs manually.
 
@@ -144,8 +168,11 @@ Adapt these; always inline the Epic id and the specific issue id + title.
 **Code-quality validator (read-only)**
 > Inspect the current **uncommitted** working-tree diff for Commit `<id>`
 > (`<title>`). Review it for introduced redundancy and poor
-> abstraction/encapsulation. Post your findings as a concrete, actionable list by
-> running `comment <id> --role agent --body "..."`. Do not edit any files.
+> abstraction/encapsulation. Post **only actionable problems** as a concrete list
+> by running `comment <id> --role agent --body "..."` — do not list things you
+> judge correct or acceptable; the implementor assumes anything you don't mention
+> is fine. If you find nothing actionable, post a single line saying so. Do not
+> edit any files.
 
 **Spec-conformance validator (read-only)**
 > Read `list` and the Branch `<id>` (`<title>`) subtree in Epic `<epicId>`.
@@ -157,8 +184,10 @@ Adapt these; always inline the Epic id and the specific issue id + title.
 **Revision subagent**
 > Read the comments on issue `<id>` (`<title>`) to find the review feedback.
 > Address the findings you agree with. You are the senior engineer — push back
-> (with reasoning) on any finding you think is wrong or not worth doing. Leave
-> your changes uncommitted. This is a single improvement pass.
+> (with reasoning) on any finding you think is wrong or not worth doing. Post a
+> succinct reply to the validator's comment by running `comment <id> --role agent
+> --body "..."` (what you changed, what you declined and why). Leave your changes
+> uncommitted. This is a single improvement pass.
 
 ## Rules
 

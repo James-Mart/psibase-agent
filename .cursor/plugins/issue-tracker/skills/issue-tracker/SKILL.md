@@ -57,9 +57,12 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 ## Agent skills (pick by task)
 
 - **`issue-tracker-decompose`** — turning a spec/plan into a standalone
-  Project > Epic > Branch > Commit tree; deciding Branch vs Commit grain.
+  Project > Epic > Branch > Commit tree declaratively: author the whole tree as
+  one nested YAML doc and `apply` it (idempotent upsert, re-applied as the plan
+  evolves); deciding Branch vs Commit grain.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
   delegating each commit to fresh subagents (implement/validate/revise) and
-  recording git progress through the CLI.
-- **`issue-tracker-authoring`** — the CLI command reference and create/update
-  semantics; the shared tool doc the other two build on.
+  recording git progress through the CLI; inspect the stack with `tree`/`show`.
+- **`issue-tracker-authoring`** — create/update/`apply` semantics and the new
+  inspection verbs (`show`, `tree`), pointing at `cli.ts --help` as the
+  authoritative command reference; the shared tool doc the other two build on.
