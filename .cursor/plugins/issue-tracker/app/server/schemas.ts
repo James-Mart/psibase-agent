@@ -163,9 +163,15 @@ export type ParseResult =
   | { ok: true; issue: Issue }
   | { ok: false; message: string };
 
-function formatError(error: z.ZodError): string {
+// Render the first zod issue as `path: message` (or just the message at the
+// root). Shared by every parser here and by the `apply` doc schema so error
+// shapes stay uniform; `fallback` names the doc when there is no issue.
+export function formatZodError(
+  error: z.ZodError,
+  fallback = "invalid input",
+): string {
   const first = error.issues[0];
-  if (!first) return "invalid issue.json";
+  if (!first) return fallback;
   const path = first.path.join(".");
   return path ? `${path}: ${first.message}` : first.message;
 }
@@ -173,7 +179,7 @@ function formatError(error: z.ZodError): string {
 export function parseIssue(raw: unknown): ParseResult {
   const result = issueSchema.safeParse(raw);
   if (result.success) return { ok: true, issue: result.data };
-  return { ok: false, message: formatError(result.error) };
+  return { ok: false, message: formatZodError(result.error, "invalid issue.json") };
 }
 
 export type ChatParseResult =
@@ -183,7 +189,7 @@ export type ChatParseResult =
 export function parseChatMessage(raw: unknown): ChatParseResult {
   const result = chatMessageSchema.safeParse(raw);
   if (result.success) return { ok: true, message: result.data };
-  return { ok: false, message: formatError(result.error) };
+  return { ok: false, message: formatZodError(result.error, "invalid issue.json") };
 }
 
 export type ChatInputParseResult =
@@ -193,5 +199,5 @@ export type ChatInputParseResult =
 export function parseChatMessageInput(raw: unknown): ChatInputParseResult {
   const result = chatMessageInputSchema.safeParse(raw);
   if (result.success) return { ok: true, input: result.data };
-  return { ok: false, message: formatError(result.error) };
+  return { ok: false, message: formatZodError(result.error, "invalid issue.json") };
 }
