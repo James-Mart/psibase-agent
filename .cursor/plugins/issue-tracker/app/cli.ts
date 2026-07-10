@@ -309,8 +309,40 @@ program
 program
   .command("block")
   .argument("<id>", "branch id")
-  .requiredOption("--by <branchIds...>", "blocking branch ids")
-  .action((id, opts) => run(() => update(id, { blockedBy: opts.by })));
+  .option("--by <branchIds...>", "replace blockedBy with exactly these ids")
+  .option("--add <branchIds...>", "union these ids into the current blockedBy")
+  .option("--remove <branchIds...>", "drop these ids from the current blockedBy")
+  // `--by`/`--add`/`--remove` are mutually exclusive: `--by` is a full replace
+  // while `--add`/`--remove` are incremental, so combining them has no
+  // unsurprising meaning. Require exactly one rather than inventing a precedence.
+  .action((id, opts) =>
+    run(() => {
+      const modes = (["by", "add", "remove"] as const).filter(
+        (mode) => opts[mode] !== undefined,
+      );
+      if (modes.length === 0) {
+        throw new Error("provide exactly one of --by, --add, or --remove");
+      }
+      if (modes.length > 1) {
+        throw new Error(
+          `--by, --add, and --remove are mutually exclusive (got ${modes
+            .map((mode) => `--${mode}`)
+            .join(", ")})`,
+        );
+      }
+      const detail = read(id);
+      if (detail.kind !== "branch") {
+        throw new Error(`blockedBy is only valid on a branch, not a ${detail.kind}`);
+      }
+      if (opts.by) return update(id, { blockedBy: opts.by });
+
+      const current = detail.blockedBy;
+      const blockedBy = opts.add
+        ? [...current, ...opts.add.filter((bid: string) => !current.includes(bid))]
+        : current.filter((bid) => !opts.remove.includes(bid));
+      return update(id, { blockedBy });
+    }),
+  );
 
 program
   .command("open-pr")
