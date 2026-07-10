@@ -47,5 +47,6 @@ Tell the user the UI is available at http://localhost:8060.
 ## When to use it
 
 Open this UI when a human wants to watch or steer an agent working a stack of
-PRs. Agents themselves do **not** use this UI — they author and update issues
-through the CLI (see the `issue-tracker-authoring` skill).
+PRs. Agents themselves do **not** use this UI — they drive the CLI (see the
+`issue-tracker-authoring`, `issue-tracker-decompose`, and `issue-tracker-work`
+skills).
