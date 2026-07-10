@@ -4,10 +4,19 @@ import type { Issue } from "../schemas";
 
 const AT = "2026-07-09T14:00:00.000Z";
 
-const epic = (id: string): Issue => ({
+const project = (id: string): Issue => ({
+  id,
+  kind: "project",
+  title: id,
+  createdAt: AT,
+  updatedAt: AT,
+});
+
+const epic = (id: string, partOf = "root"): Issue => ({
   id,
   kind: "epic",
   title: id,
+  partOf,
   needsAttention: false,
   attentionReason: null,
   createdAt: AT,
@@ -47,12 +56,20 @@ const commit = (id: string, partOf: string): Issue => ({
 describe("checkIntegrity", () => {
   it("passes a well-formed tree", () => {
     const issues = [
+      project("root"),
       epic("e1"),
       branch("b1", "e1"),
       branch("b2", "e1", { stackedOn: "b1", blockedBy: [] }),
       commit("c1", "b1"),
     ];
     expect(checkIntegrity(issues)).toEqual([]);
+  });
+
+  it("flags an epic whose partOf is not a project", () => {
+    const problems = checkIntegrity([epic("e1", "b1"), branch("b1", "e1")]);
+    expect(
+      problems.some((p) => p.id === "e1" && p.message.includes("must be a project")),
+    ).toBe(true);
   });
 
   it("flags a dangling partOf", () => {
@@ -63,8 +80,8 @@ describe("checkIntegrity", () => {
   });
 
   it("flags a commit whose partOf is not a branch", () => {
-    const problems = checkIntegrity([epic("e1"), commit("c1", "e1")]);
-    expect(problems[0].message).toContain("must be a branch");
+    const problems = checkIntegrity([project("root"), epic("e1"), commit("c1", "e1")]);
+    expect(problems.some((p) => p.message.includes("must be a branch"))).toBe(true);
   });
 
   it("flags a branch whose partOf is not an epic", () => {

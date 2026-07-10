@@ -10,6 +10,32 @@ export function parentOf(issue: IssueRecord): string | undefined {
   return "partOf" in issue ? issue.partOf : undefined;
 }
 
+// The ids contained by a project: every issue whose `partOf` chain reaches it
+// (its epics, their branches, and those branches' commits), excluding the
+// project node itself.
+export function filterToProject(
+  issues: IssueRecord[],
+  projectId: string | null,
+): IssueRecord[] {
+  if (!projectId) return [];
+  const childrenOf = new Map<string, IssueRecord[]>();
+  for (const issue of issues) {
+    const parent = parentOf(issue);
+    if (!parent) continue;
+    const bucket = childrenOf.get(parent) ?? [];
+    bucket.push(issue);
+    childrenOf.set(parent, bucket);
+  }
+  const kept: IssueRecord[] = [];
+  const queue = [...(childrenOf.get(projectId) ?? [])];
+  while (queue.length > 0) {
+    const issue = queue.shift()!;
+    kept.push(issue);
+    for (const child of childrenOf.get(issue.id) ?? []) queue.push(child);
+  }
+  return kept;
+}
+
 function branchDeps(branch: IssueRecord, siblings: Set<string>): string[] {
   if (branch.kind !== "branch") return [];
   return branchDependencyIds(branch).filter((id) => siblings.has(id));

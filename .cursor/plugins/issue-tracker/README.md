@@ -1,15 +1,17 @@
 # issue-tracker
 
 A local Cursor plugin: a dark shadcn/ui web app plus a CLI over a file-backed,
-hierarchical work tracker (**Epic > Branch > Commit**) that maps directly onto
-git stacked PRs. A directory per issue on disk is the source of truth; all writes
-funnel through one validated service layer so issues cannot be misconfigured. It
-is metadata-only with respect to git — it records the git state agents set
-(`branchName`, `prUrl`, `commitSha`, `merged`) and never runs git itself.
+hierarchical work tracker (**Project > Epic > Branch > Commit**) that maps
+directly onto git stacked PRs. A directory per issue on disk is the source of
+truth; all writes funnel through one validated service layer so issues cannot be
+misconfigured. It is metadata-only with respect to git — it records the git state
+agents set (`branchName`, `prUrl`, `commitSha`, `merged`) and never runs git itself.
 
-It replaces the giant "plan" doc: an agent decomposes a spec into an
-Epic > Branch > Commit tree, then works the tree — updating state and conversing
-per issue — while a human watches live in the browser.
+It replaces the giant "plan" doc: an agent decomposes a spec into a
+Project > Epic > Branch > Commit tree, then works the tree — updating state and
+conversing per issue — while a human watches live in the browser. A **Project**
+is the top-level container that groups related Epics; the web UI's sidebar
+selects one Project and scopes the tree and Ready view to it.
 
 ## Layout
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ClearableKey } from "./fields.js";
 
-export const KINDS = ["epic", "branch", "commit"] as const;
+export const KINDS = ["project", "epic", "branch", "commit"] as const;
 export const COMMIT_STATUSES = ["todo", "in-progress", "done"] as const;
 
 const nonEmpty = z.string().min(1);
@@ -35,9 +35,19 @@ const timestamps = {
   updatedAt: nonEmpty,
 };
 
+// A Project is a minimal organizational container: no status, no assignee, and
+// no needs-attention. Deliberately does not spread `mutableCommon`.
+export const projectSchema = z.object({
+  id: nonEmpty,
+  kind: z.literal("project"),
+  title: nonEmpty,
+  ...timestamps,
+});
+
 export const epicSchema = z.object({
   id: nonEmpty,
   kind: z.literal("epic"),
+  partOf: nonEmpty,
   ...mutableCommon,
   ...timestamps,
 });
@@ -66,6 +76,7 @@ export const commitSchema = z.object({
 });
 
 export const issueSchema = z.discriminatedUnion("kind", [
+  projectSchema,
   epicSchema,
   branchSchema,
   commitSchema,
@@ -76,18 +87,21 @@ export type IssueKind = (typeof KINDS)[number];
 export type CommitStatus = (typeof COMMIT_STATUSES)[number];
 
 export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
-  epic: null,
+  project: null,
+  epic: "project",
   branch: "epic",
   commit: "branch",
 };
 
 export const CHILD_KIND: Record<IssueKind, IssueKind | null> = {
+  project: "epic",
   epic: "branch",
   branch: "commit",
   commit: null,
 };
 
-type IssueFields = Omit<z.infer<typeof epicSchema>, "kind"> &
+type IssueFields = Omit<z.infer<typeof projectSchema>, "kind"> &
+  Omit<z.infer<typeof epicSchema>, "kind"> &
   Omit<z.infer<typeof branchSchema>, "kind"> &
   Omit<z.infer<typeof commitSchema>, "kind">;
 

@@ -105,7 +105,9 @@ export function IssueDetailPage() {
           ) : (
             <>
               <IssueMetaPanel issue={issue} />
-              {issue.kind !== "epic" ? <GitStackPanel issue={issue} /> : null}
+              {issue.kind === "branch" || issue.kind === "commit" ? (
+                <GitStackPanel issue={issue} />
+              ) : null}
               <div className="rounded-lg border bg-card p-6">
                 {issue.description.trim() ? (
                   <Markdown>{issue.description}</Markdown>

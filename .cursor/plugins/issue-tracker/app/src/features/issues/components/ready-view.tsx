@@ -5,6 +5,7 @@ import type { IssuesResponse, IssueRecord } from "@server/schemas";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { issuePath } from "../lib/links";
 import { issueMatchesSearch } from "../lib/search";
+import { filterToProject } from "../lib/build-tree";
 import { IssueBadges } from "./issue-badges";
 import { EPIC_BASE } from "@server/services/derive";
 
@@ -41,17 +42,26 @@ function ReadyRow({
 
 export function ReadyView({ data }: { data: IssuesResponse }) {
   const search = useIssueUiStore((s) => s.search);
+  const selectedProjectId = useIssueUiStore((s) => s.selectedProjectId);
   const byId = useMemo(
     () => new Map(data.issues.map((issue) => [issue.id, issue])),
     [data.issues],
   );
+  const scopeIds = useMemo(
+    () =>
+      new Set(
+        filterToProject(data.issues, selectedProjectId).map((i) => i.id),
+      ),
+    [data.issues, selectedProjectId],
+  );
   const ready = useMemo(
     () =>
       data.ready
+        .filter((id) => scopeIds.has(id))
         .map((id) => byId.get(id))
         .filter((issue): issue is IssueRecord => Boolean(issue))
         .filter((issue) => issueMatchesSearch(issue, search)),
-    [data.ready, byId, search],
+    [data.ready, byId, scopeIds, search],
   );
 
   if (ready.length === 0) {

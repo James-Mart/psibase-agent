@@ -46,9 +46,10 @@ function formStateFromIssue(issue: IssueDetail): FormState {
   return {
     title: issue.title,
     description: issue.description,
-    assignee: issue.assignee ?? "",
-    needsAttention: issue.needsAttention,
-    attentionReason: issue.attentionReason ?? "",
+    assignee: "assignee" in issue ? issue.assignee ?? "" : "",
+    needsAttention: "needsAttention" in issue ? issue.needsAttention : false,
+    attentionReason:
+      "attentionReason" in issue ? issue.attentionReason ?? "" : "",
     partOf: "partOf" in issue ? issue.partOf : "",
     status: issue.kind === "commit" ? issue.status : "todo",
     commitSha: issue.kind === "commit" ? issue.commitSha ?? "" : "",
@@ -113,12 +114,18 @@ export function IssueDetailEdit({
     if (form.description !== issue.description)
       patch.description = form.description;
 
-    setClearable("assignee", form.assignee, issue.assignee);
+    // A Project carries none of the assignee/attention fields.
+    if (issue.kind !== "project") {
+      setClearable("assignee", form.assignee, issue.assignee);
 
-    if (form.needsAttention !== issue.needsAttention)
-      patch.needsAttention = form.needsAttention;
-    const reason = form.needsAttention ? form.attentionReason.trim() || null : null;
-    if (reason !== (issue.attentionReason ?? null)) patch.attentionReason = reason;
+      if (form.needsAttention !== issue.needsAttention)
+        patch.needsAttention = form.needsAttention;
+      const reason = form.needsAttention
+        ? form.attentionReason.trim() || null
+        : null;
+      if (reason !== (issue.attentionReason ?? null))
+        patch.attentionReason = reason;
+    }
 
     if ("partOf" in issue) {
       const nextParent = form.partOf.trim();
@@ -251,23 +258,23 @@ export function IssueDetailEdit({
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        {"partOf" in issue ? (
+      {issue.kind !== "project" ? (
+        <div className="grid grid-cols-2 gap-4">
           <Field label={FIELD_LABELS.partOf}>
             <Input
               value={form.partOf}
               onChange={(e) => set("partOf", e.target.value)}
             />
           </Field>
-        ) : null}
-        <Field label={FIELD_LABELS.assignee}>
-          <Input
-            value={form.assignee}
-            onChange={(e) => set("assignee", e.target.value)}
-            placeholder="unassigned"
-          />
-        </Field>
-      </div>
+          <Field label={FIELD_LABELS.assignee}>
+            <Input
+              value={form.assignee}
+              onChange={(e) => set("assignee", e.target.value)}
+              placeholder="unassigned"
+            />
+          </Field>
+        </div>
+      ) : null}
 
       {KIND_FIELD_KEYS[issue.kind].length > 0 ? (
         <div className="grid grid-cols-2 gap-4">
@@ -279,24 +286,26 @@ export function IssueDetailEdit({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2 rounded-md border p-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-primary"
-            checked={form.needsAttention}
-            onChange={(e) => set("needsAttention", e.target.checked)}
-          />
-          {FIELD_LABELS.needsAttention}
-        </label>
-        {form.needsAttention ? (
-          <Input
-            value={form.attentionReason}
-            onChange={(e) => set("attentionReason", e.target.value)}
-            placeholder="Reason"
-          />
-        ) : null}
-      </div>
+      {issue.kind !== "project" ? (
+        <div className="flex flex-col gap-2 rounded-md border p-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-primary"
+              checked={form.needsAttention}
+              onChange={(e) => set("needsAttention", e.target.checked)}
+            />
+            {FIELD_LABELS.needsAttention}
+          </label>
+          {form.needsAttention ? (
+            <Input
+              value={form.attentionReason}
+              onChange={(e) => set("attentionReason", e.target.value)}
+              placeholder="Reason"
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone} disabled={update.isPending}>

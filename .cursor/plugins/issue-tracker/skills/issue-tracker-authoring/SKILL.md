@@ -1,9 +1,9 @@
 ---
 name: issue-tracker-authoring
 description: >-
-  Drive the issue-tracker CLI to create/update Epic > Branch > Commit issues and
-  get the command reference. Use when an agent creates/updates issues or records
-  git facts against a stack. Act only through the CLI, never by editing
+  Drive the issue-tracker CLI to create/update Project > Epic > Branch > Commit
+  issues and get the command reference. Use when an agent creates/updates issues
+  or records git facts against a stack. Act only through the CLI, never by editing
   issue.json. Plan a tree: issue-tracker-decompose. Work it: issue-tracker-work.
 ---
 
@@ -27,7 +27,9 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts <command> [args]
 Commands (`<required>`, `[optional]`):
 
 ```
-create-epic <title> [--assignee W] [--description T]  Epic; --description seeds description.md (default "# <title>")
+create-project <title> [--description T]              Project (top-level container); --description seeds description.md
+projects                                              list projects: id<TAB>title (call first to get a project id)
+create-epic <title> --part-of <project> [--assignee W] [--description T]  Epic; --part-of = its Project (required)
 add-branch <title> --part-of <epic> [--stacked-on <b>] [--assignee W]  Branch; --stacked-on = single fork point (omit = fork main)
 add-commit <title> --part-of <branch> [--assignee W]  Commit (starts status=todo)
 set-status <commit> <todo|in-progress|done>           stored Commit status
@@ -41,8 +43,8 @@ comment <id> --role R --body T [--name N]             append chat message (Markd
 attention <id> --reason T | --clear                   raise / clear needs-attention
 assign <id> <who>                                     set assignee (human | agent id)
 delete <id>                                           delete issue: cascades to contained children, splices dependents' stackedOn, drops blockedBy
-ready                                                 ready set: kind<TAB>id<TAB>title, or "nothing ready"
-list                                                  full state JSON: {issues,problems,derived,ready}
+ready --project <id>                                  a project's ready set: kind<TAB>id<TAB>title, or "nothing ready"
+list --project <id>                                   a project's state JSON: {issues,problems,derived,ready}
 ```
 
 Updates are partial merges (only the named field changes). The CLI sets but never

@@ -19,7 +19,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "issue-tracker-chat-"));
   vi.resetModules();
   vi.stubEnv("ISSUES_DIR", dir);
-  writeIssue("e", { kind: "epic", title: "E", createdAt: AT, updatedAt: AT });
+  writeIssue("e", { kind: "project", title: "E", createdAt: AT, updatedAt: AT });
 });
 
 afterEach(() => {

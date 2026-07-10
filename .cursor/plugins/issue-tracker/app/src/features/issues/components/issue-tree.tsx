@@ -3,6 +3,7 @@ import {
   ChevronRight,
   FileText,
   GitBranch,
+  FolderKanban,
   GitCommitHorizontal,
   GitPullRequest,
   Layers,
@@ -32,6 +33,7 @@ import { CommitStatusSelect } from "./commit-status-select";
 import { IssueBadges } from "./issue-badges";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
+  project: FolderKanban,
   epic: Layers,
   branch: GitBranch,
   commit: GitCommitHorizontal,

@@ -8,7 +8,39 @@ import {
   remove,
   update,
 } from "./server/services/issues.js";
-import { COMMIT_STATUSES, type CommitStatus } from "./server/schemas.js";
+import {
+  COMMIT_STATUSES,
+  type CommitStatus,
+  type IssueRecord,
+} from "./server/schemas.js";
+
+// The set of ids contained by a project: the project itself plus every issue
+// transitively `partOf` it (epics, their branches, and those branches' commits).
+function projectSubtreeIds(issues: IssueRecord[], projectId: string): Set<string> {
+  const childrenOf = new Map<string, string[]>();
+  for (const issue of issues) {
+    if (issue.kind === "project") continue;
+    const bucket = childrenOf.get(issue.partOf) ?? [];
+    bucket.push(issue.id);
+    childrenOf.set(issue.partOf, bucket);
+  }
+  const ids = new Set<string>();
+  const queue = [projectId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (ids.has(current)) continue;
+    ids.add(current);
+    for (const child of childrenOf.get(current) ?? []) queue.push(child);
+  }
+  return ids;
+}
+
+function requireProject(issues: IssueRecord[], projectId: string): void {
+  const project = issues.find(
+    (issue) => issue.id === projectId && issue.kind === "project",
+  );
+  if (!project) throw new Error(`unknown project "${projectId}"`);
+}
 
 // Resolve a description from either inline text or a file path. `--description-file`
 // wins when both are given; returns undefined when neither is provided so callers
@@ -40,8 +72,24 @@ async function run(action: () => unknown): Promise<void> {
 }
 
 program
+  .command("create-project")
+  .argument("<title>", "project title")
+  .option("--description <text>", "description.md contents")
+  .option("--description-file <path>", "read description.md contents from a file")
+  .action((title, opts) =>
+    run(() =>
+      create({
+        kind: "project",
+        title,
+        description: resolveDescription(opts),
+      }),
+    ),
+  );
+
+program
   .command("create-epic")
   .argument("<title>", "epic title")
+  .requiredOption("--part-of <project>", "parent project id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
   .option("--description-file <path>", "read description.md contents from a file")
@@ -50,6 +98,7 @@ program
       create({
         kind: "epic",
         title,
+        partOf: opts.partOf,
         assignee: opts.assignee,
         description: resolveDescription(opts),
       }),
@@ -221,17 +270,38 @@ program
   );
 
 program
-  .command("ready")
-  .description("print the ready set (next actionable commits + startable branches)")
+  .command("projects")
+  .description("print all projects: id<TAB>title")
   .action(() =>
     run(() => {
+      const { issues } = list();
+      const projects = issues.filter((issue) => issue.kind === "project");
+      if (projects.length === 0) {
+        console.log("no projects");
+        return;
+      }
+      for (const project of projects) {
+        console.log(`${project.id}\t${project.title}`);
+      }
+    }),
+  );
+
+program
+  .command("ready")
+  .description("print a project's ready set (next actionable commits + startable branches)")
+  .requiredOption("--project <id>", "project id to scope the ready set to")
+  .action((opts) =>
+    run(() => {
       const { issues, ready } = list();
+      requireProject(issues, opts.project);
+      const scope = projectSubtreeIds(issues, opts.project);
       const byId = new Map(issues.map((issue) => [issue.id, issue]));
-      if (ready.length === 0) {
+      const scoped = ready.filter((id) => scope.has(id));
+      if (scoped.length === 0) {
         console.log("nothing ready");
         return;
       }
-      for (const id of ready) {
+      for (const id of scoped) {
         const issue = byId.get(id);
         if (issue) console.log(`${issue.kind}\t${id}\t${issue.title}`);
       }
@@ -240,9 +310,23 @@ program
 
 program
   .command("list")
-  .description("print all issues, derived state, and any problems as JSON")
-  .action(() => {
-    console.log(JSON.stringify(list(), null, 2));
-  });
+  .description("print a project's issues, derived state, and any problems as JSON")
+  .requiredOption("--project <id>", "project id to scope the listing to")
+  .action((opts) =>
+    run(() => {
+      const full = list();
+      requireProject(full.issues, opts.project);
+      const scope = projectSubtreeIds(full.issues, opts.project);
+      const scoped = {
+        issues: full.issues.filter((issue) => scope.has(issue.id)),
+        problems: full.problems.filter((problem) => scope.has(problem.id)),
+        derived: Object.fromEntries(
+          Object.entries(full.derived).filter(([id]) => scope.has(id)),
+        ),
+        ready: full.ready.filter((id) => scope.has(id)),
+      };
+      console.log(JSON.stringify(scoped, null, 2));
+    }),
+  );
 
 program.parseAsync(process.argv);

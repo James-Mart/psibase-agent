@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { KINDS, PARENT_KIND, type IssueKind } from "@server/schemas";
+
+// Projects are created from the sidebar, not this dialog.
+const SELECTABLE_KINDS = KINDS.filter((kind) => kind !== "project");
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -92,7 +95,7 @@ export function NewIssueDialog() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {KINDS.map((option) => (
+                  {SELECTABLE_KINDS.map((option) => (
                     <SelectItem key={option} value={option}>
                       {KIND_LABEL[option]}
                     </SelectItem>

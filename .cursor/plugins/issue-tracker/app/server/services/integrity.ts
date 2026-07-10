@@ -72,7 +72,7 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
 
   for (const issue of issues) {
     const expectedParent = PARENT_KIND[issue.kind];
-    if (issue.kind !== "epic" && issue.partOf && expectedParent) {
+    if (expectedParent && "partOf" in issue && issue.partOf) {
       checkReferent(
         issue,
         issue.partOf,

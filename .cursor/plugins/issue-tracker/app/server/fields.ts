@@ -22,6 +22,7 @@ export type BranchFieldKey = (typeof BRANCH_FIELD_KEYS)[number];
 export type CommitFieldKey = (typeof COMMIT_FIELD_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
+  project: [],
   epic: [],
   branch: BRANCH_FIELD_KEYS,
   commit: COMMIT_FIELD_KEYS,

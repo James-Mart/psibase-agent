@@ -43,7 +43,7 @@ export function planDeletion(issues: Issue[], id: string): DeletionPlan {
 
   const childrenOf = new Map<string, string[]>();
   for (const issue of issues) {
-    if (issue.kind === "epic") continue;
+    if (issue.kind === "project") continue;
     const bucket = childrenOf.get(issue.partOf) ?? [];
     bucket.push(issue.id);
     childrenOf.set(issue.partOf, bucket);

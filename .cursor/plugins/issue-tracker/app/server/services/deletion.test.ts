@@ -4,10 +4,19 @@ import type { Issue } from "../schemas";
 
 const AT = "2026-07-09T14:00:00.000Z";
 
-const epic = (id: string): Issue => ({
+const project = (id: string): Issue => ({
+  id,
+  kind: "project",
+  title: id,
+  createdAt: AT,
+  updatedAt: AT,
+});
+
+const epic = (id: string, partOf = "p"): Issue => ({
   id,
   kind: "epic",
   title: id,
+  partOf,
   needsAttention: false,
   attentionReason: null,
   createdAt: AT,
@@ -76,6 +85,21 @@ describe("planDeletion - containment cascade", () => {
     );
     expect([...plan.deleteIds].sort()).toEqual(["b1", "b2", "c1", "c2", "e"]);
     expect(plan.repoint).toEqual([]);
+  });
+
+  it("deletes a project, its epics, branches, and their commits transitively", () => {
+    const plan = planDeletion(
+      [
+        project("p"),
+        epic("e", "p"),
+        branch("b", "e"),
+        commit("c", "b"),
+      ],
+      "p",
+    );
+    expect([...plan.deleteIds].sort()).toEqual(["b", "c", "e", "p"]);
+    expect(plan.repoint).toEqual([]);
+    expect(plan.unblock).toEqual([]);
   });
 
   it("returns an empty plan for an unknown id", () => {

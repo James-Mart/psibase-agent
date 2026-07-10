@@ -15,7 +15,14 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "issue-tracker-write-"));
   vi.resetModules();
   vi.stubEnv("ISSUES_DIR", dir);
-  writeIssue("e", { kind: "epic", title: "E", createdAt: AT, updatedAt: AT });
+  writeIssue("p", { kind: "project", title: "P", createdAt: AT, updatedAt: AT });
+  writeIssue("e", {
+    kind: "epic",
+    title: "E",
+    partOf: "p",
+    createdAt: AT,
+    updatedAt: AT,
+  });
   writeIssue("a", {
     kind: "branch",
     title: "A",
@@ -90,7 +97,7 @@ describe("cascade delete + reference repair on remove", () => {
 
     const after = list();
     expect(after.problems).toEqual([]);
-    expect(after.issues.map((i) => i.id).sort()).toEqual(["a", "e"]);
+    expect(after.issues.map((i) => i.id).sort()).toEqual(["a", "e", "p"]);
   });
 
   it("splices a dependent branch when its fork point is deleted", async () => {
@@ -130,6 +137,13 @@ describe("cascade delete + reference repair on remove", () => {
     const { remove, list } = await loadService();
     const result = await remove("e");
     expect([...result.deleted].sort()).toEqual(["a", "b", "e"]);
+    expect(list().issues.map((i) => i.id)).toEqual(["p"]);
+  });
+
+  it("deletes a project and its entire epic subtree", async () => {
+    const { remove, list } = await loadService();
+    const result = await remove("p");
+    expect([...result.deleted].sort()).toEqual(["a", "b", "e", "p"]);
     expect(list().issues).toEqual([]);
   });
 });

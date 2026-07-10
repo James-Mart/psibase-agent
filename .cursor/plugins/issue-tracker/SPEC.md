@@ -5,20 +5,24 @@ skills. It defines every term the code, docs, and UI use, and explains the
 design decisions that make the model correct-by-construction. Read it before
 authoring issues or changing tracker code.
 
-The tracker models work as a tree of **Epic > Branch > Commit** nodes that maps
-directly onto git stacked PRs. A directory per issue on disk is the sole source
-of truth; one validated service layer is the only sanctioned writer; all state
-that could drift is derived, never stored.
+The tracker models work as a tree of **Project > Epic > Branch > Commit** nodes
+that maps directly onto git stacked PRs. A directory per issue on disk is the
+sole source of truth; one validated service layer is the only sanctioned writer;
+all state that could drift is derived, never stored.
 
 ## Glossary
 
 ### Kinds
 
-Every issue has a `kind`, one of three tiers:
+Every issue has a `kind`, one of four tiers:
 
-- **Epic** — top-level body of work (replaces a giant plan/spec). Contains
-  Branches; its `description.md` holds the spec. Has **no stored status** — its
-  status is fully derived from descendants. Has no `partOf`.
+- **Project** — the top-level container that groups related Epics. Purely
+  organizational: it carries **no status** (derived or stored) and none of the
+  assignee/needs-attention fields — only a `title` and a `description.md`
+  overview. Has no `partOf`.
+- **Epic** — a body of work (replaces a giant plan/spec). Contains Branches; its
+  `description.md` holds the spec. Has **no stored status** — its status is fully
+  derived from descendants. Is `partOf` a Project (required).
 - **Branch** — a unit that becomes one git branch and one PR. Contains Commits.
   Carries `branchName`, `stackedOn`, `blockedBy`, `prUrl`, `merged`. Status is
   derived, never stored.
@@ -31,8 +35,8 @@ Every issue has a `kind`, one of three tiers:
 Three relationships, each with a distinct, non-overlapping role:
 
 - **partOf** — *containment*: the node this one belongs to. A Commit is `partOf`
-  a Branch; a Branch is `partOf` an Epic. It points exactly one tier up and
-  builds the tree. Epics have none.
+  a Branch; a Branch is `partOf` an Epic; an Epic is `partOf` a Project. It points
+  exactly one tier up and builds the tree. Projects have none.
 - **stackedOn** — *the single git fork point* of a Branch: which one Branch it
   forks from. Branch-only and always singular. Absent means it forks off the
   Epic's base (`main`).
@@ -101,17 +105,30 @@ Common to every kind:
 | field | type | notes |
 | --- | --- | --- |
 | `id` | string | = directory name; stable |
-| `kind` | `"epic"` \| `"branch"` \| `"commit"` | discriminator |
+| `kind` | `"project"` \| `"epic"` \| `"branch"` \| `"commit"` | discriminator |
 | `title` | string | non-empty |
-| `assignee` | string? | optional |
-| `needsAttention` | boolean | defaults `false` |
-| `attentionReason` | string \| null | defaults `null` |
 | `createdAt` | ISO string | set at create |
 | `updatedAt` | ISO string | bumped on every write |
 
-Epic — common fields only (no `partOf`, no status).
+Common to **Epic / Branch / Commit** (but **not** Project):
 
-Branch — common fields plus:
+| field | type | notes |
+| --- | --- | --- |
+| `assignee` | string? | optional |
+| `needsAttention` | boolean | defaults `false` |
+| `attentionReason` | string \| null | defaults `null` |
+
+Project — the common-to-every-kind fields only (no `partOf`, no status, no
+assignee/needs-attention). Its `description.md` is a short overview of the
+Project.
+
+Epic — the Epic/Branch/Commit common fields plus:
+
+| field | type | notes |
+| --- | --- | --- |
+| `partOf` | string | the Project id (required) |
+
+Branch — the Epic/Branch/Commit common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
@@ -122,7 +139,7 @@ Branch — common fields plus:
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false` |
 
-Commit — common fields plus:
+Commit — the Epic/Branch/Commit common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
@@ -144,6 +161,12 @@ sequence (`createdAt` ascending, tie-broken by `id`); sibling Branches are
 ordered topologically by their `stackedOn`/`blockedBy` edges, falling back to the
 same sequence when there is no dependency between two siblings. Epics are ordered
 by sequence.
+
+**Projects scope the view.** A Project is the top-level container: every Epic is
+`partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
+one scopes the tree and the Ready view to that Project's subtree (its Epics and
+their Branches/Commits). Projects themselves are not rendered as nodes inside the
+tree — they are the selectable root. Projects are ordered by sequence.
 
 ## `chat.jsonl` message shape
 
@@ -193,7 +216,8 @@ prevented here, so no consumer can persist a broken file.
 
 - **Validate-at-write.** `create`/`update` run the integrity checks against the
   *prospective* state and refuse any write that would introduce a `problem` — a
-  bad or missing `partOf`/`stackedOn` referent, a referent of the wrong kind, a
+  bad or missing `partOf`/`stackedOn` referent, a referent of the wrong kind (a
+  Commit's `partOf` must be a Branch, a Branch's an Epic, an Epic's a Project), a
   `stackedOn` in a different Epic, or a cycle-inducing `stackedOn`/`blockedBy`.
   On failure the CLI exits nonzero
   with a clear message and HTTP returns 4xx with detail.
@@ -223,9 +247,13 @@ set"):**
 - **Branch** — removes the Branch and every Commit `partOf` it.
 - **Epic** — removes the Epic, every Branch `partOf` it, and every Commit
   `partOf` those Branches (transitive).
+- **Project** — removes the Project and its entire subtree: every Epic `partOf`
+  it, every Branch `partOf` those Epics, and every Commit `partOf` those Branches
+  (transitive). Deleting a Project therefore discards all of its work; the UI
+  gates this behind a confirmation dialog that names the contained-issue count.
 
 **Foreign-reference resolution.** After the delete set is computed, every
-surviving issue (across all Epics, not just descendants) is scanned for edges
+surviving issue (across all Projects, not just descendants) is scanned for edges
 into it, and each edge type resolves deterministically:
 
 | edge into delete set | resolution |
@@ -267,8 +295,8 @@ so cannot drift:
   `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn`/`blockedBy`
   entry is not a Branch; a Branch whose `stackedOn` is in a different Epic
   (`stackedOn` must stay within one Epic; `blockedBy` may cross Epics); a Commit
-  whose `partOf` is not a Branch; and a Branch whose `partOf` is not an Epic.
-  These are only the *derive-time* problems; the
+  whose `partOf` is not a Branch; a Branch whose `partOf` is not an Epic; and an
+  Epic whose `partOf` is not a Project. These are only the *derive-time* problems; the
   `problems` array returned by `list()` also includes the *read-time* problems
   raised while loading files (malformed or missing `issue.json`, an id that
   disagrees with its directory name, and malformed `chat.jsonl` lines — see the

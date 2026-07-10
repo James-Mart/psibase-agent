@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { parseChatMessage, parseChatMessageInput, parseIssue } from "./schemas";
 
+const project = {
+  id: "platform",
+  kind: "project",
+  title: "Platform",
+  createdAt: "2026-07-09T14:00:00.000Z",
+  updatedAt: "2026-07-09T14:00:00.000Z",
+};
+
 const epic = {
   id: "add-auth",
   kind: "epic",
   title: "Add authentication",
+  partOf: "platform",
   createdAt: "2026-07-09T14:00:00.000Z",
   updatedAt: "2026-07-09T14:00:00.000Z",
 };
@@ -32,10 +41,21 @@ const commit = {
 };
 
 describe("parseIssue - valid per kind", () => {
+  it("parses a project (minimal fields only)", () => {
+    const result = parseIssue(project);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.issue.kind).toBe("project");
+  });
+
   it("parses an epic", () => {
     const result = parseIssue(epic);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.issue.kind).toBe("epic");
+  });
+
+  it("rejects an epic missing its partOf project", () => {
+    const { partOf: _partOf, ...rest } = epic;
+    expect(parseIssue(rest).ok).toBe(false);
   });
 
   it("parses a branch and defaults blockedBy", () => {
@@ -57,7 +77,7 @@ describe("parseIssue - valid per kind", () => {
 
   it("defaults needsAttention/attentionReason", () => {
     const result = parseIssue(epic);
-    if (result.ok) {
+    if (result.ok && result.issue.kind !== "project") {
       expect(result.issue.needsAttention).toBe(false);
       expect(result.issue.attentionReason).toBeNull();
     }

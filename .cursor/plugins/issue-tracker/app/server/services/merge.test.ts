@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { mergeIssue } from "./merge";
 import type { Issue } from "../schemas";
 
+type CommitIssue = Extract<Issue, { kind: "commit" }>;
+const asCommit = (issue: Issue): CommitIssue => issue as CommitIssue;
+
 const commit: Issue = {
   id: "login-route",
   kind: "commit",
@@ -35,25 +38,29 @@ describe("mergeIssue", () => {
   });
 
   it("applies null attentionReason explicitly", () => {
-    const flagged = mergeIssue(commit, {
-      needsAttention: true,
-      attentionReason: "stuck",
-    });
+    const flagged = asCommit(
+      mergeIssue(commit, {
+        needsAttention: true,
+        attentionReason: "stuck",
+      }),
+    );
     expect(flagged.needsAttention).toBe(true);
     expect(flagged.attentionReason).toBe("stuck");
-    const cleared = mergeIssue(flagged, { attentionReason: null });
+    const cleared = asCommit(mergeIssue(flagged, { attentionReason: null }));
     expect(cleared.attentionReason).toBeNull();
     expect(cleared.needsAttention).toBe(true);
   });
 
   it("merges multiple fields at once", () => {
-    const merged = mergeIssue(commit, {
-      status: "done",
-      commitSha: "deadbeef",
-      assignee: "codex",
-    });
-    expect(merged.kind === "commit" && merged.status).toBe("done");
-    expect(merged.kind === "commit" && merged.commitSha).toBe("deadbeef");
+    const merged = asCommit(
+      mergeIssue(commit, {
+        status: "done",
+        commitSha: "deadbeef",
+        assignee: "codex",
+      }),
+    );
+    expect(merged.status).toBe("done");
+    expect(merged.commitSha).toBe("deadbeef");
     expect(merged.assignee).toBe("codex");
   });
 
@@ -63,7 +70,9 @@ describe("mergeIssue", () => {
   });
 
   it("clears a clearable optional field when patched with null", () => {
-    const assigned = mergeIssue(commit, { assignee: "codex", commitSha: "abc" });
+    const assigned = asCommit(
+      mergeIssue(commit, { assignee: "codex", commitSha: "abc" }),
+    );
     expect(assigned.assignee).toBe("codex");
     const cleared = mergeIssue(assigned, { assignee: null, commitSha: null });
     expect("assignee" in cleared).toBe(false);
@@ -71,7 +80,7 @@ describe("mergeIssue", () => {
   });
 
   it("keeps a null attentionReason as an explicit value, not a deletion", () => {
-    const merged = mergeIssue(commit, { attentionReason: null });
+    const merged = asCommit(mergeIssue(commit, { attentionReason: null }));
     expect("attentionReason" in merged).toBe(true);
     expect(merged.attentionReason).toBeNull();
   });

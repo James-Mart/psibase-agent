@@ -1,7 +1,7 @@
 ---
 name: issue-tracker-decompose
 description: >-
-  Decompose a spec into a standalone Epic > Branch > Commit tree in the
+  Decompose a spec into a standalone Project > Epic > Branch > Commit tree in the
   issue-tracker. Use when planning a stack of git PRs, deciding Branch vs Commit
   grain, or turning a plan doc into tracked issues. Assumes the CLI from
   issue-tracker-authoring; glossary in SPEC.md.
@@ -15,8 +15,11 @@ material (schemas, diagrams, API specs) into the Branch/Commit that uses it.
 Localize prose to the tier where it belongs — don't dump the whole spec in the
 Epic and leave children title-only.
 
+- **Project** — the top-level container that groups related Epics. Organizational
+  only (no status); its `description.md` is a short overview of the whole product
+  area. Every Epic must belong to a Project.
 - **Epic** — overview + cross-cutting design principles/invariants only (what
-  governs every phase). Not the full spec.
+  governs every phase). Not the full spec. Belongs to a Project (`--part-of`).
 - **Branch** = one PR / shippable unit: scope, approach, and any data-model or
   interface detail specific to it. Normally several commits; one commit's worth
   of work is a Commit, not a Branch.
@@ -31,7 +34,10 @@ an empty Commit tier) means you split at the wrong tier.
 
 Build order:
 
-1. `create-epic` — seed `--description` with overview + cross-cutting invariants.
+0. `create-project` (or reuse an existing one via `projects`) — the Epic's
+   `--part-of` target.
+1. `create-epic --part-of <project>` — seed `--description` with overview +
+   cross-cutting invariants.
 2. `add-branch` for each Branch seam; write each Branch's `description.md` with
    that unit's full prose. Independent Branches off one base can run in parallel.
 3. `add-commit` for each atomic step in landing order; write each Commit's

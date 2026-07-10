@@ -32,10 +32,18 @@ async function loadList() {
 
 describe("list() malformed filter", () => {
   it("excludes malformed dirs, surfaces problems, and never crashes", async () => {
+    writeIssue("proj", {
+      id: "proj",
+      kind: "project",
+      title: "Proj",
+      createdAt: AT,
+      updatedAt: AT,
+    });
     writeIssue("good-epic", {
       id: "good-epic",
       kind: "epic",
       title: "Good",
+      partOf: "proj",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -45,6 +53,7 @@ describe("list() malformed filter", () => {
       id: "other-id",
       kind: "epic",
       title: "Mismatch",
+      partOf: "proj",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -61,7 +70,7 @@ describe("list() malformed filter", () => {
     const result = list();
 
     const ids = result.issues.map((issue) => issue.id).sort();
-    expect(ids).toEqual(["dangling", "good-epic", "mismatch"]);
+    expect(ids).toEqual(["dangling", "good-epic", "mismatch", "proj"]);
 
     const problems = result.problems;
     const find = (id: string) => problems.filter((p) => p.id === id);

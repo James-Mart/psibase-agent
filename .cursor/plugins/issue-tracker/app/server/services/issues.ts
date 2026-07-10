@@ -15,6 +15,7 @@ import {
   parseChatMessage,
   parseChatMessageInput,
   parseIssue,
+  PARENT_KIND,
   type ChatMessage,
   type ChatMessageInput,
   type ChatResponse,
@@ -212,13 +213,16 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       id,
       kind: input.kind,
       title,
-      needsAttention: false,
-      attentionReason: null,
       createdAt: now,
       updatedAt: now,
     };
-    if (input.assignee) draft.assignee = input.assignee;
-    if (input.kind !== "epic") {
+    // A Project carries none of the common status/assignee/attention fields.
+    if (input.kind !== "project") {
+      draft.needsAttention = false;
+      draft.attentionReason = null;
+      if (input.assignee) draft.assignee = input.assignee;
+    }
+    if (PARENT_KIND[input.kind]) {
       if (!input.partOf) {
         throw new IssueError(
           "validation",

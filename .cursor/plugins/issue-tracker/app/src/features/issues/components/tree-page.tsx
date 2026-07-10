@@ -4,11 +4,12 @@ import type { IssueRecord } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils/cn";
 import { useIssuesQuery } from "../api/queries";
 import { IssueTree } from "./issue-tree";
 import { ReadyView } from "./ready-view";
-import { buildTree, parentOf } from "../lib/build-tree";
+import { buildTree, filterToProject, parentOf } from "../lib/build-tree";
 import { issueMatchesSearch } from "../lib/search";
 import { useIssueUiStore, type IssueView } from "../store/use-issue-ui-store";
 
@@ -77,33 +78,67 @@ function ViewToggle({
 export function TreePage() {
   const { data, isLoading, error } = useIssuesQuery();
   const openNew = useIssueUiStore((s) => s.openNew);
+  const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
+  const selectedProjectId = useIssueUiStore((s) => s.selectedProjectId);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
   const view = useIssueUiStore((s) => s.view);
   const setView = useIssueUiStore((s) => s.setView);
 
   const issues = data?.issues ?? [];
+  const project = useMemo(
+    () =>
+      issues.find(
+        (issue) => issue.id === selectedProjectId && issue.kind === "project",
+      ),
+    [issues, selectedProjectId],
+  );
+  const scoped = useMemo(
+    () => filterToProject(issues, selectedProjectId),
+    [issues, selectedProjectId],
+  );
   const filtered = useMemo(
-    () => filterWithAncestors(issues, search),
-    [issues, search],
+    () => filterWithAncestors(scoped, search),
+    [scoped, search],
   );
   const nodes = useMemo(() => buildTree(filtered), [filtered]);
   const problems = data?.problems ?? [];
   const derived = data?.derived ?? {};
 
+  const hasProject = Boolean(project);
+
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Issue Tracker</h1>
-          <p className="text-sm text-muted-foreground">
-            Epic &rsaquo; Branch &rsaquo; Commit
-          </p>
+      <header className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <SidebarTrigger className="-ml-1" />
+          <div>
+            <h1 className="text-xl font-semibold">
+              {project?.title ?? "Issue Tracker"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {hasProject
+                ? "Epic \u203a Branch \u203a Commit"
+                : "Select or create a project"}
+            </p>
+          </div>
         </div>
-        <Button size="sm" onClick={() => openNew()}>
-          <Plus className="h-4 w-4" />
-          New
-        </Button>
+        {hasProject ? (
+          <Button
+            size="sm"
+            onClick={() =>
+              openNew({ presetKind: "epic", presetParent: selectedProjectId! })
+            }
+          >
+            <Plus className="h-4 w-4" />
+            New epic
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => openProjectDialog()}>
+            <Plus className="h-4 w-4" />
+            New project
+          </Button>
+        )}
       </header>
 
       <div className="flex items-center gap-2">

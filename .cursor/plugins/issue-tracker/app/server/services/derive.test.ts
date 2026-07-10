@@ -8,10 +8,11 @@ function nextAt(): string {
   return new Date(Date.UTC(2026, 6, 9, 14, 0, clock)).toISOString();
 }
 
-const epic = (id: string): Issue => ({
+const epic = (id: string, partOf = "p"): Issue => ({
   id,
   kind: "epic",
   title: id,
+  partOf,
   needsAttention: false,
   attentionReason: null,
   createdAt: nextAt(),
