@@ -40,11 +40,23 @@ function projectSubtreeIds(issues: IssueRecord[], projectId: string): Set<string
   return ids;
 }
 
-function requireProject(issues: IssueRecord[], projectId: string): void {
-  const project = issues.find(
-    (issue) => issue.id === projectId && issue.kind === "project",
+// Resolve a `--project` value that may be either a project id or a project
+// title into a canonical project id. An exact id match wins; otherwise we fall
+// back to a unique title match. Zero or multiple title matches are an error so
+// callers never silently scope to the wrong project.
+function resolveProjectId(issues: IssueRecord[], value: string): string {
+  const byId = issues.find(
+    (issue) => issue.id === value && issue.kind === "project",
   );
-  if (!project) throw new Error(`unknown project "${projectId}"`);
+  if (byId) return byId.id;
+  const byTitle = issues.filter(
+    (issue) => issue.kind === "project" && issue.title === value,
+  );
+  if (byTitle.length === 1) return byTitle[0].id;
+  if (byTitle.length === 0) throw new Error(`unknown project "${value}"`);
+  throw new Error(
+    `ambiguous project title "${value}" matches ${byTitle.length} projects`,
+  );
 }
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
@@ -514,12 +526,12 @@ program
 program
   .command("ready")
   .description("print a project's ready set (next actionable commits + startable branches)")
-  .requiredOption("--project <id>", "project id to scope the ready set to")
+  .requiredOption("--project <id|title>", "project id or title to scope the ready set to")
   .action((opts) =>
     run(() => {
       const { issues, ready } = list();
-      requireProject(issues, opts.project);
-      const scope = projectSubtreeIds(issues, opts.project);
+      const projectId = resolveProjectId(issues, opts.project);
+      const scope = projectSubtreeIds(issues, projectId);
       const byId = new Map(issues.map((issue) => [issue.id, issue]));
       const scoped = ready.filter((id) => scope.has(id));
       if (scoped.length === 0) {
@@ -536,12 +548,12 @@ program
 program
   .command("list")
   .description("print a project's issues, derived state, and any problems as JSON")
-  .requiredOption("--project <id>", "project id to scope the listing to")
+  .requiredOption("--project <id|title>", "project id or title to scope the listing to")
   .action((opts) =>
     run(() => {
       const full = list();
-      requireProject(full.issues, opts.project);
-      const scope = projectSubtreeIds(full.issues, opts.project);
+      const projectId = resolveProjectId(full.issues, opts.project);
+      const scope = projectSubtreeIds(full.issues, projectId);
       const scoped = {
         issues: full.issues.filter((issue) => scope.has(issue.id)),
         problems: full.problems.filter((problem) => scope.has(problem.id)),
@@ -559,7 +571,7 @@ program
   .description(
     "print an indented Project > Epic > Branch > Commit outline with derived chips",
   )
-  .option("--project <id>", "scope the outline to a project subtree")
+  .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
   .option("--epic <id>", "scope the outline to a single epic subtree")
   .action((opts) =>
     run(() => {
@@ -583,14 +595,14 @@ program
         epicsOf.set(issue.partOf, bucket);
       }
 
+      const projectId = opts.project
+        ? resolveProjectId(issues, opts.project)
+        : undefined;
       const projects = issues
         .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
-          issue.kind === "project" && (!opts.project || issue.id === opts.project),
+          issue.kind === "project" && (!projectId || issue.id === projectId),
         )
         .sort(bySequence);
-      if (opts.project && projects.length === 0) {
-        throw new Error(`unknown project "${opts.project}"`);
-      }
 
       const lines: string[] = [];
       for (const project of projects) {
