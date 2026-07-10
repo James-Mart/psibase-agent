@@ -49,7 +49,12 @@ function resolveDescription(opts: {
   description?: string;
   descriptionFile?: string;
 }): string | undefined {
-  if (opts.descriptionFile) return readFileSync(opts.descriptionFile, "utf8");
+  if (opts.descriptionFile) {
+    // `-` means read the description from stdin (pipe/heredoc), matching the
+    // common CLI convention, rather than a file literally named "-".
+    const source = opts.descriptionFile === "-" ? 0 : opts.descriptionFile;
+    return readFileSync(source, "utf8");
+  }
   return opts.description;
 }
 
@@ -75,7 +80,7 @@ program
   .command("create-project")
   .argument("<title>", "project title")
   .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file")
+  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
@@ -92,7 +97,7 @@ program
   .requiredOption("--part-of <project>", "parent project id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file")
+  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
@@ -112,7 +117,7 @@ program
   .option("--stacked-on <branch>", "fork-point branch id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file")
+  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
@@ -132,7 +137,7 @@ program
   .requiredOption("--part-of <branch>", "parent branch id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file")
+  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
@@ -239,7 +244,7 @@ program
   .command("set-description")
   .argument("<id>", "issue id")
   .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file")
+  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((id, opts) =>
     run(() => {
       const description = resolveDescription(opts);
