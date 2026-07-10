@@ -58,7 +58,8 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 
 - **`issue-tracker-decompose`** — turning a spec/plan into a standalone
   Project > Epic > Branch > Commit tree; deciding Branch vs Commit grain.
-- **`issue-tracker-work`** — implementing a tracked stack: recording git
-  progress (branch/PR/commit/merged) and fanning out parallel subagents.
+- **`issue-tracker-work`** — coordinating implementation of one Epic:
+  delegating each commit to fresh subagents (implement/validate/revise) and
+  recording git progress through the CLI.
 - **`issue-tracker-authoring`** — the CLI command reference and create/update
   semantics; the shared tool doc the other two build on.

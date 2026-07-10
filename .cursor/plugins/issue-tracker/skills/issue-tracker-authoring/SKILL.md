@@ -16,6 +16,9 @@ nonzero with a message** on any integrity violation (bad/missing
 Nonzero = refused — read it, fix inputs, don't retry blindly. If `list` reports
 `problems`, resolve them first. Glossary and derived state: [SPEC.md](../../SPEC.md).
 
+The tracker is a **plan artifact**, so authoring it via this CLI is permitted in
+**Plan mode** (it is the plan, like editing a plan doc); other system writes are not.
+
 Run from the app dir. Create-commands print the new **id** on stdout (capture it
 to link children). `ISSUES_DIR=/abs/path` picks the `issues/` dir (default: the
 plugin's own) — match the UI/server so the human sees changes live.

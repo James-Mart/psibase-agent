@@ -9,8 +9,9 @@ description: >-
 
 # Issue Tracker — Decompose a Spec into the Tree
 
-The tree is the **entire design** — it must replace any prior plan doc and stand
-alone. No `description.md` may reference an external file; inline companion
+Decomposing into the tracker is producing a **plan artifact**, so it is permitted
+in **Plan mode** (the tree is the plan). The tree is the **entire design** — it
+must replace any prior plan doc and stand alone. No `description.md` may reference an external file; inline companion
 material (schemas, diagrams, API specs) into the Branch/Commit that uses it.
 Localize prose to the tier where it belongs — don't dump the whole spec in the
 Epic and leave children title-only.
