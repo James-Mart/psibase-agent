@@ -5,6 +5,8 @@ import {
   appendMessage,
   create,
   list,
+  read,
+  readChat,
   remove,
   update,
 } from "./server/services/issues.js";
@@ -270,6 +272,65 @@ program
       }
       for (const { id: bid } of result.unblocked) {
         console.log(`  dropped deleted blocker from ${bid}.blockedBy`);
+      }
+    }),
+  );
+
+program
+  .command("show")
+  .argument("<id>", "issue id")
+  .description(
+    "print an issue's metadata and description (pass --chat for the chat log)",
+  )
+  .option("--chat", "also print the chat log")
+  .action((id, opts) =>
+    run(() => {
+      const detail = read(id);
+      const lines = [
+        `id: ${detail.id}`,
+        `kind: ${detail.kind}`,
+        `title: ${detail.title}`,
+      ];
+      if (detail.kind !== "project") lines.push(`partOf: ${detail.partOf}`);
+      if (detail.kind === "branch") {
+        if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
+        if (detail.blockedBy.length > 0) {
+          lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
+        }
+        if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
+        if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
+        lines.push(`merged: ${detail.merged}`);
+      }
+      if (detail.kind === "commit") {
+        lines.push(`status: ${detail.status}`);
+        if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
+      }
+      if (detail.kind !== "project") {
+        if (detail.assignee) lines.push(`assignee: ${detail.assignee}`);
+        if (detail.needsAttention) {
+          lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
+        }
+      }
+      console.log(lines.join("\n"));
+      console.log();
+      console.log(detail.description || "(no description)");
+
+      if (opts.chat) {
+        const { messages, problems } = readChat(id);
+        console.log();
+        console.log("--- chat ---");
+        if (messages.length === 0) console.log("(no messages)");
+        for (const message of messages) {
+          console.log(`[${message.at}] ${message.name ?? message.role}: ${message.body}`);
+        }
+        // Malformed chat lines are surfaced as stderr warnings but deliberately
+        // do not fail the command: like list()'s `problems`, they are data
+        // warnings, not a failure of `show` itself, which still printed the
+        // issue and every parseable message. Only thrown errors (e.g. unknown
+        // id) set a nonzero exit code.
+        for (const problem of problems) {
+          console.error(`chat problem: ${problem.message}`);
+        }
       }
     }),
   );
