@@ -23,6 +23,7 @@ const epic = (
   title: id,
   partOf,
   order: 0,
+  blockedBy: [],
   needsAttention: false,
   attentionReason: null,
   createdAt: AT,
@@ -40,7 +41,6 @@ const branch = (
   title: id,
   partOf,
   order: 0,
-  blockedBy: [],
   merged: false,
   needsAttention: false,
   attentionReason: null,
@@ -67,8 +67,9 @@ describe("checkIntegrity", () => {
     const issues = [
       project("root"),
       epic("e1"),
+      epic("e2", "root", { order: 1, blockedBy: ["e1"] }),
       branch("b1", "e1"),
-      branch("b2", "e1", { stackedOn: "b1", blockedBy: [] }),
+      branch("b2", "e1", { stackedOn: "b1" }),
       commit("c1", "b1"),
     ];
     expect(checkIntegrity(issues)).toEqual([]);
@@ -144,23 +145,47 @@ describe("checkIntegrity", () => {
 
   it("flags a dangling blockedBy referent", () => {
     const problems = checkIntegrity([
-      epic("e1"),
-      branch("b1", "e1", { blockedBy: ["ghost"] }),
+      project("root"),
+      epic("e1", "root", { blockedBy: ["ghost"] }),
     ]);
     expect(problems.some((p) => p.message.includes("blockedBy"))).toBe(true);
   });
 
-  it("flags a blockedBy referent that is not a branch", () => {
+  it("flags a blockedBy referent that is not an epic", () => {
     const problems = checkIntegrity([
-      epic("e1"),
-      commit("c1", "b1"),
-      branch("b1", "e1", { blockedBy: ["c1"] }),
+      project("root"),
+      epic("e1", "root", { blockedBy: ["b1"] }),
+      epic("e2", "root", { order: 1 }),
+      branch("b1", "e2"),
     ]);
     expect(
       problems.some(
-        (p) => p.id === "b1" && p.message.includes("blockedBy"),
+        (p) => p.id === "e1" && p.message.includes("blockedBy") && p.message.includes("epic"),
       ),
     ).toBe(true);
+  });
+
+  it("flags a blockedBy epic in a different project", () => {
+    const problems = checkIntegrity([
+      project("p1"),
+      project("p2"),
+      epic("e1", "p1", { blockedBy: ["e2"] }),
+      epic("e2", "p2"),
+    ]);
+    expect(
+      problems.some(
+        (p) => p.id === "e1" && p.message.includes("same Project"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag a same-project blockedBy", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("e1", "root", { blockedBy: ["e2"] }),
+      epic("e2", "root", { order: 1 }),
+    ]);
+    expect(problems.some((p) => p.message.includes("blockedBy"))).toBe(false);
   });
 
   it("flags duplicate order within a sibling group", () => {
@@ -199,12 +224,25 @@ describe("checkIntegrity - cycles", () => {
     expect(cycleIds).toEqual(["a", "b"]);
   });
 
-  it("flags a mixed stackedOn/blockedBy cycle", () => {
+  it("flags an epic-level blockedBy cycle on both members", () => {
     const problems = checkIntegrity([
-      epic("e1"),
-      branch("a", "e1", { stackedOn: "b" }),
-      branch("b", "e1", { blockedBy: ["c"] }),
-      branch("c", "e1", { stackedOn: "a" }),
+      project("root"),
+      epic("e1", "root", { blockedBy: ["e2"] }),
+      epic("e2", "root", { order: 1, blockedBy: ["e1"] }),
+    ]);
+    const cycleIds = problems
+      .filter((p) => /cycle/i.test(p.message))
+      .map((p) => p.id)
+      .sort();
+    expect(cycleIds).toEqual(["e1", "e2"]);
+  });
+
+  it("flags a three-epic blockedBy cycle", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("a", "root", { order: 0, blockedBy: ["b"] }),
+      epic("b", "root", { order: 1, blockedBy: ["c"] }),
+      epic("c", "root", { order: 2, blockedBy: ["a"] }),
     ]);
     const cycleIds = problems
       .filter((p) => /cycle/i.test(p.message))
@@ -215,10 +253,12 @@ describe("checkIntegrity - cycles", () => {
 
   it("does not flag a well-formed dependency chain", () => {
     const problems = checkIntegrity([
-      epic("e1"),
+      project("root"),
+      epic("e1", "root", { blockedBy: ["e2"] }),
+      epic("e2", "root", { order: 1 }),
       branch("a", "e1"),
       branch("b", "e1", { stackedOn: "a" }),
-      branch("c", "e1", { stackedOn: "b", blockedBy: ["a"] }),
+      branch("c", "e1", { stackedOn: "b" }),
     ]);
     expect(problems.filter((p) => /cycle/i.test(p.message))).toEqual([]);
   });
@@ -245,10 +285,10 @@ describe("validate-at-write (problemsFor against a prospective state)", () => {
 
   it("rejects a write with a dangling blockedBy", () => {
     const prospective = [
-      epic("e1"),
-      branch("b", "e1", { blockedBy: ["ghost"] }),
+      project("root"),
+      epic("e1", "root", { blockedBy: ["ghost"] }),
     ];
-    expect(problemsFor("b", prospective)[0].message).toContain("unknown issue");
+    expect(problemsFor("e1", prospective)[0].message).toContain("unknown issue");
   });
 
   it("rejects a write with a kind violation", () => {

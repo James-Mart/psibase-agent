@@ -65,9 +65,19 @@ describe("validate-at-write on the service layer", () => {
     );
   });
 
-  it("rejects an update that would introduce a blockedBy cycle", async () => {
+  it("rejects an update that would introduce an epic blockedBy cycle", async () => {
+    // e2 already blocks on e; blocking e on e2 in turn would close the cycle.
+    writeIssue("e2", {
+      kind: "epic",
+      title: "E2",
+      partOf: "p",
+      order: 1,
+      blockedBy: ["e"],
+      createdAt: AT,
+      updatedAt: AT,
+    });
     const { update } = await loadService();
-    await expect(update("a", { blockedBy: ["b"] })).rejects.toThrow(/cycle/i);
+    await expect(update("e", { blockedBy: ["e2"] })).rejects.toThrow(/cycle/i);
   });
 
   it("rejects a create whose stackedOn is not a branch", async () => {
@@ -253,25 +263,32 @@ describe("cascade delete + reference repair on remove", () => {
     expect(b && b.kind === "branch" ? b.stackedOn : "missing").toBeUndefined();
   });
 
-  it("drops a deleted branch from another branch's blockedBy", async () => {
-    writeIssue("d", {
-      kind: "branch",
-      title: "D",
-      partOf: "e",
+  it("drops a deleted epic from another epic's blockedBy", async () => {
+    writeIssue("victim", {
+      kind: "epic",
+      title: "Victim",
+      partOf: "p",
       order: 1,
-      blockedBy: ["a"],
-      merged: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("keeper", {
+      kind: "epic",
+      title: "Keeper",
+      partOf: "p",
+      order: 2,
+      blockedBy: ["victim"],
       createdAt: AT,
       updatedAt: AT,
     });
     const { remove, list } = await loadService();
-    // Deleting "a" splices b -> main and drops "a" from d.blockedBy.
-    await remove("a");
+    // Deleting the blocking epic drops it from keeper.blockedBy.
+    await remove("victim");
 
     const after = list();
     expect(after.problems).toEqual([]);
-    const d = after.issues.find((i) => i.id === "d");
-    expect(d && "blockedBy" in d ? d.blockedBy : ["unexpected"]).toEqual([]);
+    const keeper = after.issues.find((i) => i.id === "keeper");
+    expect(keeper && "blockedBy" in keeper ? keeper.blockedBy : ["unexpected"]).toEqual([]);
   });
 
   it("deletes an entire epic subtree", async () => {

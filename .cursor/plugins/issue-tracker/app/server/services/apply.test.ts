@@ -58,11 +58,11 @@ async function loadService() {
   return { apply, ...issues };
 }
 
-// A representative tree: project > epic > two root branches, one carrying a
-// commit and a stacked child. `blockedBy` covers the forward-reference case
-// (b1 blocks on b2, which is declared after it in the same epic). The stacked
-// edge (b1s -> b1) and the blockedBy edge (b1 -> b2) are deliberately distinct
-// so the dependency graph stays acyclic.
+// A representative tree: project > two epics. `epic-a` has two root branches,
+// one carrying a commit and a stacked child; the stacked edge (b1s -> b1) lives
+// inside the epic. Epic-level `blockedBy` covers the forward-reference case:
+// `epic-a` blocks on `epic-b`, which the doc declares *after* it in the same
+// project, and the two are distinct so the dependency graph stays acyclic.
 function baseDoc(): ProjectApplyDoc {
   return {
     project: {
@@ -73,17 +73,18 @@ function baseDoc(): ProjectApplyDoc {
         {
           id: "epic-a",
           title: "Epic A",
+          blockedBy: ["epic-b"],
           branches: [
             {
               id: "b1",
               title: "Branch one",
-              blockedBy: ["b2"],
               commits: [{ id: "c1", title: "Commit one" }],
               stacked: [{ id: "b1s", title: "Stacked on one" }],
             },
             { id: "b2", title: "Branch two" },
           ],
         },
+        { id: "epic-b", title: "Epic B" },
       ],
     },
   };
@@ -95,7 +96,7 @@ describe("apply — create from empty", () => {
     const summary = await apply(baseDoc());
 
     expect(summary.created.sort()).toEqual(
-      ["b1", "b1s", "b2", "c1", "epic-a", "proj"].sort(),
+      ["b1", "b1s", "b2", "c1", "epic-a", "epic-b", "proj"].sort(),
     );
     expect(summary.updated).toEqual([]);
     expect(summary.deleted).toEqual([]);
@@ -108,12 +109,12 @@ describe("apply — create from empty", () => {
     const epic = byId.get("epic-a");
     expect(epic?.kind).toBe("epic");
     expect(epic && "partOf" in epic && epic.partOf).toBe("proj");
+    expect(epic && epic.kind === "epic" ? epic.blockedBy : []).toEqual(["epic-b"]);
 
     const b1 = byId.get("b1");
     if (b1?.kind !== "branch") throw new Error("b1 missing");
     expect(b1.partOf).toBe("epic-a");
     expect(b1.stackedOn).toBeUndefined();
-    expect(b1.blockedBy).toEqual(["b2"]);
 
     const b1s = byId.get("b1s");
     if (b1s?.kind !== "branch") throw new Error("b1s missing");
@@ -137,24 +138,18 @@ describe("apply — create from empty", () => {
     );
   });
 
-  it("resolves a forward blockedBy reference to a sibling declared later", async () => {
+  it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
     const { apply, list } = await loadService();
-    // Sole focus: `early` blocks on `late`, which the doc declares *after* it in
-    // the same epic. apply must resolve the forward edge rather than reject a
-    // reference to an as-yet-unseen node.
+    // Sole focus: epic `early` blocks on epic `late`, which the doc declares
+    // *after* it in the same project. apply must resolve the forward edge rather
+    // than reject a reference to an as-yet-unseen node.
     const doc: ApplyDoc = {
       project: {
         id: "fp",
         title: "FP",
         epics: [
-          {
-            id: "fe",
-            title: "FE",
-            branches: [
-              { id: "early", title: "Early", blockedBy: ["late"] },
-              { id: "late", title: "Late" },
-            ],
-          },
+          { id: "early", title: "Early", blockedBy: ["late"] },
+          { id: "late", title: "Late" },
         ],
       },
     };
@@ -164,7 +159,7 @@ describe("apply — create from empty", () => {
     expect(result.problems).toEqual([]);
     const early = result.issues.find((i) => i.id === "early");
     expect(
-      early && early.kind === "branch" ? early.blockedBy : ["missing"],
+      early && early.kind === "epic" ? early.blockedBy : ["missing"],
     ).toEqual(["late"]);
   });
 });
@@ -249,16 +244,19 @@ describe("apply — update preserves imperative progress state", () => {
 });
 
 describe("apply — prune by default", () => {
-  it("removes omitted in-project nodes (cascade) and repairs a cross-project blockedBy", async () => {
-    // Two projects on disk. p2's out-of-project branch blocks on p1's b2.
-    // Under b2: a commit (c2) and a stacked child branch (b2s), so pruning b2
-    // exercises both edge kinds — the commit-under-branch case *and* a stacked
-    // branch. b2s carries a chat.jsonl so we can prove the whole node directory
-    // is gone, not just its id absent from list().
+  it("removes an omitted epic subtree (cascade) and repairs an out-of-scope epic's blockedBy", async () => {
+    // p1 has two epics: e1 (kept, branch b1) and e-victim (to prune). Under
+    // e-victim: branch b2 with a commit (c2) and a stacked child branch (b2s),
+    // so pruning the epic cascades through both the commit-under-branch case and
+    // a stacked branch. b2s carries a chat.jsonl so we can prove the whole node
+    // directory is gone, not just its id absent from list(). p2's epic e-out
+    // blocks on e-victim — the only cross-Epic edge — so pruning e-victim must
+    // repair that surviving out-of-scope blockedBy.
     writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("b1", { kind: "branch", title: "B1", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("b2", { kind: "branch", title: "B2", partOf: "e1", order: 1, createdAt: AT, updatedAt: AT });
+    writeIssue("e-victim", { kind: "epic", title: "Victim", partOf: "p1", order: 1, createdAt: AT, updatedAt: AT });
+    writeIssue("b2", { kind: "branch", title: "B2", partOf: "e-victim", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("c2", {
       kind: "commit",
       title: "C2",
@@ -271,8 +269,8 @@ describe("apply — prune by default", () => {
     writeIssue("b2s", {
       kind: "branch",
       title: "B2 stacked",
-      partOf: "e1",
-      order: 0,
+      partOf: "e-victim",
+      order: 1,
       stackedOn: "b2",
       createdAt: AT,
       updatedAt: AT,
@@ -282,20 +280,19 @@ describe("apply — prune by default", () => {
       '{"role":"agent","body":"progress"}\n',
     );
     writeIssue("p2", { kind: "project", title: "P2", order: 1, createdAt: AT, updatedAt: AT });
-    writeIssue("e2", { kind: "epic", title: "E2", partOf: "p2", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("b-out", {
-      kind: "branch",
+    writeIssue("e-out", {
+      kind: "epic",
       title: "Out",
-      partOf: "e2",
+      partOf: "p2",
       order: 0,
-      blockedBy: ["b2"],
+      blockedBy: ["e-victim"],
       createdAt: AT,
       updatedAt: AT,
     });
 
     const { apply, list } = await loadService();
-    // Declare p1 with only b1; b2 and its whole subtree (commit c2, stacked
-    // child b2s) are omitted → pruned.
+    // Declare p1 with only e1 { b1 }; e-victim and its whole subtree (branch b2,
+    // commit c2, stacked child b2s) are omitted → pruned.
     const doc: ApplyDoc = {
       project: {
         id: "p1",
@@ -306,26 +303,28 @@ describe("apply — prune by default", () => {
       },
     };
     const summary = await apply(doc);
-    expect(summary.deleted.sort()).toEqual(["b2", "b2s", "c2"].sort());
+    expect(summary.deleted.sort()).toEqual(["b2", "b2s", "c2", "e-victim"].sort());
 
     const result = list();
     expect(result.problems).toEqual([]);
     const ids = result.issues.map((i) => i.id).sort();
+    expect(ids).not.toContain("e-victim");
     expect(ids).not.toContain("b2");
     expect(ids).not.toContain("c2");
     expect(ids).not.toContain("b2s");
     expect(ids).toContain("b1");
 
     // Pruning removes the node directories (chat.jsonl included), not just ids.
+    expect(existsSync(join(dir, "e-victim"))).toBe(false);
     expect(existsSync(join(dir, "b2"))).toBe(false);
     expect(existsSync(join(dir, "c2"))).toBe(false);
     expect(existsSync(join(dir, "b2s"))).toBe(false);
     expect(existsSync(join(dir, "b2s", "chat.jsonl"))).toBe(false);
     expect(existsSync(join(dir, "b1"))).toBe(true);
 
-    // The surviving out-of-project blocker edge into the pruned branch is dropped.
-    const bOut = result.issues.find((i) => i.id === "b-out");
-    expect(bOut && bOut.kind === "branch" ? bOut.blockedBy : ["unrepaired"]).toEqual(
+    // The surviving out-of-scope blocker edge into the pruned epic is dropped.
+    const eOut = result.issues.find((i) => i.id === "e-out");
+    expect(eOut && eOut.kind === "epic" ? eOut.blockedBy : ["unrepaired"]).toEqual(
       [],
     );
   });
@@ -338,18 +337,19 @@ describe("apply — atomic rejection", () => {
 
     const before = snapshot();
 
-    // A new epic + branch that references a non-existent blocker. Valid shape,
-    // but the whole prospective set fails integrity, so nothing may be written.
+    // A new epic that blocks on a non-existent epic. Valid shape, but the whole
+    // prospective set fails integrity, so nothing may be written.
     const doc = baseDoc();
     doc.project.epics!.push({
-      id: "epic-b",
-      title: "Epic B",
-      branches: [{ id: "b3", title: "Branch three", blockedBy: ["ghost"] }],
+      id: "epic-c",
+      title: "Epic C",
+      blockedBy: ["ghost"],
+      branches: [{ id: "b3", title: "Branch three" }],
     });
 
     await expect(apply(doc)).rejects.toThrow(/unknown issue "ghost"/);
 
-    expect(existsSync(join(dir, "epic-b"))).toBe(false);
+    expect(existsSync(join(dir, "epic-c"))).toBe(false);
     expect(existsSync(join(dir, "b3"))).toBe(false);
     expect(snapshot()).toBe(before);
   });

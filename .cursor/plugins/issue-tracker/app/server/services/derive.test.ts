@@ -8,16 +8,23 @@ function nextAt(): string {
   return new Date(Date.UTC(2026, 6, 9, 14, 0, clock)).toISOString();
 }
 
-const epic = (id: string, partOf = "p", order = 0): Issue => ({
+const epic = (
+  id: string,
+  partOf = "p",
+  order = 0,
+  extra: Partial<Extract<Issue, { kind: "epic" }>> = {},
+): Issue => ({
   id,
   kind: "epic",
   title: id,
   partOf,
   order,
+  blockedBy: [],
   needsAttention: false,
   attentionReason: null,
   createdAt: nextAt(),
   updatedAt: nextAt(),
+  ...extra,
 });
 
 const branch = (
@@ -31,7 +38,6 @@ const branch = (
   title: id,
   partOf,
   order,
-  blockedBy: [],
   merged: false,
   needsAttention: false,
   attentionReason: null,
@@ -196,14 +202,14 @@ describe("derive - branch status", () => {
 });
 
 describe("derive - branch ready to start", () => {
-  it("is ready when it has no stackedOn and no blockers", () => {
+  it("is ready when it has no stackedOn (a root branch forks main)", () => {
     const issues = [epic("e"), branch("b", "e")];
     const d = derive(issues).byId.b;
     expect(d.ready).toBe(true);
     expect(d.blocked).toBe(false);
   });
 
-  it("is blocked when its stackedOn base does not exist yet", () => {
+  it("is blocked when its stackedOn base has no tip yet (no branchName)", () => {
     const issues = [
       epic("e"),
       branch("base", "e"),
@@ -214,23 +220,28 @@ describe("derive - branch ready to start", () => {
     expect(d.blocked).toBe(true);
   });
 
-  it("is blocked when a blockedBy branch is not merged", () => {
-    const issues = [
-      epic("e"),
-      branch("dep", "e", { branchName: "feat/dep" }),
-      branch("b", "e", { blockedBy: ["dep"] }),
-    ];
-    expect(derive(issues).byId.b.ready).toBe(false);
-  });
-
-  it("is ready when its base exists and every blocker is merged", () => {
+  it("is blocked when its parent's commits are not all done", () => {
     const issues = [
       epic("e"),
       branch("base", "e", { branchName: "feat/base" }),
-      branch("dep", "e", { branchName: "feat/dep", merged: true }),
-      branch("b", "e", { stackedOn: "base", blockedBy: ["dep"] }),
+      commit("bc", "base", {}, 0),
+      branch("b", "e", { stackedOn: "base" }),
     ];
-    expect(derive(issues).byId.b.ready).toBe(true);
+    const d = derive(issues).byId.b;
+    expect(d.ready).toBe(false);
+    expect(d.blocked).toBe(true);
+  });
+
+  it("is ready when its parent has a tip and all its commits are done (no merge gate)", () => {
+    const issues = [
+      epic("e"),
+      branch("base", "e", { branchName: "feat/base" }),
+      commit("bc", "base", { status: "done", commitSha: "aaa" }, 0),
+      branch("b", "e", { stackedOn: "base" }),
+    ];
+    const d = derive(issues).byId.b;
+    expect(d.ready).toBe(true);
+    expect(d.blocked).toBe(false);
   });
 });
 
@@ -281,6 +292,48 @@ describe("derive - ready set", () => {
   });
 });
 
+describe("derive - epic blocked/ready gating", () => {
+  it("marks an epic blocked while a blockedBy epic is not done", () => {
+    const issues = [
+      project("p"),
+      epic("dep", "p", 0),
+      branch("d", "dep"),
+      epic("gated", "p", 1, { blockedBy: ["dep"] }),
+      branch("g", "gated"),
+    ];
+    const { byId } = derive(issues);
+    expect(byId.dep.blocked).toBe(false);
+    expect(byId.gated.blocked).toBe(true);
+  });
+
+  it("keeps a blocked epic's branches out of the ready set", () => {
+    const issues = [
+      project("p"),
+      epic("dep", "p", 0),
+      branch("d", "dep"),
+      epic("gated", "p", 1, { blockedBy: ["dep"] }),
+      branch("g", "gated"),
+    ];
+    const { ready } = derive(issues);
+    expect(ready).toContain("d");
+    expect(ready).not.toContain("g");
+  });
+
+  it("surfaces a dependent epic's ready set once every blocker epic is done", () => {
+    const issues = [
+      project("p"),
+      epic("dep", "p", 0),
+      branch("d", "dep", { merged: true, branchName: "feat/d" }),
+      epic("gated", "p", 1, { blockedBy: ["dep"] }),
+      branch("g", "gated"),
+    ];
+    const { byId, ready } = derive(issues);
+    expect(byId.dep.epicStatus).toBe("done");
+    expect(byId.gated.blocked).toBe(false);
+    expect(ready).toContain("g");
+  });
+});
+
 describe("derive - ready set structural ordering", () => {
   it("orders ready branches within an epic by stored order, regardless of input order", () => {
     // Deliberately scrambled input; the ready set must follow `order`.
@@ -293,18 +346,20 @@ describe("derive - ready set structural ordering", () => {
     expect(derive(issues).ready).toEqual(["alpha", "beta"]);
   });
 
-  it("emits a root branch's ready commit before the branch stacked on it (DFS)", () => {
-    // root has a branchName so its commit is ready; child forks the root's tip
-    // (base = root's branchName) so it is also ready-to-start. DFS must place the
-    // root's own commit ahead of the stacked child.
+  it("emits a stacked child of an earlier root before a later sibling root (DFS)", () => {
+    // `a` is fully done (its only commit is done and it has a tip), so its
+    // stacked child `a-child` forks the tip and is ready-to-start. `b` is a
+    // second, later root branch, also ready-to-start. DFS must place the first
+    // root's stacked child ahead of the later sibling root.
     const issues = [
       project("p"),
       epic("e"),
-      branch("root", "e", { branchName: "feat/root" }, 0),
-      commit("root-c", "root", {}, 0),
-      branch("child", "e", { stackedOn: "root" }, 0),
+      branch("a", "e", { branchName: "feat/a" }, 0),
+      commit("a-c", "a", { status: "done", commitSha: "aaa" }, 0),
+      branch("a-child", "e", { stackedOn: "a" }, 0),
+      branch("b", "e", {}, 1),
     ];
-    expect(derive(issues).ready).toEqual(["root-c", "child"]);
+    expect(derive(issues).ready).toEqual(["a-child", "b"]);
   });
 
   it("orders ready items across epics by epic order, tolerating equal per-group order", () => {

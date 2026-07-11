@@ -493,11 +493,11 @@ program
         `title: ${detail.title}`,
       ];
       if (detail.kind !== "project") lines.push(`partOf: ${detail.partOf}`);
+      if (detail.kind === "epic" && detail.blockedBy.length > 0) {
+        lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
+      }
       if (detail.kind === "branch") {
         if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
-        if (detail.blockedBy.length > 0) {
-          lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
-        }
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
         if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
         lines.push(`merged: ${detail.merged}`);

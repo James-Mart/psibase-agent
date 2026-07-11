@@ -7,7 +7,7 @@ import {
 
 // A representative doc covering every kind and every inferred relationship:
 // two epics, root and stacked branches (nested to depth 2), commits, and an
-// explicit blockedBy reference.
+// explicit epic-level blockedBy reference (epic-empty blocks on epic-billing).
 const doc = {
   project: {
     id: "my-project",
@@ -34,7 +34,6 @@ const doc = {
               {
                 id: "phase-1",
                 title: "Stats tables",
-                blockedBy: ["phase-0b"],
                 stacked: [
                   {
                     id: "phase-2",
@@ -53,6 +52,7 @@ const doc = {
       {
         id: "epic-empty",
         title: "Empty epic",
+        blockedBy: ["epic-billing"],
       },
     ],
   },
@@ -232,13 +232,13 @@ describe("flattenApplyDoc", () => {
     expect(root.stackedOn).toBeUndefined();
   });
 
-  it("carries blockedBy verbatim and defaults it to []", () => {
-    const withBlock = map.get("phase-1");
-    const withoutBlock = map.get("phase-0");
-    if (withBlock?.kind !== "branch" || withoutBlock?.kind !== "branch") {
-      throw new Error("missing branch");
+  it("carries an epic's blockedBy verbatim and defaults it to []", () => {
+    const withBlock = map.get("epic-empty");
+    const withoutBlock = map.get("epic-billing");
+    if (withBlock?.kind !== "epic" || withoutBlock?.kind !== "epic") {
+      throw new Error("missing epic");
     }
-    expect(withBlock.blockedBy).toEqual(["phase-0b"]);
+    expect(withBlock.blockedBy).toEqual(["epic-billing"]);
     expect(withoutBlock.blockedBy).toEqual([]);
   });
 
@@ -285,7 +285,6 @@ const branchDoc = {
   branch: {
     id: "b1",
     title: "Branch one",
-    blockedBy: ["b2"],
     commits: [{ id: "c1", title: "Commit one" }],
   },
 };
@@ -389,6 +388,5 @@ describe("flattenApplyDoc — branch form", () => {
     expect(branch.partOf).toBe("epic-a");
     // stackedOn is preserved from disk by apply, never emitted from the doc.
     expect(branch.stackedOn).toBeUndefined();
-    expect(branch.blockedBy).toEqual(["b2"]);
   });
 });

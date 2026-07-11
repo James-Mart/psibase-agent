@@ -47,10 +47,12 @@ describe("parseIssue - valid per kind", () => {
     if (result.ok) expect(result.issue.kind).toBe("project");
   });
 
-  it("parses an epic", () => {
+  it("parses an epic and defaults blockedBy to []", () => {
     const result = parseIssue(epic);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.issue.kind).toBe("epic");
+    if (result.ok && result.issue.kind === "epic") {
+      expect(result.issue.blockedBy).toEqual([]);
+    }
   });
 
   it("rejects an epic missing its partOf project", () => {
@@ -58,12 +60,12 @@ describe("parseIssue - valid per kind", () => {
     expect(parseIssue(rest).ok).toBe(false);
   });
 
-  it("parses a branch and defaults blockedBy", () => {
+  it("parses a branch with its stackedOn fork point and no blockedBy", () => {
     const result = parseIssue(branch);
     expect(result.ok).toBe(true);
     if (result.ok && result.issue.kind === "branch") {
       expect(result.issue.stackedOn).toBe("db-schema");
-      expect(result.issue.blockedBy).toEqual([]);
+      expect("blockedBy" in result.issue).toBe(false);
     }
   });
 

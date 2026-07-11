@@ -76,7 +76,6 @@ describe("show", () => {
       title: "Branch A",
       partOf: "e",
       branchName: "feat/a",
-      blockedBy: [],
       merged: false,
       createdAt: nextAt(),
       updatedAt: nextAt(),
@@ -114,6 +113,28 @@ describe("show", () => {
     expect(status).toBe(1);
     expect(stderr).toContain('unknown issue "ghost"');
   });
+
+  it("prints an epic's blockedBy line when it has blockers", () => {
+    writeIssue("e2", {
+      kind: "epic",
+      title: "Epic 2",
+      partOf: "p",
+      blockedBy: ["e"],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const { stdout, status } = runCli(["show", "e2"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("kind: epic");
+    expect(stdout).toContain("blockedBy: e");
+  });
+
+  it("omits the blockedBy line for an epic with no blockers", () => {
+    const { stdout, status } = runCli(["show", "e"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("kind: epic");
+    expect(stdout).not.toContain("blockedBy:");
+  });
 });
 
 describe("tree", () => {
@@ -124,7 +145,6 @@ describe("tree", () => {
       kind: "branch",
       title: "Branch A",
       partOf: "e",
-      blockedBy: [],
       merged: false,
       createdAt: nextAt(),
       updatedAt: nextAt(),
@@ -142,7 +162,6 @@ describe("tree", () => {
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
-      blockedBy: [],
       merged: false,
       createdAt: nextAt(),
       updatedAt: nextAt(),
@@ -201,28 +220,27 @@ describe("project-title resolution errors surface through the CLI", () => {
 
 describe("block", () => {
   const AT = "2026-07-10T14:00:00.000Z";
-  function seedBranches(targetBlockedBy: string[]): void {
+  // blockedBy is Epic-level now: the target epic `t` and its blockers a/b/c are
+  // all sibling epics in the same project.
+  function seedEpics(targetBlockedBy: string[]): void {
     writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", order: 0, createdAt: AT, updatedAt: AT });
     for (const [index, id] of ["a", "b", "c"].entries()) {
       writeIssue(id, {
-        kind: "branch",
+        kind: "epic",
         title: id.toUpperCase(),
-        partOf: "e",
+        partOf: "p",
         order: index,
         blockedBy: [],
-        merged: false,
         createdAt: AT,
         updatedAt: AT,
       });
     }
     writeIssue("t", {
-      kind: "branch",
+      kind: "epic",
       title: "T",
-      partOf: "e",
+      partOf: "p",
       order: 3,
       blockedBy: targetBlockedBy,
-      merged: false,
       createdAt: AT,
       updatedAt: AT,
     });
@@ -234,14 +252,14 @@ describe("block", () => {
   }
 
   it("--add unions only the named ids into the current blockedBy", () => {
-    seedBranches(["a"]);
+    seedEpics(["a"]);
     const { status } = runCli(["block", "t", "--add", "b"]);
     expect(status).toBe(0);
     expect(blockedByOf("t").sort()).toEqual(["a", "b"]);
   });
 
   it("--add is idempotent and never adds unnamed ids", () => {
-    seedBranches(["a"]);
+    seedEpics(["a"]);
     const { status } = runCli(["block", "t", "--add", "a", "b"]);
     expect(status).toBe(0);
     // "a" already present (no duplicate) and "c" was never named.
@@ -249,21 +267,21 @@ describe("block", () => {
   });
 
   it("--remove drops only the named ids", () => {
-    seedBranches(["a", "b", "c"]);
+    seedEpics(["a", "b", "c"]);
     const { status } = runCli(["block", "t", "--remove", "b"]);
     expect(status).toBe(0);
     expect(blockedByOf("t").sort()).toEqual(["a", "c"]);
   });
 
   it("--by replaces the entire blockedBy set", () => {
-    seedBranches(["a", "b"]);
+    seedEpics(["a", "b"]);
     const { status } = runCli(["block", "t", "--by", "c"]);
     expect(status).toBe(0);
     expect(blockedByOf("t")).toEqual(["c"]);
   });
 
   it("rejects combining --by with --add", () => {
-    seedBranches(["a"]);
+    seedEpics(["a"]);
     const { stderr, status } = runCli(["block", "t", "--by", "b", "--add", "c"]);
     expect(status).toBe(1);
     expect(stderr).toMatch(/mutually exclusive/);
@@ -271,17 +289,27 @@ describe("block", () => {
   });
 
   it("requires exactly one of --by/--add/--remove", () => {
-    seedBranches(["a"]);
+    seedEpics(["a"]);
     const { stderr, status } = runCli(["block", "t"]);
     expect(status).toBe(1);
     expect(stderr).toMatch(/provide exactly one of --by, --add, or --remove/);
   });
 
-  it("rejects blocking a non-branch", () => {
-    seedBranches(["a"]);
-    const { stderr, status } = runCli(["block", "e", "--add", "a"]);
+  it("rejects blocking a non-epic", () => {
+    seedEpics(["a"]);
+    // A branch under epic `a`; `block` targets epics only.
+    writeIssue("br", {
+      kind: "branch",
+      title: "BR",
+      partOf: "a",
+      order: 0,
+      merged: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { stderr, status } = runCli(["block", "br", "--add", "a"]);
     expect(status).toBe(1);
-    expect(stderr).toMatch(/only valid on a branch/);
+    expect(stderr).toMatch(/only valid on an epic/);
   });
 });
 
@@ -295,7 +323,6 @@ describe("set-part-of", () => {
       title: "A",
       partOf: "e",
       order: 0,
-      blockedBy: [],
       merged: false,
       createdAt: AT,
       updatedAt: AT,
@@ -305,7 +332,6 @@ describe("set-part-of", () => {
       title: "A2",
       partOf: "e",
       order: 1,
-      blockedBy: [],
       merged: false,
       createdAt: AT,
       updatedAt: AT,

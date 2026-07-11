@@ -13,16 +13,22 @@ const project = (id: string): Issue => ({
   updatedAt: AT,
 });
 
-const epic = (id: string, partOf = "p"): Issue => ({
+const epic = (
+  id: string,
+  partOf = "p",
+  extra: Partial<Extract<Issue, { kind: "epic" }>> = {},
+): Issue => ({
   id,
   kind: "epic",
   title: id,
   partOf,
   order: 0,
+  blockedBy: [],
   needsAttention: false,
   attentionReason: null,
   createdAt: AT,
   updatedAt: AT,
+  ...extra,
 });
 
 const branch = (
@@ -35,7 +41,6 @@ const branch = (
   title: id,
   partOf,
   order: 0,
-  blockedBy: [],
   merged: false,
   needsAttention: false,
   attentionReason: null,
@@ -140,45 +145,43 @@ describe("planDeletion - stackedOn splice", () => {
 });
 
 describe("planDeletion - blockedBy drop", () => {
-  it("drops the deleted branch from a dependent's blockedBy", () => {
+  it("drops the deleted epic from a dependent epic's blockedBy", () => {
     const plan = planDeletion(
       [
-        epic("e"),
-        branch("a", "e"),
-        branch("b", "e"),
-        branch("d", "e", { blockedBy: ["a", "b"] }),
+        project("p"),
+        epic("a", "p"),
+        epic("b", "p"),
+        epic("d", "p", { blockedBy: ["a", "b"] }),
       ],
       "a",
     );
     expect(plan.unblock).toEqual([{ id: "d", blockedBy: ["b"] }]);
   });
 
-  it("drops a cross-Epic blockedBy when its Epic is deleted", () => {
+  it("drops a blockedBy edge when the whole blocking Epic (with its branches) is deleted", () => {
     const plan = planDeletion(
       [
-        epic("e1"),
+        project("p"),
+        epic("e1", "p"),
         branch("a", "e1"),
-        epic("e2"),
-        branch("x", "e2", { blockedBy: ["a"] }),
+        epic("e2", "p", { blockedBy: ["e1"] }),
       ],
       "e1",
     );
     expect([...plan.deleteIds].sort()).toEqual(["a", "e1"]);
-    expect(plan.unblock).toEqual([{ id: "x", blockedBy: [] }]);
+    expect(plan.unblock).toEqual([{ id: "e2", blockedBy: [] }]);
   });
 
-  it("both splices and unblocks when a branch has each edge", () => {
+  it("leaves a dependent epic's blockedBy untouched when an unrelated epic is deleted", () => {
     const plan = planDeletion(
       [
-        epic("e"),
-        branch("a", "e"),
-        branch("b", "e", { stackedOn: "a" }),
-        branch("c", "e", { stackedOn: "b" }),
-        branch("d", "e", { blockedBy: ["b"] }),
+        project("p"),
+        epic("a", "p"),
+        epic("b", "p"),
+        epic("d", "p", { blockedBy: ["a"] }),
       ],
       "b",
     );
-    expect(plan.repoint).toEqual([{ id: "c", to: "a" }]);
-    expect(plan.unblock).toEqual([{ id: "d", blockedBy: [] }]);
+    expect(plan.unblock).toEqual([]);
   });
 });
