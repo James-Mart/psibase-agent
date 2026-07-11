@@ -32,8 +32,12 @@ status derives automatically (see SPEC.md).
 
 An Epic id. If none is given, run `list`, show the user the Epics, and ask which
 one. This skill works exactly one Epic; to work several at once, start several
-agents. Use the default `issues/` dir (do not set `ISSUES_DIR`) so the human sees
-changes live in the UI.
+agents. An Epic that is `blockedBy` another Epic cannot start until that blocker
+is **fully merged** (all the blocker's Branches merged) — its Branches and
+Commits stay out of the Ready set until then, so only pick a blocked Epic once
+its blockers have landed. Because blockers clear at a human-paced Epic boundary
+(a merge round-trip), this fits the one-Epic-at-a-time model. Use the default
+`issues/` dir (do not set `ISSUES_DIR`) so the human sees changes live in the UI.
 
 ## Preflight: confirm the coordinator model
 
@@ -46,15 +50,22 @@ the recommended `composer-2.5` model instead of continuing.
 ## Setup
 
 1. Read the plan with `tree --epic <id>`. This one outline **is** your plan. It
-   prints the Epic's Branches in stacked order (a Branch stacked on another is
-   nested under it) and, under each Branch, its Commits in sequence. Every Branch
-   line carries `base=<base>` and `branch=<branchName>` chips; every Commit line
-   carries `status=` and, once done, `sha=`. The branch order (walk top-to-
-   bottom), each branch's git base and name, and each commit sequence all come
-   straight from this output — do **not** derive any of them by hand.
+   prints the Epic's Branches in **pure stacked depth-first** order over
+   `stackedOn` alone — a Branch stacked on another is nested under it, and root
+   Branches (and same-level siblings) follow their stored order. `blockedBy` is
+   an Epic-level edge and plays **no part** in Branch ordering (it only gates
+   whether the whole Epic may start — see Argument). Under each Branch its
+   Commits print in sequence. Every Branch line carries `base=<base>` and
+   `branch=<branchName>` chips; every Commit line carries `status=` and, once
+   done, `sha=`. The branch order (walk top-to-bottom), each branch's git base
+   and name, and each commit sequence all come straight from this output — do
+   **not** derive any of them by hand.
 2. Run `list` once and read its `problems` array. If `problems` is non-empty,
    **stop and hand back to the user** — do not reason about or attempt fixes, and
-   do not work a tree with integrity problems.
+   do not work a tree with integrity problems. In the same `list` output, check
+   `derived[<epicId>].blocked`: if it is `true` the Epic is `blockedBy` a blocker
+   that has not fully merged, so — per Argument — it **cannot start**. Stop and
+   hand back to the user rather than running `tree` or working any Commit.
 3. Mirror the Branches and their Commits, in `tree` order, into your own todo
    list so you can track progress; keep exactly one Commit `in_progress` at a
    time. This mirror is a cache of the outline — re-sync it from a fresh
@@ -67,7 +78,9 @@ the recommended `composer-2.5` model instead of continuing.
 
 Because `tree` lists each Branch after the Branch it is stacked on, walking the
 outline top-to-bottom always reaches a stacked Branch only after its parent's git
-branch and `done` commits already exist.
+branch and `done` commits already exist: a stacked child's dependency is
+satisfied — and it may proceed — once its parent's Commits are all `done` (it
+forks the parent's tip, so there is no merge gate).
 
 ## Models and subagent roles
 
