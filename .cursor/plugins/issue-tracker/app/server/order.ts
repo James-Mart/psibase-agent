@@ -60,8 +60,21 @@ export function nextSiblingOrder(
 
 type BranchLike = Extract<Issue, { kind: "branch" }>;
 
+// A Branch's only inter-Branch edge is its single `stackedOn` fork point;
+// `blockedBy` is Epic-level now and never a Branch dependency. Consumed by the
+// integrity cycle check.
 export function branchDependencyIds(branch: BranchLike): string[] {
-  return [...(branch.stackedOn ? [branch.stackedOn] : []), ...branch.blockedBy];
+  return branch.stackedOn ? [branch.stackedOn] : [];
+}
+
+type EpicLike = Extract<Issue, { kind: "epic" }>;
+
+// An Epic's dependency edges are exactly its `blockedBy` ids (each an Epic in
+// the same Project). Peer to `branchDependencyIds` so the integrity cycle check
+// builds both graph kinds through one named extractor apiece, and stays a thin
+// assembler over them.
+export function epicDependencyIds(epic: EpicLike): string[] {
+  return epic.blockedBy;
 }
 
 // Order a parent Epic's Branches for structural traversal (the tree / a stacked

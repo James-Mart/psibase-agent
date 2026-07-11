@@ -1,5 +1,9 @@
 import { PARENT_KIND, type Issue, type IssueKind, type Problem } from "../schemas.js";
-import { branchDependencyIds, siblingGroupKey } from "../order.js";
+import {
+  branchDependencyIds,
+  epicDependencyIds,
+  siblingGroupKey,
+} from "../order.js";
 
 function checkDuplicateOrder(issues: Issue[], problems: Problem[]): void {
   const buckets = new Map<string, Issue[]>();
@@ -49,19 +53,51 @@ function checkReferent(
   }
 }
 
+// A referent that must not only be `expectedKind` but also share the referring
+// issue's parent: a Branch's `stackedOn` peer lives in the same Epic, an Epic's
+// `blockedBy` peer in the same Project. Wraps `checkReferent` and adds the
+// same-container guard so `stackedOn` and `blockedBy` validation stay one shape.
+function checkReferentInSameContainer(
+  issue: Issue,
+  refId: string,
+  expectedKind: IssueKind,
+  relation: string,
+  container: string,
+  byId: Map<string, Issue>,
+  problems: Problem[],
+): void {
+  checkReferent(issue, refId, expectedKind, relation, byId, problems);
+  const referent = byId.get(refId);
+  const issueParent = "partOf" in issue ? issue.partOf : undefined;
+  const referentParent =
+    referent && "partOf" in referent ? referent.partOf : undefined;
+  if (referent?.kind === expectedKind && referentParent !== issueParent) {
+    problems.push({
+      id: issue.id,
+      message: `${relation} "${refId}" must be in the same ${container}`,
+    });
+  }
+}
+
 function dependencyCycles(
   issues: Issue[],
   byId: Map<string, Issue>,
 ): Set<string> {
   const edges = new Map<string, string[]>();
   for (const issue of issues) {
-    if (issue.kind !== "branch") continue;
-    edges.set(
-      issue.id,
-      branchDependencyIds(issue).filter(
-        (id) => byId.get(id)?.kind === "branch",
-      ),
-    );
+    if (issue.kind === "branch") {
+      edges.set(
+        issue.id,
+        branchDependencyIds(issue).filter(
+          (id) => byId.get(id)?.kind === "branch",
+        ),
+      );
+    } else if (issue.kind === "epic") {
+      edges.set(
+        issue.id,
+        epicDependencyIds(issue).filter((id) => byId.get(id)?.kind === "epic"),
+      );
+    }
   }
 
   const inCycle = new Set<string>();
@@ -106,29 +142,28 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
         problems,
       );
     }
-    if (issue.kind === "branch") {
-      if (issue.stackedOn) {
-        checkReferent(
+    if (issue.kind === "branch" && issue.stackedOn) {
+      checkReferentInSameContainer(
+        issue,
+        issue.stackedOn,
+        "branch",
+        "stackedOn",
+        "Epic",
+        byId,
+        problems,
+      );
+    }
+    if (issue.kind === "epic") {
+      for (const dep of issue.blockedBy) {
+        checkReferentInSameContainer(
           issue,
-          issue.stackedOn,
-          "branch",
-          "stackedOn",
+          dep,
+          "epic",
+          "blockedBy",
+          "Project",
           byId,
           problems,
         );
-        const stackedOn = byId.get(issue.stackedOn);
-        if (
-          stackedOn?.kind === "branch" &&
-          stackedOn.partOf !== issue.partOf
-        ) {
-          problems.push({
-            id: issue.id,
-            message: `stackedOn "${issue.stackedOn}" must be in the same Epic`,
-          });
-        }
-      }
-      for (const dep of issue.blockedBy) {
-        checkReferent(issue, dep, "branch", "blockedBy", byId, problems);
       }
     }
   }
