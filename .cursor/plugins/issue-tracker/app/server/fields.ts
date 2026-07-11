@@ -9,22 +9,24 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
+export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
+
 export const BRANCH_FIELD_KEYS = [
   "branchName",
   "stackedOn",
-  "blockedBy",
   "prUrl",
   "merged",
 ] as const;
 
 export const COMMIT_FIELD_KEYS = ["status", "commitSha"] as const;
 
+export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
 export type BranchFieldKey = (typeof BRANCH_FIELD_KEYS)[number];
 export type CommitFieldKey = (typeof COMMIT_FIELD_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
   project: [],
-  epic: [],
+  epic: EPIC_FIELD_KEYS,
   branch: BRANCH_FIELD_KEYS,
   commit: COMMIT_FIELD_KEYS,
 } as const satisfies Record<IssueKind, readonly string[]>;
@@ -57,6 +59,7 @@ export const FIELD_LABELS = {
 
 export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,
+  ...EPIC_FIELD_KEYS,
   ...BRANCH_FIELD_KEYS,
   ...COMMIT_FIELD_KEYS,
 ] as const satisfies readonly (keyof IssuePatch)[];
