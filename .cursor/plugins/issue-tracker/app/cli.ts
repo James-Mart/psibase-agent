@@ -355,10 +355,11 @@ program
 
 program
   .command("block")
-  .argument("<id>", "branch id")
-  .option("--by <branchIds...>", "replace blockedBy with exactly these ids")
-  .option("--add <branchIds...>", "union these ids into the current blockedBy")
-  .option("--remove <branchIds...>", "drop these ids from the current blockedBy")
+  .argument("<id>", "epic id")
+  .description("edit an Epic's blockedBy (ids must be same-Project Epics)")
+  .option("--by <epicIds...>", "replace blockedBy with exactly these ids")
+  .option("--add <epicIds...>", "union these ids into the current blockedBy")
+  .option("--remove <epicIds...>", "drop these ids from the current blockedBy")
   // `--by`/`--add`/`--remove` are mutually exclusive: `--by` is a full replace
   // while `--add`/`--remove` are incremental, so combining them has no
   // unsurprising meaning. Require exactly one rather than inventing a precedence.
@@ -378,8 +379,8 @@ program
         );
       }
       const detail = read(id);
-      if (detail.kind !== "branch") {
-        throw new Error(`blockedBy is only valid on a branch, not a ${detail.kind}`);
+      if (detail.kind !== "epic") {
+        throw new Error(`blockedBy is only valid on an epic, not a ${detail.kind}`);
       }
       if (opts.by) return update(id, { blockedBy: opts.by });
 
