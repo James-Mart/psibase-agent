@@ -408,7 +408,7 @@ export function appendMessage(
 // Deleting an issue removes the whole containment subtree (the issue plus every
 // descendant `partOf` it) and repairs every surviving foreign reference into it:
 // a branch stacked on a deleted branch is spliced to the deleted branch's own
-// fork point, and deleted ids are dropped from any branch's `blockedBy`. The
+// fork point, and deleted ids are dropped from any Epic's `blockedBy`. The
 // prospective surviving set is validated before anything is written, so a
 // deletion that could not leave the graph valid is refused without side effects.
 export function remove(id: string): Promise<DeletionResult> {

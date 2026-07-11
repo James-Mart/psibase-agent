@@ -1,2 +1,4 @@
 *.log
-issues/
+# Ignore the issue-tracker's on-disk data store only. Anchored so it does not
+# also swallow real source dirs named `issues` (e.g. app/src/features/issues/).
+/plugins/issue-tracker/issues/
