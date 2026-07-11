@@ -21,11 +21,12 @@ Every issue has a `kind`, one of four tiers:
   assignee/needs-attention fields — only a `title` and a `description.md`
   overview. Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Branches; its
-  `description.md` holds the spec. Has **no stored status** — its status is fully
-  derived from descendants. Is `partOf` a Project (required).
+  `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
+  in the same Project that must finish first). Has **no stored status** — its
+  status is fully derived from descendants. Is `partOf` a Project (required).
 - **Branch** — a unit that becomes one git branch and one PR. Contains Commits.
-  Carries `branchName`, `stackedOn`, `blockedBy`, `prUrl`, `merged`. Status is
-  derived, never stored.
+  Carries `branchName`, `stackedOn`, `prUrl`, `merged`. Status is derived, never
+  stored.
 - **Commit** — an atomic, story-point-sized unit implemented as one git commit.
   The only kind with a **stored** `status` (`todo` / `in-progress` / `done`) and
   a `commitSha` (set once done).
@@ -38,21 +39,30 @@ Three relationships, each with a distinct, non-overlapping role:
   a Branch; a Branch is `partOf` an Epic; an Epic is `partOf` a Project. It points
   exactly one tier up and builds the tree. Projects have none.
 - **stackedOn** — *the single git fork point* of a Branch: which one Branch it
-  forks from. Branch-only and always singular. Absent means it forks off the
-  Epic's base (`main`).
-- **blockedBy** — *additional dependencies beyond the fork point*: a list of
-  Branches that must merge before this Branch can start. Branch-only. This is
-  what makes the branch/PR graph a DAG rather than a plain tree.
+  forks from. Branch-only, always singular, and strictly within one Epic. Absent
+  means it forks off the Epic's base (`main`). It is the **sole** inter-Branch
+  edge, so within an Epic the Branches form a forest of independent stacks — a
+  tree, never a DAG, with no internal merge gate.
+- **blockedBy** — *cross-Epic ordering*: a list of other Epic ids **in the same
+  Project** that must finish (all their Branches merged) before this Epic can
+  start. Epic-only, and the only edge that crosses an Epic boundary. This is what
+  makes the Epic-level dependency graph a DAG.
 
-#### The diamond (why both `stackedOn` and `blockedBy` exist)
+#### The diamond (why a multi-parent dependency becomes a new Epic)
 
-Branches A and B both fork off `main` and are worked in parallel. Branch C needs
-the code from *both*. A git branch forks from exactly one point, so we record
-`C.stackedOn = A` (C physically forks from A) and `C.blockedBy = [B]` (C also
-depends on B, but does not fork from it). Collapsing this to a single linear
-chain `A -> B -> C` would destroy the A/B parallelism; keeping `stackedOn`
-singular and `blockedBy` a list preserves it. `stackedOn` answers "what is my
-git base?"; `blockedBy` answers "what else must land first?".
+The one thing a single `stackedOn` fork point cannot express is a unit that needs
+code from **two** parallel Branches at once (the classic diamond: Branches A and
+B both fork `main`, worked in parallel, and C needs both). Rather than
+reintroduce a Branch-level multi-parent edge — which would force a merge gate
+*inside* an Epic and break the "one Epic run = one clean, bottom-up-mergeable
+stack of PRs" property — we resolve it at the Epic boundary: split the dependent
+unit into a **new Epic that is `blockedBy` the Epic holding the parallel
+Branches** (A and B). The tradeoff is
+deliberate: keeping A and B in one Epic preserves their parallelism (two
+independent stacks, no gate between them), while moving C into a second Epic makes
+it wait for the whole blocking Epic to *merge* first — coarser, but landing
+exactly where a merge round-trip is natural (a human-paced Epic boundary) instead
+of stalling a stack mid-flight.
 
 #### The stacked-PR merge model
 
@@ -73,7 +83,8 @@ These are computed by `derive()` and never written to disk (see
 [Derived state](#derived-state)):
 
 - **Stack** — the emergent set of dependent, not-yet-merged Branches under an
-  Epic (a tree/DAG, not necessarily linear), induced by `stackedOn`/`blockedBy`.
+  Epic, induced solely by `stackedOn`: a forest of independent stacks (each a
+  tree), never a cross-Branch DAG.
 - **ready / blocked** — whether an issue can be picked up right now.
 - **Ready view** — a flat list of the ready issues, for quick pick-up and for a
   main agent to fan out parallel subagents.
@@ -150,6 +161,7 @@ Epic — the Epic/Branch/Commit common fields plus:
 | field | type | notes |
 | --- | --- | --- |
 | `partOf` | string | the Project id (required) |
+| `blockedBy` | string[] | other Epic ids in the same Project that must finish first; defaults `[]`; the only cross-Epic edge |
 
 Branch — the Epic/Branch/Commit common fields plus:
 
@@ -158,7 +170,6 @@ Branch — the Epic/Branch/Commit common fields plus:
 | `partOf` | string | the Epic id (required) |
 | `branchName` | string? | set once the git branch is created |
 | `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => base `main` |
-| `blockedBy` | string[] | additional Branch deps; defaults `[]` |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false` |
 
@@ -179,12 +190,14 @@ forks from: a Branch renders as a child of its `stackedOn` Branch (which must be
 in the same Epic — see below), so indentation mirrors the git stack depth. A
 Branch with no `stackedOn` is a *root* Branch, rendered directly under its Epic.
 Under a Branch, its own Commits render first, then the Branches stacked on it.
-`blockedBy` is not shown in the tree (it lives in the detail panel); it only
-affects Epic readiness. Within one nesting level, siblings are ordered strictly
-by stored `order` (never `createdAt` or `id`). Root Branches under an Epic are
-traversed depth-first (each root immediately followed by what stacks on it);
-siblings at every level sort by `order`. Epics and Projects sort by `order`.
-Duplicate `order` within a sibling group is an integrity problem.
+Branch order is therefore **pure stacked depth-first** over `stackedOn` alone;
+`blockedBy` plays no part in it (it is an Epic-level edge, surfaced in the Epic's
+detail panel and used only to gate the Epic's derived `blocked` state — i.e.
+which subtrees the Ready set omits, not sibling order). Within one nesting level,
+siblings are ordered strictly by stored `order` (never `createdAt` or `id`). Root
+Branches under an Epic are traversed depth-first (each root immediately followed
+by what stacks on it); siblings at every level sort by `order`. Epics and Projects
+sort by `order`. Duplicate `order` within a sibling group is an integrity problem.
 
 **Projects scope the view.** A Project is the top-level container: every Epic is
 `partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
@@ -230,9 +243,9 @@ prevented here, so no consumer can persist a broken file.
   `description.md`.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
-  `attentionReason`, `partOf`, the kind-specific fields (`status`/`commitSha` for
-  a Commit; `branchName`/`stackedOn`/`blockedBy`/`prUrl`/`merged` for a Branch),
-  and `description` (written to `description.md`). Clearable fields are removed
+  `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
+  `status`/`commitSha` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged` for
+  a Branch), and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
@@ -247,10 +260,11 @@ prevented here, so no consumer can persist a broken file.
 
 - **Validate-at-write.** `create`/`update` run the integrity checks against the
   *prospective* state and refuse any write that would introduce a `problem` — a
-  bad or missing `partOf`/`stackedOn` referent, a referent of the wrong kind (a
-  Commit's `partOf` must be a Branch, a Branch's an Epic, an Epic's a Project), a
-  `stackedOn` in a different Epic, or a cycle-inducing `stackedOn`/`blockedBy`.
-  On failure the CLI exits nonzero
+  bad or missing `partOf`/`stackedOn`/`blockedBy` referent, a referent of the
+  wrong kind (a Commit's `partOf` must be a Branch, a Branch's an Epic, an Epic's
+  a Project; a `stackedOn` must be a Branch, a `blockedBy` entry an Epic), a
+  `stackedOn` in a different Epic, a `blockedBy` Epic in a different Project, or a
+  cycle-inducing `stackedOn`/`blockedBy`. On failure the CLI exits nonzero
   with a clear message and HTTP returns 4xx with detail.
 - **Read-time validation.** Hand-edited or out-of-band files are still validated
   on read and surfaced as `problems`; they never crash a read. A directory whose
@@ -291,8 +305,8 @@ into it, and each edge type resolves deterministically:
 | --- | --- |
 | `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
 | `stackedOn` (a deleted Branch; always same-Epic) | **Splice**: repoint the surviving Branch to the deleted branch's own `stackedOn`, walking up until a surviving Branch, or absent (forks `main`) if none. Preserves the stack minus the removed node. |
-| `blockedBy` (a deleted Branch; may cross Epics) | **Drop**: remove the deleted id from the list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge allowed to cross Epics. |
-| `stackedOn`/`blockedBy` → a deleted Commit | Impossible — those edges only ever reference Branches. |
+| `blockedBy` (a deleted Epic; cross-Epic, same Project) | **Drop**: remove the deleted Epic id from the blocked Epic's list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge that crosses an Epic boundary. |
+| `stackedOn` → a deleted Commit/Epic, or `blockedBy` → a deleted Branch/Commit | Impossible — `stackedOn` only ever references a Branch, and `blockedBy` only ever references an Epic. |
 
 `issue:` cross-links inside `description.md` are freeform Markdown, not
 validated relationships, so they are left untouched.
@@ -327,6 +341,7 @@ project:
       title: My Epic
       description: |
         Cross-cutting invariants.
+      blockedBy: [other-epic]  # other Epics (same Project) that must finish first
       branches:
         - id: base-branch      # a root Branch (no `stacked` parent) -> forks main
           title: Base Branch
@@ -340,7 +355,6 @@ project:
           stacked:             # Branches that fork off `base-branch`
             - id: follow-up
               title: Follow-up
-              blockedBy: [other-branch]   # extra deps beyond the fork point
               commits:
                 - id: follow-up-commit
                   title: Follow-up commit
@@ -355,9 +369,9 @@ project:
 - **Inferred `stackedOn`.** A Branch nested under another Branch's `stacked`
   forks from it; a Branch directly under `branches` is a root Branch (forks the
   Epic's base, `main`). Never written in the doc.
-- **Explicit `blockedBy`.** The one cross-reference authored by hand: a list of
-  Branch ids this Branch depends on but does **not** fork from. Uses the same
-  kebab id rule as node ids.
+- **Explicit `blockedBy`.** The one cross-reference authored by hand: on an
+  **Epic** node, a list of other Epic ids (same Project) this Epic depends on.
+  Uses the same kebab id rule as node ids.
 - **Inline descriptions.** Each node's optional `description` is a block scalar
   (`|`) written to that issue's `description.md`; omitting it on create seeds the
   default `# <title>`. This is what lets authors write Markdown without shell
@@ -378,6 +392,7 @@ project: my-product        # existing project id (reference)
 epic:
   id: my-epic
   title: My Epic
+  blockedBy: [ ... ]       # other Epic ids (same Project) that must finish first
   branches: [ ... ]        # same branch/commit/stacked shape as above
 ```
 
@@ -388,7 +403,6 @@ epic: my-epic              # existing epic id (reference)
 branch:
   id: my-branch
   title: My Branch
-  blockedBy: [ ... ]
   commits: [ ... ]
 ```
 
@@ -413,7 +427,7 @@ branch:
 - **Prune by default.** Any issue in the declared root's on-disk subtree that
   the doc no longer lists is deleted. `apply` is therefore the full desired state
   of that root's subtree, not a patch. (An out-of-scope `blockedBy` edge into a
-  pruned Branch is dropped, mirroring the [deletion policy](#deletion-policy).)
+  pruned Epic is dropped, mirroring the [deletion policy](#deletion-policy).)
 - **Atomic + validated.** The entire prospective set is run through
   `checkIntegrity` in one pass before any write; a doc that would introduce a
   problem (dangling/wrong-kind referent, cross-Epic `stackedOn`, cycle, duplicate
@@ -433,7 +447,7 @@ preserves everything else from the existing same-kind issue.
 | --- | --- |
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
-| `blockedBy` | `apply` (explicit in the doc) |
+| `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
@@ -458,20 +472,35 @@ so cannot drift:
 - **Branch status** — `merged` if `merged`; else `pr-open` if it has Commits,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
-- **Branch `ready`** (to start) — its base exists (it has no `stackedOn`, or its
-  `stackedOn` Branch has a `branchName`) and every `blockedBy` Branch is
-  `merged`. A `not-started` Branch that is not ready is `blocked`.
+- **Branch `ready`** (to start) — a root Branch (no `stackedOn`) is ready
+  immediately; a stacked Branch is ready once its `stackedOn` parent has a
+  `branchName` (its tip exists to fork) **and** all the parent's Commits are
+  `done` (it forks the parent's tip, so there is no merge gate). A `not-started`
+  Branch that is not ready is `blocked`.
 - **Epic status** — `done` when it has Branches and all are `merged`;
   `in-progress` if any Branch has started; else `todo`.
+- **Epic `blocked`** — an Epic is `blocked` while any Epic in its `blockedBy` is
+  not yet `done` (a blocker is `done` only when it has Branches and all are
+  `merged` — so a blocker Epic with **zero Branches is never `done`**, and
+  pointing `blockedBy` at an empty Epic blocks the dependent indefinitely). A
+  blocked Epic surfaces **nothing** in the Ready set — none of its Branches or
+  Commits appear until every blocker has merged. This is purely a Ready-set
+  filter over the whole subtree; it does **not** set the descendant Branches'/
+  Commits' own `blocked` flags, so `tree`/`list` can still show an
+  individually-ready Branch or Commit under a blocked Epic even though `ready`
+  omits it.
 - **Ready set** — the flat list behind the Ready view: ready Commits, plus ready
-  Branches that are still `not-started`, sorted by sequence.
+  Branches that are still `not-started`, sorted by sequence, and skipping every
+  Branch/Commit under a blocked Epic.
 - **problems** — the integrity checks `derive()` runs over the parsed issues:
   dependency cycles over `stackedOn`/`blockedBy`; dangling
-  `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn`/`blockedBy`
-  entry is not a Branch; a Branch whose `stackedOn` is in a different Epic
-  (`stackedOn` must stay within one Epic; `blockedBy` may cross Epics); a Commit
-  whose `partOf` is not a Branch; a Branch whose `partOf` is not an Epic; and an
-  Epic whose `partOf` is not a Project. These are only the *derive-time* problems; the
+  `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn` entry is not a
+  Branch, or an Epic whose `blockedBy` entry is not an Epic; a Branch whose
+  `stackedOn` is in a different Epic, or an Epic whose `blockedBy` names an Epic
+  in a different Project (`stackedOn` stays within one Epic; `blockedBy` stays
+  within one Project); a Commit whose `partOf` is not a Branch; a Branch whose
+  `partOf` is not an Epic; and an Epic whose `partOf` is not a Project. These are
+  only the *derive-time* problems; the
   `problems` array returned by `list()` also includes the *read-time* problems
   raised while loading files (malformed or missing `issue.json`, an id that
   disagrees with its directory name, and malformed `chat.jsonl` lines — see the
