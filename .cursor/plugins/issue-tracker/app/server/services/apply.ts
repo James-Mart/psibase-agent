@@ -22,7 +22,8 @@ export interface ApplySummary {
 }
 
 // Build the on-disk issue for a desired doc node. Doc-owned fields (title,
-// partOf, stackedOn, blockedBy) come from the doc. Imperative/progress fields
+// partOf, stackedOn, and the Epic's blockedBy) come from the doc.
+// Imperative/progress fields
 // (status, commitSha, branchName, prUrl, merged, assignee, needsAttention,
 // attentionReason) and `createdAt` are preserved from a same-kind existing
 // issue; for a brand-new issue they are left off the draft entirely so
@@ -81,9 +82,12 @@ function buildIssue(
     }
   }
 
+  if (desired.kind === "epic") {
+    draft.blockedBy = desired.blockedBy ?? [];
+  }
+
   if (desired.kind === "branch") {
     const prior = existing && existing.kind === "branch" ? existing : undefined;
-    draft.blockedBy = desired.blockedBy ?? [];
     if (stackedOn !== undefined) draft.stackedOn = stackedOn;
     if (prior) {
       draft.merged = prior.merged;
@@ -105,17 +109,17 @@ function buildIssue(
   return parsed.issue;
 }
 
-// Repair a surviving issue's references into the prune set. In-scope branches
-// are fully rebuilt from the doc, so only out-of-scope survivors can dangle,
-// and only via `blockedBy` (the sole cross-Epic edge); `stackedOn` stays within
-// one Epic so it never crosses a scope boundary. Mirrors the drop rule in
-// deletion.ts. Returns the (possibly rewritten) issue and whether it changed.
+// Repair a surviving issue's references into the prune set. In-scope epics are
+// fully rebuilt from the doc, so only out-of-scope survivors can dangle, and
+// only via an Epic's `blockedBy` (the sole cross-Epic edge); `stackedOn` stays
+// within one Epic so it never crosses a scope boundary. Mirrors the drop rule
+// in deletion.ts. Returns the (possibly rewritten) issue and whether it changed.
 function repairSurvivor(
   issue: Issue,
   deleteSet: Set<string>,
   now: string,
 ): { issue: Issue; changed: boolean } {
-  if (issue.kind !== "branch") return { issue, changed: false };
+  if (issue.kind !== "epic") return { issue, changed: false };
   const kept = issue.blockedBy.filter((dep) => !deleteSet.has(dep));
   if (kept.length === issue.blockedBy.length) return { issue, changed: false };
   const patch: IssuePatch = { blockedBy: kept };
@@ -198,7 +202,7 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
     const onDiskById = new Map(issues.map((issue) => [issue.id, issue]));
     const { rootId, rootKind, preserveStackedOn } = resolveRoot(doc, onDiskById);
     // Scope is bounded to the declared root's on-disk subtree; anything else
-    // is untouched except for reference repair when a pruned branch is a blocker.
+    // is untouched except for reference repair when a pruned epic is a blocker.
     const scope = subtreeIds(issues, rootId);
     const desiredIds = new Set(desired.map((node) => node.id));
 
@@ -253,8 +257,8 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
     // planner's job is to *inherit* a deleted branch's fork point onto surviving
     // stacked branches; here every in-scope reference has already been rebuilt
     // from the doc's nesting, so re-inheriting fork points would fight the doc.
-    // The only edge that can still dangle is an out-of-scope `blockedBy` into
-    // the prune set, repaired below (see `repairSurvivor`).
+    // The only edge that can still dangle is an out-of-scope Epic's `blockedBy`
+    // into the prune set, repaired below (see `repairSurvivor`).
     const deleteSet = new Set(
       [...scope].filter((id) => !desiredIds.has(id)),
     );

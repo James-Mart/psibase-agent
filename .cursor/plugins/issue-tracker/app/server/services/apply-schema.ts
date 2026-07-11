@@ -7,8 +7,9 @@ import { SLUG_RE } from "./slug.js";
 // tree in one nested document. Kind is implied by the child key (`epics` /
 // `branches` / `commits` / `stacked`) and is never written. `partOf` is inferred
 // from the enclosing container and `stackedOn` from being nested under another
-// branch; only `blockedBy` uses explicit id references. Every node carries a
-// mandatory author-chosen kebab `id` so re-apply is stable across retitles.
+// branch; only `blockedBy` (an Epic-level cross-Epic dep list) uses explicit id
+// references. Every node carries a mandatory author-chosen kebab `id` so
+// re-apply is stable across retitles.
 
 // Ids must be slug-safe: the same shape `slugify()` produces (see `SLUG_RE` in
 // slug.ts), so auto-slugs and author-chosen ids stay aligned.
@@ -37,7 +38,6 @@ export interface BranchNode {
   id: string;
   title: string;
   description?: string;
-  blockedBy?: string[];
   commits?: CommitNode[];
   stacked?: BranchNode[];
 }
@@ -48,8 +48,6 @@ const branchNode: z.ZodType<BranchNode> = z.lazy(() =>
       id: idField,
       title: titleField,
       description: descriptionField,
-      // `blockedBy` references other node ids, so hold it to the same kebab rule.
-      blockedBy: z.array(idField).optional(),
       commits: z.array(commitNode).optional(),
       stacked: z.array(branchNode).optional(),
     })
@@ -61,6 +59,8 @@ const epicNode = z
     id: idField,
     title: titleField,
     description: descriptionField,
+    // `blockedBy` references other Epic ids, so hold it to the same kebab rule.
+    blockedBy: z.array(idField).optional(),
     branches: z.array(branchNode).optional(),
   })
   .strict();
@@ -76,7 +76,6 @@ const rootBranchNode = z
     id: idField,
     title: titleField,
     description: descriptionField,
-    blockedBy: z.array(idField).optional(),
     commits: z.array(commitNode).optional(),
   })
   .strict();
@@ -187,7 +186,8 @@ export function parseApplyDoc(raw: unknown): ApplyParseResult {
 
 // Flatten the nested doc into the desired `Issue[]`, inferring `kind` from the
 // child key, `partOf` from the enclosing container, and `stackedOn` from being
-// nested under another branch. `blockedBy` is carried through verbatim.
+// nested under another branch. `blockedBy` is an Epic-level dep list, carried
+// through verbatim on the Epic node.
 export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
   const desired: DesiredIssue[] = [];
 
@@ -204,7 +204,6 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       partOf: epicId,
       ...(order !== undefined ? { order } : {}),
       ...(stackedOn ? { stackedOn } : {}),
-      blockedBy: branch.blockedBy ?? [],
       ...(branch.description !== undefined
         ? { description: branch.description }
         : {}),
@@ -238,6 +237,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       title: epic.title,
       partOf: projectId,
       ...(order !== undefined ? { order } : {}),
+      blockedBy: epic.blockedBy ?? [],
       ...(epic.description !== undefined
         ? { description: epic.description }
         : {}),
