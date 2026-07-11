@@ -16,6 +16,14 @@ export interface DeriveResult {
   problems: Problem[];
 }
 
+// An Epic counts as "done" (and so stops blocking its dependents) once its
+// derived status is `done` — all its Branches merged. The single source for
+// this predicate: consumed by the blocked pass below and by the UI's
+// per-dependency badge so both read the same rule.
+export function epicIsDone(state: DerivedState | undefined): boolean {
+  return state?.epicStatus === "done";
+}
+
 type Branch = Extract<Issue, { kind: "branch" }>;
 type Commit = Extract<Issue, { kind: "commit" }>;
 
@@ -169,10 +177,10 @@ export function derive(issues: Issue[]): DeriveResult {
 
   // An Epic is blocked while any Epic it `blockedBy` is not done (done = all its
   // Branches merged). Computed in a second pass so every Epic's status is known.
-  const epicIsDone = (id: string): boolean => state[id]?.epicStatus === "done";
   for (const epic of epics) {
     const derived = state[epic.id];
-    if (derived) derived.blocked = epic.blockedBy.some((dep) => !epicIsDone(dep));
+    if (derived)
+      derived.blocked = epic.blockedBy.some((dep) => !epicIsDone(state[dep]));
   }
 
   const ready = readyInStructuralOrder(issues, state);

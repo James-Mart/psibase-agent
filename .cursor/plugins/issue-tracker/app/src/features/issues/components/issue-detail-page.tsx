@@ -13,6 +13,7 @@ import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { GitStackPanel } from "./git-stack-panel";
+import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 
@@ -105,6 +106,7 @@ export function IssueDetailPage() {
           ) : (
             <>
               <IssueMetaPanel issue={issue} />
+              {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
               {issue.kind === "branch" || issue.kind === "commit" ? (
                 <GitStackPanel issue={issue} />
               ) : null}

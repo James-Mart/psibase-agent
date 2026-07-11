@@ -77,6 +77,21 @@ export function epicDependencyIds(epic: EpicLike): string[] {
   return epic.blockedBy;
 }
 
+// The reverse of `epicDependencyIds`: every Epic that lists `blockerId` in its
+// `blockedBy` — the Epics waiting on this one. Named here beside the forward
+// edge so both directions of the Epic dependency graph read from `order.ts`
+// instead of being re-filtered inline in a view. Generic over the epic shape so
+// the UI (`IssueRecord` epics) and the CLI can share the one traversal.
+export function epicsBlockedBy<T extends Issue>(
+  blockerId: string,
+  issues: T[],
+): Extract<T, { kind: "epic" }>[] {
+  return issues.filter(
+    (i): i is Extract<T, { kind: "epic" }> =>
+      i.kind === "epic" && i.blockedBy.includes(blockerId),
+  );
+}
+
 // Order a parent Epic's Branches for structural traversal (the tree / a stacked
 // PR plan), independent of the merged-gated `ready` set. Branches are emitted
 // depth-first: root Branches (no `stackedOn`, or a `stackedOn` outside this set)
