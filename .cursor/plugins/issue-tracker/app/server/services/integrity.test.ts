@@ -8,19 +8,26 @@ const project = (id: string): Issue => ({
   id,
   kind: "project",
   title: id,
+  order: 0,
   createdAt: AT,
   updatedAt: AT,
 });
 
-const epic = (id: string, partOf = "root"): Issue => ({
+const epic = (
+  id: string,
+  partOf = "root",
+  extra: Partial<Extract<Issue, { kind: "epic" }>> = {},
+): Issue => ({
   id,
   kind: "epic",
   title: id,
   partOf,
+  order: 0,
   needsAttention: false,
   attentionReason: null,
   createdAt: AT,
   updatedAt: AT,
+  ...extra,
 });
 
 const branch = (
@@ -32,6 +39,7 @@ const branch = (
   kind: "branch",
   title: id,
   partOf,
+  order: 0,
   blockedBy: [],
   merged: false,
   needsAttention: false,
@@ -41,11 +49,12 @@ const branch = (
   ...extra,
 });
 
-const commit = (id: string, partOf: string): Issue => ({
+const commit = (id: string, partOf: string, order = 0): Issue => ({
   id,
   kind: "commit",
   title: id,
   partOf,
+  order,
   status: "todo",
   needsAttention: false,
   attentionReason: null,
@@ -151,6 +160,17 @@ describe("checkIntegrity", () => {
       problems.some(
         (p) => p.id === "b1" && p.message.includes("blockedBy"),
       ),
+    ).toBe(true);
+  });
+
+  it("flags duplicate order within a sibling group", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("e1"),
+      epic("e2", "root", { order: 0 }),
+    ]);
+    expect(
+      problems.some((p) => p.id === "e2" && p.message.includes("duplicate order")),
     ).toBe(true);
   });
 });

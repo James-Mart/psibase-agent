@@ -129,6 +129,7 @@ Common to every kind:
 | `id` | string | = directory name; stable |
 | `kind` | `"project"` \| `"epic"` \| `"branch"` \| `"commit"` | discriminator |
 | `title` | string | non-empty |
+| `order` | int | sibling position within its parent group; defaults `0` |
 | `createdAt` | ISO string | set at create |
 | `updatedAt` | ISO string | bumped on every write |
 
@@ -169,7 +170,8 @@ Commit — the Epic/Branch/Commit common fields plus:
 | `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
 | `commitSha` | string? | set when done |
 
-Deliberately excluded: `rank`/priority (ordering is derived), `label`, inline
+Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
+authored as a separate priority field), `label`, inline
 `description`/`messages` (they are separate files), and status history.
 
 **Tree nesting and sibling order.** The tree nests a Branch under the Branch it
@@ -178,17 +180,24 @@ in the same Epic — see below), so indentation mirrors the git stack depth. A
 Branch with no `stackedOn` is a *root* Branch, rendered directly under its Epic.
 Under a Branch, its own Commits render first, then the Branches stacked on it.
 `blockedBy` is not shown in the tree (it lives in the detail panel); it only
-affects sibling ordering. Within one nesting level, Commits are ordered by
-sequence (`createdAt` ascending, tie-broken by `id`); sibling Branches are
-ordered topologically by their `stackedOn`/`blockedBy` edges, falling back to the
-same sequence when there is no dependency between two siblings. Epics are ordered
-by sequence.
+affects Epic readiness. Within one nesting level, siblings are ordered strictly
+by stored `order` (never `createdAt` or `id`). Root Branches under an Epic are
+traversed depth-first (each root immediately followed by what stacks on it);
+siblings at every level sort by `order`. Epics and Projects sort by `order`.
+Duplicate `order` within a sibling group is an integrity problem.
 
 **Projects scope the view.** A Project is the top-level container: every Epic is
 `partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
 one scopes the tree and the Ready view to that Project's subtree (its Epics and
 their Branches/Commits). Projects themselves are not rendered as nodes inside the
-tree — they are the selectable root. Projects are ordered by sequence.
+tree — they are the selectable root. Projects are ordered by `order`.
+
+**Stored `order`.** Every issue carries an integer `order` within its sibling
+group. Authors never write it in an apply doc — `apply` infers it from array
+position (and rejects an explicit `order` key). Imperative `create` appends
+(`max + 1`); reparenting without an explicit `order` patch re-appends in the new
+group. The ready set is emitted in structural DFS order (each level sorted by
+`order`), never by `id` or `createdAt`.
 
 ## `chat.jsonl` message shape
 
@@ -498,8 +507,9 @@ enforced at the source rather than trusted at each call site.
 Branch/Epic status, ready/blocked, base branch, the ready set — is computed by
 the pure `derive()` and never written to disk. Stored duplicates of derived
 facts are the classic source of drift; by refusing to store them, the tracker
-cannot show a status that disagrees with reality. Only a Commit's `status` (the
-one genuine human/agent decision) is stored.
+cannot show a status that disagrees with reality. A Commit's `status` (the one
+genuine human/agent decision) and sibling `order` (authored implicitly via doc
+position or imperative append) are stored.
 
 **Metadata-only with respect to git.** The tracker never shells out to git or
 gh. Agents run git/gh themselves and record the results — `branchName`, `prUrl`,

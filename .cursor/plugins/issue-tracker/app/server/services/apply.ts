@@ -9,6 +9,7 @@ import {
   type IssueWrite,
 } from "./issues.js";
 import { checkIntegrity } from "./integrity.js";
+import { nextSiblingOrder } from "../order.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
 import { subtreeIds } from "./subtree.js";
@@ -35,6 +36,7 @@ function buildIssue(
   existing: Issue | undefined,
   now: string,
   preserveStackedOn: boolean,
+  onDisk: Issue[],
 ): Issue {
   const draft: Record<string, unknown> = {
     id: desired.id,
@@ -43,6 +45,30 @@ function buildIssue(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
+
+  const partOf = desired.kind === "project" ? undefined : desired.partOf;
+
+  // Resolve `stackedOn` up front so both the draft and the sibling-order math
+  // key off the same fork point. Normally it is doc-owned (inferred from
+  // nesting); a branch-rooted doc has no nesting, so `preserveStackedOn` keeps
+  // the on-disk fork point — a branch doc never moves its fork point.
+  let stackedOn: string | undefined;
+  if (desired.kind === "branch") {
+    const prior = existing && existing.kind === "branch" ? existing : undefined;
+    stackedOn = preserveStackedOn ? prior?.stackedOn : desired.stackedOn;
+  }
+
+  // Non-root nodes carry a doc-derived `order` (their array index). Only the
+  // doc's root emits `order: undefined`: re-applying an existing root preserves
+  // its on-disk order, while a brand-new root appends to its sibling group so it
+  // never collides at 0 with an existing sibling (e.g. a new epic in a project).
+  if (desired.order !== undefined) {
+    draft.order = desired.order;
+  } else if (existing?.order !== undefined) {
+    draft.order = existing.order;
+  } else {
+    draft.order = nextSiblingOrder(onDisk, desired.kind, partOf, stackedOn);
+  }
 
   // A Project carries none of the common status/assignee/attention fields.
   if (desired.kind !== "project") {
@@ -58,14 +84,7 @@ function buildIssue(
   if (desired.kind === "branch") {
     const prior = existing && existing.kind === "branch" ? existing : undefined;
     draft.blockedBy = desired.blockedBy ?? [];
-    // Normally `stackedOn` is doc-owned (inferred from nesting). A branch-rooted
-    // doc has no parent nesting, so `preserveStackedOn` keeps the on-disk fork
-    // point instead of clearing it — a branch doc never moves its fork point.
-    if (preserveStackedOn) {
-      if (prior?.stackedOn !== undefined) draft.stackedOn = prior.stackedOn;
-    } else if (desired.stackedOn) {
-      draft.stackedOn = desired.stackedOn;
-    }
+    if (stackedOn !== undefined) draft.stackedOn = stackedOn;
     if (prior) {
       draft.merged = prior.merged;
       if (prior.branchName !== undefined) draft.branchName = prior.branchName;
@@ -199,7 +218,7 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
         );
       }
 
-      const next = buildIssue(node, existing, now, preserveStackedOn);
+      const next = buildIssue(node, existing, now, preserveStackedOn, issues);
 
       if (!existing) {
         prospective.set(next.id, next);

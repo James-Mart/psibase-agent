@@ -10,6 +10,7 @@ const commit: Issue = {
   kind: "commit",
   title: "Add login route",
   partOf: "auth-endpoints",
+  order: 0,
   status: "todo",
   needsAttention: false,
   attentionReason: null,

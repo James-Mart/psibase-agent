@@ -28,6 +28,7 @@ import {
   type Problem,
 } from "../schemas.js";
 import { IssueError } from "./errors.js";
+import { nextSiblingOrder, siblingGroupKey } from "../order.js";
 import { derive } from "./derive.js";
 import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
@@ -245,6 +246,12 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       id,
       kind: input.kind,
       title,
+      order: nextSiblingOrder(
+        issues,
+        input.kind,
+        input.partOf,
+        input.stackedOn,
+      ),
       createdAt: now,
       updatedAt: now,
     };
@@ -302,6 +309,20 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
         "validation",
         `field(s) not valid for a ${existing.kind}: ${stripped.join(", ")}`,
       );
+    }
+
+    // Moving a node to a new sibling group (a reparent via `partOf`, or a Branch
+    // restack/unstack via `stackedOn`) can leave its old `order` colliding in the
+    // new group; re-append there unless the caller set `order` explicitly. Keyed
+    // off the one `siblingGroupKey` definition so it stays in lockstep with the
+    // integrity duplicate-order check. This runs before the no-op check, but a
+    // group change already makes the issue differ, so the unchanged path is safe.
+    const next = parsed.issue;
+    const orderPatched = "order" in jsonPatch;
+    if (!orderPatched && siblingGroupKey(next) !== siblingGroupKey(existing)) {
+      const partOf = "partOf" in next ? next.partOf : undefined;
+      const stackedOn = next.kind === "branch" ? next.stackedOn : undefined;
+      next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
     }
 
     const jsonUnchanged =

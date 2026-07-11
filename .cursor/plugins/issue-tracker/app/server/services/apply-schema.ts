@@ -122,7 +122,7 @@ export function isEpicDoc(doc: ApplyDoc): doc is EpicApplyDoc {
 type DocKeys = "id" | "kind" | "title" | "partOf" | "stackedOn" | "blockedBy";
 export type DesiredIssue = Issue extends infer T
   ? T extends Issue
-    ? Pick<T, Extract<keyof T, DocKeys>> & { description?: string }
+    ? Pick<T, Extract<keyof T, DocKeys>> & { description?: string; order?: number }
     : never
   : never;
 
@@ -195,51 +195,56 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
     branch: BranchNode | RootBranchNode,
     epicId: string,
     stackedOn: string | undefined,
+    order?: number,
   ): void => {
     desired.push({
       id: branch.id,
       kind: "branch",
       title: branch.title,
       partOf: epicId,
+      ...(order !== undefined ? { order } : {}),
       ...(stackedOn ? { stackedOn } : {}),
       blockedBy: branch.blockedBy ?? [],
       ...(branch.description !== undefined
         ? { description: branch.description }
         : {}),
     });
-    for (const commit of branch.commits ?? []) {
+    (branch.commits ?? []).forEach((commit, index) => {
       desired.push({
         id: commit.id,
         kind: "commit",
         title: commit.title,
         partOf: branch.id,
+        order: index,
         ...(commit.description !== undefined
           ? { description: commit.description }
           : {}),
       });
-    }
+    });
     // A stacked branch lives in the same Epic as its fork point; only its
     // `stackedOn` reflects the nesting under this branch. A `RootBranchNode`
     // (branch-rooted doc) has no `stacked`, so this is a no-op there.
-    for (const stacked of ("stacked" in branch ? branch.stacked : undefined) ??
-      []) {
-      emitBranch(stacked, epicId, branch.id);
-    }
+    (("stacked" in branch ? branch.stacked : undefined) ?? []).forEach(
+      (stacked, index) => {
+        emitBranch(stacked, epicId, branch.id, index);
+      },
+    );
   };
 
-  const emitEpic = (epic: EpicNode, projectId: string): void => {
+  const emitEpic = (epic: EpicNode, projectId: string, order?: number): void => {
     desired.push({
       id: epic.id,
       kind: "epic",
       title: epic.title,
       partOf: projectId,
+      ...(order !== undefined ? { order } : {}),
       ...(epic.description !== undefined
         ? { description: epic.description }
         : {}),
     });
-    for (const branch of epic.branches ?? []) {
-      emitBranch(branch, epic.id, undefined);
-    }
+    (epic.branches ?? []).forEach((branch, index) => {
+      emitBranch(branch, epic.id, undefined, index);
+    });
   };
 
   // A branch- or epic-rooted doc names its enclosing parent(s) by id only; the
@@ -264,7 +269,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       ? { description: project.description }
       : {}),
   });
-  for (const epic of project.epics ?? []) emitEpic(epic, project.id);
+  (project.epics ?? []).forEach((epic, index) => emitEpic(epic, project.id, index));
 
   return desired;
 }

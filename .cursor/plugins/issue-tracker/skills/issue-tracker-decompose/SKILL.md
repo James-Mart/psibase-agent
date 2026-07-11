@@ -67,7 +67,9 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   of work is a Commit, not a Branch.
 - **Commit** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Tree nesting supplies context, so
-  linking commit → epic is unnecessary.
+  linking commit → epic is unnecessary. **Commits run in the order they appear in
+  the doc** (top-to-bottom); authors never specify `order` — array position is
+  implementation order.
 
 **Each Branch must be independently mergeable to `main`.** Branches merge to
 `main` (stacked children after their fork-point Branch, in stack order), and only

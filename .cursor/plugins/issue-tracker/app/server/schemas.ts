@@ -34,6 +34,7 @@ const timestamps = {
   createdAt: nonEmpty,
   updatedAt: nonEmpty,
 };
+const orderField = { order: z.number().int().nonnegative().default(0) };
 
 // A Project is a minimal organizational container: no status, no assignee, and
 // no needs-attention. Deliberately does not spread `mutableCommon`.
@@ -41,6 +42,7 @@ export const projectSchema = z.object({
   id: nonEmpty,
   kind: z.literal("project"),
   title: nonEmpty,
+  ...orderField,
   ...timestamps,
 });
 
@@ -49,6 +51,7 @@ export const epicSchema = z.object({
   kind: z.literal("epic"),
   partOf: nonEmpty,
   ...mutableCommon,
+  ...orderField,
   ...timestamps,
 });
 
@@ -62,6 +65,7 @@ export const branchSchema = z.object({
   prUrl: z.string().optional(),
   merged: z.boolean().default(false),
   ...mutableCommon,
+  ...orderField,
   ...timestamps,
 });
 
@@ -72,6 +76,7 @@ export const commitSchema = z.object({
   status: z.enum(COMMIT_STATUSES).default("todo"),
   commitSha: z.string().optional(),
   ...mutableCommon,
+  ...orderField,
   ...timestamps,
 });
 

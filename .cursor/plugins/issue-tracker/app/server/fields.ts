@@ -6,6 +6,7 @@ export const COMMON_MERGEABLE_KEYS = [
   "needsAttention",
   "attentionReason",
   "partOf",
+  "order",
 ] as const;
 
 export const BRANCH_FIELD_KEYS = [
@@ -44,6 +45,7 @@ export const FIELD_LABELS = {
   needsAttention: "Needs attention",
   attentionReason: "Attention reason",
   partOf: "Part of",
+  order: "Order",
   branchName: "Branch name",
   stackedOn: "Stacked on",
   blockedBy: "Blocked by",

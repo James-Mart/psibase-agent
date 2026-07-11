@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,11 +15,12 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "issue-tracker-write-"));
   vi.resetModules();
   vi.stubEnv("ISSUES_DIR", dir);
-  writeIssue("p", { kind: "project", title: "P", createdAt: AT, updatedAt: AT });
+  writeIssue("p", { kind: "project", title: "P", order: 0, createdAt: AT, updatedAt: AT });
   writeIssue("e", {
     kind: "epic",
     title: "E",
     partOf: "p",
+    order: 0,
     createdAt: AT,
     updatedAt: AT,
   });
@@ -27,6 +28,7 @@ beforeEach(() => {
     kind: "branch",
     title: "A",
     partOf: "e",
+    order: 0,
     createdAt: AT,
     updatedAt: AT,
   });
@@ -34,6 +36,7 @@ beforeEach(() => {
     kind: "branch",
     title: "B",
     partOf: "e",
+    order: 0,
     stackedOn: "a",
     createdAt: AT,
     updatedAt: AT,
@@ -79,6 +82,143 @@ describe("validate-at-write on the service layer", () => {
     const record = await update("a", { branchName: "feat/a" });
     expect(record.kind === "branch" && record.branchName).toBe("feat/a");
   });
+
+  it("appends order on create", async () => {
+    const { create } = await loadService();
+    const first = await create({ kind: "commit", title: "C1", partOf: "a" });
+    const second = await create({ kind: "commit", title: "C2", partOf: "a" });
+    expect(first.kind === "commit" && first.order).toBe(0);
+    expect(second.kind === "commit" && second.order).toBe(1);
+  });
+
+  it("re-appends order when reparenting without an explicit order patch", async () => {
+    const { create, update } = await loadService();
+    const commit = await create({ kind: "commit", title: "Move me", partOf: "a" });
+    const moved = await update(commit.id, { partOf: "b" });
+    expect(moved.kind === "commit" && moved.order).toBe(0);
+  });
+});
+
+// Moving a Branch between fork points (`set-stacked-on`) changes its sibling
+// group, so its old `order` can collide in the destination bucket. These pin the
+// re-append behavior that keeps restacks/unstacks/reparents from being refused.
+// Seed (from beforeEach): epic e with root branch a (order 0) and b stacked on a
+// (order 0).
+describe("sibling order — restack / unstack / reparent", () => {
+  function orderOf(id: string): number {
+    return JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8")).order;
+  }
+
+  it("re-appends a branch's order when restacked onto a fork point that already has children", async () => {
+    // a2 is a second root branch (order 1) already carrying a child x (order 0).
+    writeIssue("a2", {
+      kind: "branch",
+      title: "A2",
+      partOf: "e",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("x", {
+      kind: "branch",
+      title: "X",
+      partOf: "e",
+      stackedOn: "a2",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update, list } = await loadService();
+    // b (order 0, stacked on a) moves under a2, whose children already hold
+    // order 0 (x). Without re-append b would collide; it must land at order 1.
+    const moved = await update("b", { stackedOn: "a2" });
+    expect(moved.kind === "branch" && moved.stackedOn).toBe("a2");
+    expect(orderOf("b")).toBe(1);
+    expect(orderOf("x")).toBe(0);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("re-appends among the epic's roots when a branch is unstacked (stackedOn cleared)", async () => {
+    // b (stacked on a) becomes a root branch; roots currently hold a (order 0),
+    // so b appends at order 1 rather than keeping its child-bucket order 0.
+    const { update, list } = await loadService();
+    const moved = await update("b", { stackedOn: null });
+    expect(moved.kind === "branch" && moved.stackedOn).toBeUndefined();
+    expect(orderOf("b")).toBe(1);
+    expect(orderOf("a")).toBe(0);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("gives order 0 when restacked into a fork point with no other children", async () => {
+    writeIssue("a2", {
+      kind: "branch",
+      title: "A2",
+      partOf: "e",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update, list } = await loadService();
+    // a2 has no children yet, so b appends at order 0 (a fresh bucket).
+    await update("b", { stackedOn: "a2" });
+    expect(orderOf("b")).toBe(0);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("honors an explicit order patch during a restack (no re-append override)", async () => {
+    writeIssue("a2", {
+      kind: "branch",
+      title: "A2",
+      partOf: "e",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    await update("b", { stackedOn: "a2", order: 7 });
+    expect(orderOf("b")).toBe(7);
+  });
+
+  it("leaves order untouched when set-stacked-on is a no-op (same group)", async () => {
+    const { update } = await loadService();
+    // b is already stacked on a; re-setting the same fork point must not shuffle.
+    await update("b", { stackedOn: "a" });
+    expect(orderOf("b")).toBe(0);
+  });
+
+  it("re-appends among the destination epic's roots when a branch is reparented across epics", async () => {
+    writeIssue("e2", {
+      kind: "epic",
+      title: "E2",
+      partOf: "p",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("e2b", {
+      kind: "branch",
+      title: "E2B",
+      partOf: "e2",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    // A lone root branch in e (no children, no stackedOn) so the move is clean.
+    writeIssue("lone", {
+      kind: "branch",
+      title: "Lone",
+      partOf: "e",
+      order: 2,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update, list } = await loadService();
+    await update("lone", { partOf: "e2" });
+    // e2 roots already hold e2b (order 0), so lone appends at order 1.
+    expect(orderOf("lone")).toBe(1);
+    expect(orderOf("e2b")).toBe(0);
+    expect(list().problems).toEqual([]);
+  });
 });
 
 describe("cascade delete + reference repair on remove", () => {
@@ -118,6 +258,7 @@ describe("cascade delete + reference repair on remove", () => {
       kind: "branch",
       title: "D",
       partOf: "e",
+      order: 1,
       blockedBy: ["a"],
       merged: false,
       createdAt: AT,

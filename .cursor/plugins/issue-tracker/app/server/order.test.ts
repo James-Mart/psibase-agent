@@ -2,31 +2,24 @@ import { describe, expect, it } from "vitest";
 import { stackedBranchOrder } from "./order";
 import type { Issue } from "./schemas";
 
-let clock = 0;
-function nextAt(): string {
-  clock += 1;
-  return new Date(Date.UTC(2026, 6, 10, 14, 0, clock)).toISOString();
-}
-
 type Branch = Extract<Issue, { kind: "branch" }>;
 
-// Build a branch with an explicit `createdAt` so tie-break order is deterministic
-// regardless of construction order.
 const branch = (
   id: string,
-  createdAt: string,
+  order: number,
   extra: Partial<Branch> = {},
 ): Branch => ({
   id,
   kind: "branch",
   title: id,
   partOf: "e",
+  order,
   blockedBy: [],
   merged: false,
   needsAttention: false,
   attentionReason: null,
-  createdAt,
-  updatedAt: createdAt,
+  createdAt: "2026-07-10T14:00:00.000Z",
+  updatedAt: "2026-07-10T14:00:00.000Z",
   ...extra,
 });
 
@@ -34,18 +27,17 @@ const ids = (branches: Branch[]): string[] => branches.map((b) => b.id);
 
 describe("stackedBranchOrder", () => {
   it("emits each root immediately followed by what is stacked on it (depth-first)", () => {
-    const a = branch("a", nextAt());
-    const b = branch("b", nextAt(), { stackedOn: "a" });
-    const c = branch("c", nextAt(), { stackedOn: "b" });
+    const a = branch("a", 0);
+    const b = branch("b", 0, { stackedOn: "a" });
+    const c = branch("c", 0, { stackedOn: "b" });
     expect(ids(stackedBranchOrder([c, a, b]))).toEqual(["a", "b", "c"]);
   });
 
-  it("tie-breaks sibling roots and sibling children by bySequence (createdAt asc)", () => {
-    const early = branch("early", nextAt());
-    const late = branch("late", nextAt());
-    const childEarly = branch("child-early", nextAt(), { stackedOn: "early" });
-    const childLate = branch("child-late", nextAt(), { stackedOn: "early" });
-    // Pass in a deliberately scrambled order; ordering must come from createdAt.
+  it("orders sibling roots and sibling children by stored order", () => {
+    const early = branch("early", 0);
+    const late = branch("late", 1);
+    const childEarly = branch("child-early", 0, { stackedOn: "early" });
+    const childLate = branch("child-late", 1, { stackedOn: "early" });
     expect(ids(stackedBranchOrder([late, childLate, childEarly, early]))).toEqual([
       "early",
       "child-early",
@@ -55,16 +47,13 @@ describe("stackedBranchOrder", () => {
   });
 
   it("treats a stackedOn pointing outside the set as a root", () => {
-    const b = branch("b", nextAt(), { stackedOn: "not-in-set" });
+    const b = branch("b", 0, { stackedOn: "not-in-set" });
     expect(ids(stackedBranchOrder([b]))).toEqual(["b"]);
   });
 
   it("terminates on a pure stackedOn cycle (both are children, so no root anchors traversal)", () => {
-    // a<->b point at each other, so neither is a root and the DFS starts
-    // nowhere: the function returns empty rather than looping. Integrity reports
-    // the cycle as a problem; ordering just refuses to invent an order for it.
-    const a = branch("a", nextAt(), { stackedOn: "b" });
-    const b = branch("b", nextAt(), { stackedOn: "a" });
+    const a = branch("a", 0, { stackedOn: "b" });
+    const b = branch("b", 0, { stackedOn: "a" });
     expect(stackedBranchOrder([a, b])).toEqual([]);
   });
 

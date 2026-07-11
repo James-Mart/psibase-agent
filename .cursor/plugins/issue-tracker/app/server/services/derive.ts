@@ -5,7 +5,7 @@ import type {
   Issue,
   Problem,
 } from "../schemas.js";
-import { bySequence } from "../order.js";
+import { bySequence, stackedBranchOrder } from "../order.js";
 import { checkIntegrity } from "./integrity.js";
 
 export const EPIC_BASE = "main";
@@ -18,6 +18,61 @@ export interface DeriveResult {
 
 type Branch = Extract<Issue, { kind: "branch" }>;
 type Commit = Extract<Issue, { kind: "commit" }>;
+
+function readyInStructuralOrder(
+  issues: Issue[],
+  state: Record<string, DerivedState>,
+): string[] {
+  const epicsOf = new Map<string, Issue[]>();
+  const branchesOf = new Map<string, Branch[]>();
+  const commitsOf = new Map<string, Commit[]>();
+  const projects = issues.filter((i) => i.kind === "project").sort(bySequence);
+
+  for (const issue of issues) {
+    if (issue.kind === "epic") {
+      const bucket = epicsOf.get(issue.partOf) ?? [];
+      bucket.push(issue);
+      epicsOf.set(issue.partOf, bucket);
+    } else if (issue.kind === "branch") {
+      const bucket = branchesOf.get(issue.partOf) ?? [];
+      bucket.push(issue);
+      branchesOf.set(issue.partOf, bucket);
+    } else if (issue.kind === "commit") {
+      const bucket = commitsOf.get(issue.partOf) ?? [];
+      bucket.push(issue);
+      commitsOf.set(issue.partOf, bucket);
+    }
+  }
+  for (const bucket of epicsOf.values()) bucket.sort(bySequence);
+  for (const bucket of commitsOf.values()) bucket.sort(bySequence);
+
+  const ready: string[] = [];
+  const consider = (id: string, issue: Issue): void => {
+    const d = state[id];
+    if (!d) return;
+    if (issue.kind === "commit" && d.ready) ready.push(id);
+    if (
+      issue.kind === "branch" &&
+      d.ready &&
+      d.branchStatus === "not-started"
+    ) {
+      ready.push(id);
+    }
+  };
+
+  for (const project of projects) {
+    for (const epic of epicsOf.get(project.id) ?? []) {
+      const branches = stackedBranchOrder(branchesOf.get(epic.id) ?? []);
+      for (const branch of branches) {
+        consider(branch.id, branch);
+        for (const commit of commitsOf.get(branch.id) ?? []) {
+          consider(commit.id, commit);
+        }
+      }
+    }
+  }
+  return ready;
+}
 
 export function derive(issues: Issue[]): DeriveResult {
   const problems = checkIntegrity(issues);
@@ -102,18 +157,7 @@ export function derive(issues: Issue[]): DeriveResult {
     state[epic.id] = { ready: false, blocked: false, epicStatus };
   }
 
-  const ready = issues
-    .filter((issue) => {
-      const d = state[issue.id];
-      if (!d) return false;
-      if (issue.kind === "commit") return d.ready;
-      if (issue.kind === "branch") {
-        return d.ready && d.branchStatus === "not-started";
-      }
-      return false;
-    })
-    .sort(bySequence)
-    .map((issue) => issue.id);
+  const ready = readyInStructuralOrder(issues, state);
 
   return { byId: state, ready, problems };
 }

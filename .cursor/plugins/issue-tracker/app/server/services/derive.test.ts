@@ -8,11 +8,12 @@ function nextAt(): string {
   return new Date(Date.UTC(2026, 6, 9, 14, 0, clock)).toISOString();
 }
 
-const epic = (id: string, partOf = "p"): Issue => ({
+const epic = (id: string, partOf = "p", order = 0): Issue => ({
   id,
   kind: "epic",
   title: id,
   partOf,
+  order,
   needsAttention: false,
   attentionReason: null,
   createdAt: nextAt(),
@@ -23,11 +24,13 @@ const branch = (
   id: string,
   partOf: string,
   extra: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  order = 0,
 ): Issue => ({
   id,
   kind: "branch",
   title: id,
   partOf,
+  order,
   blockedBy: [],
   merged: false,
   needsAttention: false,
@@ -41,11 +44,13 @@ const commit = (
   id: string,
   partOf: string,
   extra: Partial<Extract<Issue, { kind: "commit" }>> = {},
+  order = 0,
 ): Issue => ({
   id,
   kind: "commit",
   title: id,
   partOf,
+  order,
   status: "todo",
   needsAttention: false,
   attentionReason: null,
@@ -54,13 +59,23 @@ const commit = (
   ...extra,
 });
 
+const project = (id: string, order = 0): Issue => ({
+  id,
+  kind: "project",
+  title: id,
+  order,
+  createdAt: nextAt(),
+  updatedAt: nextAt(),
+});
+
 describe("derive - commit ready/blocked", () => {
   it("marks a todo commit ready when its branch has a name and earlier siblings are done", () => {
     const issues = [
+      project("p"),
       epic("e"),
       branch("b", "e", { branchName: "feat/b" }),
-      commit("c1", "b", { status: "done", commitSha: "aaa" }),
-      commit("c2", "b"),
+      commit("c1", "b", { status: "done", commitSha: "aaa" }, 0),
+      commit("c2", "b", {}, 1),
     ];
     const { byId } = derive(issues);
     expect(byId.c2.ready).toBe(true);
@@ -69,10 +84,11 @@ describe("derive - commit ready/blocked", () => {
 
   it("blocks a todo commit when an earlier sibling is not done", () => {
     const issues = [
+      project("p"),
       epic("e"),
       branch("b", "e", { branchName: "feat/b" }),
-      commit("c1", "b"),
-      commit("c2", "b"),
+      commit("c1", "b", {}, 0),
+      commit("c2", "b", {}, 1),
     ];
     const { byId } = derive(issues);
     expect(byId.c1.ready).toBe(true);
@@ -250,17 +266,72 @@ describe("derive - epic rollup", () => {
 describe("derive - ready set", () => {
   it("lists ready commits and startable (not-started, ready) branches only", () => {
     const issues = [
+      project("p"),
       epic("e"),
-      branch("started", "e", { branchName: "feat/started" }),
-      commit("c1", "started"),
-      branch("fresh", "e"),
-      branch("blocked", "e", { stackedOn: "fresh" }),
+      branch("started", "e", { branchName: "feat/started" }, 0),
+      commit("c1", "started", {}, 0),
+      branch("fresh", "e", {}, 1),
+      branch("blocked", "e", { stackedOn: "fresh" }, 0),
     ];
     const { ready } = derive(issues);
     expect(ready).toContain("c1");
     expect(ready).toContain("fresh");
     expect(ready).not.toContain("started");
     expect(ready).not.toContain("blocked");
+  });
+});
+
+describe("derive - ready set structural ordering", () => {
+  it("orders ready branches within an epic by stored order, regardless of input order", () => {
+    // Deliberately scrambled input; the ready set must follow `order`.
+    const issues = [
+      project("p"),
+      epic("e"),
+      branch("beta", "e", {}, 1),
+      branch("alpha", "e", {}, 0),
+    ];
+    expect(derive(issues).ready).toEqual(["alpha", "beta"]);
+  });
+
+  it("emits a root branch's ready commit before the branch stacked on it (DFS)", () => {
+    // root has a branchName so its commit is ready; child forks the root's tip
+    // (base = root's branchName) so it is also ready-to-start. DFS must place the
+    // root's own commit ahead of the stacked child.
+    const issues = [
+      project("p"),
+      epic("e"),
+      branch("root", "e", { branchName: "feat/root" }, 0),
+      commit("root-c", "root", {}, 0),
+      branch("child", "e", { stackedOn: "root" }, 0),
+    ];
+    expect(derive(issues).ready).toEqual(["root-c", "child"]);
+  });
+
+  it("orders ready items across epics by epic order, tolerating equal per-group order", () => {
+    // Both branches carry order 0 — legitimate, since each is the sole root of a
+    // different epic. A flat sort would tie; structural DFS orders by epic.
+    const issues = [
+      project("p"),
+      epic("ea", "p", 0),
+      epic("eb", "p", 1),
+      branch("a", "ea", {}, 0),
+      branch("b", "eb", {}, 0),
+    ];
+    const { ready, problems } = derive(issues);
+    expect(problems).toEqual([]);
+    expect(ready).toEqual(["a", "b"]);
+  });
+
+  it("orders ready items across projects by project order", () => {
+    const issues = [
+      project("p1", 0),
+      project("p2", 1),
+      epic("e1", "p1", 0),
+      epic("e2", "p2", 0),
+      branch("b1", "e1", {}, 0),
+      branch("b2", "e2", {}, 0),
+    ];
+    expect(derive(issues).ready).toEqual(["b1", "b2"]);
   });
 });
 

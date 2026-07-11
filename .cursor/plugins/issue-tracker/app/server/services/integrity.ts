@@ -1,5 +1,29 @@
 import { PARENT_KIND, type Issue, type IssueKind, type Problem } from "../schemas.js";
-import { branchDependencyIds } from "../order.js";
+import { branchDependencyIds, siblingGroupKey } from "../order.js";
+
+function checkDuplicateOrder(issues: Issue[], problems: Problem[]): void {
+  const buckets = new Map<string, Issue[]>();
+  for (const issue of issues) {
+    const key = siblingGroupKey(issue);
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(issue);
+    buckets.set(key, bucket);
+  }
+  for (const bucket of buckets.values()) {
+    const seen = new Map<number, string>();
+    for (const issue of bucket) {
+      const prior = seen.get(issue.order);
+      if (prior) {
+        problems.push({
+          id: issue.id,
+          message: `duplicate order ${issue.order} in sibling group (also used by "${prior}")`,
+        });
+      } else {
+        seen.set(issue.order, issue.id);
+      }
+    }
+  }
+}
 
 function checkReferent(
   issue: Issue,
@@ -115,6 +139,8 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
       message: "part of a stackedOn/blockedBy dependency cycle",
     });
   }
+
+  checkDuplicateOrder(issues, problems);
 
   return problems;
 }

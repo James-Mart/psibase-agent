@@ -202,13 +202,14 @@ describe("project-title resolution errors surface through the CLI", () => {
 describe("block", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   function seedBranches(targetBlockedBy: string[]): void {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: AT, updatedAt: AT });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: AT, updatedAt: AT });
-    for (const id of ["a", "b", "c"]) {
+    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", order: 0, createdAt: AT, updatedAt: AT });
+    for (const [index, id] of ["a", "b", "c"].entries()) {
       writeIssue(id, {
         kind: "branch",
         title: id.toUpperCase(),
         partOf: "e",
+        order: index,
         blockedBy: [],
         merged: false,
         createdAt: AT,
@@ -219,6 +220,7 @@ describe("block", () => {
       kind: "branch",
       title: "T",
       partOf: "e",
+      order: 3,
       blockedBy: targetBlockedBy,
       merged: false,
       createdAt: AT,
@@ -286,12 +288,13 @@ describe("block", () => {
 describe("set-part-of", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: AT, updatedAt: AT });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: AT, updatedAt: AT });
+    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("a", {
       kind: "branch",
       title: "A",
       partOf: "e",
+      order: 0,
       blockedBy: [],
       merged: false,
       createdAt: AT,
@@ -301,6 +304,7 @@ describe("set-part-of", () => {
       kind: "branch",
       title: "A2",
       partOf: "e",
+      order: 1,
       blockedBy: [],
       merged: false,
       createdAt: AT,
@@ -310,6 +314,7 @@ describe("set-part-of", () => {
       kind: "commit",
       title: "C1",
       partOf: "a",
+      order: 0,
       status: "todo",
       createdAt: AT,
       updatedAt: AT,

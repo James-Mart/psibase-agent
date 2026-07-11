@@ -107,6 +107,32 @@ describe("parseApplyDoc", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects author-specified order on siblings", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        epics: [
+          {
+            id: "e",
+            title: "E",
+            branches: [
+              {
+                id: "b",
+                title: "B",
+                commits: [
+                  { id: "c1", title: "C1", order: 0 },
+                  { id: "c2", title: "C2", order: 0 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("rejects duplicate ids across the doc", () => {
     const result = parseApplyDoc({
       project: {
@@ -219,6 +245,17 @@ describe("flattenApplyDoc", () => {
   it("carries descriptions and omits them when absent", () => {
     expect(map.get("my-project")?.description).toBe("Overview...");
     expect(map.get("phase-0b")?.description).toBeUndefined();
+  });
+
+  it("infers order from array position for every child level", () => {
+    expect(map.get("epic-billing")?.order).toBe(0);
+    expect(map.get("epic-empty")?.order).toBe(1);
+    expect(map.get("phase-0")?.order).toBe(0);
+    expect(map.get("phase-0b")?.order).toBe(1);
+    expect(map.get("phase-1")?.order).toBe(0);
+    expect(map.get("phase-2")?.order).toBe(0);
+    expect(map.get("p0-extract-module")?.order).toBe(0);
+    expect(map.get("my-project")?.order).toBeUndefined();
   });
 });
 
