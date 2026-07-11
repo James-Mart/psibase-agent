@@ -435,7 +435,12 @@ branch:
   subtree) is refused with no on-disk change. Same validator, same guarantees as
   the imperative writer.
 - **Idempotent.** Re-applying an unchanged doc rewrites nothing (unchanged nodes
-  keep their `updatedAt`), so it is safe to re-`apply` an evolving plan.
+  keep their `updatedAt`), so it is safe to re-`apply` an evolving plan. The one
+  exception is **stale-key reconciliation:** if an on-disk `issue.json` carries a
+  key the current schema no longer recognizes (e.g. a pre-migration branch-level
+  `blockedBy`, which `parseIssue` strips on read), a re-apply rewrites that file to
+  tidy the stale key and counts it as `updated`. Since this is not a semantic
+  change, the node keeps its existing `updatedAt`.
 
 ### Declarative/imperative field seam
 

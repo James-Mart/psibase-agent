@@ -11,6 +11,7 @@ import {
   KIND_FIELD_KEYS,
   type BranchFieldKey,
   type CommitFieldKey,
+  type EpicFieldKey,
 } from "@server/fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,7 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     stackedOn: issue.kind === "branch" ? issue.stackedOn ?? "" : "",
     prUrl: issue.kind === "branch" ? issue.prUrl ?? "" : "",
     merged: issue.kind === "branch" ? issue.merged : false,
-    blockedBy: issue.kind === "branch" ? issue.blockedBy.join(" ") : "",
+    blockedBy: issue.kind === "epic" ? issue.blockedBy.join(" ") : "",
   };
 }
 
@@ -137,14 +138,17 @@ export function IssueDetailEdit({
       setClearable("commitSha", form.commitSha, issue.commitSha);
     }
 
+    if (issue.kind === "epic") {
+      const nextBlocked = parseIds(form.blockedBy);
+      if (JSON.stringify(nextBlocked) !== JSON.stringify(issue.blockedBy))
+        patch.blockedBy = nextBlocked;
+    }
+
     if (issue.kind === "branch") {
       setClearable("branchName", form.branchName, issue.branchName);
       setClearable("stackedOn", form.stackedOn, issue.stackedOn);
       setClearable("prUrl", form.prUrl, issue.prUrl);
       if (form.merged !== issue.merged) patch.merged = form.merged;
-      const nextBlocked = parseIds(form.blockedBy);
-      if (JSON.stringify(nextBlocked) !== JSON.stringify(issue.blockedBy))
-        patch.blockedBy = nextBlocked;
     }
 
     return patch;
@@ -159,7 +163,10 @@ export function IssueDetailEdit({
     update.mutate({ id: issue.id, patch }, { onSuccess: () => onDone() });
   };
 
-  const controls: Record<BranchFieldKey | CommitFieldKey, ReactNode> = {
+  const controls: Record<
+    EpicFieldKey | BranchFieldKey | CommitFieldKey,
+    ReactNode
+  > = {
     status: (
       <Select
         value={form.status}

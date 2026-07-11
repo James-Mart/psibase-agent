@@ -144,6 +144,26 @@ export function readDescription(id: string): string {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
+// True when the on-disk issue.json carries keys the current schema no longer
+// recognizes (e.g. a Branch's pre-migration `blockedBy`). `parseIssue` strips
+// such keys on read, so a parsed issue never reflects them; comparing the raw
+// top-level keys against the parsed issue's is the only way to see the drift.
+// `apply` uses this so a re-apply reconciles stale fields off disk instead of
+// treating a semantically-unchanged-but-stale file as a no-op.
+export function onDiskHasUnknownKeys(issue: Issue): boolean {
+  const path = jsonPathOf(issue.id);
+  if (!existsSync(path)) return false;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return false;
+  }
+  if (!raw || typeof raw !== "object") return false;
+  const known = new Set(Object.keys(issue));
+  return Object.keys(raw as Record<string, unknown>).some((key) => !known.has(key));
+}
+
 // The version covers issue.json + description.md, the two files the edit form
 // mutates. chat.jsonl is excluded on purpose: append-only chat updates live
 // through its own SSE-fed query and must not trip the external-edit banner.

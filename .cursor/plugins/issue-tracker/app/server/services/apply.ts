@@ -3,6 +3,7 @@ import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
 import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
 import {
   commitIssueBatch,
+  onDiskHasUnknownKeys,
   readAll,
   readDescription,
   serialize,
@@ -239,14 +240,21 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
       const descChanged =
         node.description !== undefined &&
         node.description !== readDescription(node.id);
+      // A file can be semantically unchanged yet still carry stale keys the
+      // schema now strips on read (e.g. a Branch's pre-migration `blockedBy`).
+      // Re-apply reconciles the doc against disk, so tidy those off too.
+      const staleOnDisk = onDiskHasUnknownKeys(existing);
 
-      if (!jsonChanged && !descChanged) {
+      if (!jsonChanged && !descChanged && !staleOnDisk) {
         prospective.set(existing.id, existing);
         continue;
       }
-      prospective.set(next.id, next);
+      // A stale-key-only rewrite is not a semantic change, so preserve the
+      // existing `updatedAt` (the normalized `probe`) rather than churning it.
+      const rewritten = !jsonChanged && !descChanged ? probe : next;
+      prospective.set(rewritten.id, rewritten);
       writes.push({
-        issue: next,
+        issue: rewritten,
         description: descChanged ? node.description : undefined,
       });
       updated.push(next.id);
