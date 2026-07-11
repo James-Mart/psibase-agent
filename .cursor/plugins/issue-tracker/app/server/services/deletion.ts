@@ -9,7 +9,7 @@ export interface Repoint {
 
 export interface Unblock {
   id: string;
-  // The branch's `blockedBy` with every deleted id removed.
+  // The Epic's `blockedBy` with every deleted id removed.
   blockedBy: string[];
 }
 
@@ -19,7 +19,7 @@ export interface DeletionPlan {
   // Surviving branches whose `stackedOn` pointed into the delete set, spliced to
   // the deleted branch's own fork point.
   repoint: Repoint[];
-  // Surviving branches whose `blockedBy` had entries in the delete set removed.
+  // Surviving Epics whose `blockedBy` had entries in the delete set removed.
   unblock: Unblock[];
 }
 
@@ -33,9 +33,11 @@ export interface DeletionResult {
 // Pure, filesystem-free planner for deleting an issue. It computes the full set
 // of issues to remove (target + transitive `partOf` descendants) and how every
 // surviving foreign reference into that set resolves:
-//   - `stackedOn` (always within one Epic): spliced to the deleted branch's own
-//     fork point, walking up until a surviving branch (or `undefined` = `main`).
-//   - `blockedBy` (may cross Epics): the deleted ids are dropped, no inheritance.
+//   - Branch `stackedOn` (always within one Epic): spliced to the deleted
+//     branch's own fork point, walking up until a surviving branch (or
+//     `undefined` = `main`).
+//   - Epic `blockedBy` (the only cross-container edge): the deleted ids are
+//     dropped, no inheritance.
 // `partOf` never needs repair: anything that points into the delete set via
 // `partOf` is itself contained and therefore also deleted.
 export function planDeletion(issues: Issue[], id: string): DeletionPlan {
@@ -77,14 +79,18 @@ export function planDeletion(issues: Issue[], id: string): DeletionPlan {
   const repoint: Repoint[] = [];
   const unblock: Unblock[] = [];
   for (const issue of issues) {
-    if (issue.kind !== "branch" || deleteSet.has(issue.id)) continue;
-    if (issue.stackedOn && deleteSet.has(issue.stackedOn)) {
+    if (deleteSet.has(issue.id)) continue;
+    // Branch `stackedOn` splices within its Epic.
+    if (issue.kind === "branch" && issue.stackedOn && deleteSet.has(issue.stackedOn)) {
       repoint.push({ id: issue.id, to: survivingForkPoint(issue.stackedOn) });
     }
-    if (issue.blockedBy.some((dep) => deleteSet.has(dep))) {
+    // Epic `blockedBy` is the only cross-container edge; drop deleted ids.
+    // Default at the access site so the pure planner tolerates in-memory epics
+    // that were never parsed (fixtures may omit `blockedBy`).
+    if (issue.kind === "epic" && (issue.blockedBy ?? []).some((dep) => deleteSet.has(dep))) {
       unblock.push({
         id: issue.id,
-        blockedBy: issue.blockedBy.filter((dep) => !deleteSet.has(dep)),
+        blockedBy: (issue.blockedBy ?? []).filter((dep) => !deleteSet.has(dep)),
       });
     }
   }
