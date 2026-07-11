@@ -33,12 +33,18 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   [SPEC.md](../../SPEC.md#apply-doc-format).
 - **Ids are author-chosen and stable.** Every node carries a required kebab `id`
   you pick (unique, slug-safe, title-independent). Because you choose them up
-  front you can author `issue:<id>` cross-links and `blockedBy` references before
-  anything exists — no create-order dependency, no id capture.
-- **`blockedBy` is the only explicit cross-reference.** Containment (`partOf`)
-  and the fork point (`stackedOn`) come from nesting; `blockedBy` is a list of
-  Branch ids for dependencies you do **not** fork from (see the diamond in
-  SPEC.md — keeps parallel branches parallel instead of linearizing them).
+  front you can author `issue:<id>` cross-links and Epic-level `blockedBy` ids
+  before anything exists — no create-order dependency, no id capture.
+- **`blockedBy` is the only explicit cross-reference, and it lives on the
+  Epic.** Containment (`partOf`) and the fork point (`stackedOn`) come from
+  nesting; `blockedBy` is an **Epic-level** list of other same-Project Epic ids —
+  the sole edge that crosses an Epic boundary. Model dependencies *within* an
+  Epic as **stacks** (`stackedOn`), not `blockedBy`. When a unit needs code from
+  two parallel Branches at once (a multi-parent / cross-stack dependency that a
+  single fork point can't express), don't reach for a Branch-level edge: split it
+  into a **separate Epic that is `blockedBy` the first**, keeping Epics small
+  (see the diamond in SPEC.md — keeps parallel branches parallel instead of
+  linearizing them, at the cost of waiting for the blocking Epic to merge).
 - **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
   deleted, and unchanged nodes are untouched. It is atomic (a doc that would

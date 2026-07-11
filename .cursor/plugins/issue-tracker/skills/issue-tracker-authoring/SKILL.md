@@ -63,8 +63,9 @@ instead of `npx tsx cli.ts <verb>`.
   preserves all runtime/progress fields, so it is safe to re-apply mid-run.
   Prints `created`/`updated`/`deleted` counts, then echoes the resulting subtree
   the doc is rooted at (the same outline `tree` prints), so no follow-up `tree`
-  is needed. Doc format and field seam: [SPEC.md](../../SPEC.md). Use it via
-  issue-tracker-decompose.
+  is needed. `blockedBy` is authored as a field on the **Epic** node (a list of
+  same-Project Epic ids); Branches carry no `blockedBy`. Doc format and field
+  seam: [SPEC.md](../../SPEC.md). Use it via issue-tracker-decompose.
 - **`show <id>`** — print one issue's metadata + rendered `description.md`;
   `--chat` also prints the chat log. Self-verify a single issue without piping
   the big `list` JSON through a script.
@@ -73,10 +74,10 @@ instead of `npx tsx cli.ts <verb>`.
   `--project <id|title>` or `--epic <id>` scopes it. Branches print in **stacked
   depth-first order** (a Branch immediately followed by what forks from it) and
   Commits in sequence, so the output *is* the canonical implementation order.
-- **`block <id>`** — edits a Branch's `blockedBy`. Exactly one of: `--by
-  <ids...>` (full replace), `--add <ids...>` (union in), `--remove <ids...>`
-  (drop). Prefer `--add`/`--remove` for incremental edits; `--by` overwrites the
-  whole list.
+- **`block <id>`** — edits an **Epic's** `blockedBy` (the sole cross-Epic edge).
+  Exactly one of: `--by <ids...>` (full replace), `--add <ids...>` (union in),
+  `--remove <ids...>` (drop). Prefer `--add`/`--remove` for incremental edits;
+  `--by` overwrites the whole list.
 - **`set-part-of <id> <parent>`** — reparent a node (Commit→Branch, Branch→Epic,
   Epic→Project). The service validates the new parent's kind/existence.
 - **`--description-file <path>`** (on the create verbs and `set-description`) —
