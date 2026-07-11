@@ -62,6 +62,7 @@ function readyInStructuralOrder(
 
   for (const project of projects) {
     for (const epic of epicsOf.get(project.id) ?? []) {
+      if (state[epic.id]?.blocked) continue; // a blocked Epic surfaces nothing
       const branches = stackedBranchOrder(branchesOf.get(epic.id) ?? []);
       for (const branch of branches) {
         consider(branch.id, branch);
@@ -100,9 +101,19 @@ export function derive(issues: Issue[]): DeriveResult {
     const ref = byId.get(id);
     return ref?.kind === "branch" ? ref.branchName : undefined;
   };
-  const isMerged = (id: string): boolean => {
-    const ref = byId.get(id);
-    return ref?.kind === "branch" ? ref.merged : false;
+
+  // A stacked Branch forks its parent's tip, so it is ready once the parent's
+  // tip exists (it has a `branchName`) and the parent's commits are all `done`
+  // (no merge gate). A parent with no `branchName` is not-started: there is no
+  // tip to fork yet, so the child must stay blocked (guarding against the
+  // vacuous `[].every(...)` on a parent with zero commits). A root Branch (no
+  // `stackedOn`) has no parent to wait on and is ready immediately.
+  const parentTipDone = (branch: Branch): boolean => {
+    if (!branch.stackedOn) return true;
+    const parent = byId.get(branch.stackedOn);
+    if (parent?.kind !== "branch") return false;
+    if (!parent.branchName) return false;
+    return (commitsOf.get(parent.id) ?? []).every((c) => c.status === "done");
   };
 
   const branchStatusOf = (branch: Branch): BranchStatus => {
@@ -116,10 +127,8 @@ export function derive(issues: Issue[]): DeriveResult {
 
   for (const branch of issues.filter((i): i is Branch => i.kind === "branch")) {
     const base = branchName(branch.stackedOn) ?? EPIC_BASE;
-    const baseExists = !branch.stackedOn || branchName(branch.stackedOn) !== undefined;
-    const blockersMerged = branch.blockedBy.every(isMerged);
     const branchStatus = branchStatusOf(branch);
-    const ready = baseExists && blockersMerged;
+    const ready = parentTipDone(branch);
     state[branch.id] = {
       ready,
       blocked: branchStatus === "not-started" && !ready,
@@ -143,7 +152,8 @@ export function derive(issues: Issue[]): DeriveResult {
     };
   }
 
-  for (const epic of issues.filter((i) => i.kind === "epic")) {
+  const epics = issues.filter((i) => i.kind === "epic");
+  for (const epic of epics) {
     const branches = branchesOf.get(epic.id) ?? [];
     const started = branches.filter(
       (b) => state[b.id]?.branchStatus !== "not-started",
@@ -155,6 +165,14 @@ export function derive(issues: Issue[]): DeriveResult {
           ? "in-progress"
           : "todo";
     state[epic.id] = { ready: false, blocked: false, epicStatus };
+  }
+
+  // An Epic is blocked while any Epic it `blockedBy` is not done (done = all its
+  // Branches merged). Computed in a second pass so every Epic's status is known.
+  const epicIsDone = (id: string): boolean => state[id]?.epicStatus === "done";
+  for (const epic of epics) {
+    const derived = state[epic.id];
+    if (derived) derived.blocked = epic.blockedBy.some((dep) => !epicIsDone(dep));
   }
 
   const ready = readyInStructuralOrder(issues, state);
