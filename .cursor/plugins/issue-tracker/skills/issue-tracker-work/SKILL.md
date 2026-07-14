@@ -3,21 +3,23 @@ name: issue-tracker-work
 description: >-
   Coordinate implementation of one tracked Epic without doing the work yourself:
   walk its `tree --epic <id>` outline top-to-bottom, delegating each commit to
-  plugin subagents (implementor, validators; revise = implementor resume) and
-  recording git facts through the CLI. Use when an agent works a tracked Epic to
-  completion. Assumes the CLI from issue-tracker-authoring; glossary in SPEC.md.
+  plugin subagents (model discriminator, implementor, validators; revise =
+  implementor resume) and recording git facts through the CLI. Use when an
+  agent works a tracked Epic to completion. Assumes the CLI from
+  issue-tracker-authoring; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
 
 Coordinate the implementation of one **Epic** without doing the implementation
 yourself. You (the agent invoked with the Epic) are the **coordinator**. Your
-context is precious: delegate all implementation, verification, and review to
-plugin subagents (`agents/*.md`).
+context is precious: delegate all implementation, verification, review, and
+model assignment to plugin subagents (`agents/*.md`).
 
 The coordinator does no real reasoning — it reads tracker state, runs git and the
 CLI, and spawns subagents in a fixed order — so it should itself run on the cheap
-model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The implementor
+model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The model
+discriminator assigns an implementor model onto each Commit; the implementor
 writes code; validators are advisory Composer 2.5 agents.
 
 **You do not write code, run the app, or verify the work yourself.** You read
@@ -26,7 +28,10 @@ subagents. Do **essentially no reasoning**: every coordinator step below is a
 CLI invocation, a git command, or a fixed linear action — this skill is meant to
 be replaced by a deterministic script. The tracker is metadata-only: **you** run
 git, then record the result. Never set status on a Branch or Epic — Branch/Epic
-status derives automatically (see SPEC.md).
+status derives automatically (see SPEC.md). Commit `assignee` is overloaded as
+the implementor **model id** (set by the model discriminator via
+`issue assign`). Reading it into Task `model` is
+[wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn).
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
@@ -75,9 +80,10 @@ the recommended `composer-2.5` model instead of continuing.
    a time. This mirror is a cache of the outline — re-sync it from a fresh
    `issue tree --epic <id>` each time control returns to you (see The loop).
 4. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
-   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role,
-   and (for the implementor) mode `implement` or `revise`. Do not gather
-   descriptions, read diffs, or ingest reports into your own context.
+   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
+   (validators/implementor), and (for the implementor) mode `implement` or
+   `revise`. Do not gather descriptions, read diffs, or ingest reports into
+   your own context.
 
 Because `issue tree` lists each Branch after the Branch it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Branch only after its
@@ -90,7 +96,8 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
 | Coordinator (you) | — | Drive the whole run: git, CLI, spawn subagents | Composer 2.5 (`composer-2.5`) | writes (git/CLI only) |
-| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | Inherit — pass Task `model` `cursor-grok-4.5-high-fast` until assignee wiring lands | writes |
+| Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue assign` only) |
+| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | Inherit — pass Task `model` `cursor-grok-4.5-high-fast` until [wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | After a Branch's last Commit lands | Composer 2.5 (pinned in agent frontmatter) | read-only |
 
@@ -123,19 +130,24 @@ Branch's `base=<base>` and `branch=<branchName>` chips straight from
 ### Per-Commit cycle (for each Commit, in sequence)
 
 1. **Mark in-progress.** `issue set-status <commit> in-progress`.
-2. **Implement.** Spawn `issue-tracker-implementor` (Task `model`:
-   `cursor-grok-4.5-high-fast`). Use the implement spawn stub. Remember the
-   Task agent id for resume. Wait for finished or blocked
-   (`issue attention <id>`). Do not read its diff or ingest a report.
-3. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
+2. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
+   model-discriminator spawn stub. Wait until it finishes (or raises
+   `issue attention`). Do not read its result or inspect `assignee`.
+3. **Implement.** Spawn `issue-tracker-implementor` (Task `model`:
+   `cursor-grok-4.5-high-fast` until
+   [wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn)). Use the
+   implement spawn stub. Remember the Task agent id for resume. Wait for
+   finished or blocked (`issue attention <id>`). Do not read its diff or
+   ingest a report.
+4. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
    (read-only) with the code-quality spawn stub.
-4. **Revise (one pass).** **Resume** the implementor Task from step 2 (same
+5. **Revise (one pass).** **Resume** the implementor Task from step 3 (same
    session). Use the revise spawn stub. Always one resume pass, even if the
    validator posted "nothing actionable". Do not re-run the validator or loop.
-5. **Commit + record.** `git add` the work and `git commit -m "<Commit title>"`
+6. **Commit + record.** `git add` the work and `git commit -m "<Commit title>"`
    (the commit message is the Commit issue's title). Then
    `issue set-status <commit> done` and `issue set-commit <commit> <sha>`.
-6. **Advance** to the next Commit.
+7. **Advance** to the next Commit.
 
 ### Close a Branch
 
@@ -176,6 +188,10 @@ loop is fully **resumable**: re-running the skill on the Epic re-reads
 Pass these as the Task `prompt`. Always inline the Epic id, issue id + title,
 and comment role (plus Mode for the implementor). Children own static behavior
 via their `agents/*.md` files — do not paste workflow instructions here.
+
+**Model discriminator** — `subagent_type: issue-tracker-model-discriminator`
+
+> Epic: `<epicId>`. Commit: `<id>` (`<title>`).
 
 **Implement** — `subagent_type: issue-tracker-implementor`
 
