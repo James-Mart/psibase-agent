@@ -97,7 +97,8 @@ implementation + a focused test) that stands alone.
 **Avoid** horizontal layering that does not stand alone:
 
 - **Bad:** Commit 1 adds types/interfaces only; Commit 2 "wires them up"; Commit 3
-  adds tests. Early Commits do not compile or prove anything on their own.
+  adds tests — or a half-migration Commit that does not compile. Early Commits do
+  not prove anything on their own.
 - **Good:** Commit 1 adds one complete capability (types, implementation, and a
   focused test) that builds; Commit 2 adds the next capability the same way.
 

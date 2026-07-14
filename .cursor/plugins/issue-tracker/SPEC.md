@@ -30,9 +30,10 @@ Every issue has a `kind`, one of four tiers:
 - **Commit** — an atomic, story-point-sized unit implemented as one git commit.
   Each Commit is a **small but standalone cross-section** of the work: after it
   lands on the Branch tip, the package must still **build** and tests must remain
-  **meaningful** (vertical slices, not horizontal layers such as types-only or
-  wire-up-later). The only kind with a **stored** `status` (`todo` /
-  `in-progress` / `done`) and a `commitSha` (set once done).
+  **meaningful** (vertical slices, not horizontal layers such as types-only,
+  wire-up-later, or half-migrations that do not compile). The only kind with a
+  **stored** `status` (`todo` / `in-progress` / `done`) and a `commitSha` (set
+  once done).
 
 ### Relationships
 
