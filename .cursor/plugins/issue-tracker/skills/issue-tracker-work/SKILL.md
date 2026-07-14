@@ -87,12 +87,12 @@ forks the parent's tip, so there is no merge gate).
 | Role | When | Model | Mode |
 |------|------|-------|------|
 | Coordinator (you) | Drive the whole run: git, CLI, spawn subagents | Composer 2.5 (`composer-2.5`) | writes (git/CLI only) |
-| Implementation subagent | Build one Commit's work in the working tree (uncommitted) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
+| Implementation subagent | Build one Commit's work in the working tree (uncommitted) | Cursor Grok 4.5 High Fast (`cursor-grok-4.5-high-fast`) | writes |
 | Code-quality validator | After a Commit's implementation signals finished | Composer 2.5 (`composer-2.5`) | read-only |
 | Revision subagent | Address a validator's feedback (per commit and per branch) | Opus 4.8 High (`claude-opus-4-8-thinking-high`) | writes |
 | Spec-conformance validator | After a Branch's last Commit lands | Composer 2.5 (`composer-2.5`) | read-only |
 
-The Opus implementation/revision agents are the senior engineers. The Composer
+The implementation and revision agents are the senior engineers. The Composer
 validators are advisory — they surface issues but are **not** in charge. A
 validator is read-only in spirit (it never edits code); it reports its feedback
 by running the `comment` CLI verb, which keeps findings out of your context and
@@ -122,7 +122,7 @@ not re-derive the base. Run `git checkout <base>`, then
 ### Per-Commit cycle (for each Commit, in sequence)
 
 1. **Mark in-progress.** `set-status <commit> in-progress`.
-2. **Implement.** Spawn one implementation subagent (Opus 4.8 High), passing only
+2. **Implement.** Spawn one implementation subagent (Cursor Grok 4.5 High Fast), passing only
    the Epic id and the Commit's id + title. It rebuilds its own context, edits the
    working tree, **leaves the changes uncommitted**, and verifies its work per the
    Commit's `description.md` (tests, build, dev server, browser — all the
