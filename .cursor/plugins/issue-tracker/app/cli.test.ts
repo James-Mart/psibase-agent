@@ -93,7 +93,7 @@ describe("summary", () => {
     const { stdout, status } = runCli(["summary", "c1"]);
     expect(status).toBe(0);
     expect(stdout).toContain("Commit: c1 — Do the thing");
-    expect(stdout).toContain("For more details on each of these, try `issue show <id>`.");
+    expect(stdout).toContain("For more details, try `issue show <id>` or `issue tree`.");
   });
 
   it("errors with a nonzero exit on an unknown id", () => {

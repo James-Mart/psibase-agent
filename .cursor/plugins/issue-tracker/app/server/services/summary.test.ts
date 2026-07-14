@@ -134,7 +134,7 @@ describe("formatSummary", () => {
     expect(text).toContain("Branch: stacked — Stacked Branch");
     expect(text).toContain("Commit: c1 — Do the thing");
     expect(text).toContain("Description: Implement the feature.");
-    expect(text).toContain("For more details on each of these, try `issue show <id>`.");
+    expect(text).toContain("For more details, try `issue show <id>` or `issue tree`.");
     expect(text).not.toContain("Workspace:");
   });
 });

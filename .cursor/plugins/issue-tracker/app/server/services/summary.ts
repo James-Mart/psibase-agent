@@ -80,6 +80,8 @@ export function formatSummary(summary: IssueSummary): string {
     }
   }
   lines.push("");
-  lines.push("For more details on each of these, try `issue show <id>`.");
+  lines.push(
+    "For more details, try `issue show <id>` or `issue tree`.",
+  );
   return lines.join("\n");
 }
