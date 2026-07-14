@@ -28,8 +28,11 @@ Every issue has a `kind`, one of four tiers:
   Carries `branchName`, `stackedOn`, `prUrl`, `merged`. Status is derived, never
   stored.
 - **Commit** — an atomic, story-point-sized unit implemented as one git commit.
-  The only kind with a **stored** `status` (`todo` / `in-progress` / `done`) and
-  a `commitSha` (set once done).
+  Each Commit is a **small but standalone cross-section** of the work: after it
+  lands on the Branch tip, the package must still **build** and tests must remain
+  **meaningful** (vertical slices, not horizontal layers such as types-only or
+  wire-up-later). The only kind with a **stored** `status` (`todo` /
+  `in-progress` / `done`) and a `commitSha` (set once done).
 
 ### Relationships
 
@@ -72,10 +75,12 @@ bottom-up: the parent goes to `main` first, then each child to `main` in stack
 order. Consequently **each Branch must be independently mergeable** — merging it
 must leave `main` building and self-consistent on its own. Only Branches merge;
 Commits are internal steps that ship together as their Branch's single PR, so an
-individual Commit need not be shippable but the Branch as a whole must be. Never
-split one cohesive change (for example a schema change and the code that consumes
-it) across separate Branches such that merging one would leave `main` broken —
-keep it in one Branch as multiple Commits.
+individual Commit need not be *shippable* (mergeable to `main` alone) but the
+Branch as a whole must be. A Commit *must* still leave the Branch tip
+**buildable and testable** — see [Commit](#kinds). Never split one cohesive
+change across separate Branches such that merging one would leave `main` broken
+(for example a schema change in one Branch and the code that consumes it in
+another): keep it in one Branch as multiple Commits.
 
 ### Derived terms
 
