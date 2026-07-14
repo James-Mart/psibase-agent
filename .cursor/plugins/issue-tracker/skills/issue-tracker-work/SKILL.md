@@ -3,30 +3,31 @@ name: issue-tracker-work
 description: >-
   Coordinate implementation of one tracked Epic without doing the work yourself:
   walk its `tree --epic <id>` outline top-to-bottom, delegating each commit to
-  plugin subagents (implementor, validators; revise = implementor resume) and
-  recording git facts through the CLI. Use when an agent works a tracked Epic to
-  completion. Assumes the CLI from issue-tracker-authoring; glossary in SPEC.md.
+  plugin subagents (implementor, validators, git; revise = implementor resume).
+  Use when an agent works a tracked Epic to completion. Assumes the CLI from
+  issue-tracker-authoring; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
 
 Coordinate the implementation of one **Epic** without doing the implementation
 yourself. You (the agent invoked with the Epic) are the **coordinator**. Your
-context is precious: delegate all implementation, verification, and review to
-plugin subagents (`agents/*.md`).
+context is precious: delegate all implementation, verification, review, and git
+to plugin subagents (`agents/*.md`).
 
-The coordinator does no real reasoning — it reads tracker state, runs git and the
-CLI, and spawns subagents in a fixed order — so it should itself run on the cheap
-model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The implementor
-writes code; validators are advisory Composer 2.5 agents.
+The coordinator does no real reasoning — it reads tracker state, runs a thin set
+of CLI commands, and spawns subagents in a fixed order — so it should itself run
+on the cheap model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The
+implementor writes code; validators are advisory Composer 2.5 agents; the git
+subagent owns branch create and Commit finalize.
 
-**You do not write code, run the app, or verify the work yourself.** You read
-the plan with `issue tree`, run git, record facts through the CLI, and spawn
-subagents. Do **essentially no reasoning**: every coordinator step below is a
-CLI invocation, a git command, or a fixed linear action — this skill is meant to
-be replaced by a deterministic script. The tracker is metadata-only: **you** run
-git, then record the result. Never set status on a Branch or Epic — Branch/Epic
-status derives automatically (see SPEC.md).
+**You do not write code, run the app, or verify the work yourself.** You read the
+plan with `issue tree`, mark Commits in-progress, and spawn subagents. Do
+**essentially no reasoning**: every coordinator step below is a CLI invocation
+or a fixed linear action — this skill is meant to be replaced by a deterministic
+script. Never set status on a Branch or Epic — Branch/Epic status derives
+automatically (see SPEC.md). Git and git-fact recording are delegated — see
+Rules.
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
@@ -75,9 +76,11 @@ the recommended `composer-2.5` model instead of continuing.
    a time. This mirror is a cache of the outline — re-sync it from a fresh
    `issue tree --epic <id>` each time control returns to you (see The loop).
 4. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
-   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role,
-   and (for the implementor) mode `implement` or `revise`. Do not gather
-   descriptions, read diffs, or ingest reports into your own context.
+   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
+   (validators/implementor), and Mode where required (`implement` / `revise` for
+   the implementor; `start-branch` / `finish-commit` for git). For
+   `start-branch`, also pass `base` and `branchName` from the tree chips. Do not
+   gather descriptions, read diffs, or ingest reports into your own context.
 
 Because `issue tree` lists each Branch after the Branch it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Branch only after its
@@ -89,7 +92,8 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
-| Coordinator (you) | — | Drive the whole run: git, CLI, spawn subagents | Composer 2.5 (`composer-2.5`) | writes (git/CLI only) |
+| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`set-status in-progress` only) |
+| Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | Inherit — pass Task `model` `cursor-grok-4.5-high-fast` until assignee wiring lands | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | After a Branch's last Commit lands | Composer 2.5 (pinned in agent frontmatter) | read-only |
@@ -114,11 +118,8 @@ picks them up. Never act from a cached outline.
 
 ### Start a Branch
 
-If the Branch has no git branch yet, create it before its first commit. Read the
-Branch's `base=<base>` and `branch=<branchName>` chips straight from
-`issue tree` — do not re-derive the base. Run `git checkout <base>`, then
-`git checkout -b <branchName>`, then record it with
-`issue set-branch-name <branchId> <branchName>`.
+If the Branch has no git branch yet, spawn `issue-tracker-git` with the
+start-branch stub before its first Commit (chips from Setup §1 / §4).
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
@@ -132,9 +133,7 @@ Branch's `base=<base>` and `branch=<branchName>` chips straight from
 4. **Revise (one pass).** **Resume** the implementor Task from step 2 (same
    session). Use the revise spawn stub. Always one resume pass, even if the
    validator posted "nothing actionable". Do not re-run the validator or loop.
-5. **Commit + record.** `git add` the work and `git commit -m "<Commit title>"`
-   (the commit message is the Commit issue's title). Then
-   `issue set-status <commit> done` and `issue set-commit <commit> <sha>`.
+5. **Commit + record.** Spawn `issue-tracker-git` with the finish-commit stub.
 6. **Advance** to the next Commit.
 
 ### Close a Branch
@@ -147,7 +146,8 @@ After a Branch's last Commit is `done`:
 2. **Revise (one pass).** Spawn a **fresh** `issue-tracker-implementor` (same
    Task `model` as implement) with the revise spawn stub targeting the
    **Branch**. Always one pass for now (may no-op). If it lands new work,
-   commit it as above.
+   raise `issue attention <branchId>` — `finish-commit` needs a Commit id/title,
+   which branch-level revise does not provide; do not invent one.
 3. **Advance** to the next Branch. **Do not open a PR** — the human opens and
    merges PRs manually.
 
@@ -174,8 +174,17 @@ loop is fully **resumable**: re-running the skill on the Epic re-reads
 ## Spawn stubs
 
 Pass these as the Task `prompt`. Always inline the Epic id, issue id + title,
-and comment role (plus Mode for the implementor). Children own static behavior
-via their `agents/*.md` files — do not paste workflow instructions here.
+and (where listed) comment role / Mode / base / branchName. Children own static
+behavior via their `agents/*.md` files — do not paste workflow instructions here.
+
+**Start Branch** — `subagent_type: issue-tracker-git`
+
+> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: start-branch. base:
+> `<base>`. branchName: `<branchName>`.
+
+**Finish Commit** — `subagent_type: issue-tracker-git`
+
+> Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: finish-commit.
 
 **Implement** — `subagent_type: issue-tracker-implementor`
 
@@ -203,14 +212,18 @@ via their `agents/*.md` files — do not paste workflow instructions here.
 ## Rules
 
 - Never implement, verify, or run the app yourself — always delegate. You own
-  only git, the CLI, and coordination.
+  only coordination and `issue set-status <commit> in-progress`.
+- Never run `git` or the git-fact record commands (`set-branch-name` /
+  `set-status done` / `set-commit`) yourself — spawn `issue-tracker-git` for
+  Branch start and Commit finalize only.
 - Work one Epic, one Commit at a time, in the Branch order `issue tree` prints;
   finish a Branch before the Branches stacked on it.
 - Re-read `issue tree --epic <id>` every time control returns to you and re-sync
   your todo list, so Branches or Commits injected into the in-progress Epic
   mid-run are picked up. Never act from a cached outline.
-- The implementor leaves work uncommitted; **you** commit (message = Commit
-  title) only after the per-commit cycle passes.
+- The implementor leaves work uncommitted; the **git** subagent commits
+  (message = Commit title) and records sha/status only after the per-commit
+  cycle passes.
 - Exactly one revision pass per validator tier (code-quality per commit via
   **resume**, spec-conformance per branch via **fresh** implementor); never loop
   reviews. The implementor may decline findings with reasoning.
