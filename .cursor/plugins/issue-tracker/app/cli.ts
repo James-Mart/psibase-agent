@@ -30,6 +30,7 @@ import {
 import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { EPIC_BASE } from "./server/services/derive.js";
+import { formatSummary, summarize } from "./server/services/summary.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -474,6 +475,18 @@ program
       for (const { id: bid } of result.unblocked) {
         console.log(`  dropped deleted blocker from ${bid}.blockedBy`);
       }
+    }),
+  );
+
+program
+  .command("summary")
+  .argument("<id>", "issue id (commit, branch, epic, or project)")
+  .description(
+    "print the Project → Epic → Branch → Commit chain for agent bootstrap",
+  )
+  .action((id) =>
+    run(() => {
+      console.log(formatSummary(summarize(id)));
     }),
   );
 

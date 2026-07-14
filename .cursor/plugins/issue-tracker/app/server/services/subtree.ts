@@ -1,4 +1,5 @@
 import type { Issue } from "../schemas.js";
+import { IssueError } from "./errors.js";
 
 // The set of ids in an issue's subtree: the root itself plus every issue
 // transitively `partOf` it. Rooted at a Project it yields the whole project
@@ -27,4 +28,48 @@ export function subtreeIds(
     for (const child of childrenOf.get(current) ?? []) queue.push(child);
   }
   return ids;
+}
+
+/**
+ * Walk `partOf` from `id` up to (and including) its Project.
+ * Returns the chain in Project → … → target order.
+ */
+export function ancestorChain(id: string, issues: Issue[]): Issue[] {
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
+  const start = byId.get(id);
+  if (!start) {
+    throw new IssueError("not_found", `unknown issue "${id}"`);
+  }
+
+  const ascending: Issue[] = [];
+  let current: Issue = start;
+  const seen = new Set<string>();
+  for (;;) {
+    if (seen.has(current.id)) {
+      throw new IssueError(
+        "validation",
+        `partOf cycle involving "${current.id}"`,
+      );
+    }
+    seen.add(current.id);
+    ascending.push(current);
+    if (current.kind === "project") break;
+    const parent = byId.get(current.partOf);
+    if (!parent) {
+      throw new IssueError(
+        "validation",
+        `broken partOf chain at "${current.id}" (unknown "${current.partOf}")`,
+      );
+    }
+    current = parent;
+  }
+
+  ascending.reverse();
+  if (ascending[0]?.kind !== "project") {
+    throw new IssueError(
+      "validation",
+      `issue "${id}" is not under a project`,
+    );
+  }
+  return ascending;
 }
