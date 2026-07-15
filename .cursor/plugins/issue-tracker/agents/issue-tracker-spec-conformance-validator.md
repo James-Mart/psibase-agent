@@ -44,6 +44,10 @@ cwd, and honor the unset escalation, per **SPEC § Project workspace**.
    - Read its `description.md` and the Branch `description.md`.
    - Inspect the workspace at that Commit's recorded `commitSha` (or the
      equivalent diff of what that Commit delivered against its spec).
+   - A `noDiff` Commit has no `commitSha` and delivered no diff: judge it by its
+     `description.md` plus the implementor's chat rationale
+     (`issue show <commitId> --chat`) against the spec — was landing no changes
+     actually correct? Treat an unjustified or spec-violating no-op as a gap.
    - Collect **only** missing or off-spec behavior. Omit anything you judge
      in-spec or acceptable — the implementor treats anything not listed as
      fine. The remediation Commit description (if any) **is** the implementor's
