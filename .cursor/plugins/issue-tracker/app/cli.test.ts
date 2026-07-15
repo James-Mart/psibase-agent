@@ -634,3 +634,118 @@ describe("set-part-of", () => {
     expect(partOfOf("c1")).toBe("a");
   });
 });
+
+describe("attach / attachments / detach", () => {
+  const AT = "2026-07-10T14:00:00.000Z";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      order: 0,
+      merged: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      order: 0,
+      status: "todo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+  });
+
+  it("attaches, lists, upserts, and detaches on a commit", () => {
+    const source = join(dir, "fixture.tsx");
+    writeFileSync(source, "export const x = 1;\n");
+
+    const attach1 = runCli(["attach", "c1", source]);
+    expect(attach1.status).toBe(0);
+    expect(attach1.stdout).toContain("attached fixture.tsx (20 bytes)");
+    expect(attach1.stdout).toContain(join(dir, "c1", "attachments", "fixture.tsx"));
+
+    const list1 = runCli(["attachments", "c1"]);
+    expect(list1.status).toBe(0);
+    expect(list1.stdout).toBe("fixture.tsx\t20\n");
+
+    writeFileSync(source, "export const x = 2;\n");
+    const attach2 = runCli(["attach", "c1", source]);
+    expect(attach2.status).toBe(0);
+    expect(attach2.stdout).toContain("attached fixture.tsx (20 bytes)");
+    expect(readFileSync(join(dir, "c1", "attachments", "fixture.tsx"), "utf8")).toBe(
+      "export const x = 2;\n",
+    );
+
+    const detach = runCli(["detach", "c1", "fixture.tsx"]);
+    expect(detach.status).toBe(0);
+    expect(detach.stdout).toBe("detached fixture.tsx from c1\n");
+    expect(runCli(["attachments", "c1"]).stdout).toBe("(no attachments)\n");
+  });
+
+  it("allows attachments on epic and branch", () => {
+    const source = join(dir, "ui.png");
+    writeFileSync(source, "png-bytes");
+
+    expect(runCli(["attach", "e", source]).status).toBe(0);
+    expect(runCli(["attach", "a", source]).status).toBe(0);
+    expect(runCli(["attachments", "e"]).stdout).toContain("ui.png\t9\n");
+    expect(runCli(["attachments", "a"]).stdout).toContain("ui.png\t9\n");
+  });
+
+  it("rejects attachments on a project", () => {
+    const source = join(dir, "nope.bin");
+    writeFileSync(source, "x");
+    const { stderr, status } = runCli(["attach", "p", source]);
+    expect(status).toBe(1);
+    expect(stderr).toContain("attachments are not allowed on a project");
+  });
+
+  it("prints attachments in show when present and omits them when empty", () => {
+    const source = join(dir, "mock.tsx");
+    writeFileSync(source, "canvas");
+    expect(runCli(["attach", "c1", source]).status).toBe(0);
+
+    const withAttachments = runCli(["show", "c1"]);
+    expect(withAttachments.status).toBe(0);
+    expect(withAttachments.stdout).toContain("Attachments:");
+    expect(withAttachments.stdout).toContain(
+      `mock.tsx (6 bytes) — ${join(dir, "c1", "attachments", "mock.tsx")}`,
+    );
+
+    expect(runCli(["detach", "c1", "mock.tsx"]).status).toBe(0);
+    const withoutAttachments = runCli(["show", "c1"]);
+    expect(withoutAttachments.status).toBe(0);
+    expect(withoutAttachments.stdout).not.toContain("Attachments:");
+  });
+
+  it("prints attachments in summary when present and omits them when empty", () => {
+    const source = join(dir, "mock.tsx");
+    writeFileSync(source, "canvas");
+    expect(runCli(["attach", "c1", source]).status).toBe(0);
+
+    const withAttachments = runCli(["summary", "c1"]);
+    expect(withAttachments.status).toBe(0);
+    expect(withAttachments.stdout).toContain("  Attachments:");
+    expect(withAttachments.stdout).toContain(
+      `mock.tsx (6 bytes) — ${join(dir, "c1", "attachments", "mock.tsx")}`,
+    );
+
+    expect(runCli(["detach", "c1", "mock.tsx"]).status).toBe(0);
+    const withoutAttachments = runCli(["summary", "c1"]);
+    expect(withoutAttachments.status).toBe(0);
+    expect(withoutAttachments.stdout).not.toContain("Attachments:");
+  });
+});

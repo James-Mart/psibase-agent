@@ -49,31 +49,61 @@ instead of `npx tsx cli.ts <verb>`.
   message and fix the input.
 - Cross-link issues inside any body/description: `[text](issue:<id>)`.
 
-### The new verbs
+### Declarative apply
 
-- **`apply <file>`** — the declarative authoring path: upsert a nested
-  Project > Epic > Branch > Commit tree from one YAML doc. It is
-  **idempotent** (re-applying an unchanged doc is a no-op), **atomic** (the whole
-  prospective set is integrity-checked before any write; a bad doc changes
-  nothing), and **prune-by-default** (a node the doc omits within its root's
-  subtree is deleted). The doc can be rooted at a **Project** (whole tree), an
-  **Epic** (one epic in an existing project), or a **Branch** (one branch + its
-  commits in an existing epic), so prune stays bounded to that root — edit one
-  epic/branch without disturbing siblings. It writes only plan shape + prose and
-  preserves all runtime/progress fields, so it is safe to re-apply mid-run.
-  Prints `created`/`updated`/`deleted` counts, then echoes the resulting subtree
-  the doc is rooted at (the same outline `tree` prints), so no follow-up `tree`
-  is needed. `blockedBy` is authored as a field on the **Epic** node (a list of
-  same-Project Epic ids); Branches carry no `blockedBy`. Doc format and field
-  seam: [SPEC.md](../../SPEC.md). Use it via issue-tracker-decompose.
-- **`show <id>`** — print one issue's metadata + rendered `description.md`;
-  `--chat` also prints the chat log. Self-verify a single issue without piping
-  the big `list` JSON through a script.
+- **`apply <file>`** — upsert a nested Project > Epic > Branch > Commit tree
+  from one YAML doc. It is **idempotent** (re-applying an unchanged doc is a
+  no-op), **atomic** (the whole prospective set is integrity-checked before any
+  write; a bad doc changes nothing), and **prune-by-default** (a node the doc
+  omits within its root's subtree is deleted). The doc can be rooted at a
+  **Project** (whole tree), an **Epic** (one epic in an existing project), or a
+  **Branch** (one branch + its commits in an existing epic), so prune stays
+  bounded to that root — edit one epic/branch without disturbing siblings. It
+  writes only plan shape + prose and preserves all runtime/progress fields, so
+  it is safe to re-apply mid-run. Prints `created`/`updated`/`deleted` counts,
+  then echoes the resulting subtree the doc is rooted at (the same outline
+  `tree` prints), so no follow-up `tree` is needed. `blockedBy` is authored as
+  a field on the **Epic** node (a list of same-Project Epic ids); Branches
+  carry no `blockedBy`. Doc format and field seam:
+  [SPEC.md](../../SPEC.md). Use it via issue-tracker-decompose.
+
+### Attachments
+
+Companion material (Canvas `.tsx`, images, fixtures) belongs **with the issue
+that uses it** as opaque files under `issues/<id>/attachments/` — do not paste
+binary or Canvas bytes into `description.md`. Full model and limits (Epic/
+Branch/Commit only; basename path-safety; 25 MiB cap):
+[SPEC.md](../../SPEC.md#attachments).
+
+- **Links.** Issue-local relative Markdown only: `[foo](foo.tsx)` means that
+  issue's `attachments/foo.tsx`. No `attachment:` prefix and no `attachments/`
+  segment in the link. Arbitrary external workspace paths remain forbidden.
+- **`attach <id> <file>`** — upsert; stored name is the source file's basename;
+  re-attaching the same name replaces bytes. Project ids are refused.
+- **`attachments <id>`** — list names and sizes, or `(no attachments)`.
+- **`detach <id> <name>`** — remove one attachment by basename.
+- **`apply` seam.** `apply` never creates, updates, or deletes attachment
+  bytes (same as `chat.jsonl`). After the tree is applied, use `attach` /
+  `detach` for bytes.
+- **Discovery.** `show` and `summary` list attachments (name, size, on-disk
+  path) when present; omitted when empty.
+
+### Inspection / bootstrap
+
+- **`show <id>`** — print one issue's metadata + rendered `description.md`
+  (attachments listed when present — see above). `--chat` also prints the chat
+  log. Self-verify a single issue without piping the big `list` JSON through a
+  script.
+- **`summary <id>`** — Project → Epic → Branch → Commit bootstrap chain; each
+  node that has attachments includes the same listing (omitted when empty).
 - **`tree`** — print an indented Project > Epic > Branch > Commit outline with
   derived status/stack chips (status, base, branch, PR, merged, sha, blocked).
   `--project <id|title>` or `--epic <id>` scopes it. Branches print in **stacked
   depth-first order** (a Branch immediately followed by what forks from it) and
   Commits in sequence, so the output *is* the canonical implementation order.
+
+### Other verbs / flags
+
 - **`block <id>`** — edits an **Epic's** `blockedBy` (the sole cross-Epic edge).
   Exactly one of: `--by <ids...>` (full replace), `--add <ids...>` (union in),
   `--remove <ids...>` (drop). Prefer `--add`/`--remove` for incremental edits;
