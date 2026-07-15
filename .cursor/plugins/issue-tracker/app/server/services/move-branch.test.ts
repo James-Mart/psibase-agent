@@ -211,4 +211,33 @@ describe("moveBranch", () => {
     expect(result.moved).toEqual(["a", "b", "c"]);
     expect(readJson("a")).toEqual(before);
   });
+
+  it("leaves commits under their branches when reparenting a stack", async () => {
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "b",
+      status: "todo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("c2", {
+      kind: "commit",
+      title: "C2",
+      partOf: "c",
+      status: "todo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { moveBranch } = await load();
+
+    await moveBranch("b", "e2");
+
+    expect(readJson("c1").partOf).toBe("b");
+    expect(readJson("c2").partOf).toBe("c");
+    expect(readJson("b").partOf).toBe("e2");
+    expect(readJson("c").partOf).toBe("e2");
+  });
 });

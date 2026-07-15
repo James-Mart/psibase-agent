@@ -16,6 +16,11 @@ import {
   canRestackBranchOntoBranch,
   readBranchDragId,
 } from "../lib/branch-drop";
+import {
+  isBranchTreeDraggable,
+  isBranchTreeDropTarget,
+  processBranchDrop,
+} from "../lib/branch-tree-dnd-logic";
 
 export type RowDnDProps = Pick<
   HTMLAttributes<HTMLDivElement>,
@@ -83,9 +88,12 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
         const sourceId =
           readBranchDragId(event.dataTransfer) ?? draggingIdRef.current;
         clearDrag();
-        if (!sourceId) return;
-        if (!canDrop(sourceId)) return;
-        moveBranch.mutate({ id: sourceId, target: targetId });
+        processBranchDrop({
+          sourceId,
+          targetId,
+          canDrop,
+          onMove: (id, target) => moveBranch.mutate({ id, target }),
+        });
       },
     }),
     [clearDrag, moveBranch],
@@ -96,7 +104,7 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
       const id = issue.id;
       const isDropTarget = dropTargetId === id;
 
-      if (issue.kind === "branch") {
+      if (isBranchTreeDraggable(issue)) {
         return {
           ...dropTargetHandlers(id, (sourceId) =>
             canRestackBranchOntoBranch(issues, sourceId, id),
@@ -117,7 +125,7 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
         };
       }
 
-      if (issue.kind === "epic") {
+      if (isBranchTreeDropTarget(issue) && issue.kind === "epic") {
         return {
           ...dropTargetHandlers(id, (sourceId) =>
             canDropBranchOntoEpic(issues, sourceId, id),
