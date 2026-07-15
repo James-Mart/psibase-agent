@@ -14,8 +14,10 @@ import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
+import { AttachmentsPanel } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
+import { supportsAttachments } from "../lib/attachments";
 
 export function IssueDetailPage() {
   const { projectId = "", id = "" } = useParams();
@@ -131,6 +133,9 @@ export function IssueDetailPage() {
               {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
               {issue.kind === "branch" || issue.kind === "commit" ? (
                 <GitStackPanel issue={issue} />
+              ) : null}
+              {supportsAttachments(issue.kind) ? (
+                <AttachmentsPanel issue={issue} />
               ) : null}
               <div className="rounded-lg border bg-card p-6">
                 {issue.description.trim() ? (

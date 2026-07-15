@@ -29,6 +29,13 @@ describe("scopeFromPath", () => {
     expect(scopeFromPath("/issues/add-auth/chat.jsonl")).toBe("chat");
   });
 
+  it("classifies attachment dir and files as attachments scope", () => {
+    expect(scopeFromPath("/issues/add-auth/attachments")).toBe("attachments");
+    expect(scopeFromPath("/issues/add-auth/attachments/mock.tsx")).toBe(
+      "attachments",
+    );
+  });
+
   it("classifies other files as issue scope", () => {
     expect(scopeFromPath("/issues/add-auth/issue.json")).toBe("issue");
     expect(scopeFromPath("/issues/add-auth/description.md")).toBe("issue");

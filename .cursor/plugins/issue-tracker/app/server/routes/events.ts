@@ -36,7 +36,15 @@ export function issueIdFromPath(baseDir: string, filePath: string): string | nul
 }
 
 export function scopeFromPath(filePath: string): IssueEventScope {
-  return basename(filePath) === "chat.jsonl" ? "chat" : "issue";
+  if (basename(filePath) === "chat.jsonl") return "chat";
+  const normalized = filePath.replace(/\\/g, "/");
+  if (
+    normalized.endsWith("/attachments") ||
+    normalized.includes("/attachments/")
+  ) {
+    return "attachments";
+  }
+  return "issue";
 }
 
 function broadcast(event: IssueEvent): void {
