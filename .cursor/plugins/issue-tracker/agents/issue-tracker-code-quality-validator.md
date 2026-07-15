@@ -18,7 +18,10 @@ Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 ## Bootstrap
 
 Run `issue summary <commitId>` for Project → Epic → Branch → Commit context,
-then `issue show <commitId>` for the Commit spec when needed.
+then `issue show <commitId>` for the Commit spec when needed. That summary also
+carries the Project **workspace** — inspect the working-tree diff and read files
+with it as the cwd, and honor the unset escalation, per **SPEC § Project
+workspace**.
 
 ## Inputs (from invoking prompt)
 

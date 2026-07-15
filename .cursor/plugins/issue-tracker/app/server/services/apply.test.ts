@@ -275,6 +275,44 @@ describe("apply — update preserves imperative progress state", () => {
     expect(chat.problems).toEqual([]);
     expect(chat.messages.map((m) => m.body)).toEqual(["progress note"]);
   });
+
+  it("preserves project workspace when the doc updates a project", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    const ws = mkdtempSync(join(tmpdir(), "issue-apply-workspace-"));
+    mkdirSync(join(ws, ".git"));
+    try {
+      await update("proj", { workspace: ws });
+
+      const doc = baseDoc();
+      doc.project.title = "Project renamed";
+      const summary = await apply(doc);
+      expect(summary.updated).toContain("proj");
+
+      const proj = readIssue("proj");
+      expect(proj.title).toBe("Project renamed");
+      expect(proj.workspace).toBe(ws);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves project mergePolicy when the doc updates a project", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    await update("proj", { mergePolicy: "pull-request" });
+
+    const doc = baseDoc();
+    doc.project.title = "Project renamed again";
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("proj");
+
+    const proj = readIssue("proj");
+    expect(proj.title).toBe("Project renamed again");
+    expect(proj.mergePolicy).toBe("pull-request");
+  });
 });
 
 describe("apply — prune by default", () => {

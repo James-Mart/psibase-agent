@@ -20,7 +20,7 @@ of CLI commands, and spawns subagents in a fixed order — so it should itself r
 on the cheap model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The
 model discriminator assigns an implementor model onto each Commit; the
 implementor writes code; validators are advisory Composer 2.5 agents; the git
-subagent owns branch create and Commit finalize.
+subagent owns branch create, Commit finalize, and Branch finish.
 
 **You do not write code, run the app, or verify the work yourself.** You read the
 plan with `issue tree`, mark Commits in-progress, and spawn subagents. Do
@@ -74,16 +74,25 @@ instead of continuing.
    `blockedBy` a blocker that has not fully merged, so — per Argument — it
    **cannot start**. Stop and hand back to the user rather than running
    `issue tree` or working any Commit.
-3. Mirror the Branches and their Commits, in `issue tree` order, into your own
+3. **Workspace preflight.** Run `issue summary <epicId>` and check for the
+   `Workspace:` line under the Project. If it is absent, the Project has no
+   workspace and every repo-touching subagent would immediately escalate, so
+   **stop and hand back to the user** to set it
+   (`issue set-workspace <projectId> <path>`) before spawning anything. See
+   SPEC § Project workspace.
+4. Mirror the Branches and their Commits, in `issue tree` order, into your own
    todo list so you can track progress; keep exactly one Commit `in_progress` at
    a time. This mirror is a cache of the outline — re-sync it from a fresh
    `issue tree --epic <id>` each time control returns to you (see The loop).
-4. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
+5. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
    dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
    (validators/implementor), and Mode where required (`implement` / `revise` for
-   the implementor; `start-branch` / `finish-commit` for git). For
-   `start-branch`, also pass `base` and `branchName` from the tree chips. Do not
-   gather descriptions, read diffs, or ingest reports into your own context.
+   the implementor; `start-branch` / `finish-commit` / `finish-branch` for git).
+   For `start-branch` and `finish-branch`, also pass `base` and `branchName`
+   from the tree chips. Never
+   pass the workspace — each repo subagent resolves it from its own
+   `issue summary` (SPEC § Project workspace). Do not gather descriptions, read
+   diffs, or ingest reports into your own context.
 
 ### Resolve implementor model
 
@@ -103,7 +112,7 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
 | Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`set-status in-progress` only) |
-| Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise | Composer 2.5 (pinned in agent frontmatter) | writes |
+| Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise; finish a Branch | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue assign` only) |
 | Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | From Commit `assignee` (Resolve implementor model) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
@@ -130,7 +139,7 @@ picks them up. Never act from a cached outline.
 ### Start a Branch
 
 If the Branch has no git branch yet, spawn `issue-tracker-git` with the
-start-branch stub before its first Commit (chips from Setup §1 / §4).
+start-branch stub before its first Commit (chips from Setup §1 / §5).
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
@@ -166,8 +175,12 @@ After a Branch's last Commit is `done`:
    no-op). If it lands new work, raise `issue attention <branchId>` —
    `finish-commit` needs a Commit id/title, which branch-level revise does not
    provide; do not invent one.
-3. **Advance** to the next Branch. **Do not open a PR** — the human opens and
-   merges PRs manually.
+3. **Finish the Branch** (only if the revise pass landed no new work; if it
+   raised `issue attention`, stop there instead). Spawn `issue-tracker-git` with
+   the finish-branch stub (Branch id + title, and its `base` / `branchName`
+   chips). Git applies the Project merge policy — see SPEC § Project merge
+   policy.
+4. **Advance** to the next Branch.
 
 ### Escalation
 
@@ -182,8 +195,9 @@ The loop ends when every Commit in the Epic is `done`. Give a short final
 summary: which Branches were built, and anything still open or escalated
 (`issue attention`). For validator findings and what the implementor accepted or
 declined on revise, point the user at the tracker comments
-(`issue show <id> --chat`) rather than collecting them into your context. Remind
-the user that PRs are theirs to open and merge.
+(`issue show <id> --chat`) rather than collecting them into your context. Note
+how finished Branches landed from the `issue tree` chips (`pr=` for an opened
+PR, `merged` for a merged Branch, neither when left for the human).
 
 Everything lives on disk and every derived fact is recomputed on read, so the
 loop is fully **resumable**: re-running the skill on the Epic re-reads
@@ -203,6 +217,11 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 **Finish Commit** — `subagent_type: issue-tracker-git`
 
 > Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: finish-commit.
+
+**Finish Branch** — `subagent_type: issue-tracker-git`
+
+> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: finish-branch. base:
+> `<base>`. branchName: `<branchName>`.
 
 **Model discriminator** — `subagent_type: issue-tracker-model-discriminator`
 
@@ -235,9 +254,9 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 
 - Never implement, verify, or run the app yourself — always delegate. You own
   only coordination and `issue set-status <commit> in-progress`.
-- Never run `git` or the git-fact record commands (`set-branch-name` /
-  `set-status done` / `set-commit`) yourself — spawn `issue-tracker-git` for
-  Branch start and Commit finalize only.
+- Never run `git`/`gh` or the git-fact record commands (`set-branch-name` /
+  `set-status done` / `set-commit` / `open-pr` / `set-merged`) yourself — spawn
+  `issue-tracker-git` for Branch start, Commit finalize, and Branch finish only.
 - Work one Epic, one Commit at a time, in the Branch order `issue tree` prints;
   finish a Branch before the Branches stacked on it.
 - Re-read `issue tree --epic <id>` every time control returns to you and re-sync
@@ -251,5 +270,12 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
   reviews. The implementor may decline findings with reasoning.
 - Validators are read-only and report via `issue comment`; never let a validator
   edit code.
-- Never set status on a Branch or Epic; never open or merge PRs.
+- Never set status on a Branch or Epic. Do not decide whether to open or merge a
+  PR — that is the Project's `mergePolicy`, applied by `issue-tracker-git` on
+  finish-branch. Always spawn finish-branch; never read or branch on the policy.
 - Act only through the CLI for tracker writes; never hand-edit `issue.json`.
+- Workspace is a subagent concern, not yours (SPEC § Project workspace): you and
+  the model discriminator do no repo work, so you never resolve or pass it — each
+  repo subagent reads it from its own `issue summary`. Your only workspace duty
+  is the Setup §3 preflight: if the Epic's Project has no `Workspace:` line, stop
+  and hand back to the user instead of spawning.

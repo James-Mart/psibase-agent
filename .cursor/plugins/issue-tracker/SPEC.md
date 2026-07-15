@@ -18,8 +18,10 @@ Every issue has a `kind`, one of four tiers:
 
 - **Project** — the top-level container that groups related Epics. Purely
   organizational: it carries **no status** (derived or stored) and none of the
-  assignee/needs-attention fields — only a `title` and a `description.md`
-  overview. Has no `partOf`.
+  assignee/needs-attention fields — a `title`, a `description.md` overview, and
+  an optional `workspace` (the absolute path to the local git checkout this
+  Project covers; repo-touching agents run there — see [workspace](#project-workspace)).
+  Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Branches; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
   in the same Project that must finish first). Has **no stored status** — its
@@ -82,6 +84,13 @@ Branch as a whole must be. A Commit *must* still leave the Branch tip
 change across separate Branches such that merging one would leave `main` broken
 (for example a schema change in one Branch and the code that consumes it in
 another): keep it in one Branch as multiple Commits.
+
+This is the PR plan model (`pull-request` / `manual`
+[merge policies](#project-merge-policy)), where a stacked child's PR retargets to
+`main` once its parent has landed. The local `merge` policy is the exception: it
+integrates each finished Branch directly into its derived `base` (the parent tip
+when stacked, else `main`) with no PR, so a stack still lands bottom-up but never
+touches a remote PR.
 
 ### Derived terms
 
@@ -158,9 +167,93 @@ Common to **Epic / Branch / Commit** (but **not** Project):
 | `needsAttention` | boolean | defaults `false` |
 | `attentionReason` | string \| null | defaults `null` |
 
-Project — the common-to-every-kind fields only (no `partOf`, no status, no
-assignee/needs-attention). Its `description.md` is a short overview of the
-Project.
+Project — the common-to-every-kind fields plus:
+
+| field | type | notes |
+| --- | --- | --- |
+| `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
+| `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Branch's last Commit is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
+
+No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
+short overview of the Project.
+
+### Project workspace
+
+A Project's optional `workspace` is the absolute path to the local git checkout
+its Epics' work lands in. It is set with `issue set-workspace <projectId> <path>`
+(cleared with `--clear`) and surfaced on the Project node by both `issue show`
+(a `workspace:` line) and `issue summary` (a `Workspace:` line under the Project).
+
+The field exists so the work loop's **repo-touching subagents** (git,
+implementor, and both validators) know where to operate. The coordinator and the
+model discriminator do no repo work, so neither needs a workspace. The contract
+below is the single source of truth; the agent files (`agents/*.md`) and the work
+skill point here rather than restating it.
+
+**Resolution.** A repo-touching subagent reads its own bootstrap
+`issue summary <id>` output — never a value inlined in its Task prompt (a
+coordinator must not pass one, but if one leaks in, ignore it). From that output:
+
+- the workspace is the `Workspace:` line under the Project;
+- the project id is the id on the `Project: <id> — <title>` line (used to build
+  the attention message and, for git finish-branch, to look up the Project's
+  [merge policy](#project-merge-policy) via `issue show <projectId>`; do not
+  re-derive ancestry any other way).
+
+**Use as cwd.** Run **every** repo command — git, builds, tests, and any
+file-edit / diff-inspection — with the workspace path as the shell working
+directory (pass it as the tool's `working_directory`, or `cd` into it first);
+never rely on the ambient cwd for repo work. The `issue` CLI is exempt: it
+resolves its issues dir from its own install location, so it works from any cwd —
+keep invoking it as-is.
+
+**Unset → escalate, never fall back.** If `issue summary` prints no `Workspace:`
+line, do **not** touch any repo. Raise
+`issue attention <epicId> --reason "Project workspace unset — set it with 'issue set-workspace <projectId> <path>'"`
+(substituting the ids) and stop. Attention always lands on the **Epic**: a
+Project carries no needs-attention fields, so it is never the target.
+
+**Coordinator preflight.** Because the missing-workspace failure otherwise only
+surfaces once a repo subagent is spawned, the work-loop coordinator checks for
+the `Workspace:` line up front (in Setup) and hands back to the user before
+spawning anything if it is absent.
+
+### Project merge policy
+
+A Project's `mergePolicy` decides what happens to a Branch once its last Commit
+is `done`. It is set with `issue set-merge-policy <projectId> <policy>` and read
+off the Project node by `issue show <projectId>` (a `mergePolicy:` line). It
+defaults to **`manual`**, matching today's posture where a human opens and
+merges PRs.
+
+The work loop **always** finishes a Branch by spawning the git subagent in
+`finish-branch` mode; the coordinator never reads or branches on `mergePolicy`.
+Only the git subagent interprets it, from `issue show <projectId>`, so there is
+exactly one reader and the skill can never contradict the field. `finish-branch`
+runs in the Project workspace (same cwd rules as above) and applies:
+
+- **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
+  the PR later. (Default.)
+- **`pull-request`** — push the Branch and open a **draft** PR against its base
+  (the derived `base`: the parent Branch tip when stacked, else `main`), then
+  record the url via `issue open-pr <branchId> <url>`. It does **not** wait for
+  merge or set `merged`, so the Branch derives to `pr-open`.
+- **`merge`** — merge the Branch into its stack base, push the updated base ref,
+  and set `merged` via `issue set-merged <branchId>` (Branch derives to
+  `merged`). This is the local, no-PR integration path; the base is the same
+  derived `base` (parent tip when stacked, else `main`).
+
+**Resumable / idempotent.** The work loop is resumable, so finish-branch may run
+twice for the same Branch. Before acting, the git subagent reads the Branch's
+`prUrl` / `merged` (via `issue show <branchId>`) and no-ops when the policy's end
+state already holds — `merged` set for `merge`, `prUrl` set for `pull-request` —
+so a re-run never opens a duplicate PR or re-merges.
+
+**Failure and recovery.** On failure the git subagent raises `issue attention` on
+the Branch and stops. A `merge` conflict is aborted (`git merge --abort`) so the
+base is never left half-merged; but a *completed* local merge whose `push`
+failed is left in place — with `merged` still unset it is exactly the resumable
+state above, so the retry just re-pushes.
 
 Epic — the Epic/Branch/Commit common fields plus:
 
@@ -459,6 +552,8 @@ preserves everything else from the existing same-kind issue.
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
+| `workspace` (Project) | imperative only (`set-workspace`); `apply` preserves |
+| `mergePolicy` (Project) | imperative only (`set-merge-policy`); `apply` preserves |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |

@@ -15,6 +15,7 @@ export interface SummaryNode {
 export interface IssueSummary {
   /** Ancestor chain from Project down to the requested issue. */
   nodes: SummaryNode[];
+  workspace?: string;
 }
 
 /** First non-empty paragraph after any leading `#` headings. */
@@ -47,8 +48,13 @@ export function buildSummary(
   issues: Issue[],
   descriptionOf: (id: string) => string = () => "",
 ): IssueSummary {
+  const chain = ancestorChain(id, issues);
+  const root = chain[0];
   return {
-    nodes: ancestorChain(id, issues).map((issue) => ({
+    ...(root?.kind === "project" && root.workspace
+      ? { workspace: root.workspace }
+      : {}),
+    nodes: chain.map((issue) => ({
       kind: issue.kind,
       id: issue.id,
       title: issue.title,
@@ -75,6 +81,9 @@ export function formatSummary(summary: IssueSummary): string {
   ];
   for (const node of summary.nodes) {
     lines.push(`${KIND_LABEL[node.kind]}: ${node.id} — ${node.title}`);
+    if (node.kind === "project" && summary.workspace) {
+      lines.push(`  Workspace: ${summary.workspace}`);
+    }
     if (node.descriptionSummary) {
       lines.push(`  Description: ${node.descriptionSummary}`);
     }

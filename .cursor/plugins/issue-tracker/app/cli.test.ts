@@ -44,6 +44,12 @@ function runCli(
   };
 }
 
+function makeGitWorkspace(): string {
+  const ws = mkdtempSync(join(tmpdir(), "issue-cli-workspace-"));
+  mkdirSync(join(ws, ".git"));
+  return ws;
+}
+
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "issue-tracker-cli-"));
   clock = 0;
@@ -100,6 +106,24 @@ describe("summary", () => {
     const { stderr, status } = runCli(["summary", "ghost"]);
     expect(status).toBe(1);
     expect(stderr).toContain('unknown issue "ghost"');
+  });
+
+  it("prints Workspace when set on the project", () => {
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
+      const { stdout, status } = runCli(["summary", "c1"]);
+      expect(status).toBe(0);
+      expect(stdout).toContain(`  Workspace: ${ws}`);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("omits Workspace when unset on the project", () => {
+    const { stdout, status } = runCli(["summary", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("Workspace:");
   });
 });
 
@@ -170,6 +194,60 @@ describe("show", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("kind: epic");
     expect(stdout).not.toContain("blockedBy:");
+  });
+
+  it("prints workspace when set on a project", () => {
+    const ws = makeGitWorkspace();
+    try {
+      const { status: setStatus } = runCli(["set-workspace", "p", ws]);
+      expect(setStatus).toBe(0);
+      const { stdout, status } = runCli(["show", "p"]);
+      expect(status).toBe(0);
+      expect(stdout).toContain(`workspace: ${ws}`);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("omits workspace when unset on a project", () => {
+    const { stdout, status } = runCli(["show", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("mergePolicy: manual");
+    expect(stdout).not.toContain("workspace:");
+  });
+});
+
+describe("set-merge-policy", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+  });
+
+  it("wires set-merge-policy through to update and show", () => {
+    expect(runCli(["set-merge-policy", "p", "pull-request"]).status).toBe(0);
+    const { stdout, status } = runCli(["show", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("mergePolicy: pull-request");
+  });
+});
+
+describe("set-workspace", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+  });
+
+  it("sets and clears workspace via the CLI", () => {
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
+      const raw = JSON.parse(readFileSync(join(dir, "p", "issue.json"), "utf8"));
+      expect(raw.workspace).toBe(ws);
+
+      expect(runCli(["set-workspace", "p", "--clear"]).status).toBe(0);
+      const cleared = JSON.parse(readFileSync(join(dir, "p", "issue.json"), "utf8"));
+      expect(cleared).not.toHaveProperty("workspace");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../schemas.js";
+import { PROJECT_FIELD_KEYS } from "../fields.js";
 import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
 import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
 import {
@@ -26,7 +27,7 @@ export interface ApplySummary {
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
 // (status, commitSha, branchName, prUrl, merged, assignee, needsAttention,
-// attentionReason) and `createdAt` are preserved from a same-kind existing
+// attentionReason, workspace, mergePolicy) and `createdAt` are preserved from a same-kind existing
 // issue; for a brand-new issue they are left off the draft entirely so
 // `parseIssue` fills them from the schema `.default()`s — the same single
 // source of truth `create()` seeds from, so the two entry points cannot drift.
@@ -73,7 +74,14 @@ function buildIssue(
   }
 
   // A Project carries none of the common status/assignee/attention fields.
-  if (desired.kind !== "project") {
+  if (desired.kind === "project") {
+    const prior = existing?.kind === "project" ? existing : undefined;
+    if (prior) {
+      for (const key of PROJECT_FIELD_KEYS) {
+        if (prior[key] !== undefined) draft[key] = prior[key];
+      }
+    }
+  } else {
     const prior = existing && existing.kind === desired.kind ? existing : undefined;
     draft.partOf = desired.partOf;
     if (prior) {

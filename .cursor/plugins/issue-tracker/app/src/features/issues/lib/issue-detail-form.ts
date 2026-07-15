@@ -1,3 +1,4 @@
+import { MERGE_POLICY_LABELS, type ProjectFieldKey } from "@server/fields";
 import type { IssueDetail } from "@server/schemas";
 
 export function blockedByFormValue(issue: IssueDetail): string {
@@ -10,4 +11,20 @@ export function parseIds(text: string): string[] {
     if (token) seen.add(token);
   }
   return [...seen];
+}
+
+export type ProjectMetaValue = { text: string; mono?: boolean; muted?: boolean };
+
+export function projectMetaValue(
+  issue: Extract<IssueDetail, { kind: "project" }>,
+  key: ProjectFieldKey,
+): ProjectMetaValue {
+  switch (key) {
+    case "workspace":
+      return issue.workspace
+        ? { text: issue.workspace, mono: true }
+        : { text: "not set", muted: true };
+    case "mergePolicy":
+      return { text: MERGE_POLICY_LABELS[issue.mergePolicy] };
+  }
 }

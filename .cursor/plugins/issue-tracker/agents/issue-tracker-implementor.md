@@ -22,7 +22,10 @@ Glossary: plugin `SPEC.md`.
 ## Bootstrap
 
 Run `issue summary <id>` first to rebuild Project → Epic → Branch → Commit
-context. Use `issue show <id>` when you need the full `description.md`.
+context. Use `issue show <id>` when you need the full `description.md`. That
+summary also carries the Project **workspace** — run all implementation work
+(file edits, builds, tests, browser checks) with it as the cwd, and honor the
+unset escalation, per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 
@@ -49,8 +52,8 @@ only.
 ## Revise
 
 1. Read feedback with `issue show <id> --chat`.
-2. Address findings you agree with. Push back (with reasoning) on findings you
-   think are wrong or not worth doing.
+2. Address findings you agree with. You are the senior engineer, you may push 
+   back (with reasoning) on findings you think are wrong or not worth doing.
 3. Post a succinct reply:
    `issue comment <id> --role <comment-role> --body "..."` (what you changed,
    what you declined and why).

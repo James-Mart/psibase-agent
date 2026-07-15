@@ -15,9 +15,11 @@ import {
 } from "./server/services/issues.js";
 import {
   COMMIT_STATUSES,
+  MERGE_POLICIES,
   type CommitStatus,
   type DerivedState,
   type IssueRecord,
+  type MergePolicy,
 } from "./server/schemas.js";
 import { subtreeIds } from "./server/services/subtree.js";
 import { apply } from "./server/services/apply.js";
@@ -337,6 +339,31 @@ program
   .action((id, sha) => run(() => update(id, { commitSha: sha })));
 
 program
+  .command("set-workspace")
+  .argument("<id>", "project id")
+  .argument("[path]", "absolute path to git checkout")
+  .option("--clear", "clear the workspace field")
+  .action((id, path, opts) =>
+    run(() => {
+      if (opts.clear) {
+        return update(id, { workspace: null });
+      }
+      if (!path) {
+        throw new Error("provide an absolute path or --clear");
+      }
+      return update(id, { workspace: path });
+    }),
+  );
+
+program
+  .command("set-merge-policy")
+  .argument("<id>", "project id")
+  .argument("<policy>", `one of: ${MERGE_POLICIES.join(", ")}`)
+  .action((id, policy) =>
+    run(() => update(id, { mergePolicy: policy as MergePolicy })),
+  );
+
+program
   .command("set-branch-name")
   .argument("<id>", "branch id")
   .argument("<name>", "git branch name")
@@ -505,6 +532,12 @@ program
         `kind: ${detail.kind}`,
         `title: ${detail.title}`,
       ];
+      if (detail.kind === "project") {
+        lines.push(`mergePolicy: ${detail.mergePolicy}`);
+        if (detail.workspace) {
+          lines.push(`workspace: ${detail.workspace}`);
+        }
+      }
       if (detail.kind !== "project") lines.push(`partOf: ${detail.partOf}`);
       if (detail.kind === "epic" && detail.blockedBy.length > 0) {
         lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);

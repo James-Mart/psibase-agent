@@ -34,6 +34,8 @@ import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
+import { validateNonClearablePatch } from "./patch.js";
+import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
@@ -296,6 +298,13 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
     }
     if (input.kind === "commit") draft.status = "todo";
+    if (input.kind === "project") {
+      if (input.workspace) {
+        validateWorkspacePath(input.workspace);
+        draft.workspace = input.workspace;
+      }
+      if (input.mergePolicy) draft.mergePolicy = input.mergePolicy;
+    }
 
     const parsed = parseIssue(draft);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
@@ -316,6 +325,8 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     const { issues } = readAll();
 
     const { description, ...jsonPatch } = patch;
+    validateWorkspacePatch(jsonPatch);
+    validateNonClearablePatch(jsonPatch);
     const merged = mergeIssue(existing, jsonPatch);
 
     const parsed = parseIssue(merged);
