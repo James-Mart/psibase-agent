@@ -12,10 +12,12 @@ description: >-
 
 Decomposing into the tracker is producing a **plan artifact**, so it is permitted
 in **Plan mode** (the tree is the plan). The tree is the **entire design** — it
-must replace any prior plan doc and stand alone. No `description.md` may reference
-an external file; inline companion material (schemas, diagrams, API specs) into
-the Branch/Commit that uses it. Localize prose to the tier where it belongs —
-don't dump the whole spec in the Epic and leave children title-only.
+must replace any prior plan doc and stand alone. Companion material belongs
+**with the issue that uses it** (prose in `description.md`, or opaque files as
+attachments). Link/attach rules, `apply`'s attachment seam, and CLI verbs live
+in issue-tracker-authoring (**Attachments**); do not restate them here. Localize
+prose to the tier where it belongs — don't dump the whole spec in the Epic and
+leave children title-only.
 
 ## Author declaratively: one YAML doc, then `apply`
 
@@ -49,9 +51,11 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
   deleted, and unchanged nodes are untouched. It is atomic (a doc that would
   break integrity changes nothing) and never touches runtime/progress state
-  (status, git facts, specReview, noDiff, assignee, attention, chat), so re-applying an edited doc
-  mid-implementation is safe. Keep the doc as the editable source and re-`apply`
-  rather than patching the tree with one-off imperative verbs.
+  (status, git facts, specReview, noDiff, assignee, attention, chat) or
+  attachment bytes (attach/detach separately — see issue-tracker-authoring
+  **Attachments**), so re-applying an edited doc mid-implementation is safe.
+  Keep the doc as the editable source and re-`apply` rather than patching the
+  tree with one-off imperative verbs.
 - **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
   To edit one epic or branch without touching its siblings, root the doc there
   and reference the enclosing parents by id: an **epic form** (`project: <id>`
@@ -109,7 +113,8 @@ each Commit stands alone as above). Split only a genuinely oversized phase. One
 todo → one Branch (a stack of one-commit PRs with an empty Commit tier) means you
 split at the wrong tier.
 
-Completeness pass before done: every part of the source design is represented; no
-description references an external file; no Branch/Commit is title-only; no
-Branch holds just one commit and the Branch count isn't merely the bullet count;
-the Epic holds no phase- or commit-level detail that belongs in children.
+Completeness pass before done: every part of the source design is represented;
+companion material follows issue-tracker-authoring **Attachments** (no external
+workspace paths); no Branch/Commit is title-only; no Branch holds just one
+commit and the Branch count isn't merely the bullet count; the Epic holds no
+phase- or commit-level detail that belongs in children.

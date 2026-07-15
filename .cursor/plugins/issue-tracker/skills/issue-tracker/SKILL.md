@@ -45,10 +45,11 @@ Tell the user the UI is available at http://localhost:8060.
   PR, merged, sha), assignee and needs-attention badges, and blocked rows dimmed.
 - **Ready view** — a flat list of the issues that can be picked up right now.
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
-  cross-links), an edit form, a git/stack panel, assignee/attention badges, and
-  (for Branches with `specReview` set) a spec-review chip (`passed` / `failed`;
-  omitted when unset), (for Commits with `noDiff` set) a no-diff chip (omitted
-  when unset), and a per-issue chat.
+  cross-links and relative links to that issue's `attachments/`), an edit form,
+  attachment list/upload/download, a git/stack panel, assignee/attention badges,
+  and (for Branches with `specReview` set) a spec-review chip (`passed` /
+  `failed`; omitted when unset), (for Commits with `noDiff` set) a no-diff chip
+  (omitted when unset), and a per-issue chat.
 - Changes to `issues/` on disk (from the CLI or by hand) appear live over SSE
   without a refresh.
 
@@ -62,10 +63,12 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 - **`issue-tracker-decompose`** — turning a spec/plan into a standalone
   Project > Epic > Branch > Commit tree declaratively: author the whole tree as
   one nested YAML doc and `apply` it (idempotent upsert, re-applied as the plan
-  evolves); deciding Branch vs Commit grain.
+  evolves); deciding Branch vs Commit grain. Companion attachments: defer to
+  issue-tracker-authoring.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
   delegating each commit to fresh subagents (implement/validate/revise) and
   recording git progress through the CLI; inspect the stack with `tree`/`show`.
-- **`issue-tracker-authoring`** — create/update/`apply` semantics and the new
-  inspection verbs (`show`, `tree`), pointing at `cli.ts --help` as the
+- **`issue-tracker-authoring`** — create/update/`apply` semantics, the
+  **Attachments** model + verbs (`attach` / `attachments` / `detach`), and
+  inspection (`show`/`summary`/`tree`), pointing at `cli.ts --help` as the
   authoritative command reference; the shared tool doc the other two build on.
