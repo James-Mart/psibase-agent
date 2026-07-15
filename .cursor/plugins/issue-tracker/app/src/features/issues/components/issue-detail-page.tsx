@@ -139,14 +139,25 @@ export function IssueDetailPage() {
               ) : null}
               <div className="rounded-lg border bg-card p-6">
                 {issue.description.trim() ? (
-                  <Markdown>{issue.description}</Markdown>
+                  <Markdown
+                    issueId={
+                      supportsAttachments(issue.kind) ? issue.id : undefined
+                    }
+                  >
+                    {issue.description}
+                  </Markdown>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No description.
                   </p>
                 )}
               </div>
-              <ChatPanel id={issue.id} />
+              <ChatPanel
+                id={issue.id}
+                attachmentsIssueId={
+                  supportsAttachments(issue.kind) ? issue.id : undefined
+                }
+              />
             </>
           )}
         </>

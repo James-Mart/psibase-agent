@@ -37,7 +37,13 @@ function dayLabel(at: string): string {
   });
 }
 
-function MessageList({ messages }: { messages: ChatMessage[] }) {
+function MessageList({
+  messages,
+  attachmentsIssueId,
+}: {
+  messages: ChatMessage[];
+  attachmentsIssueId?: string;
+}) {
   let lastDay = "";
   return (
     <>
@@ -51,7 +57,7 @@ function MessageList({ messages }: { messages: ChatMessage[] }) {
             {showMarker ? <Marker>{dayLabel(message.at)}</Marker> : null}
             <Message align={align}>
               <Bubble align={align} author={message.name ?? message.role} at={message.at}>
-                <Markdown>{message.body}</Markdown>
+                <Markdown issueId={attachmentsIssueId}>{message.body}</Markdown>
               </Bubble>
             </Message>
           </div>
@@ -61,7 +67,14 @@ function MessageList({ messages }: { messages: ChatMessage[] }) {
   );
 }
 
-export function ChatPanel({ id }: { id: string }) {
+export function ChatPanel({
+  id,
+  attachmentsIssueId,
+}: {
+  id: string;
+  /** When set, relative Markdown links in chat resolve to this issue's attachments. */
+  attachmentsIssueId?: string;
+}) {
   const { data, isLoading, error } = useChatQuery(id);
   const post = usePostMessage(id);
   const [draft, setDraft] = useState("");
@@ -106,7 +119,10 @@ export function ChatPanel({ id }: { id: string }) {
         </p>
       ) : (
         <MessageScroller bottomKey={messages.length}>
-          <MessageList messages={messages} />
+          <MessageList
+            messages={messages}
+            attachmentsIssueId={attachmentsIssueId}
+          />
         </MessageScroller>
       )}
 

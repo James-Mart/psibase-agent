@@ -1,4 +1,5 @@
 import type { IssueKind } from "@server/schemas";
+import { ISSUE_LINK_PREFIX } from "./links";
 
 /** Attachments are allowed on Epic, Branch, and Commit — not Project. */
 export function supportsAttachments(kind: IssueKind): boolean {
@@ -21,4 +22,79 @@ export function attachmentsApiPath(id: string, name?: string): string {
   return name === undefined
     ? base
     : `${base}/${encodeURIComponent(name)}`;
+}
+
+/** Mirrors server `assertSafeBasename` — plain basenames only. */
+export function isSafeAttachmentName(name: string): boolean {
+  if (
+    !name ||
+    name.includes("\0") ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name === "." ||
+    name === ".."
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** True when `href` is a protocol URL (http:, mailto:, …), not a relative path. */
+function hasUrlProtocol(href: string): boolean {
+  const colon = href.indexOf(":");
+  if (colon === -1) return false;
+  const slash = href.indexOf("/");
+  const questionMark = href.indexOf("?");
+  const numberSign = href.indexOf("#");
+  return (
+    (slash === -1 || colon < slash) &&
+    (questionMark === -1 || colon < questionMark) &&
+    (numberSign === -1 || colon < numberSign)
+  );
+}
+
+function stripQueryAndFragment(href: string): string {
+  const q = href.indexOf("?");
+  const h = href.indexOf("#");
+  let end = href.length;
+  if (q !== -1) end = Math.min(end, q);
+  if (h !== -1) end = Math.min(end, h);
+  return href.slice(0, end);
+}
+
+/**
+ * Map issue-local relative Markdown hrefs (e.g. `foo.tsx`) to that issue's
+ * attachment download URL. Leaves `issue:`, absolute `/…`, and `http(s):` alone.
+ * Rejects non-basename paths (`../x`, `dir/foo`, `attachments/foo`).
+ */
+export function attachmentLinkHref(
+  href: string | undefined,
+  issueId: string,
+): string | null {
+  if (!href) return null;
+  if (href.startsWith(ISSUE_LINK_PREFIX)) return null;
+  if (href.startsWith("#") || href.startsWith("/") || href.startsWith("//")) {
+    return null;
+  }
+  if (hasUrlProtocol(href)) return null;
+  let name = stripQueryAndFragment(href);
+  if (name.startsWith("./")) name = name.slice(2);
+  if (!isSafeAttachmentName(name)) return null;
+  return attachmentsApiPath(issueId, name);
+}
+
+/** Basename for `download=` when `href` is an attachments API URL. */
+export function attachmentDownloadName(href: string | undefined): string | null {
+  if (!href || !href.startsWith("/api/issues/")) return null;
+  const marker = "/attachments/";
+  const i = href.indexOf(marker);
+  if (i === -1) return null;
+  const encoded = href.slice(i + marker.length);
+  if (!encoded || encoded.includes("/")) return null;
+  try {
+    const name = decodeURIComponent(encoded);
+    return isSafeAttachmentName(name) ? name : null;
+  } catch {
+    return null;
+  }
 }
