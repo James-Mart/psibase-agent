@@ -137,6 +137,19 @@ describe("formatSummary", () => {
     expect(text).toContain("For more details, try `issue show <id>` or `issue tree`.");
     expect(text).not.toContain("Workspace:");
   });
+
+  it("prints Workspace in the Project section when set", () => {
+    const withWorkspace = nestedIssues.map((issue) =>
+      issue.id === "p" ? { ...issue, workspace: "/tmp/repo" } : issue,
+    );
+    const summary = buildSummary("c1", withWorkspace, descriptionOf);
+    expect(summary.workspace).toBe("/tmp/repo");
+    const text = formatSummary(summary);
+
+    expect(text).toContain("Project: p — Proj");
+    expect(text).toContain("  Workspace: /tmp/repo");
+    expect(text).not.toContain("mergePolicy");
+  });
 });
 
 describe("summarize I/O wrapper", () => {

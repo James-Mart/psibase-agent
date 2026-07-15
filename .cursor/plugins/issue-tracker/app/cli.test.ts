@@ -107,6 +107,24 @@ describe("summary", () => {
     expect(status).toBe(1);
     expect(stderr).toContain('unknown issue "ghost"');
   });
+
+  it("prints Workspace when set on the project", () => {
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
+      const { stdout, status } = runCli(["summary", "c1"]);
+      expect(status).toBe(0);
+      expect(stdout).toContain(`  Workspace: ${ws}`);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("omits Workspace when unset on the project", () => {
+    const { stdout, status } = runCli(["summary", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("Workspace:");
+  });
 });
 
 describe("show", () => {
