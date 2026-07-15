@@ -29,13 +29,22 @@ export async function request<T>(
   init: JsonInit = {},
 ): Promise<T> {
   const { body, headers, ...rest } = init;
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
   const res = await fetch(input, {
     ...rest,
     headers: {
-      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...(body !== undefined && !isFormData
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body:
+      body === undefined
+        ? undefined
+        : isFormData
+          ? (body as FormData)
+          : JSON.stringify(body),
   });
   const parsed = await readJson(res);
   if (!res.ok) {
