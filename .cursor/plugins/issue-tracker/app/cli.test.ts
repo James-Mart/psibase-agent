@@ -67,6 +67,42 @@ describe("--description-file - reads stdin", () => {
   });
 });
 
+describe("summary", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "Do the thing",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("wires the verb through to formatted stdout", () => {
+    const { stdout, status } = runCli(["summary", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("Commit: c1 — Do the thing");
+    expect(stdout).toContain("For more details, try `issue show <id>` or `issue tree`.");
+  });
+
+  it("errors with a nonzero exit on an unknown id", () => {
+    const { stderr, status } = runCli(["summary", "ghost"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain('unknown issue "ghost"');
+  });
+});
+
 describe("show", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
