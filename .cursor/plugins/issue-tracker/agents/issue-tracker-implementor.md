@@ -44,7 +44,14 @@ only.
 1. Implement exactly what the Commit's `description.md` specifies.
 2. Edit the working tree; **do not commit or stage**.
 3. Verify as that description requires (tests, build, browser, etc.).
-4. If blocked, raise `issue attention <id> --reason "..."` and stop; otherwise
+4. **Intentional no-op.** If correctly satisfying the spec means landing **no
+   file changes** (the working tree stays clean), signal it explicitly:
+   `issue set-no-diff <id> true`, then `issue comment <id> --role
+   <comment-role> --body "..."` explaining why no diff is the right outcome.
+   That structured flag plus the chat rationale is how the empty diff is judged
+   and finalized downstream — an empty tree on its own is **not** a completion
+   signal, so never rely on it alone.
+5. If blocked, raise `issue attention <id> --reason "..."` and stop; otherwise
    finish and stop.
 
 ## Revise
@@ -52,7 +59,11 @@ only.
 1. Read feedback with `issue show <id> --chat`.
 2. Address findings you agree with. You are the senior engineer, you may push 
    back (with reasoning) on findings you think are wrong or not worth doing.
-3. Post a succinct reply:
+3. **Keep `noDiff` honest.** If your revision lands file changes, clear the flag
+   (`issue set-no-diff <id> false`). If you now conclude the correct outcome is
+   no file changes, set it (`issue set-no-diff <id> true`) and say why in your
+   reply.
+4. Post a succinct reply:
    `issue comment <id> --role <comment-role> --body "..."` (what you changed,
    what you declined and why).
-4. Leave changes uncommitted.
+5. Leave changes uncommitted.

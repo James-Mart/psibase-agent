@@ -50,6 +50,19 @@ Follow exactly one section: **## Start Branch** for `start-branch`,
 
 ## Finish Commit
 
+Decide from exactly two facts: the Commit's `noDiff` flag (from
+`issue summary`/`issue show`) and the working-tree state (`git status`). Never
+parse chat.
+
+| `noDiff` | Tree | Action |
+|----------|------|--------|
+| true | clean (empty) | `issue set-status <commitId> done` only — no `git commit`, no `set-commit`; leave `noDiff` set. Then finish and stop. |
+| true | dirty | Escalate — the intentional-no-op flag contradicts a non-empty tree (see Escalation). |
+| absent/false | clean (empty) | Escalate — an empty tree without `noDiff` is not a completion signal (see Escalation). |
+| absent/false | dirty | Stage, commit, and record — steps below. |
+
+For the **dirty + no `noDiff`** row:
+
 1. Stage **all** uncommitted changes (`git add -A`). Do not pick paths —
    the implementor left everything unstaged for this finalize step.
 2. `git commit -m "<Commit title>"` (message = the Commit issue's title).
@@ -82,10 +95,11 @@ idempotency, and recovery live there). This section is only the concrete
 
 ## Escalation
 
-If blocked (dirty tree, checkout failure, missing base/branchName, empty commit,
-push rejection, PR-create failure, merge conflict, CLI refusal), raise
-`issue attention <id> --reason "..."` (the Branch id for finish-branch) and
-stop; do not guess. For finish-branch recovery follow SPEC § Project merge
+If blocked (checkout failure, missing base/branchName, an escalate row of the
+Finish Commit matrix, push rejection, PR-create failure, merge conflict, CLI
+refusal), raise `issue attention <id> --reason "..."` — `<id>` is the Commit id
+for finish-commit and the Branch id for start-branch/finish-branch — and stop;
+do not guess. For finish-branch recovery follow SPEC § Project merge
 policy: abort a `merge` **conflict** (`git merge --abort`) so the base is never
 half-merged, but leave a *completed* local merge whose push failed in place (the
 retry re-pushes).

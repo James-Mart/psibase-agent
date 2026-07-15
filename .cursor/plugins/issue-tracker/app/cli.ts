@@ -455,6 +455,24 @@ program
   );
 
 program
+  .command("set-no-diff")
+  .argument("<id>", "commit id")
+  .argument("<value>", "true or false")
+  .action((id, value) =>
+    run(() => {
+      if (value !== "true" && value !== "false") {
+        throw new Error(`invalid noDiff "${value}" (expected: true, false)`);
+      }
+      const noDiff = value === "true";
+      const detail = read(id);
+      if (detail.kind !== "commit") {
+        throw new Error(`noDiff is only valid on a commit, not a ${detail.kind}`);
+      }
+      return update(id, { noDiff });
+    }),
+  );
+
+program
   .command("comment")
   .argument("<id>", "issue id")
   .requiredOption("--role <role>", "message author role (e.g. agent, human)")
@@ -575,6 +593,7 @@ program
       if (detail.kind === "commit") {
         lines.push(`status: ${detail.status}`);
         if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
+        if (detail.noDiff) lines.push(`noDiff: true`);
       }
       if (detail.kind !== "project") {
         if (detail.assignee) lines.push(`assignee: ${detail.assignee}`);

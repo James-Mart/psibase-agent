@@ -43,7 +43,7 @@ instead of `npx tsx cli.ts <verb>`.
   this unnecessary for whole-tree authoring, since ids are author-chosen.
 - **Updates are partial merges** — only the named field changes; the rest is
   untouched. The CLI sets but never clears scalars
-  (`branchName`/`stackedOn`/`commitSha`/`prUrl`/`specReview`/`assignee`); clearing is a human
+  (`branchName`/`stackedOn`/`commitSha`/`noDiff`/`prUrl`/`specReview`/`assignee`); clearing is a human
   UI action (`attention --clear` excepted).
 - **Nonzero exit = the write was refused** with no on-disk change; read the
   message and fix the input.

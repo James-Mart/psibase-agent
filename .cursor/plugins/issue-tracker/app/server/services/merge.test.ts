@@ -85,4 +85,23 @@ describe("mergeIssue", () => {
     expect("attentionReason" in merged).toBe(true);
     expect(merged.attentionReason).toBeNull();
   });
+
+  it("sets noDiff when patched with true", () => {
+    const merged = asCommit(mergeIssue(commit, { noDiff: true }));
+    expect(merged.noDiff).toBe(true);
+  });
+
+  it("clears noDiff when patched with false", () => {
+    const flagged = asCommit(mergeIssue(commit, { noDiff: true }));
+    expect(flagged.noDiff).toBe(true);
+    const cleared = asCommit(mergeIssue(flagged, { noDiff: false }));
+    expect("noDiff" in cleared).toBe(false);
+  });
+
+  it("leaves noDiff unchanged when the patch omits it", () => {
+    const flagged = asCommit(mergeIssue(commit, { noDiff: true }));
+    const merged = asCommit(mergeIssue(flagged, { status: "done" }));
+    expect(merged.noDiff).toBe(true);
+    expect(merged.status).toBe("done");
+  });
 });

@@ -263,9 +263,13 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 - Re-read `issue tree --epic <id>` every time control returns to you and re-sync
   your todo list, so Branches or Commits injected into the in-progress Epic
   mid-run are picked up. Never act from a cached outline.
-- The implementor leaves work uncommitted; the **git** subagent commits
-  (message = Commit title) and records sha/status only after the per-commit
-  cycle passes.
+- The implementor leaves work uncommitted; the **git** subagent finalizes per
+  its Finish Commit matrix (the authority for these outcomes): a normal Commit
+  is committed (message = Commit title) and recorded `done` with its sha, while
+  a Commit the implementor deliberately marked `noDiff` is recorded `done` with
+  **no** git commit and no sha. Either way the coordinator just spawns
+  finish-commit — it never inspects the tree or the `noDiff` flag, and an empty
+  tree alone is never a completion signal.
 - Exactly one revision pass after the code-quality validator (via **resume**);
   never loop reviews. Spec-conformance remediation is Close-Branch's job (see
   that section) — no branch-level revise. The implementor may decline findings

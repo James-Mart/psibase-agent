@@ -34,8 +34,9 @@ Every issue has a `kind`, one of four tiers:
   lands on the Branch tip, the package must still **build** and tests must remain
   **meaningful** (vertical slices, not horizontal layers such as types-only,
   wire-up-later, or half-migrations that do not compile). The only kind with a
-  **stored** `status` (`todo` / `in-progress` / `done`) and a `commitSha` (set
-  once done).
+  **stored** `status` (`todo` / `in-progress` / `done`), an optional `commitSha`
+  (set when done with a real git commit), and an optional `noDiff` flag (set by
+  `issue set-no-diff` when the implementor deliberately lands no file changes).
 
 ### Relationships
 
@@ -113,6 +114,10 @@ These are computed by `derive()` and never written to disk (see
 - **specReview** — a Branch-only machine-readable spec-review gate (`passed` /
   `failed`; absent until set by `issue set-spec-review`). Surfaced in the detail
   panel when set; omitted from the tree outline.
+- **noDiff** — a Commit-only signal that the implementor intentionally landed no
+  file changes (`true`; absent until set by `issue set-no-diff`). Surfaced in the
+  detail panel when set; omitted from the tree outline. An empty working tree
+  alone is **not** a completion signal — see [Finish commit](#finish-commit).
 - **problems** — integrity issues that are surfaced, never silently ignored:
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
@@ -283,10 +288,31 @@ Commit — the Epic/Branch/Commit common fields plus:
 | `partOf` | string | the Branch id (required) |
 | `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
 | `commitSha` | string? | set when done |
+| `noDiff` | boolean? | absent until set by `issue set-no-diff`; signals an intentional empty implementor diff |
 
 Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
 authored as a separate priority field), `label`, inline
 `description`/`messages` (they are separate files), and status history.
+
+### Finish commit
+
+When the work loop spawns the git subagent in `finish-commit` mode, it finalizes
+one Commit. The coordinator never inspects the working tree or the `noDiff` flag —
+only the git subagent does. The subagent reads the Commit's `noDiff` (via
+`issue summary` / `issue show`) and the working-tree state (`git status`), then
+applies:
+
+| `noDiff` | Tree | Action |
+| --- | --- | --- |
+| `true` | clean (empty) | `issue set-status <commitId> done` only — no `git commit`, no `set-commit`; leave `noDiff` set. |
+| `true` | dirty | Escalate — the flag contradicts a non-empty tree. |
+| absent / `false` | clean (empty) | Escalate — an empty tree without `noDiff` is not a completion signal. |
+| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue set-status <commitId> done`, `issue set-commit <commitId> <sha>`. |
+
+The implementor sets `noDiff` with `issue set-no-diff <commitId> true` (and
+explains why in chat) when the correct outcome is no file changes; validators and
+the git subagent honor the flag. Clearing it (`issue set-no-diff <commitId> false`)
+is required if a revision later lands file changes.
 
 **Tree nesting and sibling order.** The tree nests a Branch under the Branch it
 forks from: a Branch renders as a child of its `stackedOn` Branch (which must be
@@ -347,7 +373,7 @@ prevented here, so no consumer can persist a broken file.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
   `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
-  `status`/`commitSha` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
+  `status`/`commitSha`/`noDiff` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
   a Branch), and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
@@ -560,7 +586,7 @@ preserves everything else from the existing same-kind issue.
 | `mergePolicy` (Project) | imperative only (`set-merge-policy`); `apply` preserves |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
-| `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
+| `status`, `commitSha`, `noDiff` (Commit) | imperative only (`set-status`/`set-commit`/`set-no-diff`); `apply` preserves |
 | `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
 | `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |

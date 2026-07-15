@@ -47,7 +47,8 @@ Tell the user the UI is available at http://localhost:8060.
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
   cross-links), an edit form, a git/stack panel, assignee/attention badges, and
   (for Branches with `specReview` set) a spec-review chip (`passed` / `failed`;
-  omitted when unset), and a per-issue chat.
+  omitted when unset), (for Commits with `noDiff` set) a no-diff chip (omitted
+  when unset), and a per-issue chat.
 - Changes to `issues/` on disk (from the CLI or by hand) appear live over SSE
   without a refresh.
 

@@ -510,6 +510,72 @@ epic:
   });
 });
 
+describe("set-no-diff", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("sets noDiff and prints it in show and summary", () => {
+    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw.noDiff).toBe(true);
+
+    const { stdout: showOut, status: showStatus } = runCli(["show", "c1"]);
+    expect(showStatus).toBe(0);
+    expect(showOut).toContain("noDiff: true");
+
+    const { stdout: summaryOut, status: summaryStatus } = runCli(["summary", "c1"]);
+    expect(summaryStatus).toBe(0);
+    expect(summaryOut).toContain("noDiff: true");
+  });
+
+  it("clears noDiff when set to false", () => {
+    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
+    expect(runCli(["set-no-diff", "c1", "false"]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw).not.toHaveProperty("noDiff");
+
+    const { stdout, status } = runCli(["show", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("noDiff:");
+  });
+
+  it("omits noDiff from show when unset", () => {
+    const { stdout, status } = runCli(["show", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("noDiff:");
+  });
+
+  it("rejects an invalid noDiff value", () => {
+    const { stderr, status } = runCli(["set-no-diff", "c1", "maybe"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid noDiff "maybe"/);
+  });
+
+  it("rejects a non-commit id", () => {
+    const { stderr, status } = runCli(["set-no-diff", "a", "true"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/only valid on a commit/);
+  });
+});
+
 describe("set-part-of", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   beforeEach(() => {
