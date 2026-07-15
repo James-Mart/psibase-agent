@@ -41,6 +41,14 @@ const commit = {
 };
 
 describe("parseIssue - valid per kind", () => {
+  it("parses a project with an optional workspace", () => {
+    const result = parseIssue({ ...project, workspace: "/tmp/repo" });
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "project") {
+      expect(result.issue.workspace).toBe("/tmp/repo");
+    }
+  });
+
   it("parses a project (minimal fields only)", () => {
     const result = parseIssue(project);
     expect(result.ok).toBe(true);

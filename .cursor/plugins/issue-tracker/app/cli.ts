@@ -337,6 +337,23 @@ program
   .action((id, sha) => run(() => update(id, { commitSha: sha })));
 
 program
+  .command("set-workspace")
+  .argument("<id>", "project id")
+  .argument("[path]", "absolute path to git checkout")
+  .option("--clear", "clear the workspace field")
+  .action((id, path, opts) =>
+    run(() => {
+      if (opts.clear) {
+        return update(id, { workspace: null });
+      }
+      if (!path) {
+        throw new Error("provide an absolute path or --clear");
+      }
+      return update(id, { workspace: path });
+    }),
+  );
+
+program
   .command("set-branch-name")
   .argument("<id>", "branch id")
   .argument("<name>", "git branch name")
@@ -505,6 +522,9 @@ program
         `kind: ${detail.kind}`,
         `title: ${detail.title}`,
       ];
+      if (detail.kind === "project" && detail.workspace) {
+        lines.push(`workspace: ${detail.workspace}`);
+      }
       if (detail.kind !== "project") lines.push(`partOf: ${detail.partOf}`);
       if (detail.kind === "epic" && detail.blockedBy.length > 0) {
         lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);

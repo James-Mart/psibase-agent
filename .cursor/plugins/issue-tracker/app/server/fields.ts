@@ -9,6 +9,8 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
+export const PROJECT_FIELD_KEYS = ["workspace"] as const;
+
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
 export const BRANCH_FIELD_KEYS = [
@@ -20,12 +22,13 @@ export const BRANCH_FIELD_KEYS = [
 
 export const COMMIT_FIELD_KEYS = ["status", "commitSha"] as const;
 
+export type ProjectFieldKey = (typeof PROJECT_FIELD_KEYS)[number];
 export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
 export type BranchFieldKey = (typeof BRANCH_FIELD_KEYS)[number];
 export type CommitFieldKey = (typeof COMMIT_FIELD_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
-  project: [],
+  project: PROJECT_FIELD_KEYS,
   epic: EPIC_FIELD_KEYS,
   branch: BRANCH_FIELD_KEYS,
   commit: COMMIT_FIELD_KEYS,
@@ -37,11 +40,13 @@ export const CLEARABLE_KEYS = [
   "branchName",
   "stackedOn",
   "prUrl",
+  "workspace",
 ] as const;
 
 export type ClearableKey = (typeof CLEARABLE_KEYS)[number];
 
 export const FIELD_LABELS = {
+  workspace: "Workspace",
   title: "Title",
   assignee: "Assignee",
   needsAttention: "Needs attention",
@@ -59,6 +64,7 @@ export const FIELD_LABELS = {
 
 export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,
+  ...PROJECT_FIELD_KEYS,
   ...EPIC_FIELD_KEYS,
   ...BRANCH_FIELD_KEYS,
   ...COMMIT_FIELD_KEYS,

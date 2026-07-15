@@ -42,6 +42,7 @@ export const projectSchema = z.object({
   id: nonEmpty,
   kind: z.literal("project"),
   title: nonEmpty,
+  workspace: z.string().optional(),
   ...orderField,
   ...timestamps,
 });
