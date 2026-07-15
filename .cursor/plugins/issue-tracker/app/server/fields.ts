@@ -1,4 +1,9 @@
-import type { IssueKind, IssuePatch } from "./schemas.js";
+import {
+  MERGE_POLICIES,
+  type IssueKind,
+  type IssuePatch,
+  type MergePolicy,
+} from "./schemas.js";
 
 export const COMMON_MERGEABLE_KEYS = [
   "title",
@@ -9,7 +14,7 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
-export const PROJECT_FIELD_KEYS = ["workspace"] as const;
+export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
@@ -45,8 +50,14 @@ export const CLEARABLE_KEYS = [
 
 export type ClearableKey = (typeof CLEARABLE_KEYS)[number];
 
+// Mergeable patch keys that must not be cleared with null (unlike workspace).
+export const NON_CLEARABLE_MERGEABLE_KEYS = ["mergePolicy"] as const satisfies readonly (keyof IssuePatch)[];
+
+export type NonClearableMergeableKey = (typeof NON_CLEARABLE_MERGEABLE_KEYS)[number];
+
 export const FIELD_LABELS = {
   workspace: "Workspace",
+  mergePolicy: "Merge policy",
   title: "Title",
   assignee: "Assignee",
   needsAttention: "Needs attention",
@@ -61,6 +72,17 @@ export const FIELD_LABELS = {
   status: "Status",
   commitSha: "Commit SHA",
 } as const;
+
+export const MERGE_POLICY_LABELS = {
+  merge: "Merge",
+  "pull-request": "Pull request",
+  manual: "Manual",
+} as const satisfies Record<MergePolicy, string>;
+
+export const MERGE_POLICY_OPTIONS = MERGE_POLICIES.map((value) => ({
+  value,
+  label: MERGE_POLICY_LABELS[value],
+}));
 
 export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,

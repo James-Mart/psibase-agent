@@ -27,7 +27,7 @@ export interface ApplySummary {
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
 // (status, commitSha, branchName, prUrl, merged, assignee, needsAttention,
-// attentionReason, workspace) and `createdAt` are preserved from a same-kind existing
+// attentionReason, workspace, mergePolicy) and `createdAt` are preserved from a same-kind existing
 // issue; for a brand-new issue they are left off the draft entirely so
 // `parseIssue` fills them from the schema `.default()`s — the same single
 // source of truth `create()` seeds from, so the two entry points cannot drift.

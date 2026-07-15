@@ -85,6 +85,13 @@ change across separate Branches such that merging one would leave `main` broken
 (for example a schema change in one Branch and the code that consumes it in
 another): keep it in one Branch as multiple Commits.
 
+This is the PR plan model (`pull-request` / `manual`
+[merge policies](#project-merge-policy)), where a stacked child's PR retargets to
+`main` once its parent has landed. The local `merge` policy is the exception: it
+integrates each finished Branch directly into its derived `base` (the parent tip
+when stacked, else `main`) with no PR, so a stack still lands bottom-up but never
+touches a remote PR.
+
 ### Derived terms
 
 These are computed by `derive()` and never written to disk (see
@@ -165,6 +172,7 @@ Project — the common-to-every-kind fields plus:
 | field | type | notes |
 | --- | --- | --- |
 | `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
+| `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Branch's last Commit is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
 
 No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
 short overview of the Project.
@@ -187,8 +195,10 @@ skill point here rather than restating it.
 coordinator must not pass one, but if one leaks in, ignore it). From that output:
 
 - the workspace is the `Workspace:` line under the Project;
-- the project id is the id on the `Project: <id> — <title>` line (used only to
-  build the attention message; do not re-derive ancestry any other way).
+- the project id is the id on the `Project: <id> — <title>` line (used to build
+  the attention message and, for git finish-branch, to look up the Project's
+  [merge policy](#project-merge-policy) via `issue show <projectId>`; do not
+  re-derive ancestry any other way).
 
 **Use as cwd.** Run **every** repo command — git, builds, tests, and any
 file-edit / diff-inspection — with the workspace path as the shell working
@@ -207,6 +217,43 @@ Project carries no needs-attention fields, so it is never the target.
 surfaces once a repo subagent is spawned, the work-loop coordinator checks for
 the `Workspace:` line up front (in Setup) and hands back to the user before
 spawning anything if it is absent.
+
+### Project merge policy
+
+A Project's `mergePolicy` decides what happens to a Branch once its last Commit
+is `done`. It is set with `issue set-merge-policy <projectId> <policy>` and read
+off the Project node by `issue show <projectId>` (a `mergePolicy:` line). It
+defaults to **`manual`**, matching today's posture where a human opens and
+merges PRs.
+
+The work loop **always** finishes a Branch by spawning the git subagent in
+`finish-branch` mode; the coordinator never reads or branches on `mergePolicy`.
+Only the git subagent interprets it, from `issue show <projectId>`, so there is
+exactly one reader and the skill can never contradict the field. `finish-branch`
+runs in the Project workspace (same cwd rules as above) and applies:
+
+- **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
+  the PR later. (Default.)
+- **`pull-request`** — push the Branch and open a **draft** PR against its base
+  (the derived `base`: the parent Branch tip when stacked, else `main`), then
+  record the url via `issue open-pr <branchId> <url>`. It does **not** wait for
+  merge or set `merged`, so the Branch derives to `pr-open`.
+- **`merge`** — merge the Branch into its stack base, push the updated base ref,
+  and set `merged` via `issue set-merged <branchId>` (Branch derives to
+  `merged`). This is the local, no-PR integration path; the base is the same
+  derived `base` (parent tip when stacked, else `main`).
+
+**Resumable / idempotent.** The work loop is resumable, so finish-branch may run
+twice for the same Branch. Before acting, the git subagent reads the Branch's
+`prUrl` / `merged` (via `issue show <branchId>`) and no-ops when the policy's end
+state already holds — `merged` set for `merge`, `prUrl` set for `pull-request` —
+so a re-run never opens a duplicate PR or re-merges.
+
+**Failure and recovery.** On failure the git subagent raises `issue attention` on
+the Branch and stops. A `merge` conflict is aborted (`git merge --abort`) so the
+base is never left half-merged; but a *completed* local merge whose `push`
+failed is left in place — with `merged` still unset it is exactly the resumable
+state above, so the retry just re-pushes.
 
 Epic — the Epic/Branch/Commit common fields plus:
 
@@ -506,6 +553,7 @@ preserves everything else from the existing same-kind issue.
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
 | `workspace` (Project) | imperative only (`set-workspace`); `apply` preserves |
+| `mergePolicy` (Project) | imperative only (`set-merge-policy`); `apply` preserves |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |

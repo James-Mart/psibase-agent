@@ -49,6 +49,18 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("defaults mergePolicy to manual for a project", () => {
+    const result = parseIssue(project);
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "project") {
+      expect(result.issue.mergePolicy).toBe("manual");
+    }
+  });
+
+  it("rejects an unknown mergePolicy", () => {
+    expect(parseIssue({ ...project, mergePolicy: "rebase" }).ok).toBe(false);
+  });
+
   it("parses a project (minimal fields only)", () => {
     const result = parseIssue(project);
     expect(result.ok).toBe(true);

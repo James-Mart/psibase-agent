@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueDetail } from "@server/schemas";
-import { blockedByFormValue } from "./issue-detail-form";
+import { blockedByFormValue, projectMetaValue } from "./issue-detail-form";
 
 const branch: IssueDetail = {
   id: "auth-endpoints",
@@ -39,6 +39,21 @@ const epic: IssueDetail = {
   version: "v1",
 };
 
+const project: Extract<IssueDetail, { kind: "project" }> = {
+  id: "platform",
+  kind: "project",
+  title: "Platform",
+  workspace: "/tmp/repo",
+  mergePolicy: "pull-request",
+  order: 0,
+  createdAt: "2026-07-09T14:00:00.000Z",
+  updatedAt: "2026-07-09T14:00:00.000Z",
+  hasDescription: false,
+  hasChat: false,
+  description: "",
+  version: "v1",
+};
+
 describe("blockedByFormValue", () => {
   it("returns empty for a branch (no blockedBy field)", () => {
     expect(blockedByFormValue(branch)).toBe("");
@@ -46,5 +61,28 @@ describe("blockedByFormValue", () => {
 
   it("joins an epic's blockedBy ids", () => {
     expect(blockedByFormValue(epic)).toBe("billing identity");
+  });
+});
+
+describe("projectMetaValue", () => {
+  it("returns mono workspace path when set", () => {
+    expect(projectMetaValue(project, "workspace")).toEqual({
+      text: "/tmp/repo",
+      mono: true,
+    });
+  });
+
+  it("returns muted empty state when workspace is unset", () => {
+    const unset = { ...project, workspace: undefined };
+    expect(projectMetaValue(unset, "workspace")).toEqual({
+      text: "not set",
+      muted: true,
+    });
+  });
+
+  it("returns the merge policy display label", () => {
+    expect(projectMetaValue(project, "mergePolicy")).toEqual({
+      text: "Pull request",
+    });
   });
 });

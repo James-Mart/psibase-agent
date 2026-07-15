@@ -297,6 +297,22 @@ describe("apply — update preserves imperative progress state", () => {
       rmSync(ws, { recursive: true, force: true });
     }
   });
+
+  it("preserves project mergePolicy when the doc updates a project", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    await update("proj", { mergePolicy: "pull-request" });
+
+    const doc = baseDoc();
+    doc.project.title = "Project renamed again";
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("proj");
+
+    const proj = readIssue("proj");
+    expect(proj.title).toBe("Project renamed again");
+    expect(proj.mergePolicy).toBe("pull-request");
+  });
 });
 
 describe("apply — prune by default", () => {

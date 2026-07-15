@@ -5,6 +5,7 @@ import {
   type CommitStatus,
   type IssueDetail,
   type IssuePatch,
+  type MergePolicy,
 } from "@server/schemas";
 import {
   FIELD_LABELS,
@@ -29,12 +30,14 @@ import {
 import { useUpdateIssue } from "../api/mutations";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
+import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
 
 interface FormState {
   title: string;
   description: string;
   workspace: string;
+  mergePolicy: MergePolicy;
   assignee: string;
   needsAttention: boolean;
   attentionReason: string;
@@ -53,6 +56,7 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     title: issue.title,
     description: issue.description,
     workspace: issue.kind === "project" ? issue.workspace ?? "" : "",
+    mergePolicy: issue.kind === "project" ? issue.mergePolicy : "manual",
     assignee: "assignee" in issue ? issue.assignee ?? "" : "",
     needsAttention: "needsAttention" in issue ? issue.needsAttention : false,
     attentionReason:
@@ -133,6 +137,8 @@ export function IssueDetailEdit({
 
     if (issue.kind === "project") {
       setClearable("workspace", form.workspace, issue.workspace);
+      if (form.mergePolicy !== issue.mergePolicy)
+        patch.mergePolicy = form.mergePolicy;
     }
 
     if (issue.kind === "commit") {
@@ -173,6 +179,12 @@ export function IssueDetailEdit({
       <WorkspacePathInput
         value={form.workspace}
         onChange={(value) => set("workspace", value)}
+      />
+    ),
+    mergePolicy: (
+      <MergePolicySelect
+        value={form.mergePolicy}
+        onChange={(value) => set("mergePolicy", value)}
       />
     ),
     status: (

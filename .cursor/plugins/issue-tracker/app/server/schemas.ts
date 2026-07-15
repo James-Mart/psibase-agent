@@ -3,6 +3,7 @@ import type { ClearableKey } from "./fields.js";
 
 export const KINDS = ["project", "epic", "branch", "commit"] as const;
 export const COMMIT_STATUSES = ["todo", "in-progress", "done"] as const;
+export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 
 const nonEmpty = z.string().min(1);
 
@@ -43,6 +44,7 @@ export const projectSchema = z.object({
   kind: z.literal("project"),
   title: nonEmpty,
   workspace: z.string().optional(),
+  mergePolicy: z.enum(MERGE_POLICIES).default("manual"),
   ...orderField,
   ...timestamps,
 });
@@ -91,6 +93,7 @@ export const issueSchema = z.discriminatedUnion("kind", [
 export type Issue = z.infer<typeof issueSchema>;
 export type IssueKind = (typeof KINDS)[number];
 export type CommitStatus = (typeof COMMIT_STATUSES)[number];
+export type MergePolicy = (typeof MERGE_POLICIES)[number];
 
 export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
   project: null,
@@ -116,7 +119,12 @@ export type IssuePatch = Partial<
 > & { description?: string } & Partial<Record<ClearableKey, string | null>>;
 
 export type CreateInput = Pick<IssueFields, "title"> &
-  Partial<Pick<IssueFields, "partOf" | "assignee" | "stackedOn" | "workspace">> & {
+  Partial<
+    Pick<
+      IssueFields,
+      "partOf" | "assignee" | "stackedOn" | "workspace" | "mergePolicy"
+    >
+  > & {
     kind: IssueKind;
     description?: string;
   };

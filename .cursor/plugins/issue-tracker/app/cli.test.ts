@@ -212,7 +212,21 @@ describe("show", () => {
   it("omits workspace when unset on a project", () => {
     const { stdout, status } = runCli(["show", "p"]);
     expect(status).toBe(0);
+    expect(stdout).toContain("mergePolicy: manual");
     expect(stdout).not.toContain("workspace:");
+  });
+});
+
+describe("set-merge-policy", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+  });
+
+  it("wires set-merge-policy through to update and show", () => {
+    expect(runCli(["set-merge-policy", "p", "pull-request"]).status).toBe(0);
+    const { stdout, status } = runCli(["show", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("mergePolicy: pull-request");
   });
 });
 
