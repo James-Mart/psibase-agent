@@ -45,7 +45,9 @@ Tell the user the UI is available at http://localhost:8060.
   PR, merged, sha), assignee and needs-attention badges, and blocked rows dimmed.
 - **Ready view** — a flat list of the issues that can be picked up right now.
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
-  cross-links), an edit form, a git/stack panel, and a per-issue chat.
+  cross-links), an edit form, a git/stack panel, assignee/attention badges, and
+  (for Branches with `specReview` set) a spec-review chip (`passed` / `failed`;
+  omitted when unset), and a per-issue chat.
 - Changes to `issues/` on disk (from the CLI or by hand) appear live over SSE
   without a refresh.
 

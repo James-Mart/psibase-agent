@@ -1,4 +1,5 @@
-import type { BranchStatus, CommitStatus, EpicStatus } from "@server/schemas";
+import type { BranchStatus, CommitStatus, EpicStatus, SpecReviewStatus } from "@server/schemas";
+import type { BadgeProps } from "@/components/ui/badge";
 
 export const COMMIT_STATUS_CLASS: Record<CommitStatus, string> = {
   todo: "text-muted-foreground",
@@ -30,4 +31,17 @@ export const EPIC_STATUS_CLASS: Record<EpicStatus, string> = {
   todo: "text-muted-foreground",
   "in-progress": "[color:hsl(var(--warning))]",
   done: "[color:hsl(var(--success))]",
+};
+
+export const SPEC_REVIEW_LABEL: Record<SpecReviewStatus, string> = {
+  passed: "passed",
+  failed: "failed",
+};
+
+export const SPEC_REVIEW_BADGE_VARIANT: Record<
+  SpecReviewStatus,
+  NonNullable<BadgeProps["variant"]>
+> = {
+  passed: "done",
+  failed: "destructive",
 };

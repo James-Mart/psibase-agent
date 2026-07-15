@@ -49,7 +49,7 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
   deleted, and unchanged nodes are untouched. It is atomic (a doc that would
   break integrity changes nothing) and never touches runtime/progress state
-  (status, git facts, assignee, attention, chat), so re-applying an edited doc
+  (status, git facts, specReview, assignee, attention, chat), so re-applying an edited doc
   mid-implementation is safe. Keep the doc as the editable source and re-`apply`
   rather than patching the tree with one-off imperative verbs.
 - **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.

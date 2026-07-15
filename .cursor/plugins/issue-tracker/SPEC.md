@@ -110,6 +110,9 @@ These are computed by `derive()` and never written to disk (see
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
+- **specReview** — a Branch-only machine-readable spec-review gate (`passed` /
+  `failed`; absent until set by `issue set-spec-review`). Surfaced in the detail
+  panel when set; omitted from the tree outline.
 - **problems** — integrity issues that are surfaced, never silently ignored:
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
@@ -344,7 +347,7 @@ prevented here, so no consumer can persist a broken file.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
   `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
-  `status`/`commitSha` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged` for
+  `status`/`commitSha` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
   a Branch), and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
