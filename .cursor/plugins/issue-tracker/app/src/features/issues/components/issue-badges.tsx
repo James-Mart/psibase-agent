@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardCheck, User } from "lucide-react";
+import { AlertTriangle, CircleSlash, ClipboardCheck, User } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
@@ -11,12 +11,10 @@ import {
 export function IssueBadges({
   issue,
   compact = false,
-  showSpecReview = false,
   className,
 }: {
   issue: IssueRecord;
   compact?: boolean;
-  showSpecReview?: boolean;
   className?: string;
 }) {
   const assignee = "assignee" in issue ? issue.assignee : undefined;
@@ -24,9 +22,11 @@ export function IssueBadges({
   const attentionReason =
     "attentionReason" in issue ? issue.attentionReason : null;
   const specReview =
-    showSpecReview && issue.kind === "branch" ? issue.specReview : undefined;
+    !compact && issue.kind === "branch" ? issue.specReview : undefined;
+  const noDiff =
+    !compact && issue.kind === "commit" ? issue.noDiff : undefined;
 
-  if (!assignee && !needsAttention && !specReview) return null;
+  if (!assignee && !needsAttention && !specReview && !noDiff) return null;
   return (
     <span className={cn("flex items-center gap-1.5", className)}>
       {needsAttention ? (
@@ -49,6 +49,12 @@ export function IssueBadges({
         <Badge variant={SPEC_REVIEW_BADGE_VARIANT[specReview]} className="gap-1">
           <ClipboardCheck className="h-3 w-3" />
           {SPEC_REVIEW_LABEL[specReview]}
+        </Badge>
+      ) : null}
+      {noDiff ? (
+        <Badge variant="secondary" className="gap-1" title="Intentional empty implementor diff">
+          <CircleSlash className="h-3 w-3" />
+          no diff
         </Badge>
       ) : null}
     </span>

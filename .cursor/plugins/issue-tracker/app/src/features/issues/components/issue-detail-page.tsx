@@ -97,7 +97,7 @@ export function IssueDetailPage() {
               <span className="font-mono text-xs text-muted-foreground">
                 {issue.id}
               </span>
-              <IssueBadges issue={issue} showSpecReview className="mt-2" />
+              <IssueBadges issue={issue} className="mt-2" />
             </div>
             {!editing ? (
               <div className="flex shrink-0 gap-2">
