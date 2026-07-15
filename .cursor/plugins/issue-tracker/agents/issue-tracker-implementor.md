@@ -22,7 +22,10 @@ Glossary: plugin `SPEC.md`.
 ## Bootstrap
 
 Run `issue summary <id>` first to rebuild Project → Epic → Branch → Commit
-context. Use `issue show <id>` when you need the full `description.md`.
+context. Use `issue show <id>` when you need the full `description.md`. That
+summary also carries the Project **workspace** — run all implementation work
+(file edits, builds, tests, browser checks) with it as the cwd, and honor the
+unset escalation, per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 

@@ -18,7 +18,9 @@ Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 
 Run `issue summary <branchId>` for Project → Epic → Branch context. Use
 `issue tree --epic <epicId>` and `issue show <id>` on the Branch and its
-Commits for full `description.md` specs.
+Commits for full `description.md` specs. That summary also carries the Project
+**workspace** — inspect the Branch's commits, diffs, and files with it as the
+cwd, and honor the unset escalation, per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 

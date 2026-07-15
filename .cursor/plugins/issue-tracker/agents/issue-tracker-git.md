@@ -18,7 +18,10 @@ Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 ## Bootstrap
 
 Run `issue summary <id>` first to rebuild Project → Epic → Branch → Commit
-context for the issue you were given.
+context for the issue you were given. That same output carries the Project
+**workspace** — the cwd for all git work. Resolve it and honor the unset
+escalation per **SPEC § Project workspace**; every `git` command in the modes
+below runs with that path as the working directory.
 
 ## Inputs (from invoking prompt)
 

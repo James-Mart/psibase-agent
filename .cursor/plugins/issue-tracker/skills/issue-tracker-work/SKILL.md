@@ -74,16 +74,24 @@ instead of continuing.
    `blockedBy` a blocker that has not fully merged, so — per Argument — it
    **cannot start**. Stop and hand back to the user rather than running
    `issue tree` or working any Commit.
-3. Mirror the Branches and their Commits, in `issue tree` order, into your own
+3. **Workspace preflight.** Run `issue summary <epicId>` and check for the
+   `Workspace:` line under the Project. If it is absent, the Project has no
+   workspace and every repo-touching subagent would immediately escalate, so
+   **stop and hand back to the user** to set it
+   (`issue set-workspace <projectId> <path>`) before spawning anything. See
+   SPEC § Project workspace.
+4. Mirror the Branches and their Commits, in `issue tree` order, into your own
    todo list so you can track progress; keep exactly one Commit `in_progress` at
    a time. This mirror is a cache of the outline — re-sync it from a fresh
    `issue tree --epic <id>` each time control returns to you (see The loop).
-4. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
+5. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
    dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
    (validators/implementor), and Mode where required (`implement` / `revise` for
    the implementor; `start-branch` / `finish-commit` for git). For
-   `start-branch`, also pass `base` and `branchName` from the tree chips. Do not
-   gather descriptions, read diffs, or ingest reports into your own context.
+   `start-branch`, also pass `base` and `branchName` from the tree chips. Never
+   pass the workspace — each repo subagent resolves it from its own
+   `issue summary` (SPEC § Project workspace). Do not gather descriptions, read
+   diffs, or ingest reports into your own context.
 
 ### Resolve implementor model
 
@@ -130,7 +138,7 @@ picks them up. Never act from a cached outline.
 ### Start a Branch
 
 If the Branch has no git branch yet, spawn `issue-tracker-git` with the
-start-branch stub before its first Commit (chips from Setup §1 / §4).
+start-branch stub before its first Commit (chips from Setup §1 / §5).
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
@@ -253,3 +261,8 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
   edit code.
 - Never set status on a Branch or Epic; never open or merge PRs.
 - Act only through the CLI for tracker writes; never hand-edit `issue.json`.
+- Workspace is a subagent concern, not yours (SPEC § Project workspace): you and
+  the model discriminator do no repo work, so you never resolve or pass it — each
+  repo subagent reads it from its own `issue summary`. Your only workspace duty
+  is the Setup §3 preflight: if the Epic's Project has no `Workspace:` line, stop
+  and hand back to the user instead of spawning.

@@ -18,8 +18,10 @@ Every issue has a `kind`, one of four tiers:
 
 - **Project** — the top-level container that groups related Epics. Purely
   organizational: it carries **no status** (derived or stored) and none of the
-  assignee/needs-attention fields — only a `title` and a `description.md`
-  overview. Has no `partOf`.
+  assignee/needs-attention fields — a `title`, a `description.md` overview, and
+  an optional `workspace` (the absolute path to the local git checkout this
+  Project covers; repo-touching agents run there — see [workspace](#project-workspace)).
+  Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Branches; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
   in the same Project that must finish first). Has **no stored status** — its
@@ -158,9 +160,53 @@ Common to **Epic / Branch / Commit** (but **not** Project):
 | `needsAttention` | boolean | defaults `false` |
 | `attentionReason` | string \| null | defaults `null` |
 
-Project — the common-to-every-kind fields only (no `partOf`, no status, no
-assignee/needs-attention). Its `description.md` is a short overview of the
-Project.
+Project — the common-to-every-kind fields plus:
+
+| field | type | notes |
+| --- | --- | --- |
+| `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
+
+No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
+short overview of the Project.
+
+### Project workspace
+
+A Project's optional `workspace` is the absolute path to the local git checkout
+its Epics' work lands in. It is set with `issue set-workspace <projectId> <path>`
+(cleared with `--clear`) and surfaced on the Project node by both `issue show`
+(a `workspace:` line) and `issue summary` (a `Workspace:` line under the Project).
+
+The field exists so the work loop's **repo-touching subagents** (git,
+implementor, and both validators) know where to operate. The coordinator and the
+model discriminator do no repo work, so neither needs a workspace. The contract
+below is the single source of truth; the agent files (`agents/*.md`) and the work
+skill point here rather than restating it.
+
+**Resolution.** A repo-touching subagent reads its own bootstrap
+`issue summary <id>` output — never a value inlined in its Task prompt (a
+coordinator must not pass one, but if one leaks in, ignore it). From that output:
+
+- the workspace is the `Workspace:` line under the Project;
+- the project id is the id on the `Project: <id> — <title>` line (used only to
+  build the attention message; do not re-derive ancestry any other way).
+
+**Use as cwd.** Run **every** repo command — git, builds, tests, and any
+file-edit / diff-inspection — with the workspace path as the shell working
+directory (pass it as the tool's `working_directory`, or `cd` into it first);
+never rely on the ambient cwd for repo work. The `issue` CLI is exempt: it
+resolves its issues dir from its own install location, so it works from any cwd —
+keep invoking it as-is.
+
+**Unset → escalate, never fall back.** If `issue summary` prints no `Workspace:`
+line, do **not** touch any repo. Raise
+`issue attention <epicId> --reason "Project workspace unset — set it with 'issue set-workspace <projectId> <path>'"`
+(substituting the ids) and stop. Attention always lands on the **Epic**: a
+Project carries no needs-attention fields, so it is never the target.
+
+**Coordinator preflight.** Because the missing-workspace failure otherwise only
+surfaces once a repo subagent is spawned, the work-loop coordinator checks for
+the `Workspace:` line up front (in Setup) and hands back to the user before
+spawning anything if it is absent.
 
 Epic — the Epic/Branch/Commit common fields plus:
 
@@ -459,6 +505,7 @@ preserves everything else from the existing same-kind issue.
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
+| `workspace` (Project) | imperative only (`set-workspace`); `apply` preserves |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
