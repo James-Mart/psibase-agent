@@ -49,6 +49,22 @@ describe("project mergePolicy", () => {
     }
   });
 
+  it("accepts mergePolicy on create", async () => {
+    const { create, read } = await loadService();
+    const record = await create({
+      kind: "project",
+      title: "PR policy",
+      mergePolicy: "pull-request",
+    });
+    const detail = read(record.id);
+    expect(detail.kind).toBe("project");
+    if (detail.kind === "project") {
+      expect(detail.mergePolicy).toBe("pull-request");
+    }
+    const raw = JSON.parse(readFileSync(join(dir, record.id, "issue.json"), "utf8"));
+    expect(raw.mergePolicy).toBe("pull-request");
+  });
+
   it("round-trips each policy through update and read", async () => {
     const { update, read } = await loadService();
     for (const policy of ["merge", "pull-request", "manual"] as const) {

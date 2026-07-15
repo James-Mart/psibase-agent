@@ -298,9 +298,12 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
     }
     if (input.kind === "commit") draft.status = "todo";
-    if (input.kind === "project" && input.workspace) {
-      validateWorkspacePath(input.workspace);
-      draft.workspace = input.workspace;
+    if (input.kind === "project") {
+      if (input.workspace) {
+        validateWorkspacePath(input.workspace);
+        draft.workspace = input.workspace;
+      }
+      if (input.mergePolicy) draft.mergePolicy = input.mergePolicy;
     }
 
     const parsed = parseIssue(draft);

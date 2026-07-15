@@ -119,7 +119,12 @@ export type IssuePatch = Partial<
 > & { description?: string } & Partial<Record<ClearableKey, string | null>>;
 
 export type CreateInput = Pick<IssueFields, "title"> &
-  Partial<Pick<IssueFields, "partOf" | "assignee" | "stackedOn" | "workspace">> & {
+  Partial<
+    Pick<
+      IssueFields,
+      "partOf" | "assignee" | "stackedOn" | "workspace" | "mergePolicy"
+    >
+  > & {
     kind: IssueKind;
     description?: string;
   };

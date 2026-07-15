@@ -1,4 +1,9 @@
-import type { IssueKind, IssuePatch } from "./schemas.js";
+import {
+  MERGE_POLICIES,
+  type IssueKind,
+  type IssuePatch,
+  type MergePolicy,
+} from "./schemas.js";
 
 export const COMMON_MERGEABLE_KEYS = [
   "title",
@@ -67,6 +72,17 @@ export const FIELD_LABELS = {
   status: "Status",
   commitSha: "Commit SHA",
 } as const;
+
+export const MERGE_POLICY_LABELS = {
+  merge: "Merge",
+  "pull-request": "Pull request",
+  manual: "Manual",
+} as const satisfies Record<MergePolicy, string>;
+
+export const MERGE_POLICY_OPTIONS = MERGE_POLICIES.map((value) => ({
+  value,
+  label: MERGE_POLICY_LABELS[value],
+}));
 
 export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,
