@@ -427,6 +427,89 @@ describe("block", () => {
   });
 });
 
+describe("set-spec-review", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("sets specReview and prints it in show and list", () => {
+    expect(runCli(["set-spec-review", "a", "passed"]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
+    expect(raw.specReview).toBe("passed");
+
+    const { stdout: showOut, status: showStatus } = runCli(["show", "a"]);
+    expect(showStatus).toBe(0);
+    expect(showOut).toContain("specReview: passed");
+
+    const { stdout: listOut, status: listStatus } = runCli(["list", "--project", "p"]);
+    expect(listStatus).toBe(0);
+    const listed = JSON.parse(listOut);
+    const branch = listed.issues.find((i: { id: string }) => i.id === "a");
+    expect(branch.specReview).toBe("passed");
+  });
+
+  it("omits specReview from show when unset", () => {
+    const { stdout, status } = runCli(["show", "a"]);
+    expect(status).toBe(0);
+    expect(stdout).not.toContain("specReview:");
+  });
+
+  it("rejects an invalid specReview value", () => {
+    const { stderr, status } = runCli(["set-spec-review", "a", "pending"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid specReview "pending"/);
+  });
+
+  it("rejects a non-branch id", () => {
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const { stderr, status } = runCli(["set-spec-review", "c1", "passed"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/only valid on a branch/);
+  });
+
+  it("preserves specReview across an epic apply round-trip", () => {
+    const applyPath = join(dir, "epic.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  branches:
+    - id: a
+      title: Branch A renamed
+`,
+    );
+    expect(runCli(["set-spec-review", "a", "failed"]).status).toBe(0);
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+
+    const raw = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
+    expect(raw.specReview).toBe("failed");
+    expect(raw.title).toBe("Branch A renamed");
+
+    const { stdout, status } = runCli(["show", "a"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("specReview: failed");
+    expect(stdout).toContain("title: Branch A renamed");
+  });
+});
+
 describe("set-part-of", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   beforeEach(() => {

@@ -27,7 +27,7 @@ Every issue has a `kind`, one of four tiers:
   in the same Project that must finish first). Has **no stored status** — its
   status is fully derived from descendants. Is `partOf` a Project (required).
 - **Branch** — a unit that becomes one git branch and one PR. Contains Commits.
-  Carries `branchName`, `stackedOn`, `prUrl`, `merged`. Status is derived, never
+  Carries `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`. Status is derived, never
   stored.
 - **Commit** — an atomic, story-point-sized unit implemented as one git commit.
   Each Commit is a **small but standalone cross-section** of the work: after it
@@ -271,6 +271,7 @@ Branch — the Epic/Branch/Commit common fields plus:
 | `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => base `main` |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false` |
+| `specReview` | `"passed"` \| `"failed"`? | absent until set by `issue set-spec-review`; machine-readable spec-review gate |
 
 Commit — the Epic/Branch/Commit common fields plus:
 
@@ -557,7 +558,7 @@ preserves everything else from the existing same-kind issue.
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
-| `branchName`, `prUrl`, `merged` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`); `apply` preserves |
+| `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
 | `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 

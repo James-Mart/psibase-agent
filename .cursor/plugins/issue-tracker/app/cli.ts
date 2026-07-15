@@ -16,10 +16,12 @@ import {
 import {
   COMMIT_STATUSES,
   MERGE_POLICIES,
+  SPEC_REVIEW_STATUSES,
   type CommitStatus,
   type DerivedState,
   type IssueRecord,
   type MergePolicy,
+  type SpecReviewStatus,
 } from "./server/schemas.js";
 import { subtreeIds } from "./server/services/subtree.js";
 import { apply } from "./server/services/apply.js";
@@ -36,6 +38,16 @@ import { formatSummary, summarize } from "./server/services/summary.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
+
+function assertEnumArg(
+  values: readonly string[],
+  value: string,
+  label: string,
+): void {
+  if (!values.includes(value)) {
+    throw new Error(`invalid ${label} "${value}" (expected: ${values.join(", ")})`);
+  }
+}
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
 // by kind, and the derived state. Commits are pre-sorted into their execution
@@ -323,11 +335,7 @@ program
   .argument("<status>", `one of: ${COMMIT_STATUSES.join(", ")}`)
   .action((id, status) =>
     run(() => {
-      if (!(COMMIT_STATUSES as readonly string[]).includes(status)) {
-        throw new Error(
-          `invalid status "${status}" (expected: ${COMMIT_STATUSES.join(", ")})`,
-        );
-      }
+      assertEnumArg(COMMIT_STATUSES, status, "status");
       return update(id, { status: status as CommitStatus });
     }),
   );
@@ -430,6 +438,21 @@ program
   .command("set-merged")
   .argument("<id>", "branch id")
   .action((id) => run(() => update(id, { merged: true })));
+
+program
+  .command("set-spec-review")
+  .argument("<id>", "branch id")
+  .argument("<status>", `one of: ${SPEC_REVIEW_STATUSES.join(", ")}`)
+  .action((id, status) =>
+    run(() => {
+      assertEnumArg(SPEC_REVIEW_STATUSES, status, "specReview");
+      const detail = read(id);
+      if (detail.kind !== "branch") {
+        throw new Error(`specReview is only valid on a branch, not a ${detail.kind}`);
+      }
+      return update(id, { specReview: status as SpecReviewStatus });
+    }),
+  );
 
 program
   .command("comment")
@@ -547,6 +570,7 @@ program
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
         if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
         lines.push(`merged: ${detail.merged}`);
+        if (detail.specReview) lines.push(`specReview: ${detail.specReview}`);
       }
       if (detail.kind === "commit") {
         lines.push(`status: ${detail.status}`);
