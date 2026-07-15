@@ -89,6 +89,30 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses a branch with an optional specReview", () => {
+    const passed = parseIssue({ ...branch, specReview: "passed" });
+    expect(passed.ok).toBe(true);
+    if (passed.ok && passed.issue.kind === "branch") {
+      expect(passed.issue.specReview).toBe("passed");
+    }
+
+    const failed = parseIssue({ ...branch, specReview: "failed" });
+    expect(failed.ok).toBe(true);
+    if (failed.ok && failed.issue.kind === "branch") {
+      expect(failed.issue.specReview).toBe("failed");
+    }
+
+    const absent = parseIssue(branch);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "branch") {
+      expect(absent.issue.specReview).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown specReview value", () => {
+    expect(parseIssue({ ...branch, specReview: "pending" }).ok).toBe(false);
+  });
+
   it("parses a commit with a stored status", () => {
     const result = parseIssue(commit);
     expect(result.ok).toBe(true);

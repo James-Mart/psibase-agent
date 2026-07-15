@@ -10,7 +10,7 @@ import {
 import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
-  type BranchFieldKey,
+  type BranchFormFieldKey,
   type ClearableKey,
   type CommitFieldKey,
   type EpicFieldKey,
@@ -172,7 +172,7 @@ export function IssueDetailEdit({
   };
 
   const controls: Record<
-    ProjectFieldKey | EpicFieldKey | BranchFieldKey | CommitFieldKey,
+    ProjectFieldKey | EpicFieldKey | BranchFormFieldKey | CommitFieldKey,
     ReactNode
   > = {
     workspace: (

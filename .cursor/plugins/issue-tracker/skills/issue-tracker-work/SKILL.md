@@ -19,8 +19,10 @@ The coordinator does no real reasoning — it reads tracker state, runs a thin s
 of CLI commands, and spawns subagents in a fixed order — so it should itself run
 on the cheap model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The
 model discriminator assigns an implementor model onto each Commit; the
-implementor writes code; validators are advisory Composer 2.5 agents; the git
-subagent owns branch create, Commit finalize, and Branch finish.
+implementor writes code; the code-quality validator is advisory (read-only
+comments); the spec-conformance validator records the Branch gate (`specReview`,
+optional remediation Commit) without editing workspace source; the git subagent
+owns branch create, Commit finalize, and Branch finish.
 
 **You do not write code, run the app, or verify the work yourself.** You read the
 plan with `issue tree`, mark Commits in-progress, and spawn subagents. Do
@@ -114,20 +116,22 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 | Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`set-status in-progress` only) |
 | Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise; finish a Branch | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue assign` only) |
-| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | From Commit `assignee` (Resolve implementor model) | writes |
+| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume** | From Commit `assignee` (Resolve implementor model) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
-| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | After a Branch's last Commit lands | Composer 2.5 (pinned in agent frontmatter) | read-only |
+| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Branch when Branch `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`set-spec-review` / `add-commit` / `comment`) |
 
-Implement and revise are the **same** implementor agent. Validators are advisory
-— they surface issues but are **not** in charge. They report via `issue comment`
-(with the comment role you pass), which keeps findings out of your context and
-visible in the UI.
+Implement and revise are the **same** implementor agent. Code-quality is
+advisory (read-only `issue comment`) — it surfaces issues but is **not** in
+charge. Spec-conformance is the Branch gate recorder: it sets `specReview` and
+may append a remediation Commit (tracker writes only; never workspace source).
+Both keep findings out of your context via comments / machine-readable fields.
 
 ## The loop
 
 Walk the Branches in the order `issue tree` printed them (top-to-bottom). For
-each Branch, work its not-`done` Commits in the sequence `issue tree` lists
-them, to completion, before moving to the Branches nested under it.
+each Branch: start it if needed, work its not-`done` Commits in the sequence
+`issue tree` lists them, then **Close a Branch** (specReview gate +
+finish-branch) before moving to Branches nested under it.
 
 **Re-read `issue tree --epic <id>` every time control returns to you** — after
 every subagent finishes and before you choose the next action — and re-sync your
@@ -163,24 +167,23 @@ start-branch stub before its first Commit (chips from Setup §1 / §5).
 
 ### Close a Branch
 
-After a Branch's last Commit is `done`:
+Repeat until finish-branch:
 
-1. **Validate (spec conformance).** Spawn
-   `issue-tracker-spec-conformance-validator` (read-only) with the
-   spec-conformance spawn stub.
-2. **Revise (one pass).** From `issue tree`, take the Branch's **last**
-   Commit; Resolve implementor model for it. Spawn a **fresh**
-   `issue-tracker-implementor` with Task `model` set to that value and the
-   revise spawn stub targeting the **Branch**. Always one pass for now (may
-   no-op). If it lands new work, raise `issue attention <branchId>` —
-   `finish-commit` needs a Commit id/title, which branch-level revise does not
-   provide; do not invent one.
-3. **Finish the Branch** (only if the revise pass landed no new work; if it
-   raised `issue attention`, stop there instead). Spawn `issue-tracker-git` with
-   the finish-branch stub (Branch id + title, and its `base` / `branchName`
-   chips). Git applies the Project merge policy — see SPEC § Project merge
-   policy.
-4. **Advance** to the next Branch.
+1. **Re-sync.** Re-read `issue tree --epic <id>` and re-sync your todo list.
+2. **Not-done Commits.** If any Commit on the Branch is not `done` (including a
+   validator-injected remediation Commit), **run** the full Per-Commit cycle
+   for each in tree order (fresh implement spawn; resume only for the revise
+   step). Then continue from step 1.
+3. **`specReview` gate.** Read `specReview` with `issue show <branchId>` —
+   never by parsing chat. If unset, spawn
+   `issue-tracker-spec-conformance-validator` with the spec-conformance spawn
+   stub. Wait until it finishes (or raises `issue attention`); do not ingest
+   its report. Then continue from step 1.
+4. **Finish and advance.** All Commits are `done` and `specReview` is set
+   (`passed` or `failed`) — do **not** run the validator again. Spawn
+   `issue-tracker-git` with the finish-branch stub (Branch id + title, and its
+   `base` / `branchName` chips). Git applies the Project merge policy — see
+   SPEC § Project merge policy. Advance to the next Branch.
 
 ### Escalation
 
@@ -239,15 +242,13 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 > `code-quality-validator`.
 
 **Spec-conformance validator** — `subagent_type: issue-tracker-spec-conformance-validator`
-(read-only)
 
 > Epic: `<epicId>`. Branch: `<id>` (`<title>`). Comment role:
 > `spec-conformance-validator`.
 
-**Revise** — resume implementor (per-commit) or fresh `issue-tracker-implementor`
-(branch-level)
+**Revise** — resume implementor (per-commit only)
 
-> Epic: `<epicId>`. Issue: `<id>` (`<title>`). Mode: revise. Comment role:
+> Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: revise. Comment role:
 > `implementor`.
 
 ## Rules
@@ -265,11 +266,11 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 - The implementor leaves work uncommitted; the **git** subagent commits
   (message = Commit title) and records sha/status only after the per-commit
   cycle passes.
-- Exactly one revision pass per validator tier (code-quality per commit via
-  **resume**, spec-conformance per branch via **fresh** implementor); never loop
-  reviews. The implementor may decline findings with reasoning.
-- Validators are read-only and report via `issue comment`; never let a validator
-  edit code.
+- Exactly one revision pass after the code-quality validator (via **resume**);
+  never loop reviews. Spec-conformance remediation is Close-Branch's job (see
+  that section) — no branch-level revise. The implementor may decline findings
+  with reasoning.
+- Never let a validator edit workspace source (write scopes: Models table).
 - Never set status on a Branch or Epic. Do not decide whether to open or merge a
   PR — that is the Project's `mergePolicy`, applied by `issue-tracker-git` on
   finish-branch. Always spawn finish-branch; never read or branch on the policy.

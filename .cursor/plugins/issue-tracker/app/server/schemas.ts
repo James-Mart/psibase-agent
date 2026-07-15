@@ -4,6 +4,7 @@ import type { ClearableKey } from "./fields.js";
 export const KINDS = ["project", "epic", "branch", "commit"] as const;
 export const COMMIT_STATUSES = ["todo", "in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
+export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
 
 const nonEmpty = z.string().min(1);
 
@@ -67,6 +68,7 @@ export const branchSchema = z.object({
   stackedOn: z.string().optional(),
   prUrl: z.string().optional(),
   merged: z.boolean().default(false),
+  specReview: z.enum(SPEC_REVIEW_STATUSES).optional(),
   ...mutableCommon,
   ...orderField,
   ...timestamps,
@@ -94,6 +96,7 @@ export type Issue = z.infer<typeof issueSchema>;
 export type IssueKind = (typeof KINDS)[number];
 export type CommitStatus = (typeof COMMIT_STATUSES)[number];
 export type MergePolicy = (typeof MERGE_POLICIES)[number];
+export type SpecReviewStatus = (typeof SPEC_REVIEW_STATUSES)[number];
 
 export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
   project: null,

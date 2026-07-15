@@ -233,6 +233,7 @@ describe("apply — update preserves imperative progress state", () => {
       branchName: "feat/b2",
       prUrl: "https://example.test/pr/2",
       merged: true,
+      specReview: "failed",
       assignee: "ada",
       needsAttention: true,
       attentionReason: "waiting on review",
@@ -259,6 +260,7 @@ describe("apply — update preserves imperative progress state", () => {
     expect(b2.branchName).toBe("feat/b2");
     expect(b2.prUrl).toBe("https://example.test/pr/2");
     expect(b2.merged).toBe(true);
+    expect(b2.specReview).toBe("failed");
     expect(b2.assignee).toBe("ada");
     expect(b2.needsAttention).toBe(true);
     expect(b2.attentionReason).toBe("waiting on review");
