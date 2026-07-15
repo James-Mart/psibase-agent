@@ -42,7 +42,7 @@ Map to a single model id (then `issue assign <commitId> <modelId>`):
 | --- | --- | --- | --- |
 | **Low judgment** | `composer-2.5` | `composer-2.5` | `cursor-grok-4.5-high` |
 | **Mid judgment** | `cursor-grok-4.5-high` | `cursor-grok-4.5-high` | `claude-opus-4-8-thinking-high` |
-| **High judgment** | `cursor-grok-4.5-high` | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` |
+| **High judgment** | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` |
 
 Mid-tier is **non-fast** Grok 4.5 High — slug `cursor-grok-4.5-high`, **not**
 the Fast SKU `cursor-grok-4.5-high-fast`. High tier:
