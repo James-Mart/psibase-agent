@@ -75,9 +75,9 @@ async function loadApply() {
   return import("./apply.js");
 }
 
-describe("listAttachments / putAttachment / removeAttachment", () => {
-  it("upserts, lists metadata, and removes", async () => {
-    const { listAttachments, putAttachment, removeAttachment } =
+describe("listAttachments / putAttachment / getAttachment / removeAttachment", () => {
+  it("upserts, lists metadata, reads bytes, and removes", async () => {
+    const { listAttachments, putAttachment, getAttachment, removeAttachment } =
       await loadAttachments();
 
     expect(listAttachments("c")).toEqual([]);
@@ -91,6 +91,10 @@ describe("listAttachments / putAttachment / removeAttachment", () => {
     expect(readFileSync(join(dir, "c", "attachments", "mock.tsx"), "utf8")).toBe(
       "export const x = 1;\n",
     );
+
+    const got = await getAttachment("c", "mock.tsx");
+    expect(got.meta.name).toBe("mock.tsx");
+    expect(got.bytes.equals(v1)).toBe(true);
 
     const listed = listAttachments("c");
     expect(listed).toHaveLength(1);
@@ -125,19 +129,23 @@ describe("listAttachments / putAttachment / removeAttachment", () => {
   });
 
   it("refuses project and unknown ids", async () => {
-    const { listAttachments, putAttachment, removeAttachment } =
+    const { listAttachments, putAttachment, getAttachment, removeAttachment } =
       await loadAttachments();
 
     expect(() => listAttachments("p")).toThrow(/project/i);
     await expect(
       putAttachment("p", "x.txt", Buffer.from("nope")),
     ).rejects.toThrow(/project/i);
+    await expect(getAttachment("p", "x.txt")).rejects.toThrow(/project/i);
     await expect(removeAttachment("p", "x.txt")).rejects.toThrow(/project/i);
 
     expect(() => listAttachments("ghost")).toThrow(/unknown issue/);
     await expect(
       putAttachment("ghost", "x.txt", Buffer.from("nope")),
     ).rejects.toThrow(/unknown issue/);
+    await expect(getAttachment("ghost", "x.txt")).rejects.toThrow(
+      /unknown issue/,
+    );
   });
 
   it("refuses oversize payloads", async () => {
@@ -149,16 +157,21 @@ describe("listAttachments / putAttachment / removeAttachment", () => {
   });
 
   it("refuses unsafe basenames", async () => {
-    const { putAttachment, removeAttachment } = await loadAttachments();
+    const { putAttachment, getAttachment, removeAttachment } =
+      await loadAttachments();
     const bytes = Buffer.from("x");
     for (const name of ["", "..", ".", "a/b", "a\\b", "a\0b", "../x"]) {
       await expect(putAttachment("c", name, bytes)).rejects.toThrow(/unsafe/i);
+      await expect(getAttachment("c", name)).rejects.toThrow(/unsafe/i);
       await expect(removeAttachment("c", name)).rejects.toThrow(/unsafe/i);
     }
   });
 
-  it("throws when removing a missing attachment", async () => {
-    const { removeAttachment } = await loadAttachments();
+  it("throws when reading or removing a missing attachment", async () => {
+    const { getAttachment, removeAttachment } = await loadAttachments();
+    await expect(getAttachment("c", "missing.txt")).rejects.toThrow(
+      /not found/,
+    );
     await expect(removeAttachment("c", "missing.txt")).rejects.toThrow(
       /not found/,
     );

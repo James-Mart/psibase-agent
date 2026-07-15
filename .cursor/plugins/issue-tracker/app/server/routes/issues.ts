@@ -1,4 +1,13 @@
 import { Router, type RequestHandler } from "express";
+import { basename } from "path";
+import { uploadAttachment } from "../middleware/upload-attachment.js";
+import {
+  getAttachment,
+  listAttachments,
+  putAttachment,
+  removeAttachment,
+} from "../services/attachments.js";
+import { IssueError } from "../services/errors.js";
 import {
   appendMessage,
   create,
@@ -37,6 +46,47 @@ issuesRouter.get(
   "/:id/chat",
   asyncRoute((req, res) => {
     res.json(readChat(req.params.id));
+  }),
+);
+
+issuesRouter.get(
+  "/:id/attachments",
+  asyncRoute((req, res) => {
+    res.json(listAttachments(req.params.id));
+  }),
+);
+
+issuesRouter.post(
+  "/:id/attachments",
+  uploadAttachment,
+  asyncRoute(async (req, res) => {
+    const file = req.file;
+    if (!file) {
+      throw new IssueError("validation", "file is required");
+    }
+    const name = basename(file.originalname);
+    const meta = await putAttachment(req.params.id, name, file.buffer);
+    res.status(201).json(meta);
+  }),
+);
+
+issuesRouter.get(
+  "/:id/attachments/:name",
+  asyncRoute(async (req, res) => {
+    const { meta, bytes } = await getAttachment(
+      req.params.id,
+      req.params.name,
+    );
+    res.type(meta.mime);
+    res.send(bytes);
+  }),
+);
+
+issuesRouter.delete(
+  "/:id/attachments/:name",
+  asyncRoute(async (req, res) => {
+    await removeAttachment(req.params.id, req.params.name);
+    res.status(204).end();
   }),
 );
 
