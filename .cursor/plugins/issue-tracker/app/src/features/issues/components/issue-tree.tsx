@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,6 +21,7 @@ import {
 } from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -262,8 +264,11 @@ export function IssueTree({
   }
   return (
     <div className="flex flex-col">
-      {nodes.map((node) => (
-        <TreeRow key={node.issue.id} node={node} derived={derived} />
+      {nodes.map((node, index) => (
+        <Fragment key={node.issue.id}>
+          {index > 0 ? <Separator className="my-3" /> : null}
+          <TreeRow node={node} derived={derived} />
+        </Fragment>
       ))}
     </div>
   );
