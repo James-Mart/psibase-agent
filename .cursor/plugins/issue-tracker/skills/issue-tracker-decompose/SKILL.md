@@ -72,10 +72,11 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   interface detail specific to it. Normally several commits; one commit's worth
   of work is a Commit, not a Branch.
 - **Commit** = one git commit: implementor-resolution detail (what to do + how to
-  verify), no deeper than a good plan section. Tree nesting supplies context, so
-  linking commit → epic is unnecessary. **Commits run in the order they appear in
-  the doc** (top-to-bottom); authors never specify `order` — array position is
-  implementation order.
+  verify), no deeper than a good plan section. Must be a standalone vertical
+  slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
+  Tree nesting supplies context, so linking commit → epic is unnecessary.
+  **Commits run in the order they appear in the doc** (top-to-bottom); authors
+  never specify `order` — array position is implementation order.
 
 **Each Branch must be independently mergeable to `main`.** Branches merge to
 `main` (stacked children after their fork-point Branch, in stack order), and only
@@ -85,10 +86,28 @@ leaves `main` broken (e.g. a schema change in one Branch and the code that
 consumes it in another): keep it in a single Branch as multiple Commits. See the
 stacked-PR merge model in [SPEC.md](../../SPEC.md).
 
+### Commit shape: vertical slices, not horizontal layers
+
+Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Commit kind + stacked-PR
+merge model): each Commit must leave the Branch tip **buildable and testable**.
+
+**Prefer** vertical slices — one thin end-to-end cut of a capability (types +
+implementation + a focused test) that stands alone.
+
+**Avoid** horizontal layering that does not stand alone:
+
+- **Bad:** Commit 1 adds types/interfaces only; Commit 2 "wires them up"; Commit 3
+  adds tests — or a half-migration Commit that does not compile. Early Commits do
+  not prove anything on their own.
+- **Good:** Commit 1 adds one complete capability (types, implementation, and a
+  focused test) that builds; Commit 2 adds the next capability the same way.
+
 A plan's *phases* are the Branch grain, its *todos/steps* the Commit grain. Group
-related todos into one Branch and land them as commits; split only a genuinely
-oversized phase. One todo → one Branch (a stack of one-commit PRs with an empty
-Commit tier) means you split at the wrong tier.
+related todos into one Branch and land them as commits; when mapping todos to
+Commits, reshape horizontal layering into vertical slices (split or merge until
+each Commit stands alone as above). Split only a genuinely oversized phase. One
+todo → one Branch (a stack of one-commit PRs with an empty Commit tier) means you
+split at the wrong tier.
 
 Completeness pass before done: every part of the source design is represented; no
 description references an external file; no Branch/Commit is title-only; no
