@@ -186,7 +186,7 @@ export function TreePage() {
         ) : view === "ready" && data ? (
           <ReadyView data={data} />
         ) : (
-          <IssueTree nodes={nodes} derived={derived} />
+          <IssueTree nodes={nodes} derived={derived} issues={scoped} />
         )}
       </div>
     </div>

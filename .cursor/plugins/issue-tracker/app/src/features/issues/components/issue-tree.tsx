@@ -28,6 +28,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  BranchTreeDnDProvider,
+  useBranchTreeDnD,
+  useBranchTreeDnDContext,
+} from "../hooks/use-branch-tree-dnd";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
@@ -186,9 +191,16 @@ function TreeRow({
   const { issue } = node;
   const expanded = useIssueUiStore((s) => s.expanded[issue.id] ?? true);
   const toggle = useIssueUiStore((s) => s.toggle);
+  const { getBranchRowProps, consumeDragGesture } = useBranchTreeDnDContext();
   const hasChildren = node.children.length > 0;
   const Icon = KIND_ICON[issue.kind];
   const state = derived[issue.id];
+  const isBranch = issue.kind === "branch";
+  const branchDnD = isBranch ? getBranchRowProps(issue.id) : null;
+  const { isDragging, isDropTarget, ...branchDragHandlers } = branchDnD ?? {
+    isDragging: false,
+    isDropTarget: false,
+  };
 
   return (
     <div>
@@ -196,9 +208,20 @@ function TreeRow({
         className={cn(
           "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
           hasChildren && "cursor-pointer",
+          isBranch && "cursor-grab active:cursor-grabbing",
           state?.blocked && "opacity-40",
+          isDragging && "opacity-50",
+          isDropTarget && "bg-accent ring-1 ring-ring",
         )}
-        onClick={hasChildren ? () => toggle(issue.id) : undefined}
+        {...(isBranch ? branchDragHandlers : {})}
+        onClick={
+          hasChildren
+            ? () => {
+                if (consumeDragGesture()) return;
+                toggle(issue.id);
+              }
+            : undefined
+        }
       >
         <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
           {hasChildren ? (
@@ -214,6 +237,7 @@ function TreeRow({
           to={issuePath(issue.id)}
           className="truncate text-sm hover:underline"
           onClick={(e) => e.stopPropagation()}
+          draggable={false}
         >
           {issue.title}
         </Link>
@@ -251,10 +275,14 @@ function TreeRow({
 export function IssueTree({
   nodes,
   derived,
+  issues,
 }: {
   nodes: IssueNode[];
   derived: DerivedMap;
+  issues: IssueRecord[];
 }) {
+  const dnd = useBranchTreeDnD(issues);
+
   if (nodes.length === 0) {
     return (
       <p className="px-2 py-8 text-center text-sm text-muted-foreground">
@@ -263,13 +291,15 @@ export function IssueTree({
     );
   }
   return (
-    <div className="flex flex-col">
-      {nodes.map((node, index) => (
-        <Fragment key={node.issue.id}>
-          {index > 0 ? <Separator className="my-3" /> : null}
-          <TreeRow node={node} derived={derived} />
-        </Fragment>
-      ))}
-    </div>
+    <BranchTreeDnDProvider value={dnd}>
+      <div className="flex flex-col">
+        {nodes.map((node, index) => (
+          <Fragment key={node.issue.id}>
+            {index > 0 ? <Separator className="my-3" /> : null}
+            <TreeRow node={node} derived={derived} />
+          </Fragment>
+        ))}
+      </div>
+    </BranchTreeDnDProvider>
   );
 }
