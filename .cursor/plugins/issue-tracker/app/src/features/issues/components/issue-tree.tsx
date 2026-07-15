@@ -11,7 +11,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   CHILD_KIND,
   type DerivedState,
@@ -181,6 +181,7 @@ function TreeRow({
   node: IssueNode;
   derived: DerivedMap;
 }) {
+  const { projectId = "" } = useParams();
   const { issue } = node;
   const expanded = useIssueUiStore((s) => s.expanded[issue.id] ?? true);
   const toggle = useIssueUiStore((s) => s.toggle);
@@ -209,7 +210,7 @@ function TreeRow({
         </span>
         <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
         <Link
-          to={issuePath(issue.id)}
+          to={issuePath(projectId, issue.id)}
           className="truncate text-sm hover:underline"
           onClick={(e) => e.stopPropagation()}
         >

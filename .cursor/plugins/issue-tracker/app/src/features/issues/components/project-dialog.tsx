@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,11 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateIssue, useUpdateIssue } from "../api/mutations";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
+import { projectPath } from "../lib/links";
 
 export function ProjectDialog() {
+  const navigate = useNavigate();
   const target = useIssueUiStore((s) => s.projectDialog);
   const close = useIssueUiStore((s) => s.closeProjectDialog);
-  const selectProject = useIssueUiStore((s) => s.selectProject);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
 
@@ -43,7 +45,7 @@ export function ProjectDialog() {
         { kind: "project", title: name },
         {
           onSuccess: (project) => {
-            selectProject(project.id);
+            navigate(projectPath(project.id));
             close();
           },
         },

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useIssueDetailQuery } from "../api/queries";
+import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
-import { linkNotFoundMessage } from "../lib/links";
+import { projectPath } from "../lib/links";
+import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
@@ -18,31 +18,34 @@ import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 
 export function IssueDetailPage() {
-  const { id = "" } = useParams();
+  const { projectId = "", id = "" } = useParams();
   const navigate = useNavigate();
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
   const [editing, setEditing] = useState(false);
-  const redirected = useRef<string | null>(null);
+  const backTo = projectPath(projectId);
 
   const { data: issue, isLoading, error } = useIssueDetailQuery(id);
+  const { data: list, isLoading: listLoading } = useIssuesQuery();
 
   useEffect(() => {
     setEditing(false);
   }, [id]);
 
+  const byId = useMemo(
+    () => issuesById(list?.issues ?? []),
+    [list?.issues],
+  );
+
   const missing = error instanceof ApiError && error.status === 404;
-  useEffect(() => {
-    if (missing && redirected.current !== id) {
-      redirected.current = id;
-      navigate("/", { replace: true });
-      toast.error(linkNotFoundMessage(id));
-    }
-  }, [missing, id, navigate]);
+  const wrongProject =
+    Boolean(list) && Boolean(issue) && !issueBelongsToProject(id, projectId, byId);
+  const showScopeError = missing || wrongProject;
+  const loading = isLoading || (Boolean(issue) && listLoading);
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
       <Link
-        to="/"
+        to={backTo}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -55,14 +58,29 @@ export function IssueDetailPage() {
         </div>
       ) : null}
 
-      {isLoading ? (
+      {loading ? (
         <div className="space-y-3">
           <Skeleton className="h-8 w-2/3" />
           <Skeleton className="h-24 w-full" />
         </div>
       ) : null}
 
-      {issue ? (
+      {showScopeError && !loading ? (
+        <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          {missing ? (
+            <>
+              No issue with id <span className="font-mono">{id}</span>.
+            </>
+          ) : (
+            <>
+              Issue <span className="font-mono">{id}</span> is not under project{" "}
+              <span className="font-mono">{projectId}</span>.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {issue && !showScopeError ? (
         <>
           <header className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -92,7 +110,7 @@ export function IssueDetailPage() {
                   size="sm"
                   onClick={() => {
                     requestDelete(issue.id);
-                    navigate("/");
+                    navigate(backTo);
                   }}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
