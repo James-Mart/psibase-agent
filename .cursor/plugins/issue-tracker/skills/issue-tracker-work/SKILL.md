@@ -29,8 +29,8 @@ or a fixed linear action — this skill is meant to be replaced by a determinist
 script. Never set status on a Branch or Epic — Branch/Epic status derives
 automatically (see SPEC.md). Git and git-fact recording are delegated — see
 Rules. Commit `assignee` is overloaded as the implementor **model id** (set by
-the model discriminator via `issue assign`). Reading it into Task `model` is
-[wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn).
+the model discriminator via `issue assign`). Before each implementor spawn,
+**Resolve implementor model** (below) and pass the result as Task `model`.
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
@@ -85,6 +85,13 @@ instead of continuing.
    `start-branch`, also pass `base` and `branchName` from the tree chips. Do not
    gather descriptions, read diffs, or ingest reports into your own context.
 
+### Resolve implementor model
+
+Given a Commit id: run `issue show <commitId>`, take the `assignee` field, and
+use it as Task `model`. If `assignee` is absent or empty, raise
+`issue attention <commitId> --reason "no implementor model assigned"` and stop
+— do not spawn the implementor.
+
 Because `issue tree` lists each Branch after the Branch it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Branch only after its
 parent's git branch and `done` commits already exist: a stacked child's
@@ -98,7 +105,7 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 | Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`set-status in-progress` only) |
 | Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue assign` only) |
-| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | Inherit — pass Task `model` `cursor-grok-4.5-high-fast` until [wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn) | writes |
+| Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume**; branch-level revise as a **fresh** spawn | From Commit `assignee` (Resolve implementor model) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | After a Branch's last Commit lands | Composer 2.5 (pinned in agent frontmatter) | read-only |
 
@@ -130,18 +137,18 @@ start-branch stub before its first Commit (chips from Setup §1 / §4).
 1. **Mark in-progress.** `issue set-status <commit> in-progress`.
 2. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
    model-discriminator spawn stub. Wait until it finishes (or raises
-   `issue attention`). Do not read its result or inspect `assignee`.
-3. **Implement.** Spawn `issue-tracker-implementor` (Task `model`:
-   `cursor-grok-4.5-high-fast` until
-   [wire-assigned-model-on-spawn](issue:wire-assigned-model-on-spawn)). Use the
+   `issue attention`). Do not read its result.
+3. **Implement.** Resolve implementor model for `<commit>`. Spawn
+   `issue-tracker-implementor` with Task `model` set to that value. Use the
    implement spawn stub. Remember the Task agent id for resume. Wait for
    finished or blocked (`issue attention <id>`). Do not read its diff or
    ingest a report.
 4. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
    (read-only) with the code-quality spawn stub.
 5. **Revise (one pass).** **Resume** the implementor Task from step 3 (same
-   session). Use the revise spawn stub. Always one resume pass, even if the
-   validator posted "nothing actionable". Do not re-run the validator or loop.
+   session; same model). Use the revise spawn stub. Always one resume pass,
+   even if the validator posted "nothing actionable". Do not re-run the
+   validator or loop.
 6. **Commit + record.** Spawn `issue-tracker-git` with the finish-commit stub.
 7. **Advance** to the next Commit.
 
@@ -152,11 +159,13 @@ After a Branch's last Commit is `done`:
 1. **Validate (spec conformance).** Spawn
    `issue-tracker-spec-conformance-validator` (read-only) with the
    spec-conformance spawn stub.
-2. **Revise (one pass).** Spawn a **fresh** `issue-tracker-implementor` (same
-   Task `model` as implement) with the revise spawn stub targeting the
-   **Branch**. Always one pass for now (may no-op). If it lands new work,
-   raise `issue attention <branchId>` — `finish-commit` needs a Commit id/title,
-   which branch-level revise does not provide; do not invent one.
+2. **Revise (one pass).** From `issue tree`, take the Branch's **last**
+   Commit; Resolve implementor model for it. Spawn a **fresh**
+   `issue-tracker-implementor` with Task `model` set to that value and the
+   revise spawn stub targeting the **Branch**. Always one pass for now (may
+   no-op). If it lands new work, raise `issue attention <branchId>` —
+   `finish-commit` needs a Commit id/title, which branch-level revise does not
+   provide; do not invent one.
 3. **Advance** to the next Branch. **Do not open a PR** — the human opens and
    merges PRs manually.
 
