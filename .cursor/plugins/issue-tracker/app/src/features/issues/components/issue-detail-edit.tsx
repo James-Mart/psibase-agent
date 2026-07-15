@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
+import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 
 interface FormState {
   title: string;
@@ -58,7 +59,7 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     stackedOn: issue.kind === "branch" ? issue.stackedOn ?? "" : "",
     prUrl: issue.kind === "branch" ? issue.prUrl ?? "" : "",
     merged: issue.kind === "branch" ? issue.merged : false,
-    blockedBy: issue.kind === "epic" ? issue.blockedBy.join(" ") : "",
+    blockedBy: blockedByFormValue(issue),
   };
 }
 
@@ -69,14 +70,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       {children}
     </div>
   );
-}
-
-function parseIds(text: string): string[] {
-  const seen = new Set<string>();
-  for (const token of text.split(/[\s,]+/)) {
-    if (token) seen.add(token);
-  }
-  return [...seen];
 }
 
 export function IssueDetailEdit({
@@ -211,7 +204,7 @@ export function IssueDetailEdit({
         value={form.blockedBy}
         onChange={(e) => set("blockedBy", e.target.value)}
         className="font-mono"
-        placeholder="space-separated branch ids"
+        placeholder="space-separated epic ids"
       />
     ),
     prUrl: (
