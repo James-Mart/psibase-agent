@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,11 +11,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateIssue, useUpdateIssue } from "../api/mutations";
+import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
-import { projectPath } from "../lib/links";
 
 export function ProjectDialog() {
-  const navigate = useNavigate();
+  const { go: goToProjectTree } = useGoToProjectTree();
   const target = useIssueUiStore((s) => s.projectDialog);
   const close = useIssueUiStore((s) => s.closeProjectDialog);
   const createIssue = useCreateIssue();
@@ -45,7 +44,7 @@ export function ProjectDialog() {
         { kind: "project", title: name },
         {
           onSuccess: (project) => {
-            navigate(projectPath(project.id));
+            goToProjectTree(project.id);
             close();
           },
         },

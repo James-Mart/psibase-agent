@@ -1,5 +1,5 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { useEffect, useMemo } from "react";
+import { Route, Routes } from "react-router-dom";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TreePage } from "@/features/issues/components/tree-page";
 import { IssueDetailPage } from "@/features/issues/components/issue-detail-page";
@@ -8,10 +8,10 @@ import { DeleteIssueDialog } from "@/features/issues/components/delete-issue-dia
 import { ProjectSidebar } from "@/features/issues/components/project-sidebar";
 import { ProjectDialog } from "@/features/issues/components/project-dialog";
 import { useIssueEvents } from "@/features/issues/hooks/use-issue-events";
+import { useGoToProjectTree } from "@/features/issues/hooks/use-go-to-project-tree";
 import { useIssuesQuery } from "@/features/issues/api/queries";
 import { useIssueUiStore } from "@/features/issues/store/use-issue-ui-store";
 import { listProjects } from "@/features/issues/lib/build-tree";
-import { projectPath } from "@/features/issues/lib/links";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Plus } from "lucide-react";
@@ -21,12 +21,17 @@ const LEGACY_SELECTED_PROJECT_KEY = "issue-tracker.selectedProject";
 
 function HomeRedirect() {
   const { data, isLoading, error } = useIssuesQuery();
+  const { go: goToProjectTree } = useGoToProjectTree();
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
 
   const firstProjectId = useMemo(
     () => listProjects(data?.issues ?? [])[0]?.id ?? null,
     [data?.issues],
   );
+
+  useLayoutEffect(() => {
+    if (firstProjectId) goToProjectTree(firstProjectId, { replace: true });
+  }, [firstProjectId, goToProjectTree]);
 
   if (isLoading) {
     return (
@@ -48,7 +53,7 @@ function HomeRedirect() {
   }
 
   if (firstProjectId) {
-    return <Navigate to={projectPath(firstProjectId)} replace />;
+    return null;
   }
 
   return (

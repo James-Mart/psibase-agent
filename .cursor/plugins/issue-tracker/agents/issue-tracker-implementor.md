@@ -54,5 +54,4 @@ only.
 3. Post a succinct reply:
    `issue comment <id> --role <comment-role> --body "..."` (what you changed,
    what you declined and why).
-4. Leave changes uncommitted. This is a **single** improvement pass — do not
-   re-validate or loop.
+4. Leave changes uncommitted.
