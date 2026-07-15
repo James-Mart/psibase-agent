@@ -42,13 +42,13 @@ boundary (a merge round-trip), this fits the one-Epic-at-a-time model. Use the
 default `issues/` dir (do not set `ISSUES_DIR`) so the human sees changes live in
 the UI.
 
-## Preflight: confirm the coordinator model
+## Preflight: confirm before starting
 
-Before doing anything else, check what model you are. If you are **not** Composer
-2.5 (`composer-2.5`), stop and ask the user whether they really want to proceed
-with the coordinator running as `<your current model>` — the coordinator is meant
-to be dumb and cheap. If they do not confirm, have them re-invoke this skill with
-the recommended `composer-2.5` model instead of continuing.
+Before doing anything else, stop and ask the user to confirm they want you to
+coordinate this Epic now. State that **Composer 2.5 (`composer-2.5`) is the
+recommended coordinator**. Do not attempt to detect or print the current model
+id. If they do not confirm, have them re-invoke this skill with `composer-2.5`
+instead of continuing.
 
 ## Setup
 
