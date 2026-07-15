@@ -41,7 +41,24 @@ export const BRANCH_RUNTIME_OPTIONAL_KEYS = [
   "specReview",
 ] as const;
 
-export const COMMIT_FIELD_KEYS = ["status", "commitSha"] as const;
+// Commit fields the manual edit form renders. Imperative-only runtime keys
+// (e.g. noDiff) live in COMMIT_IMPERATIVE_ONLY_KEYS and are excluded.
+export const COMMIT_FORM_FIELD_KEYS = ["status", "commitSha"] as const;
+
+export const COMMIT_IMPERATIVE_ONLY_KEYS = ["noDiff"] as const;
+
+export const COMMIT_RUNTIME_OPTIONAL_KEYS = COMMIT_IMPERATIVE_ONLY_KEYS;
+
+// Optional commit fields preserved by apply when already set on disk.
+export const COMMIT_OPTIONAL_PRESERVE_KEYS = [
+  "commitSha",
+  ...COMMIT_IMPERATIVE_ONLY_KEYS,
+] as const;
+
+export const COMMIT_FIELD_KEYS = [
+  ...COMMIT_FORM_FIELD_KEYS,
+  ...COMMIT_IMPERATIVE_ONLY_KEYS,
+] as const;
 
 export type ProjectFieldKey = (typeof PROJECT_FIELD_KEYS)[number];
 export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
@@ -54,7 +71,7 @@ export const KIND_FIELD_KEYS = {
   project: PROJECT_FIELD_KEYS,
   epic: EPIC_FIELD_KEYS,
   branch: BRANCH_FORM_FIELD_KEYS,
-  commit: COMMIT_FIELD_KEYS,
+  commit: COMMIT_FORM_FIELD_KEYS,
 } as const satisfies Record<IssueKind, readonly string[]>;
 
 export const CLEARABLE_KEYS = [
@@ -67,6 +84,11 @@ export const CLEARABLE_KEYS = [
 ] as const;
 
 export type ClearableKey = (typeof CLEARABLE_KEYS)[number];
+
+// Mergeable patch keys cleared when patched with `false` (absent-until-true booleans).
+export const FALSE_CLEARS_KEYS = ["noDiff"] as const satisfies readonly (keyof IssuePatch)[];
+
+export type FalseClearsKey = (typeof FALSE_CLEARS_KEYS)[number];
 
 // Mergeable patch keys that must not be cleared with null (unlike workspace).
 export const NON_CLEARABLE_MERGEABLE_KEYS = ["mergePolicy"] as const satisfies readonly (keyof IssuePatch)[];
@@ -90,6 +112,7 @@ export const FIELD_LABELS = {
   specReview: "Spec review",
   status: "Status",
   commitSha: "Commit SHA",
+  noDiff: "No diff",
 } as const;
 
 export const MERGE_POLICY_LABELS = {

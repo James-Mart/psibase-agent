@@ -80,6 +80,7 @@ export const commitSchema = z.object({
   partOf: nonEmpty,
   status: z.enum(COMMIT_STATUSES).default("todo"),
   commitSha: z.string().optional(),
+  noDiff: z.boolean().optional(),
   ...mutableCommon,
   ...orderField,
   ...timestamps,

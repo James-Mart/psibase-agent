@@ -283,6 +283,7 @@ Commit — the Epic/Branch/Commit common fields plus:
 | `partOf` | string | the Branch id (required) |
 | `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
 | `commitSha` | string? | set when done |
+| `noDiff` | boolean? | absent until set by `issue set-no-diff`; signals an intentional empty implementor diff |
 
 Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
 authored as a separate priority field), `label`, inline
@@ -347,7 +348,7 @@ prevented here, so no consumer can persist a broken file.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
   `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
-  `status`/`commitSha` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
+  `status`/`commitSha`/`noDiff` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
   a Branch), and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
@@ -560,7 +561,7 @@ preserves everything else from the existing same-kind issue.
 | `mergePolicy` (Project) | imperative only (`set-merge-policy`); `apply` preserves |
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
-| `status`, `commitSha` (Commit) | imperative only (`set-status`/`set-commit`); `apply` preserves |
+| `status`, `commitSha`, `noDiff` (Commit) | imperative only (`set-status`/`set-commit`/`set-no-diff`); `apply` preserves |
 | `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
 | `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |

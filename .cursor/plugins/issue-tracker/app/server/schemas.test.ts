@@ -121,6 +121,24 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses a commit with an optional noDiff", () => {
+    const withNoDiff = parseIssue({ ...commit, noDiff: true });
+    expect(withNoDiff.ok).toBe(true);
+    if (withNoDiff.ok && withNoDiff.issue.kind === "commit") {
+      expect(withNoDiff.issue.noDiff).toBe(true);
+    }
+
+    const absent = parseIssue(commit);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "commit") {
+      expect(absent.issue.noDiff).toBeUndefined();
+    }
+  });
+
+  it("rejects a non-boolean noDiff value", () => {
+    expect(parseIssue({ ...commit, noDiff: "yes" }).ok).toBe(false);
+  });
+
   it("defaults needsAttention/attentionReason", () => {
     const result = parseIssue(epic);
     if (result.ok && result.issue.kind !== "project") {

@@ -10,6 +10,8 @@ export interface SummaryNode {
   title: string;
   /** First prose paragraph of description.md (heading stripped); empty if none. */
   descriptionSummary: string;
+  /** Set when a Commit intentionally landed no file changes. */
+  noDiff?: true;
 }
 
 export interface IssueSummary {
@@ -59,6 +61,7 @@ export function buildSummary(
       id: issue.id,
       title: issue.title,
       descriptionSummary: summarizeDescription(descriptionOf(issue.id)),
+      ...(issue.kind === "commit" && issue.noDiff ? { noDiff: true as const } : {}),
     })),
   };
 }
@@ -86,6 +89,9 @@ export function formatSummary(summary: IssueSummary): string {
     }
     if (node.descriptionSummary) {
       lines.push(`  Description: ${node.descriptionSummary}`);
+    }
+    if (node.kind === "commit" && node.noDiff) {
+      lines.push(`  noDiff: true`);
     }
   }
   lines.push("");

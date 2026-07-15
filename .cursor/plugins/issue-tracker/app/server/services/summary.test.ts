@@ -138,6 +138,21 @@ describe("formatSummary", () => {
     expect(text).not.toContain("Workspace:");
   });
 
+  it("prints noDiff in the Commit section when set", () => {
+    const withNoDiff = nestedIssues.map((issue) =>
+      issue.id === "c1" ? { ...issue, noDiff: true } : issue,
+    );
+    const text = formatSummary(buildSummary("c1", withNoDiff, descriptionOf));
+
+    expect(text).toContain("Commit: c1 — Do the thing");
+    expect(text).toContain("  noDiff: true");
+  });
+
+  it("omits noDiff from summary when unset", () => {
+    const text = formatSummary(buildSummary("c1", nestedIssues, descriptionOf));
+    expect(text).not.toContain("noDiff:");
+  });
+
   it("prints Workspace in the Project section when set", () => {
     const withWorkspace = nestedIssues.map((issue) =>
       issue.id === "p" ? { ...issue, workspace: "/tmp/repo" } : issue,
