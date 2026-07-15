@@ -16,10 +16,39 @@ export interface ProjectDialogTarget {
 export type IssueView = "tree" | "ready";
 
 const SELECTED_PROJECT_KEY = "issue-tracker.selectedProject";
+const EXPANDED_KEY = "issue-tracker.expanded";
 
 function loadSelectedProject(): string | null {
   if (typeof localStorage === "undefined") return null;
   return localStorage.getItem(SELECTED_PROJECT_KEY);
+}
+
+function loadExpanded(): Record<string, boolean> {
+  if (typeof localStorage === "undefined") return {};
+  const raw = localStorage.getItem(EXPANDED_KEY);
+  if (!raw) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const expanded: Record<string, boolean> = {};
+      for (const [id, value] of Object.entries(parsed)) {
+        if (value === false) expanded[id] = false;
+      }
+      return expanded;
+    }
+  } catch {
+    // ignore invalid stored value
+  }
+  return {};
+}
+
+function saveExpanded(expanded: Record<string, boolean>): void {
+  if (typeof localStorage === "undefined") return;
+  if (Object.keys(expanded).length === 0) {
+    localStorage.removeItem(EXPANDED_KEY);
+  } else {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(expanded));
+  }
 }
 
 interface IssueUiState {
@@ -47,11 +76,19 @@ export const useIssueUiStore = create<IssueUiState>((set) => ({
   setView: (value) => set({ view: value }),
   search: "",
   setSearch: (value) => set({ search: value }),
-  expanded: {},
+  expanded: loadExpanded(),
   toggle: (id) =>
-    set((state) => ({
-      expanded: { ...state.expanded, [id]: !(state.expanded[id] ?? true) },
-    })),
+    set((state) => {
+      const nextExpanded = !(state.expanded[id] ?? true);
+      const expanded = { ...state.expanded };
+      if (nextExpanded) {
+        delete expanded[id];
+      } else {
+        expanded[id] = false;
+      }
+      saveExpanded(expanded);
+      return { expanded };
+    }),
   selectedProjectId: loadSelectedProject(),
   selectProject: (id) => {
     if (typeof localStorage !== "undefined") {
