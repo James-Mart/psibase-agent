@@ -1,8 +1,8 @@
 import type { ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ISSUE_LINK_PREFIX, issuePath, parseIssueLink } from "../lib/links";
-import { useIssueLinkNavigate } from "./issue-link";
+import { ISSUE_LINK_PREFIX, parseIssueLink } from "../lib/links";
+import { IssueLink } from "./issue-link";
 
 function transformUrl(url: string): string {
   return url.startsWith(ISSUE_LINK_PREFIX) ? url : defaultUrlTransform(url);
@@ -14,20 +14,12 @@ function IssueAwareLink({
   node: _node,
   ...props
 }: ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
-  const go = useIssueLinkNavigate();
   const targetId = parseIssueLink(href);
   if (targetId !== null) {
     return (
-      <a
-        href={issuePath(targetId)}
-        onClick={(e) => {
-          e.preventDefault();
-          go(targetId);
-        }}
-        {...props}
-      >
+      <IssueLink id={targetId} className={props.className}>
         {children}
-      </a>
+      </IssueLink>
     );
   }
   return (

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { GitCommitHorizontal, GitPullRequest } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import type { IssueDetail, IssueRecord } from "@server/schemas";
 import { bySequence } from "@server/order";
 import { useIssuesQuery } from "../api/queries";
@@ -22,6 +22,7 @@ function BranchPanel({
   issues: IssueRecord[];
   derived: ReturnType<typeof useIssuesQuery>["data"];
 }) {
+  const { projectId = "" } = useParams();
   const state = derived?.derived[issue.id];
   const stackedOnHere = issues.filter(
     (i) => i.kind === "branch" && i.stackedOn === issue.id,
@@ -99,7 +100,7 @@ function BranchPanel({
               {commits.map((c) => (
                 <Link
                   key={c.id}
-                  to={issuePath(c.id)}
+                  to={issuePath(projectId, c.id)}
                   className="flex items-center gap-2 hover:underline"
                 >
                   <GitCommitHorizontal className="h-3.5 w-3.5 text-muted-foreground" />

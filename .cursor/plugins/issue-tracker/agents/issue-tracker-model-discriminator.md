@@ -38,14 +38,14 @@ Score each axis **low / mid / high**:
 
 Map to a single model id (then `issue assign <commitId> <modelId>`):
 
-| | Low verification difficulty | Mid | High |
-| --- | --- | --- | --- |
-| **Low judgment** | `composer-2.5` | `composer-2.5` | `cursor-grok-4.5-high` |
-| **Mid judgment** | `cursor-grok-4.5-high` | `cursor-grok-4.5-high` | `claude-opus-4-8-thinking-high` |
+|                   | Low verification difficulty     | Mid                             | High                            |
+| ----------------- | ------------------------------- | ------------------------------- | ------------------------------- |
+| **Low judgment**  | `composer-2.5`                  | `composer-2.5`                  | `cursor-grok-4.5-high-fast`     |
+| **Mid judgment**  | `cursor-grok-4.5-high-fast`     | `cursor-grok-4.5-high-fast`     | `claude-opus-4-8-thinking-high` |
 | **High judgment** | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` |
 
-Mid-tier is **non-fast** Grok 4.5 High — slug `cursor-grok-4.5-high`, **not**
-the Fast SKU `cursor-grok-4.5-high-fast`. High tier:
+Mid-tier is **non-fast** Grok 4.5 High — slug `cursor-grok-4.5-high-fast`, **not**
+the Fast SKU `cursor-grok-4.5-high-fast-fast`. High tier:
 `claude-opus-4-8-thinking-high`.
 
 ## What you do

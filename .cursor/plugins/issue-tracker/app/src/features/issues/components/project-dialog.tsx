@@ -11,12 +11,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateIssue, useUpdateIssue } from "../api/mutations";
+import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 
 export function ProjectDialog() {
+  const { go: goToProjectTree } = useGoToProjectTree();
   const target = useIssueUiStore((s) => s.projectDialog);
   const close = useIssueUiStore((s) => s.closeProjectDialog);
-  const selectProject = useIssueUiStore((s) => s.selectProject);
   const createIssue = useCreateIssue();
   const updateIssue = useUpdateIssue();
 
@@ -43,7 +44,7 @@ export function ProjectDialog() {
         { kind: "project", title: name },
         {
           onSuccess: (project) => {
-            selectProject(project.id);
+            goToProjectTree(project.id);
             close();
           },
         },

@@ -1,7 +1,11 @@
 export const ISSUE_LINK_PREFIX = "issue:";
 
-export function issuePath(id: string): string {
-  return `/issues/${id}`;
+export function projectPath(projectId: string): string {
+  return `/projects/${projectId}`;
+}
+
+export function issuePath(projectId: string, id: string): string {
+  return `/projects/${projectId}/issues/${id}`;
 }
 
 export function parseIssueLink(href: string | undefined): string | null {

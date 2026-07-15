@@ -10,6 +10,43 @@ export function parentOf(issue: IssueRecord): string | undefined {
   return "partOf" in issue ? issue.partOf : undefined;
 }
 
+export function issuesById(
+  issues: IssueRecord[],
+): Map<string, IssueRecord> {
+  return new Map(issues.map((issue) => [issue.id, issue]));
+}
+
+export function listProjects(issues: IssueRecord[]): IssueRecord[] {
+  return issues
+    .filter((issue): issue is IssueRecord & { kind: "project" } =>
+      issue.kind === "project",
+    )
+    .sort(bySequence);
+}
+
+/** Walk `partOf` to the containing project id, or the id itself if it is a project. */
+export function projectIdOf(
+  issueId: string,
+  byId: Map<string, IssueRecord>,
+): string | null {
+  let current = byId.get(issueId);
+  while (current) {
+    if (current.kind === "project") return current.id;
+    const parent = parentOf(current);
+    if (!parent) return null;
+    current = byId.get(parent);
+  }
+  return null;
+}
+
+export function issueBelongsToProject(
+  issueId: string,
+  projectId: string,
+  byId: Map<string, IssueRecord>,
+): boolean {
+  return projectIdOf(issueId, byId) === projectId;
+}
+
 // The ids contained by a project: every issue whose `partOf` chain reaches it
 // (its epics, their branches, and those branches' commits), excluding the
 // project node itself.

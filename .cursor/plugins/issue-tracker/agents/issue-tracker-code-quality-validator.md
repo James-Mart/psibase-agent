@@ -29,8 +29,8 @@ then `issue show <commitId>` for the Commit spec when needed.
 ## What you do
 
 1. Inspect the current **uncommitted** working-tree diff for this Commit.
-2. Review only for **introduced redundancy** and **poor
-   abstraction/encapsulation**.
+2. Review for **introduced redundancy**, **poor abstraction/encapsulation**, 
+   and **non-idiomatic or outdated patterns**
 3. Post findings with
    `issue comment <commitId> --role <comment-role> --body "..."`:
    - **Only actionable problems** as a concrete list.

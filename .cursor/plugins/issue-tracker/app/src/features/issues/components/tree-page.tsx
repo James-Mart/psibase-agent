@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useParams } from "react-router-dom";
 import { AlertTriangle, ListChecks, ListTree, Plus, Search } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { Button } from "@/components/ui/button";
@@ -76,10 +77,10 @@ function ViewToggle({
 }
 
 export function TreePage() {
+  const { projectId = "" } = useParams();
   const { data, isLoading, error } = useIssuesQuery();
   const openNew = useIssueUiStore((s) => s.openNew);
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
-  const selectedProjectId = useIssueUiStore((s) => s.selectedProjectId);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
   const view = useIssueUiStore((s) => s.view);
@@ -89,13 +90,13 @@ export function TreePage() {
   const project = useMemo(
     () =>
       issues.find(
-        (issue) => issue.id === selectedProjectId && issue.kind === "project",
+        (issue) => issue.id === projectId && issue.kind === "project",
       ),
-    [issues, selectedProjectId],
+    [issues, projectId],
   );
   const scoped = useMemo(
-    () => filterToProject(issues, selectedProjectId),
-    [issues, selectedProjectId],
+    () => filterToProject(issues, projectId || null),
+    [issues, projectId],
   );
   const filtered = useMemo(
     () => filterWithAncestors(scoped, search),
@@ -106,6 +107,7 @@ export function TreePage() {
   const derived = data?.derived ?? {};
 
   const hasProject = Boolean(project);
+  const unknownProject = Boolean(data) && Boolean(projectId) && !hasProject;
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
@@ -119,7 +121,9 @@ export function TreePage() {
             <p className="text-sm text-muted-foreground">
               {hasProject
                 ? "Epic \u203a Branch \u203a Commit"
-                : "Select or create a project"}
+                : unknownProject
+                  ? "Project not found"
+                  : "Select or create a project"}
             </p>
           </div>
         </div>
@@ -127,7 +131,7 @@ export function TreePage() {
           <Button
             size="sm"
             onClick={() =>
-              openNew({ presetKind: "epic", presetParent: selectedProjectId! })
+              openNew({ presetKind: "epic", presetParent: projectId })
             }
           >
             <Plus className="h-4 w-4" />
@@ -141,54 +145,62 @@ export function TreePage() {
         )}
       </header>
 
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by title or id"
-            className="pl-9"
-          />
+      {unknownProject ? (
+        <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
+          No project with id <span className="font-mono">{projectId}</span>.
         </div>
-        <ViewToggle view={view} setView={setView} />
-      </div>
-
-      {error ? (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
-          {error.message}
-        </div>
-      ) : null}
-
-      {problems.length > 0 ? (
-        <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-          <div className="mb-1 flex items-center gap-2 font-medium [color:hsl(var(--warning))]">
-            <AlertTriangle className="h-4 w-4" />
-            {problems.length} problem{problems.length > 1 ? "s" : ""}
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by title or id"
+                className="pl-9"
+              />
+            </div>
+            <ViewToggle view={view} setView={setView} />
           </div>
-          <ul className="list-inside list-disc text-muted-foreground">
-            {problems.map((p) => (
-              <li key={`${p.id}:${p.message}`}>
-                <span className="font-mono">{p.id}</span>: {p.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
-      <div className="rounded-lg border bg-card p-2">
-        {isLoading ? (
-          <div className="space-y-2 p-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-11/12" />
-            <Skeleton className="h-8 w-10/12" />
+          {error ? (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
+              {error.message}
+            </div>
+          ) : null}
+
+          {problems.length > 0 ? (
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <div className="mb-1 flex items-center gap-2 font-medium [color:hsl(var(--warning))]">
+                <AlertTriangle className="h-4 w-4" />
+                {problems.length} problem{problems.length > 1 ? "s" : ""}
+              </div>
+              <ul className="list-inside list-disc text-muted-foreground">
+                {problems.map((p) => (
+                  <li key={`${p.id}:${p.message}`}>
+                    <span className="font-mono">{p.id}</span>: {p.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="rounded-lg border bg-card p-2">
+            {isLoading ? (
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-11/12" />
+                <Skeleton className="h-8 w-10/12" />
+              </div>
+            ) : view === "ready" && data ? (
+              <ReadyView data={data} />
+            ) : (
+              <IssueTree nodes={nodes} derived={derived} />
+            )}
           </div>
-        ) : view === "ready" && data ? (
-          <ReadyView data={data} />
-        ) : (
-          <IssueTree nodes={nodes} derived={derived} />
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

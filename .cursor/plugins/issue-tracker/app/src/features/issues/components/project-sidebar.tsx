@@ -1,8 +1,6 @@
-import { useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { FolderKanban, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import type { IssueRecord } from "@server/schemas";
-import { bySequence } from "@server/order";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,36 +21,23 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIssuesQuery } from "../api/queries";
+import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
+import { listProjects } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
 
 export function ProjectSidebar() {
   const navigate = useNavigate();
+  const { projectId: selectedProjectId } = useParams();
   const { data } = useIssuesQuery();
-  const selectedProjectId = useIssueUiStore((s) => s.selectedProjectId);
-  const selectProject = useIssueUiStore((s) => s.selectProject);
+  const { go: goToProjectTree } = useGoToProjectTree();
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
 
   const projects = useMemo(
-    () =>
-      (data?.issues ?? [])
-        .filter((issue): issue is IssueRecord => issue.kind === "project")
-        .sort(bySequence),
+    () => listProjects(data?.issues ?? []),
     [data?.issues],
   );
-
-  // Keep a valid selection: default to the first project, and recover if the
-  // selected project was deleted or never existed.
-  useEffect(() => {
-    if (projects.length === 0) {
-      if (selectedProjectId !== null) selectProject(null);
-      return;
-    }
-    if (!projects.some((p) => p.id === selectedProjectId)) {
-      selectProject(projects[0].id);
-    }
-  }, [projects, selectedProjectId, selectProject]);
 
   return (
     <Sidebar collapsible="icon">
@@ -86,7 +71,7 @@ export function ProjectSidebar() {
                     <SidebarMenuButton
                       isActive={project.id === selectedProjectId}
                       tooltip={project.title}
-                      onClick={() => selectProject(project.id)}
+                      onClick={() => goToProjectTree(project.id)}
                     >
                       <FolderKanban />
                       <span>{project.title}</span>
@@ -100,7 +85,9 @@ export function ProjectSidebar() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="right" align="start">
                         <DropdownMenuItem
-                          onClick={() => navigate(issuePath(project.id))}
+                          onClick={() =>
+                            navigate(issuePath(project.id, project.id))
+                          }
                         >
                           <FolderKanban className="h-4 w-4" />
                           Open
