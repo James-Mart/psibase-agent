@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { epicDependencyIds, epicsBlockedBy, stackedBranchOrder } from "./order";
+import {
+  epicDependencyIds,
+  epicsBlockedBy,
+  stackedBranchOrder,
+  stackedOnSubtree,
+} from "./order";
 import type { Issue } from "./schemas";
 
 type Branch = Extract<Issue, { kind: "branch" }>;
@@ -77,6 +82,24 @@ describe("stackedBranchOrder", () => {
 
   it("returns an empty array for no branches", () => {
     expect(stackedBranchOrder([])).toEqual([]);
+  });
+});
+
+describe("stackedOnSubtree", () => {
+  it("returns the root and transitive stackedOn descendants in stackedBranchOrder", () => {
+    const a = branch("a", 0);
+    const b = branch("b", 0, { stackedOn: "a" });
+    const c = branch("c", 0, { stackedOn: "b" });
+    const d = branch("d", 1, { stackedOn: "a" });
+    const z = branch("z", 2);
+    const all = [z, d, c, b, a];
+    expect(ids(stackedOnSubtree(all, "a"))).toEqual(["a", "b", "c", "d"]);
+    expect(ids(stackedOnSubtree(all, "b"))).toEqual(["b", "c"]);
+    expect(ids(stackedOnSubtree(all, "z"))).toEqual(["z"]);
+  });
+
+  it("returns empty when the root id is missing", () => {
+    expect(stackedOnSubtree([branch("a", 0)], "ghost")).toEqual([]);
   });
 });
 

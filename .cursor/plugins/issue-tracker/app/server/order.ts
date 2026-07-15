@@ -127,3 +127,35 @@ export function stackedBranchOrder<T extends BranchLike>(branches: T[]): T[] {
   for (const root of roots) visit(root);
   return ordered;
 }
+
+// The Branch at `rootId` plus every Branch that transitively `stackedOn`-
+// descends from it, ordered by `stackedBranchOrder` (DFS + sibling `order`).
+// Collection walks the reverse stackedOn edges; ordering stays one definition.
+export function stackedOnSubtree<T extends BranchLike>(
+  branches: T[],
+  rootId: string,
+): T[] {
+  const byId = new Map(branches.map((b) => [b.id, b]));
+  if (!byId.has(rootId)) return [];
+
+  const childrenOf = new Map<string, T[]>();
+  for (const branch of branches) {
+    if (!branch.stackedOn) continue;
+    const bucket = childrenOf.get(branch.stackedOn) ?? [];
+    bucket.push(branch);
+    childrenOf.set(branch.stackedOn, bucket);
+  }
+
+  const members: T[] = [];
+  const seen = new Set<string>();
+  const collect = (id: string): void => {
+    if (seen.has(id)) return;
+    const branch = byId.get(id);
+    if (!branch) return;
+    seen.add(id);
+    members.push(branch);
+    for (const child of childrenOf.get(id) ?? []) collect(child.id);
+  };
+  collect(rootId);
+  return stackedBranchOrder(members);
+}

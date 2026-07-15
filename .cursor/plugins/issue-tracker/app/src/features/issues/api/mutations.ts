@@ -68,3 +68,24 @@ export function useDeleteIssue() {
     },
   });
 }
+
+export interface MoveBranchResult {
+  moved: string[];
+}
+
+export function useMoveBranch() {
+  const qc = useQueryClient();
+  return useMutation<
+    MoveBranchResult,
+    Error,
+    { id: string; target: string }
+  >({
+    mutationFn: ({ id, target }) =>
+      request<MoveBranchResult>(`/api/issues/${id}/move-branch`, {
+        method: "POST",
+        body: { target },
+      }),
+    onError: (err) => toast.error(messageOf(err)),
+    onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.list() }),
+  });
+}
