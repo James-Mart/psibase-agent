@@ -37,6 +37,20 @@ async function loadService() {
 }
 
 describe("project workspace", () => {
+  it("can be set on create", async () => {
+    const { create, read } = await loadService();
+    const record = await create({
+      kind: "project",
+      title: "With workspace",
+      workspace: gitDir,
+    });
+    const detail = read(record.id);
+    expect(detail.kind).toBe("project");
+    if (detail.kind === "project") {
+      expect(detail.workspace).toBe(gitDir);
+    }
+  });
+
   it("round-trips through update and read", async () => {
     const { update, read } = await loadService();
     await update("p", { workspace: gitDir });

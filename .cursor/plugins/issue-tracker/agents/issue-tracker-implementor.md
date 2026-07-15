@@ -49,8 +49,8 @@ only.
 ## Revise
 
 1. Read feedback with `issue show <id> --chat`.
-2. Address findings you agree with. Push back (with reasoning) on findings you
-   think are wrong or not worth doing.
+2. Address findings you agree with. You are the senior engineer, you may push 
+   back (with reasoning) on findings you think are wrong or not worth doing.
 3. Post a succinct reply:
    `issue comment <id> --role <comment-role> --body "..."` (what you changed,
    what you declined and why).

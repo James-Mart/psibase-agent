@@ -10,8 +10,10 @@ import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
   type BranchFieldKey,
+  type ClearableKey,
   type CommitFieldKey,
   type EpicFieldKey,
+  type ProjectFieldKey,
 } from "@server/fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,10 +29,12 @@ import {
 import { useUpdateIssue } from "../api/mutations";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
+import { WorkspacePathInput } from "./workspace-path-input";
 
 interface FormState {
   title: string;
   description: string;
+  workspace: string;
   assignee: string;
   needsAttention: boolean;
   attentionReason: string;
@@ -48,6 +52,7 @@ function formStateFromIssue(issue: IssueDetail): FormState {
   return {
     title: issue.title,
     description: issue.description,
+    workspace: issue.kind === "project" ? issue.workspace ?? "" : "",
     assignee: "assignee" in issue ? issue.assignee ?? "" : "",
     needsAttention: "needsAttention" in issue ? issue.needsAttention : false,
     attentionReason:
@@ -94,7 +99,7 @@ export function IssueDetailEdit({
   const buildPatch = (): IssuePatch => {
     const patch: IssuePatch = {};
     const setClearable = (
-      key: "assignee" | "commitSha" | "branchName" | "stackedOn" | "prUrl",
+      key: ClearableKey,
       value: string,
       current: string | undefined,
     ) => {
@@ -124,6 +129,10 @@ export function IssueDetailEdit({
     if ("partOf" in issue) {
       const nextParent = form.partOf.trim();
       if (nextParent && nextParent !== issue.partOf) patch.partOf = nextParent;
+    }
+
+    if (issue.kind === "project") {
+      setClearable("workspace", form.workspace, issue.workspace);
     }
 
     if (issue.kind === "commit") {
@@ -157,9 +166,15 @@ export function IssueDetailEdit({
   };
 
   const controls: Record<
-    EpicFieldKey | BranchFieldKey | CommitFieldKey,
+    ProjectFieldKey | EpicFieldKey | BranchFieldKey | CommitFieldKey,
     ReactNode
   > = {
+    workspace: (
+      <WorkspacePathInput
+        value={form.workspace}
+        onChange={(value) => set("workspace", value)}
+      />
+    ),
     status: (
       <Select
         value={form.status}

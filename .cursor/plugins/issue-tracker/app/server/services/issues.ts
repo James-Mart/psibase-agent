@@ -34,7 +34,7 @@ import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
-import { validateWorkspacePatch } from "./workspace.js";
+import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
@@ -297,6 +297,10 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
     }
     if (input.kind === "commit") draft.status = "todo";
+    if (input.kind === "project" && input.workspace) {
+      validateWorkspacePath(input.workspace);
+      draft.workspace = input.workspace;
+    }
 
     const parsed = parseIssue(draft);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
