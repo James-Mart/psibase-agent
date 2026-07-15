@@ -12,11 +12,12 @@ import type { IssueRecord } from "@server/schemas";
 import { useMoveBranch } from "../api/mutations";
 import {
   BRANCH_DRAG_MIME,
+  canDropBranchOntoEpic,
   canRestackBranchOntoBranch,
   readBranchDragId,
 } from "../lib/branch-drop";
 
-export type BranchRowDnDProps = Pick<
+export type RowDnDProps = Pick<
   HTMLAttributes<HTMLDivElement>,
   | "draggable"
   | "onDragStart"
@@ -30,12 +31,17 @@ export type BranchRowDnDProps = Pick<
 };
 
 export interface BranchTreeDnD {
-  getBranchRowProps: (id: string) => BranchRowDnDProps;
+  getRowDnDProps: (issue: IssueRecord) => RowDnDProps;
   /** True once if the last gesture was a drag (clears the flag). */
   consumeDragGesture: () => boolean;
 }
 
 const BranchTreeDnDContext = createContext<BranchTreeDnD | null>(null);
+
+const INERT_ROW_DND: RowDnDProps = {
+  isDragging: false,
+  isDropTarget: false,
+};
 
 export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
   const moveBranch = useMoveBranch();
@@ -50,34 +56,27 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
     setDropTargetId(null);
   }, []);
 
-  const getBranchRowProps = useCallback(
-    (id: string): BranchRowDnDProps => ({
-      draggable: true,
-      isDragging: draggingId === id,
-      isDropTarget: dropTargetId === id,
-      onDragStart: (event: DragEvent) => {
-        event.dataTransfer.setData(BRANCH_DRAG_MIME, id);
-        event.dataTransfer.setData("text/plain", id);
-        event.dataTransfer.effectAllowed = "move";
-        draggedDuringGestureRef.current = true;
-        draggingIdRef.current = id;
-        setDraggingId(id);
-        setDropTargetId(null);
-      },
-      onDragEnd: clearDrag,
+  const dropTargetHandlers = useCallback(
+    (
+      targetId: string,
+      canDrop: (sourceId: string) => boolean,
+    ): Pick<
+      HTMLAttributes<HTMLDivElement>,
+      "onDragOver" | "onDragLeave" | "onDrop"
+    > => ({
       onDragOver: (event: DragEvent) => {
         const sourceId = draggingIdRef.current;
         if (!sourceId) return;
-        if (!canRestackBranchOntoBranch(issues, sourceId, id)) {
-          setDropTargetId((current) => (current === id ? null : current));
+        if (!canDrop(sourceId)) {
+          setDropTargetId((current) => (current === targetId ? null : current));
           return;
         }
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
-        setDropTargetId(id);
+        setDropTargetId(targetId);
       },
       onDragLeave: () => {
-        setDropTargetId((current) => (current === id ? null : current));
+        setDropTargetId((current) => (current === targetId ? null : current));
       },
       onDrop: (event: DragEvent) => {
         event.preventDefault();
@@ -85,11 +84,52 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
           readBranchDragId(event.dataTransfer) ?? draggingIdRef.current;
         clearDrag();
         if (!sourceId) return;
-        if (!canRestackBranchOntoBranch(issues, sourceId, id)) return;
-        moveBranch.mutate({ id: sourceId, target: id });
+        if (!canDrop(sourceId)) return;
+        moveBranch.mutate({ id: sourceId, target: targetId });
       },
     }),
-    [clearDrag, draggingId, dropTargetId, issues, moveBranch],
+    [clearDrag, moveBranch],
+  );
+
+  const getRowDnDProps = useCallback(
+    (issue: IssueRecord): RowDnDProps => {
+      const id = issue.id;
+      const isDropTarget = dropTargetId === id;
+
+      if (issue.kind === "branch") {
+        return {
+          ...dropTargetHandlers(id, (sourceId) =>
+            canRestackBranchOntoBranch(issues, sourceId, id),
+          ),
+          draggable: true,
+          isDragging: draggingId === id,
+          isDropTarget,
+          onDragStart: (event: DragEvent) => {
+            event.dataTransfer.setData(BRANCH_DRAG_MIME, id);
+            event.dataTransfer.setData("text/plain", id);
+            event.dataTransfer.effectAllowed = "move";
+            draggedDuringGestureRef.current = true;
+            draggingIdRef.current = id;
+            setDraggingId(id);
+            setDropTargetId(null);
+          },
+          onDragEnd: clearDrag,
+        };
+      }
+
+      if (issue.kind === "epic") {
+        return {
+          ...dropTargetHandlers(id, (sourceId) =>
+            canDropBranchOntoEpic(issues, sourceId, id),
+          ),
+          isDragging: false,
+          isDropTarget,
+        };
+      }
+
+      return INERT_ROW_DND;
+    },
+    [clearDrag, draggingId, dropTargetId, dropTargetHandlers, issues],
   );
 
   const consumeDragGesture = useCallback(() => {
@@ -98,7 +138,7 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
     return true;
   }, []);
 
-  return { getBranchRowProps, consumeDragGesture };
+  return { getRowDnDProps, consumeDragGesture };
 }
 
 export function BranchTreeDnDProvider({

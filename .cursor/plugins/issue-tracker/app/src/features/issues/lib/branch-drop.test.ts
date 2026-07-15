@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { IssueRecord } from "@server/schemas";
-import { canRestackBranchOntoBranch } from "./branch-drop";
+import {
+  canDropBranchOntoEpic,
+  canRestackBranchOntoBranch,
+} from "./branch-drop";
 
 function branch(
   id: string,
@@ -25,7 +28,25 @@ function branch(
   };
 }
 
+function epic(id: string): IssueRecord {
+  return {
+    id,
+    kind: "epic",
+    title: id,
+    partOf: "p",
+    order: 0,
+    createdAt: "2020-01-01T00:00:00.000Z",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    needsAttention: false,
+    attentionReason: null,
+    hasDescription: false,
+    hasChat: false,
+  };
+}
+
 const issues: IssueRecord[] = [
+  epic("e1"),
+  epic("e2"),
   branch("a", "e1"),
   branch("b", "e1", "a"),
   branch("c", "e1", "b"),
@@ -53,5 +74,23 @@ describe("canRestackBranchOntoBranch", () => {
 
   it("refuses unknown source", () => {
     expect(canRestackBranchOntoBranch(issues, "ghost", "a")).toBe(false);
+  });
+});
+
+describe("canDropBranchOntoEpic", () => {
+  it("allows reparent onto another epic", () => {
+    expect(canDropBranchOntoEpic(issues, "b", "e2")).toBe(true);
+  });
+
+  it("allows unstack onto its own epic", () => {
+    expect(canDropBranchOntoEpic(issues, "b", "e1")).toBe(true);
+  });
+
+  it("refuses unknown source", () => {
+    expect(canDropBranchOntoEpic(issues, "ghost", "e1")).toBe(false);
+  });
+
+  it("refuses non-epic targets", () => {
+    expect(canDropBranchOntoEpic(issues, "b", "a")).toBe(false);
   });
 });

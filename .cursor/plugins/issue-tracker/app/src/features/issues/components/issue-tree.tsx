@@ -191,16 +191,12 @@ function TreeRow({
   const { issue } = node;
   const expanded = useIssueUiStore((s) => s.expanded[issue.id] ?? true);
   const toggle = useIssueUiStore((s) => s.toggle);
-  const { getBranchRowProps, consumeDragGesture } = useBranchTreeDnDContext();
+  const { getRowDnDProps, consumeDragGesture } = useBranchTreeDnDContext();
   const hasChildren = node.children.length > 0;
   const Icon = KIND_ICON[issue.kind];
   const state = derived[issue.id];
   const isBranch = issue.kind === "branch";
-  const branchDnD = isBranch ? getBranchRowProps(issue.id) : null;
-  const { isDragging, isDropTarget, ...branchDragHandlers } = branchDnD ?? {
-    isDragging: false,
-    isDropTarget: false,
-  };
+  const { isDragging, isDropTarget, ...rowDnDHandlers } = getRowDnDProps(issue);
 
   return (
     <div>
@@ -213,7 +209,7 @@ function TreeRow({
           isDragging && "opacity-50",
           isDropTarget && "bg-accent ring-1 ring-ring",
         )}
-        {...(isBranch ? branchDragHandlers : {})}
+        {...rowDnDHandlers}
         onClick={
           hasChildren
             ? () => {
