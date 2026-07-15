@@ -7,8 +7,9 @@ authoring issues or changing tracker code.
 
 The tracker models work as a tree of **Project > Epic > Branch > Commit** nodes
 that maps directly onto git stacked PRs. A directory per issue on disk is the
-sole source of truth; one validated service layer is the only sanctioned writer;
-all state that could drift is derived, never stored.
+sole source of truth; a validated service layer
+(`issues.ts` + sibling writers such as `attachments.ts`) is the only sanctioned
+writer; all state that could drift is derived, never stored.
 
 ## Glossary
 
@@ -132,11 +133,15 @@ issues/<id>/
   issue.json        # metadata + relationships (machine-readable)
   description.md    # the spec/description (for an Epic, the plan). GFM; may contain issue: links
   chat.jsonl        # append-only per-issue chat, one message object per line
+  attachments/      # optional; opaque files (Canvas .tsx, images, fixtures) for Epic/Branch/Commit
 ```
 
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
   (there are no path fields, so there can be no dangling file refs). Both are
   optional; absent means empty.
+- `attachments/` is likewise by convention: no manifest; scan the directory.
+  Allowed on Epic, Branch, and Commit only (not Project). See
+  [Attachments](#attachments).
 - `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
   edits, and globally unique across all kinds. Its *origin* depends on the
   writer, but the result is the same kind of id either way:
@@ -356,9 +361,12 @@ Malformed lines are skipped into `problems` on read, never thrown.
 
 ## Service layer
 
-`app/server/services/issues.ts` is the **only sanctioned writer** of `issues/`,
-shared verbatim by the HTTP routes and the CLI. All misconfiguration is
-prevented here, so no consumer can persist a broken file.
+`app/server/services/issues.ts` is the **sanctioned writer** of issue metadata
+and prose under `issues/`, shared by the HTTP routes and the CLI.
+`app/server/services/attachments.ts` is the sibling writer for
+`issues/<id>/attachments/` (per-file get/put/remove share the same `serialize`
+chain; `listAttachments` does not). All misconfiguration is prevented here, so
+no consumer can persist a broken file.
 
 ### Writer contract
 
@@ -384,6 +392,9 @@ prevented here, so no consumer can persist a broken file.
   `chat.jsonl` with a server-stamped `at`.
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
   `problems`.
+- Attachment bytes (`attachments.ts`): `listAttachments` / `getAttachment` /
+  `putAttachment` (upsert) / `removeAttachment` — see [Attachments](#attachments).
+  Not part of `read(id)` payloads.
 
 ### Cross-cutting guarantees
 
@@ -402,8 +413,9 @@ prevented here, so no consumer can persist a broken file.
   so concurrent CLI/HTTP calls cannot race.
 - **Change detection.** `read` returns a `version` (a hash over `issue.json` +
   `description.md`) so the UI can detect out-of-band edits to the open issue.
-  `chat.jsonl` is deliberately excluded from the version so chat appends do not
-  trip the external-edit banner.
+  `chat.jsonl` and `attachments/` are deliberately excluded from the version so
+  chat appends and attachment uploads/deletes do not trip the external-edit
+  banner.
 
 ### Deletion policy
 
@@ -440,9 +452,53 @@ into it, and each edge type resolves deterministically:
 `issue:` cross-links inside `description.md` are freeform Markdown, not
 validated relationships, so they are left untouched.
 
+Deleting an issue removes its whole directory (`rmSync` recursive), so any
+`attachments/` under that directory go with it — both imperative `remove` and
+`apply` prune. There is no separate attachment-cascade step.
+
 **Invariant.** After `remove()`, `list().problems` gains no new
 dangling-reference, wrong-kind, or cycle problem — guaranteed by construction in
 `planDeletion()` and re-validated against the surviving set before any write.
+
+## Attachments
+
+Opaque files that travel with an Epic, Branch, or Commit (e.g. Cursor Canvases
+as `.tsx`, images, small fixtures). Owned by `app/server/services/attachments.ts`,
+a sibling writer whose per-file get/put/remove share the same `serialize` chain
+as `issues.ts` writes; `listAttachments` is unsynchronized.
+
+**Kinds.** Attach / list / download / detach only on Epic, Branch, and Commit.
+Project (and unknown ids) are refused.
+
+**On-disk.** `issues/<id>/attachments/<basename>` — no manifest; metadata is
+filename + size + mtime, with MIME inferred from the extension
+(`application/octet-stream` when unknown).
+
+**Limits.** Path-safety only: reject empty names, `.`, `..`, `/`, `\`, null
+bytes, and any name that is not a plain basename. No extension allowlist.
+**25 MiB** max per file (`MAX_ATTACHMENT_BYTES`).
+
+**Upsert.** Putting a name that already exists replaces the bytes. There is no
+rename verb — re-attach under the new basename and detach the old.
+
+**HTTP** (thin adapter over the service; payloads are not embedded in
+`GET /api/issues/:id`):
+
+| method | path | behavior |
+| --- | --- | --- |
+| `GET` | `/api/issues/:id/attachments` | list metadata |
+| `POST` | `/api/issues/:id/attachments` | multipart `file` upload; stored name = basename of uploaded filename; upsert |
+| `GET` | `/api/issues/:id/attachments/:name` | download bytes + `Content-Type` |
+| `DELETE` | `/api/issues/:id/attachments/:name` | remove one file |
+
+**Description links.** Issue-local relative Markdown only. A link like
+`[foo](foo.tsx)` means that issue's `attachments/foo.tsx`. Arbitrary external
+workspace paths remain forbidden. Convention + docs/skills only — there is no
+integrity check that the linked file exists.
+
+**`apply`.** Never creates, updates, or deletes attachment bytes (same seam as
+`chat.jsonl`). Rewriting `description.md` via apply leaves attachments
+untouched; only deleting the issue (or apply-pruning it) removes them.
 
 ## `apply` doc format
 
@@ -590,10 +646,11 @@ preserves everything else from the existing same-kind issue.
 | `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
 | `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
+| `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
 
 So authoring/decomposition is declarative through `apply`, while working the
-stack (progress, git facts, escalation, chat) stays on the one-shot imperative
-verbs — the two never fight over a field.
+stack (progress, git facts, escalation, chat, attachments) stays on the
+one-shot imperative verbs — the two never fight over a field.
 
 ## Derived state
 
@@ -651,22 +708,26 @@ Branches) and the next startable Branches.
 **Directory-per-issue is the source of truth (no database).** Issues are plain
 files an agent, a human, or git can read and diff. There is no schema migration,
 no server required to inspect state, and the on-disk tree *is* the data model.
-`description.md` and `chat.jsonl` are found by convention from the id, so a file
-reference can never dangle.
+`description.md`, `chat.jsonl`, and `attachments/` are discovered by convention
+from the id (no path fields in `issue.json`), so metadata cannot point at a
+missing file. Markdown links into `attachments/` are a separate convention and
+may dangle — see [Attachments](#attachments).
 
 **The complete design lives distributed across tiers.** The Epic replaces a
 giant plan/spec only when the whole design is captured in the tree: overview and
 cross-cutting invariants in the Epic, standalone unit prose in each Branch,
-implementor-resolution detail in each Commit. Companion material is inlined
-where it is used. Verbatim copy into the Epic with empty children is not
-sufficient — distribution and a completeness pass are what make the tracker a
-standalone basis for a future implementor.
+implementor-resolution detail in each Commit. Companion material belongs **with
+the issue that uses it** — inlined in `description.md` or attached beside it
+(link rules in [Attachments](#attachments)). Verbatim copy into the Epic with
+empty children is not sufficient — distribution and a completeness pass are
+what make the tracker a standalone basis for a future implementor.
 
-**One validated service layer is the only writer.** The CLI (for agents) and the
-HTTP routes (for the UI) are both thin adapters over `services/issues.ts`. Every
-write goes through the same validation, partial-merge, and serialization, so an
-issue cannot be left in a broken state regardless of who wrote it. Integrity is
-enforced at the source rather than trusted at each call site.
+**A validated service layer is the only writer.** The CLI (for agents) and the
+HTTP routes (for the UI) are thin adapters over `services/issues.ts` (and
+`services/attachments.ts` for attachment bytes). Every write goes through the
+same validation, partial-merge, and serialization, so an issue cannot be left
+in a broken state regardless of who wrote it. Integrity is enforced at the
+source rather than trusted at each call site.
 
 **Derived, not stored.** Anything that can be computed from the whole set —
 Branch/Epic status, ready/blocked, base branch, the ready set — is computed by

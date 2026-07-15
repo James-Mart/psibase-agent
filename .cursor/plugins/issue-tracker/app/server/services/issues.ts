@@ -39,11 +39,12 @@ import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
-// Exported, with `readAll`/`readDescription`/`commitIssueBatch`, so sibling
-// writers in the service layer (e.g. `apply`) can read the current graph and
-// commit a validated batch inside this same in-process write chain, and so
-// cannot race HTTP/CLI writes. These four are the whole seam: the low-level FS
-// primitives stay private to this module.
+// Exported, with `readAll`/`readDescription`/`readIssueOrThrow`/
+// `commitIssueBatch`, so sibling writers in the service layer (e.g. `apply`,
+// attachments) can read the current graph or a single issue and commit a
+// validated batch inside this same in-process write chain, and so cannot race
+// HTTP/CLI writes. These five are the whole seam: the low-level FS primitives
+// stay private to this module.
 export function serialize<T>(fn: () => T): Promise<T> {
   const run = writeChain.then(fn, fn);
   writeChain = run.then(
@@ -196,7 +197,7 @@ export function read(id: string): IssueDetail {
   return toDetail(issue, text, readDescription(id));
 }
 
-function readIssueOrThrow(id: string): Issue {
+export function readIssueOrThrow(id: string): Issue {
   if (!existsSync(dirOf(id))) {
     throw new IssueError("not_found", `unknown issue "${id}"`);
   }

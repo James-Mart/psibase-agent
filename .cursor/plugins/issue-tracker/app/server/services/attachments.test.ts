@@ -1,0 +1,236 @@
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ApplyDoc } from "./apply-schema.js";
+import { MAX_ATTACHMENT_BYTES } from "./attachments.js";
+
+const AT = "2026-07-09T14:00:00.000Z";
+let dir: string;
+
+function writeIssue(id: string, body: Record<string, unknown>): void {
+  mkdirSync(join(dir, id), { recursive: true });
+  writeFileSync(join(dir, id, "issue.json"), JSON.stringify({ id, ...body }));
+}
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "issue-tracker-attachments-"));
+  vi.resetModules();
+  vi.stubEnv("ISSUES_DIR", dir);
+  writeIssue("p", {
+    kind: "project",
+    title: "P",
+    order: 0,
+    createdAt: AT,
+    updatedAt: AT,
+  });
+  writeIssue("e", {
+    kind: "epic",
+    title: "E",
+    partOf: "p",
+    order: 0,
+    createdAt: AT,
+    updatedAt: AT,
+  });
+  writeIssue("b", {
+    kind: "branch",
+    title: "B",
+    partOf: "e",
+    order: 0,
+    createdAt: AT,
+    updatedAt: AT,
+  });
+  writeIssue("c", {
+    kind: "commit",
+    title: "C",
+    partOf: "b",
+    order: 0,
+    status: "todo",
+    createdAt: AT,
+    updatedAt: AT,
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+async function loadAttachments() {
+  return import("./attachments.js");
+}
+
+async function loadIssues() {
+  return import("./issues.js");
+}
+
+async function loadApply() {
+  return import("./apply.js");
+}
+
+describe("listAttachments / putAttachment / getAttachment / removeAttachment", () => {
+  it("upserts, lists metadata, reads bytes, and removes", async () => {
+    const { listAttachments, putAttachment, getAttachment, removeAttachment } =
+      await loadAttachments();
+
+    expect(listAttachments("c")).toEqual([]);
+
+    const v1 = Buffer.from("export const x = 1;\n");
+    const first = await putAttachment("c", "mock.tsx", v1);
+    expect(first.name).toBe("mock.tsx");
+    expect(first.size).toBe(v1.byteLength);
+    expect(first.mime).toBe("application/octet-stream");
+    expect(Number.isNaN(Date.parse(first.mtime))).toBe(false);
+    expect(readFileSync(join(dir, "c", "attachments", "mock.tsx"), "utf8")).toBe(
+      "export const x = 1;\n",
+    );
+
+    const got = await getAttachment("c", "mock.tsx");
+    expect(got.meta.name).toBe("mock.tsx");
+    expect(got.bytes.equals(v1)).toBe(true);
+
+    const listed = listAttachments("c");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.name).toBe("mock.tsx");
+
+    const v2 = Buffer.from("export const x = 2;\n");
+    const replaced = await putAttachment("c", "mock.tsx", v2);
+    expect(replaced.size).toBe(v2.byteLength);
+    expect(readFileSync(join(dir, "c", "attachments", "mock.tsx"), "utf8")).toBe(
+      "export const x = 2;\n",
+    );
+    expect(listAttachments("c")).toHaveLength(1);
+
+    await putAttachment("c", "shot.png", Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    const two = listAttachments("c").map((a) => a.name);
+    expect(two).toEqual(["mock.tsx", "shot.png"]);
+    expect(listAttachments("c").find((a) => a.name === "shot.png")?.mime).toBe(
+      "image/png",
+    );
+
+    await removeAttachment("c", "mock.tsx");
+    expect(listAttachments("c").map((a) => a.name)).toEqual(["shot.png"]);
+    expect(existsSync(join(dir, "c", "attachments", "mock.tsx"))).toBe(false);
+  });
+
+  it("allows attachments on epic and branch", async () => {
+    const { putAttachment, listAttachments } = await loadAttachments();
+    await putAttachment("e", "a.txt", Buffer.from("epic"));
+    await putAttachment("b", "b.txt", Buffer.from("branch"));
+    expect(listAttachments("e").map((a) => a.name)).toEqual(["a.txt"]);
+    expect(listAttachments("b").map((a) => a.name)).toEqual(["b.txt"]);
+  });
+
+  it("refuses project and unknown ids", async () => {
+    const { listAttachments, putAttachment, getAttachment, removeAttachment } =
+      await loadAttachments();
+
+    expect(() => listAttachments("p")).toThrow(/project/i);
+    await expect(
+      putAttachment("p", "x.txt", Buffer.from("nope")),
+    ).rejects.toThrow(/project/i);
+    await expect(getAttachment("p", "x.txt")).rejects.toThrow(/project/i);
+    await expect(removeAttachment("p", "x.txt")).rejects.toThrow(/project/i);
+
+    expect(() => listAttachments("ghost")).toThrow(/unknown issue/);
+    await expect(
+      putAttachment("ghost", "x.txt", Buffer.from("nope")),
+    ).rejects.toThrow(/unknown issue/);
+    await expect(getAttachment("ghost", "x.txt")).rejects.toThrow(
+      /unknown issue/,
+    );
+  });
+
+  it("refuses oversize payloads", async () => {
+    const { putAttachment } = await loadAttachments();
+    const bytes = new Uint8Array(MAX_ATTACHMENT_BYTES + 1);
+    await expect(putAttachment("c", "big.bin", bytes)).rejects.toThrow(
+      /limit/i,
+    );
+  });
+
+  it("refuses unsafe basenames", async () => {
+    const { putAttachment, getAttachment, removeAttachment } =
+      await loadAttachments();
+    const bytes = Buffer.from("x");
+    for (const name of ["", "..", ".", "a/b", "a\\b", "a\0b", "../x"]) {
+      await expect(putAttachment("c", name, bytes)).rejects.toThrow(/unsafe/i);
+      await expect(getAttachment("c", name)).rejects.toThrow(/unsafe/i);
+      await expect(removeAttachment("c", name)).rejects.toThrow(/unsafe/i);
+    }
+  });
+
+  it("throws when reading or removing a missing attachment", async () => {
+    const { getAttachment, removeAttachment } = await loadAttachments();
+    await expect(getAttachment("c", "missing.txt")).rejects.toThrow(
+      /not found/,
+    );
+    await expect(removeAttachment("c", "missing.txt")).rejects.toThrow(
+      /not found/,
+    );
+  });
+});
+
+describe("deletion cascade removes attachments", () => {
+  it("removes the whole issue directory including attachments", async () => {
+    const { putAttachment } = await loadAttachments();
+    const { remove } = await loadIssues();
+    await putAttachment("c", "keep-me.bin", Buffer.from("bytes"));
+    expect(existsSync(join(dir, "c", "attachments", "keep-me.bin"))).toBe(true);
+
+    await remove("c");
+    expect(existsSync(join(dir, "c"))).toBe(false);
+  });
+});
+
+describe("apply leaves attachment bytes untouched", () => {
+  it("rewriting a description does not change attachments", async () => {
+    const { putAttachment } = await loadAttachments();
+    const { apply } = await loadApply();
+
+    const payload = Buffer.from("canvas-bytes-v1");
+    await putAttachment("c", "ui.tsx", payload);
+    writeFileSync(join(dir, "c", "description.md"), "original\n");
+
+    const doc: ApplyDoc = {
+      project: {
+        id: "p",
+        title: "P",
+        epics: [
+          {
+            id: "e",
+            title: "E",
+            branches: [
+              {
+                id: "b",
+                title: "B",
+                commits: [
+                  {
+                    id: "c",
+                    title: "C",
+                    description: "rewritten by apply\n",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("c");
+    expect(readFileSync(join(dir, "c", "description.md"), "utf8")).toBe(
+      "rewritten by apply\n",
+    );
+    expect(readFileSync(join(dir, "c", "attachments", "ui.tsx"))).toEqual(
+      payload,
+    );
+  });
+});
