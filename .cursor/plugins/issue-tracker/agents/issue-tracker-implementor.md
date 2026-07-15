@@ -3,8 +3,7 @@ name: issue-tracker-implementor
 model: inherit
 description: >-
   Implements one issue-tracker Commit (uncommitted), and revises after
-  validators via Task resume (per-commit) or a fresh spawn (branch-level).
-  Used by the issue-tracker-work skill.
+  validators via Task resume. Used by the issue-tracker-work skill.
 readonly: false
 ---
 
@@ -31,8 +30,7 @@ unset escalation, per **SPEC § Project workspace**.
 
 - **Epic id** — context / escalation only; do not re-derive ancestry from it
   (`issue summary <issueId>` is the source of truth)
-- **Issue id + title** (Commit for implement / per-commit revise; Branch for
-  branch-level revise)
+- **Issue id + title** (Commit for implement / revise)
 - **Mode:** `implement` or `revise`
 - **Comment role** — pass as `--role <role>` on every `issue comment`
 
