@@ -312,7 +312,7 @@ applies:
 | `true` | clean (empty) | `issue set-status <commitId> done` only — no `git commit`, no `set-commit`; leave `noDiff` set. |
 | `true` | dirty | Escalate — the flag contradicts a non-empty tree. |
 | absent / `false` | clean (empty) | Escalate — an empty tree without `noDiff` is not a completion signal. |
-| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue set-status <commitId> done`, `issue set-commit <commitId> <sha>`. |
+| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue set-status <commitId> done`, `issue set-commit <commitId> $(git rev-parse HEAD)`. |
 
 The implementor sets `noDiff` with `issue set-no-diff <commitId> true` (and
 explains why in chat) when the correct outcome is no file changes; validators and

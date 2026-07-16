@@ -35,6 +35,7 @@ import { mergeIssue } from "./merge.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
 import { validateNonClearablePatch } from "./patch.js";
+import { validateCommitShaPatch } from "./commit-sha.js";
 import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
@@ -327,6 +328,7 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
 
     const { description, ...jsonPatch } = patch;
     validateWorkspacePatch(jsonPatch);
+    validateCommitShaPatch(jsonPatch);
     validateNonClearablePatch(jsonPatch);
     const merged = mergeIssue(existing, jsonPatch);
 
