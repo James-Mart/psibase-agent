@@ -69,11 +69,19 @@ Run these three commands in order (use `<epicId>` throughout):
    same-level siblings) follow their stored order. `blockedBy` is an Epic-level
    edge and plays **no part** in Branch ordering (it only gates whether the
    whole Epic may start — see Argument). Under each Branch its Commits print in
-   sequence. Every Branch line carries `base=<base>` and `branch=<branchName>`
-   chips; every Commit line carries `status=` and, once done, `sha=`. The branch
-   order (walk top-to-bottom), each branch's git base and name, and each commit
-   sequence all come straight from this output — do **not** derive any of them by
-   hand.
+   sequence. Every Branch line carries chips; every Commit line carries `status=`
+   and, once done, `sha=`. **Chip legend (coordinator use):**
+   - Walk order and Commit sequence — top-to-bottom from this output; do not
+     reorder by hand.
+   - `base=<ref>` — informational; do not copy into git spawn stubs (the git
+     agent resolves checkout base itself).
+   - `branch=<name>` — git branch name once recorded; do not copy into spawn
+     stubs.
+   - `branch=(unset)` — no git branch recorded yet; spawn start-branch (see
+     Start a Branch). Do **not** invent or substitute a branch name — not the
+     Branch id, not a guess from the title.
+   - `pr=`, `merged`, `blocked` — progress signals only; ignore for spawn
+     inputs.
 2. `issue summary <epicId>` — read `Project:` and `Workspace:`.
    - Take `<projectId>` from the id token on `Project: <projectId> — <title>`
      (SPEC § Project workspace).
@@ -97,14 +105,10 @@ Run these three commands in order (use `<epicId>` throughout):
    a time. This mirror is a cache of the outline — re-sync it from a fresh
    `issue tree --epic <epicId>` each time control returns to you (see The loop).
 2. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
-   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
-   (validators/implementor), and Mode where required (`implement` / `revise` for
-   the implementor; `start-branch` / `finish-commit` / `finish-branch` for git).
-   For `start-branch` and `finish-branch`, also pass `base` and `branchName`
-   from the tree chips. Never
-   pass the workspace — each repo subagent resolves it from its own
-   `issue summary` (SPEC § Project workspace). Do not gather descriptions, read
-   diffs, or ingest reports into your own context.
+   the fields each spawn stub lists (see Spawn stubs). Never pass the workspace
+   — each repo subagent resolves it from its own `issue summary` (SPEC § Project
+   workspace). Do not gather descriptions, read diffs, or ingest reports into
+   your own context.
 
 ### Resolve implementor model
 
@@ -152,9 +156,10 @@ picks them up. Never act from a cached outline.
 
 ### Start a Branch
 
-If the Branch has no git branch yet, spawn `issue-tracker-git` with the
-start-branch stub before its first Commit (chips from Preflight CLI checks
-step 1 / Setup step 2).
+If the Branch tree chip shows `branch=(unset)`, spawn `issue-tracker-git` with
+the start-branch stub before its first Commit. When `branch=(unset)`, do **not**
+invent or substitute a branch name — pass only the stub fields; the git agent
+creates and records the git branch.
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
@@ -192,9 +197,8 @@ Repeat until finish-branch:
    its report. Then continue from step 1.
 4. **Finish and advance.** All Commits are `done` and `specReview` is set
    (`passed` or `failed`) — do **not** run the validator again. Spawn
-   `issue-tracker-git` with the finish-branch stub (Branch id + title, and its
-   `base` / `branchName` chips). Git applies the Project merge policy — see
-   SPEC § Project merge policy. Advance to the next Branch.
+   `issue-tracker-git` with the finish-branch stub. Git applies the Project
+   merge policy — see SPEC § Project merge policy. Advance to the next Branch.
 
 ### Escalation
 
@@ -219,23 +223,24 @@ loop is fully **resumable**: re-running the skill on the Epic re-reads
 
 ## Spawn stubs
 
-Pass these as the Task `prompt`. Always inline the Epic id, issue id + title,
-and (where listed) comment role / Mode / base / branchName. Children own static
-behavior via their `agents/*.md` files — do not paste workflow instructions here.
+Pass these as the Task `prompt`. Inline the fields each stub lists. Children own
+static behavior via their `agents/*.md` files — do not paste workflow
+instructions here.
+
+Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
+**only** Mode + issue id — no Epic id, `base`, or `branchName`.
 
 **Start Branch** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: start-branch. base:
-> `<base>`. branchName: `<branchName>`.
+> Mode: start-branch. Issue: `<branchId>`.
 
 **Finish Commit** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: finish-commit.
+> Mode: finish-commit. Issue: `<commitId>`.
 
 **Finish Branch** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: finish-branch. base:
-> `<base>`. branchName: `<branchName>`.
+> Mode: finish-branch. Issue: `<branchId>`.
 
 **Model discriminator** — `subagent_type: issue-tracker-model-discriminator`
 
