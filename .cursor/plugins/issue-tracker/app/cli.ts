@@ -598,6 +598,8 @@ program
       }
       if (detail.kind === "branch") {
         if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
+        const { derived } = list();
+        lines.push(`base: ${derived[detail.id]?.base ?? EPIC_BASE}`);
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
         if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
         lines.push(`merged: ${detail.merged}`);

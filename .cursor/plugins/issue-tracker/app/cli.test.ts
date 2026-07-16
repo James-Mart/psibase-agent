@@ -154,6 +154,7 @@ describe("show", () => {
     expect(stdout).toContain("kind: branch");
     expect(stdout).toContain("title: Branch A");
     expect(stdout).toContain("partOf: e");
+    expect(stdout).toContain("base: main");
     expect(stdout).toContain("branchName: feat/a");
     expect(stdout).toContain("merged: false");
     expect(stdout).toContain("# Branch A");
