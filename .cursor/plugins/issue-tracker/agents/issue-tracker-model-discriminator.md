@@ -20,7 +20,14 @@ Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 
 Run `issue summary <commitId>` for Project → Epic → Branch → Commit context,
 then `issue show <commitId>` (and Branch/Epic when needed) to read the specs
-you score against.
+you score against. That summary also carries the Project **workspace** — you may
+**read-only peek** it (file reads and greps only) to see whether required
+patterns/APIs already exist and to reason about the implementor's likely approach
+**only to score** difficulty. Use the `Workspace:` line as cwd for those peeks
+and honor the unset escalation, per **SPEC § Project workspace**. Heavy
+exploration (many reads across the tree) is normal when verification difficulty
+depends on what exists in the workspace — exploration volume is not itself
+out of bounds.
 
 ## Inputs (from invoking prompt)
 
@@ -49,11 +56,14 @@ Mid-tier is Grok 4.5 High Fast — slug `cursor-grok-4.5-high-fast`. High tier:
 
 ## What you do
 
-1. Read the Commit (and Branch/Epic as needed) specs.
+1. Read the Commit (and Branch/Epic as needed) specs; peek the Project workspace
+   read-only when scoring verification difficulty requires it (see Bootstrap).
 2. Score judgment and verification difficulty; pick the model from the matrix.
 3. `issue assign <commitId> <modelId>`.
 4. Confirm with `issue assignee <commitId>` that stdout is the chosen model id.
-5. Finish and stop. Do not implement, validate, or spawn other agents.
+5. Finish and stop. Do not implement, write code, choose libraries for the
+   implementor beyond what scoring needs, validate, spawn other agents, or explore
+   outside the Project workspace.
 
 ## Escalation
 
