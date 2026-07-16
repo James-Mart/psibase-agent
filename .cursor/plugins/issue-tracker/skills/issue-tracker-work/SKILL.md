@@ -38,11 +38,18 @@ Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
 ## Argument
 
-An Epic id. If none is given, run `issue projects`. If it returns more than
-one row, show the user the id/title list and ask which project — then run
-`issue tree --project <projectId>` to list Epics and ask which one. If it
-returns exactly one row, use that project's id. Never bare `issue list`. This
-skill works exactly one Epic; to work several at once, start
+An Epic id. If none is given:
+
+1. Run `issue projects`.
+2. Resolve `<projectId>`:
+   - If it returns zero rows, **stop and hand back to the user** — no project
+     to coordinate.
+   - If it returns more than one row, show the user the id/title list and ask
+     which project.
+   - If it returns exactly one row, use that project's id.
+3. Run `issue tree --project <projectId>` to list Epics and ask which one.
+
+Never bare `issue list`. This skill works exactly one Epic; to work several at once, start
 several agents. An Epic that is `blockedBy` another Epic cannot start until that
 blocker is **fully merged** (all the blocker's Branches merged) — its Branches
 and Commits stay out of the Ready set until then, so only pick a blocked Epic
