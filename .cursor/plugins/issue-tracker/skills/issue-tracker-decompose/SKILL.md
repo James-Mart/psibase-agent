@@ -86,6 +86,13 @@ leaves `main` broken (e.g. a schema change in one Branch and the code that
 consumes it in another): keep it in a single Branch as multiple Commits. See the
 stacked-PR merge model in [SPEC.md](../../SPEC.md).
 
+### Interface seams
+
+When a Commit introduces or wires an interface, required API shape and field
+names are owned by
+[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#commit-interface-seams);
+do not restate the rule here.
+
 ### Commit shape: vertical slices, not horizontal layers
 
 Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Commit kind + stacked-PR
@@ -112,4 +119,6 @@ split at the wrong tier.
 Completeness pass before done: every part of the source design is represented; no
 description references an external file; no Branch/Commit is title-only; no
 Branch holds just one commit and the Branch count isn't merely the bullet count;
-the Epic holds no phase- or commit-level detail that belongs in children.
+the Epic holds no phase- or commit-level detail that belongs in children; every
+Commit that introduces or wires an interface spells out API shape and field
+names (see [Interface seams](#interface-seams)).
