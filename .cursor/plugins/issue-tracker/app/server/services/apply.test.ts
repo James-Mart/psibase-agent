@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
@@ -31,6 +32,8 @@ function snapshot(): string {
   const tree: Record<string, Record<string, string>> = {};
   for (const id of readdirSync(dir).sort()) {
     const idDir = join(dir, id);
+    // Skip migration marker files (and any other non-issue entries).
+    if (!statSync(idDir).isDirectory()) continue;
     const files: Record<string, string> = {};
     for (const file of ["issue.json", "description.md", "chat.jsonl"]) {
       const path = join(idDir, file);
@@ -115,16 +118,20 @@ describe("apply — create from empty", () => {
     if (b1?.kind !== "branch") throw new Error("b1 missing");
     expect(b1.partOf).toBe("epic-a");
     expect(b1.stackedOn).toBeUndefined();
+    expect(b1.mergeBase).toBe("main");
 
     const b1s = byId.get("b1s");
     if (b1s?.kind !== "branch") throw new Error("b1s missing");
     expect(b1s.partOf).toBe("epic-a");
     expect(b1s.stackedOn).toBe("b1");
+    // Parent has no branchName yet — leave unset for the set-branch-name cascade.
+    expect(b1s.mergeBase).toBeUndefined();
 
     const b2 = byId.get("b2");
     if (b2?.kind !== "branch") throw new Error("b2 missing");
     expect(b2.partOf).toBe("epic-a");
     expect(b2.stackedOn).toBeUndefined();
+    expect(b2.mergeBase).toBe("main");
 
     const c1 = byId.get("c1");
     if (c1?.kind !== "commit") throw new Error("c1 missing");
@@ -136,6 +143,24 @@ describe("apply — create from empty", () => {
     expect(readFileSync(join(dir, "proj", "description.md"), "utf8")).toBe(
       "Project overview\n",
     );
+  });
+
+  it("sets mergeBase from an on-disk named parent when applying a stacked child", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", { branchName: "feat/b1" });
+
+    const doc = baseDoc();
+    doc.project.epics![0].branches![0].stacked!.push({
+      id: "b1s2",
+      title: "Second stacked child",
+    });
+    const summary = await apply(doc);
+    expect(summary.created).toEqual(["b1s2"]);
+    expect(readIssue("b1s2").mergeBase).toBe("feat/b1");
+    // Naming the parent cascaded into the previously-unset child; apply must
+    // preserve that filled mergeBase (not clear it on re-apply).
+    expect(readIssue("b1s").mergeBase).toBe("feat/b1");
   });
 
   it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
@@ -231,6 +256,7 @@ describe("apply — update preserves imperative progress state", () => {
     // Stamp imperative/runtime state that lives outside the doc.
     await update("b2", {
       branchName: "feat/b2",
+      mergeBase: "custom-base",
       prUrl: "https://example.test/pr/2",
       merged: true,
       specReview: "failed",
@@ -259,6 +285,7 @@ describe("apply — update preserves imperative progress state", () => {
     const b2 = readIssue("b2");
     expect(b2.title).toBe("Branch two renamed");
     expect(b2.branchName).toBe("feat/b2");
+    expect(b2.mergeBase).toBe("custom-base");
     expect(b2.prUrl).toBe("https://example.test/pr/2");
     expect(b2.merged).toBe(true);
     expect(b2.specReview).toBe("failed");
@@ -442,7 +469,11 @@ describe("apply — atomic rejection", () => {
       updatedAt: AT,
     });
 
-    const { apply } = await loadService();
+    const { apply, ensureMergeBasesMigrated } = await loadService();
+    // One-time mergeBase backfill runs at the start of apply; settle it before
+    // the "no writes on reject" snapshot so migration isn't mistaken for a
+    // partial apply write.
+    ensureMergeBasesMigrated();
     const before = snapshot();
 
     const doc: ApplyDoc = {

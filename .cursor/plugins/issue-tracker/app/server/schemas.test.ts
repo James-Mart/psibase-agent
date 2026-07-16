@@ -89,6 +89,20 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses an optional mergeBase on a branch", () => {
+    const withBase = parseIssue({ ...branch, mergeBase: "main" });
+    expect(withBase.ok).toBe(true);
+    if (withBase.ok && withBase.issue.kind === "branch") {
+      expect(withBase.issue.mergeBase).toBe("main");
+    }
+    const absent = parseIssue(branch);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "branch") {
+      expect(absent.issue.mergeBase).toBeUndefined();
+    }
+    expect(parseIssue({ ...branch, mergeBase: "" }).ok).toBe(false);
+  });
+
   it("parses a branch with an optional specReview", () => {
     const passed = parseIssue({ ...branch, specReview: "passed" });
     expect(passed.ok).toBe(true);

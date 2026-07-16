@@ -6,22 +6,16 @@ import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { issuePath } from "../lib/links";
 import { issueMatchesSearch } from "../lib/search";
 import { filterToProject, issuesById } from "../lib/build-tree";
+import { CHIP_UNSET } from "@server/services/merge-base";
 import { IssueBadges } from "./issue-badges";
-import { EPIC_BASE } from "@server/services/derive";
 
-function ReadyRow({
-  issue,
-  derived,
-}: {
-  issue: IssueRecord;
-  derived: IssuesResponse["derived"];
-}) {
+function ReadyRow({ issue }: { issue: IssueRecord }) {
   const { projectId = "" } = useParams();
   const Icon = issue.kind === "branch" ? GitBranch : GitCommitHorizontal;
   const context =
     issue.kind === "commit"
       ? `in ${issue.partOf}`
-      : `forks from ${derived[issue.id]?.base ?? EPIC_BASE}`;
+      : `forks from ${issue.kind === "branch" ? issue.mergeBase ?? CHIP_UNSET : CHIP_UNSET}`;
 
   return (
     <Link
@@ -70,7 +64,7 @@ export function ReadyView({ data }: { data: IssuesResponse }) {
   return (
     <div className="flex flex-col">
       {ready.map((issue) => (
-        <ReadyRow key={issue.id} issue={issue} derived={data.derived} />
+        <ReadyRow key={issue.id} issue={issue} />
       ))}
     </div>
   );
