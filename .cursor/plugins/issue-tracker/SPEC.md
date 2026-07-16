@@ -644,7 +644,7 @@ preserves everything else from the existing same-kind issue.
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha`, `noDiff` (Commit) | imperative only (`set-status`/`set-commit`/`set-no-diff`); `apply` preserves |
 | `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
-| `assignee`, `needsAttention`/`attentionReason` | imperative only (`assign`/`attention`); `apply` preserves |
+| `assignee`, `needsAttention`/`attentionReason` | imperative write (`assign`/`attention`); read via `assignee`; `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
 

@@ -52,7 +52,7 @@ Mid-tier is Grok 4.5 High Fast — slug `cursor-grok-4.5-high-fast`. High tier:
 1. Read the Commit (and Branch/Epic as needed) specs.
 2. Score judgment and verification difficulty; pick the model from the matrix.
 3. `issue assign <commitId> <modelId>`.
-4. Confirm with `issue show <commitId>` that `assignee` is the chosen model id.
+4. Confirm with `issue assignee <commitId>` that stdout is the chosen model id.
 5. Finish and stop. Do not implement, validate, or spawn other agents.
 
 ## Escalation

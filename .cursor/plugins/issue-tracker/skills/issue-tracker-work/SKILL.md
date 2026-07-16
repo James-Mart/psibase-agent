@@ -38,8 +38,18 @@ Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
 ## Argument
 
-An Epic id. If none is given, run `issue list`, show the user the Epics, and ask
-which one. This skill works exactly one Epic; to work several at once, start
+An Epic id. If none is given:
+
+1. Run `issue projects`.
+2. Resolve `<projectId>`:
+   - If it returns zero rows, **stop and hand back to the user** — no project
+     to coordinate.
+   - If it returns more than one row, show the user the id/title list and ask
+     which project.
+   - If it returns exactly one row, use that project's id.
+3. Run `issue tree --project <projectId>` to list Epics and ask which one.
+
+Never bare `issue list`. This skill works exactly one Epic; to work several at once, start
 several agents. An Epic that is `blockedBy` another Epic cannot start until that
 blocker is **fully merged** (all the blocker's Branches merged) — its Branches
 and Commits stay out of the Ready set until then, so only pick a blocked Epic
@@ -56,52 +66,63 @@ recommended coordinator**. Do not attempt to detect or print the current model
 id. If they do not confirm, have them re-invoke this skill with `composer-2.5`
 instead of continuing.
 
+### CLI checks
+
+Run these three commands in order (use `<epicId>` throughout):
+
+1. `issue tree --epic <epicId>`. This outline **is** your plan. It prints the
+   Epic's Branches in **pure stacked depth-first** order over `stackedOn` alone —
+   a Branch stacked on another is nested under it, and root Branches (and
+   same-level siblings) follow their stored order. `blockedBy` is an Epic-level
+   edge and plays **no part** in Branch ordering (it only gates whether the
+   whole Epic may start — see Argument). Under each Branch its Commits print in
+   sequence. Every Branch line carries chips; every Commit line carries `status=`
+   and, once done, `sha=`. **Chip legend (coordinator use):**
+   - Walk order and Commit sequence — top-to-bottom from this output; do not
+     reorder by hand.
+   - `base=<ref>` — informational; do not copy into git spawn stubs (the git
+     agent resolves checkout base itself).
+   - `branch=<name>` — git branch name once recorded; do not copy into spawn
+     stubs.
+   - `branch=(unset)` — no git branch recorded yet; spawn start-branch (see
+     Start a Branch). Do **not** invent or substitute a branch name — not the
+     Branch id, not a guess from the title.
+   - `pr=`, `merged`, `blocked` — progress signals only; ignore for spawn
+     inputs.
+2. `issue summary <epicId>` — read `Project:` and `Workspace:`.
+   - Take `<projectId>` from the id token on `Project: <projectId> — <title>`
+     (SPEC § Project workspace).
+   - If `Workspace:` is absent, the Project has no workspace and every
+     repo-touching subagent would immediately escalate, so **stop and hand back to
+     the user** to set it (`issue set-workspace <projectId> <path>`) before
+     spawning anything.
+3. `issue list --project <projectId>` — read `problems` and
+   `derived[<epicId>].blocked`.
+   - If `problems` is non-empty, **stop and hand back to the user** — do not
+     reason about or attempt fixes, and do not work a tree with integrity
+     problems.
+   - If `derived[<epicId>].blocked` is `true`, the Epic is `blockedBy` a
+     blocker that has not fully merged, so — per Argument — it **cannot start**.
+     Stop and hand back to the user rather than working any Commit.
+
 ## Setup
 
-1. Read the plan with `issue tree --epic <id>`. This one outline **is** your
-   plan. It prints the Epic's Branches in **pure stacked depth-first** order over
-   `stackedOn` alone — a Branch stacked on another is nested under it, and root
-   Branches (and same-level siblings) follow their stored order. `blockedBy` is
-   an Epic-level edge and plays **no part** in Branch ordering (it only gates
-   whether the whole Epic may start — see Argument). Under each Branch its
-   Commits print in sequence. Every Branch line carries `base=<base>` and
-   `branch=<branchName>` chips; every Commit line carries `status=` and, once
-   done, `sha=`. The branch order (walk top-to-bottom), each branch's git base
-   and name, and each commit sequence all come straight from this output — do
-   **not** derive any of them by hand.
-2. Run `issue list` once and read its `problems` array. If `problems` is
-   non-empty, **stop and hand back to the user** — do not reason about or attempt
-   fixes, and do not work a tree with integrity problems. In the same `issue
-   list` output, check `derived[<epicId>].blocked`: if it is `true` the Epic is
-   `blockedBy` a blocker that has not fully merged, so — per Argument — it
-   **cannot start**. Stop and hand back to the user rather than running
-   `issue tree` or working any Commit.
-3. **Workspace preflight.** Run `issue summary <epicId>` and check for the
-   `Workspace:` line under the Project. If it is absent, the Project has no
-   workspace and every repo-touching subagent would immediately escalate, so
-   **stop and hand back to the user** to set it
-   (`issue set-workspace <projectId> <path>`) before spawning anything. See
-   SPEC § Project workspace.
-4. Mirror the Branches and their Commits, in `issue tree` order, into your own
+1. Mirror the Branches and their Commits, in `issue tree` order, into your own
    todo list so you can track progress; keep exactly one Commit `in_progress` at
    a time. This mirror is a cache of the outline — re-sync it from a fresh
-   `issue tree --epic <id>` each time control returns to you (see The loop).
-5. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
-   dynamic fields in the Task `prompt`: Epic id, issue id + title, comment role
-   (validators/implementor), and Mode where required (`implement` / `revise` for
-   the implementor; `start-branch` / `finish-commit` / `finish-branch` for git).
-   For `start-branch` and `finish-branch`, also pass `base` and `branchName`
-   from the tree chips. Never
-   pass the workspace — each repo subagent resolves it from its own
-   `issue summary` (SPEC § Project workspace). Do not gather descriptions, read
-   diffs, or ingest reports into your own context.
+   `issue tree --epic <epicId>` each time control returns to you (see The loop).
+2. Spawn via Task `subagent_type` for the plugin agents below. Pass **only**
+   the fields each spawn stub lists (see Spawn stubs). Never pass the workspace
+   — each repo subagent resolves it from its own `issue summary` (SPEC § Project
+   workspace). Do not gather descriptions, read diffs, or ingest reports into
+   your own context.
 
 ### Resolve implementor model
 
-Given a Commit id: run `issue show <commitId>`, take the `assignee` field, and
-use it as Task `model`. If `assignee` is absent or empty, raise
+Given a Commit id: run `issue assignee <commitId>`. If stdout is empty, raise
 `issue attention <commitId> --reason "no implementor model assigned"` and stop
-— do not spawn the implementor.
+— do not spawn the implementor. Otherwise use stdout (trimmed) as Task `model`.
+Never `show|head`, never infer from discriminator chat or prior Commits.
 
 Because `issue tree` lists each Branch after the Branch it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Branch only after its
@@ -142,8 +163,10 @@ picks them up. Never act from a cached outline.
 
 ### Start a Branch
 
-If the Branch has no git branch yet, spawn `issue-tracker-git` with the
-start-branch stub before its first Commit (chips from Setup §1 / §5).
+If the Branch tree chip shows `branch=(unset)`, spawn `issue-tracker-git` with
+the start-branch stub before its first Commit. When `branch=(unset)`, do **not**
+invent or substitute a branch name — pass only the stub fields; the git agent
+creates and records the git branch.
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
@@ -181,9 +204,8 @@ Repeat until finish-branch:
    its report. Then continue from step 1.
 4. **Finish and advance.** All Commits are `done` and `specReview` is set
    (`passed` or `failed`) — do **not** run the validator again. Spawn
-   `issue-tracker-git` with the finish-branch stub (Branch id + title, and its
-   `base` / `branchName` chips). Git applies the Project merge policy — see
-   SPEC § Project merge policy. Advance to the next Branch.
+   `issue-tracker-git` with the finish-branch stub. Git applies the Project
+   merge policy — see SPEC § Project merge policy. Advance to the next Branch.
 
 ### Escalation
 
@@ -208,23 +230,24 @@ loop is fully **resumable**: re-running the skill on the Epic re-reads
 
 ## Spawn stubs
 
-Pass these as the Task `prompt`. Always inline the Epic id, issue id + title,
-and (where listed) comment role / Mode / base / branchName. Children own static
-behavior via their `agents/*.md` files — do not paste workflow instructions here.
+Pass these as the Task `prompt`. Inline the fields each stub lists. Children own
+static behavior via their `agents/*.md` files — do not paste workflow
+instructions here.
+
+Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
+**only** Mode + issue id — no Epic id, `base`, or `branchName`.
 
 **Start Branch** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: start-branch. base:
-> `<base>`. branchName: `<branchName>`.
+> Mode: start-branch. Issue: `<branchId>`.
 
 **Finish Commit** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: finish-commit.
+> Mode: finish-commit. Issue: `<commitId>`.
 
 **Finish Branch** — `subagent_type: issue-tracker-git`
 
-> Epic: `<epicId>`. Branch: `<id>` (`<title>`). Mode: finish-branch. base:
-> `<base>`. branchName: `<branchName>`.
+> Mode: finish-branch. Issue: `<branchId>`.
 
 **Model discriminator** — `subagent_type: issue-tracker-model-discriminator`
 
@@ -282,5 +305,6 @@ behavior via their `agents/*.md` files — do not paste workflow instructions he
 - Workspace is a subagent concern, not yours (SPEC § Project workspace): you and
   the model discriminator do no repo work, so you never resolve or pass it — each
   repo subagent reads it from its own `issue summary`. Your only workspace duty
-  is the Setup §3 preflight: if the Epic's Project has no `Workspace:` line, stop
+  is the Preflight CLI checks step 2: if the Epic's Project has no `Workspace:`
+  line, stop
   and hand back to the user instead of spawning.
