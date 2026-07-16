@@ -19,12 +19,11 @@ Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 
 ## Bootstrap
 
-Run `issue summary <id>` first to rebuild Project → Epic → Branch → Commit
-context for the issue you were given. That same output carries the Project
-**workspace** — the cwd for all git work — and the **Project id** (the id on the
-`Project:` line). Resolve the workspace and honor the unset escalation per
-**SPEC § Project workspace**; every `git`/`gh` command in the modes below runs
-with that path as the working directory.
+Run `issue summary <id>` **before any** `git`/`gh` to rebuild Project → Epic →
+Branch → Commit context. That summary carries the Project **workspace** — run
+every `git`/`gh` with it as the working directory, and honor the unset
+escalation, per **SPEC § Project workspace**. **Never** probe or run git —
+including the first `git status` — in the ambient Cursor cwd.
 
 ## Inputs (from invoking prompt)
 
