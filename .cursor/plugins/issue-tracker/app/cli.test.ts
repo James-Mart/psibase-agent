@@ -576,6 +576,69 @@ describe("set-no-diff", () => {
   });
 });
 
+describe("assignee", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("prints only the assignee on stdout when set", () => {
+    expect(runCli(["assign", "c1", "composer-2.5"]).status).toBe(0);
+    const { stdout, status } = runCli(["assignee", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).toBe("composer-2.5\n");
+  });
+
+  it("exits 0 with empty stdout when assignee is unset", () => {
+    const { stdout, status } = runCli(["assignee", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("exits 0 with empty stdout for whitespace-only assignee", () => {
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      assignee: "   ",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const { stdout, status } = runCli(["assignee", "c1"]);
+    expect(status).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("exits 0 with empty stdout for a project (no assignee field)", () => {
+    const { stdout, status } = runCli(["assignee", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("errors with a nonzero exit on an unknown id", () => {
+    const { stderr, status } = runCli(["assignee", "ghost"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain('unknown issue "ghost"');
+  });
+});
+
 describe("set-part-of", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   beforeEach(() => {

@@ -1,5 +1,6 @@
 import { AlertTriangle, CircleSlash, ClipboardCheck, User } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
+import { assigneeOf } from "@server/assignee";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -17,7 +18,7 @@ export function IssueBadges({
   compact?: boolean;
   className?: string;
 }) {
-  const assignee = "assignee" in issue ? issue.assignee : undefined;
+  const assignee = assigneeOf(issue);
   const needsAttention = "needsAttention" in issue ? issue.needsAttention : false;
   const attentionReason =
     "attentionReason" in issue ? issue.attentionReason : null;

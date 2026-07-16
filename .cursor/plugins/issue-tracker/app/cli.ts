@@ -35,6 +35,7 @@ import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { EPIC_BASE } from "./server/services/derive.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
+import { assigneeOf } from "./server/assignee.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -513,6 +514,18 @@ program
   .action((id, who) => run(() => update(id, { assignee: who })));
 
 program
+  .command("assignee")
+  .argument("<id>", "issue id")
+  .description("print an issue's assignee (model id) alone on stdout")
+  .action((id) =>
+    run(() => {
+      const detail = read(id);
+      const assignee = assigneeOf(detail);
+      if (assignee) console.log(assignee);
+    }),
+  );
+
+program
   .command("set-description")
   .argument("<id>", "issue id")
   .option("--description <text>", "description.md contents")
@@ -596,7 +609,8 @@ program
         if (detail.noDiff) lines.push(`noDiff: true`);
       }
       if (detail.kind !== "project") {
-        if (detail.assignee) lines.push(`assignee: ${detail.assignee}`);
+        const assignee = assigneeOf(detail);
+        if (assignee) lines.push(`assignee: ${assignee}`);
         if (detail.needsAttention) {
           lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
         }

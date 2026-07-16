@@ -112,10 +112,10 @@ Run these three commands in order (use `<epicId>` throughout):
 
 ### Resolve implementor model
 
-Given a Commit id: run `issue show <commitId>`, take the `assignee` field, and
-use it as Task `model`. If `assignee` is absent or empty, raise
+Given a Commit id: run `issue assignee <commitId>`. If stdout is empty, raise
 `issue attention <commitId> --reason "no implementor model assigned"` and stop
-— do not spawn the implementor.
+— do not spawn the implementor. Otherwise use stdout (trimmed) as Task `model`.
+Never `show|head`, never infer from discriminator chat or prior Commits.
 
 Because `issue tree` lists each Branch after the Branch it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Branch only after its
