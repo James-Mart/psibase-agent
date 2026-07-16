@@ -302,9 +302,9 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
   PR — that is the Project's `mergePolicy`, applied by `issue-tracker-git` on
   finish-branch. Always spawn finish-branch; never read or branch on the policy.
 - Act only through the CLI for tracker writes; never hand-edit `issue.json`.
-- Workspace is a subagent concern, not yours (SPEC § Project workspace): you and
-  the model discriminator do no repo work, so you never resolve or pass it — each
-  repo subagent reads it from its own `issue summary`. Your only workspace duty
-  is the Preflight CLI checks step 2: if the Epic's Project has no `Workspace:`
-  line, stop
-  and hand back to the user instead of spawning.
+- Workspace is a subagent concern, not yours (SPEC § Project workspace): you never
+  resolve or pass it — each repo-touching subagent and the model discriminator
+  read it from their own `issue summary` (discriminator: read-only peek only; see
+  SPEC § Model discriminator (read-only peek)). Your only workspace duty is the
+  Preflight CLI checks step 2: if the Epic's Project has no `Workspace:` line,
+  stop and hand back to the user instead of spawning.

@@ -198,8 +198,10 @@ its Epics' work lands in. It is set with `issue set-workspace <projectId> <path>
 (a `workspace:` line) and `issue summary` (a `Workspace:` line under the Project).
 
 The field exists so the work loop's **repo-touching subagents** (git,
-implementor, and both validators) know where to operate. The coordinator and the
-model discriminator do no repo work, so neither needs a workspace. The contract
+implementor, and both validators) know where to operate. The **model
+discriminator** uses the same path for **read-only peeks** when scoring
+verification difficulty (see [Model discriminator (read-only peek)](#model-discriminator-read-only-peek)).
+The coordinator does no repo work and never needs a workspace. The contract
 below is the single source of truth; the agent files (`agents/*.md`) and the work
 skill point here rather than restating it.
 
@@ -230,6 +232,17 @@ Project carries no needs-attention fields, so it is never the target.
 surfaces once a repo subagent is spawned, the work-loop coordinator checks for
 the `Workspace:` line up front (in Setup) and hands back to the user before
 spawning anything if it is absent.
+
+### Model discriminator (read-only peek)
+
+When scoring verification difficulty, the discriminator may **read-only**
+inspect the workspace (file reads and greps; no edits, builds, tests, or writes)
+with the workspace as cwd, solely to judge whether required patterns/APIs exist
+and how hard verification will be. It does not implement, choose libraries for
+the implementor, or plan the solution beyond what scoring requires. Resolve and
+use the workspace via the same `issue summary` rules above; honor **Unset →
+escalate** — do not peek from an ambient cwd. Exploration volume (many reads
+across the tree) is not capped when needed to score accurately.
 
 ### Project merge policy
 
