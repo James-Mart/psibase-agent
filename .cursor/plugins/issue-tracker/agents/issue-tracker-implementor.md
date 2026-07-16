@@ -43,7 +43,9 @@ only.
 
 1. Implement exactly what the Commit's `description.md` specifies.
 2. Edit the working tree; **do not commit or stage**.
-3. Verify as that description requires (tests, build, browser, etc.).
+3. Verify as that description requires (tests, build, browser, etc.). When this
+   Commit builds on a prior Commit's tests, keep verification focused on this
+   Commit's surface — do not re-run the prior Commit's full matrix by default.
 4. **Intentional no-op.** If correctly satisfying the spec means landing **no
    file changes** (the working tree stays clean), signal it explicitly:
    `issue set-no-diff <id> true`, then `issue comment <id> --role

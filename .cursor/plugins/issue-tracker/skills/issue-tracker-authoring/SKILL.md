@@ -66,6 +66,8 @@ instead of `npx tsx cli.ts <verb>`.
   is needed. `blockedBy` is authored as a field on the **Epic** node (a list of
   same-Project Epic ids); Branches carry no `blockedBy`. Doc format and field
   seam: [SPEC.md](../../SPEC.md). Use it via issue-tracker-decompose.
+  When Commit descriptions introduce or wire an interface, see
+  [Commit interface seams](#commit-interface-seams).
 - **`show <id>`** — print one issue's metadata + rendered `description.md`;
   `--chat` also prints the chat log. Self-verify a single issue without piping
   the big `list` JSON through a script.
@@ -83,7 +85,20 @@ instead of `npx tsx cli.ts <verb>`.
 - **`--description-file <path>`** (on the create verbs and `set-description`) —
   read `description.md` from a file instead of an inline `--description`; pass
   `-` to read from **stdin** (pipe/heredoc), which avoids shell-escaping
-  multiline Markdown.
+  multiline Markdown. When the description introduces or wires an interface, see
+  [Commit interface seams](#commit-interface-seams).
 - **project title in place of id** — `list`/`ready`/`tree` accept `--project`
   as either a project id **or** a unique project title, so you don't have to run
   `projects` first (an ambiguous/unknown title errors nonzero).
+
+## Commit interface seams
+
+Commit descriptions that introduce or wire an interface must spell out **API
+shape and field names** (function names/signatures, HTTP paths/methods,
+multipart field name) so implementors do not invent them. Do not require file
+or middleware homes — those are implementor choices, not authoring seams.
+
+- **Bad:** "Add HTTP download for attachments" (implementor invents
+  `getAttachment`, multer, and multipart field `"file"`).
+- **Good:** "Add `GET /attachments/:id` returning the raw bytes; upload is
+  `POST /attachments` multipart field `attachment`."
