@@ -36,8 +36,8 @@ list`, or product-repo `issues/` trees. If checkout or merge fails, raise
   finish-commit)
 - **Mode:** `start-branch`, `finish-commit`, or `finish-branch`
 
-The stub passes **only** Mode + issue id. Do not expect Epic id, `base`, or
-`branchName` in the prompt.
+The stub passes **only** Mode + issue id. Do not expect Epic id, `mergeBase`,
+`base`, or `branchName` in the prompt.
 
 ## Git facts
 
@@ -45,13 +45,16 @@ The stub passes **only** Mode + issue id. Do not expect Epic id, `base`, or
 |------|--------|----------------|
 | Workspace | `issue summary <id>` → `Workspace:` | all modes |
 | ancestry / titles | `issue summary <id>` | all modes |
-| Branch `base` | `issue show <branchId>` → `base:` | start-branch, finish-branch |
+| Branch `mergeBase` | `issue show <branchId>` → `mergeBase:` | start-branch, finish-branch |
 | Branch `branchName` | `issue show <branchId>` → `branchName:` | finish-branch |
 | Project `mergePolicy` | `issue show <projectId>` → `mergePolicy:` | finish-branch |
 | Commit `noDiff` | `issue summary` / `issue show <commitId>` | finish-commit |
 
-Do not invent `base` or `branchName` from titles, `stackedOn`, or tree/list
-chips. Missing required facts → `issue attention` and stop.
+Do not invent `mergeBase` or `branchName` from titles, `stackedOn`, or
+tree/list chips (`base=` on the tree is a human display of stored
+`mergeBase` — never copy it from the prompt). If `mergeBase` is unset
+(`(unset)` / absent), raise `issue attention` and stop — do not fall back to
+`stackedOn`. Missing any other required fact → `issue attention` and stop.
 
 ## Mode
 
@@ -61,9 +64,9 @@ Follow exactly one section: **## Start Branch** for `start-branch`,
 
 ## Start Branch
 
-Load `base` per **## Git facts** (else attention and stop).
+Load `mergeBase` per **## Git facts** (else attention and stop).
 
-1. `git checkout <base>`
+1. `git checkout <mergeBase>`
 2. `git checkout -b <branchId>`
 3. `issue set-branch-name <branchId> <branchId>` (git branch name = Branch
    issue id; never invent a name from titles)
@@ -93,9 +96,9 @@ For the **dirty + no `noDiff`** row:
 
 ## Finish Branch
 
-Load `base`, `branchName`, and `mergePolicy` per **## Git facts** (else
+Load `mergeBase`, `branchName`, and `mergePolicy` per **## Git facts** (else
 attention and stop). `mergePolicy` selects *how* only — merge/PR always
-targets `base` using the stored `branchName`.
+targets stored `mergeBase` using the stored `branchName`.
 
 Apply the Project's merge policy to a Branch whose last Commit is `done`, per
 **SPEC § Project merge policy** (the authoritative contract — semantics,
@@ -108,12 +111,12 @@ idempotency, and recovery live there). This section is only the concrete
 2. Otherwise run the policy's steps:
    - **manual** — nothing.
    - **pull-request** — `git push -u origin <branchName>`, then
-     `gh pr create --draft --base <base> --head <branchName> --title
+     `gh pr create --draft --base <mergeBase> --head <branchName> --title
      "<Branch title>" --body "<body>"`, where `<body>` is the Branch's
      rendered `description.md` (`issue show <branchId>`; a one-line default if
      empty). Record it: `issue open-pr <branchId> <url>`.
-   - **merge** — `git checkout <base>`, `git merge --no-ff <branchName>`,
-     `git push origin <base>`, `issue set-merged <branchId>`.
+   - **merge** — `git checkout <mergeBase>`, `git merge --no-ff <branchName>`,
+     `git push origin <mergeBase>`, `issue set-merged <branchId>`.
 3. Finish and stop. Do not start Commits, finish other Branches, or spawn agents.
 
 ## Escalation
@@ -123,6 +126,6 @@ the Finish Commit matrix, push rejection, PR-create failure, merge conflict,
 CLI refusal), raise `issue attention <id> --reason "..."` — `<id>` is the
 Commit id for finish-commit and the Branch id for start-branch/finish-branch —
 and stop; do not guess. For finish-branch recovery follow SPEC § Project
-merge policy: abort a `merge` **conflict** (`git merge --abort`) so the base
-is never half-merged, but leave a *completed* local merge whose push failed
-in place (the retry re-pushes).
+merge policy: abort a `merge` **conflict** (`git merge --abort`) so the
+`mergeBase` ref is never half-merged, but leave a *completed* local merge
+whose push failed in place (the retry re-pushes).

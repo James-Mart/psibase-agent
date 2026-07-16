@@ -28,8 +28,8 @@ Every issue has a `kind`, one of four tiers:
   in the same Project that must finish first). Has **no stored status** — its
   status is fully derived from descendants. Is `partOf` a Project (required).
 - **Branch** — a unit that becomes one git branch and one PR. Contains Commits.
-  Carries `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`. Status is derived, never
-  stored.
+  Carries `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`,
+  `specReview`. Status is derived, never stored.
 - **Commit** — an atomic, story-point-sized unit implemented as one git commit.
   Each Commit is a **small but standalone cross-section** of the work: after it
   lands on the Branch tip, the package must still **build** and tests must remain
@@ -74,25 +74,41 @@ of stalling a stack mid-flight.
 
 #### The stacked-PR merge model
 
-Every Branch is a PR that merges **to `main`**, never into its `stackedOn`
-parent. A stacked Branch merges after the Branch it forks from, so a stack lands
-bottom-up: the parent goes to `main` first, then each child to `main` in stack
-order. Consequently **each Branch must be independently mergeable** — merging it
-must leave `main` building and self-consistent on its own. Only Branches merge;
-Commits are internal steps that ship together as their Branch's single PR, so an
-individual Commit need not be *shippable* (mergeable to `main` alone) but the
-Branch as a whole must be. A Commit *must* still leave the Branch tip
-**buildable and testable** — see [Commit](#kinds). Never split one cohesive
-change across separate Branches such that merging one would leave `main` broken
-(for example a schema change in one Branch and the code that consumes it in
-another): keep it in one Branch as multiple Commits.
+Every Branch has a stored **`mergeBase`**: the git ref that `start-branch`
+checks out from and that `finish-branch` targets for PR/merge. It is **not**
+re-derived from `stackedOn` at git time.
 
-This is the PR plan model (`pull-request` / `manual`
-[merge policies](#project-merge-policy)), where a stacked child's PR retargets to
-`main` once its parent has landed. The local `merge` policy is the exception: it
-integrates each finished Branch directly into its derived `base` (the parent tip
-when stacked, else `main`) with no PR, so a stack still lands bottom-up but never
-touches a remote PR.
+- **Root** (no `stackedOn`): `mergeBase = main` at create / `apply`.
+- **Stacked child**: set to the parent's `branchName` when the parent is
+  already named at child create / `apply`; otherwise left unset until the
+  parent's first `set-branch-name`, which fills empty child `mergeBase`s in
+  the same command.
+- **On `set-merged`**: every child with `stackedOn = parent` gets
+  `child.mergeBase = parent.mergeBase` (idempotent). That is how a stack
+  retargets after the parent lands — typically onto `main`. Open GitHub PRs
+  are retargeted by GitHub itself; the tracker does not run PR-base CLI — see
+  [Project merge policy](#project-merge-policy).
+- **Rename guard**: once a Branch has a `branchName` and any child is
+  stacked on it, `set-branch-name` refuses a real rename (same-value no-op
+  still allowed). Empty-only cascade on first name is enough because children
+  cannot be left pointing at a stale parent name.
+
+A stack still lands bottom-up: finish the parent first, then each child.
+Consequently **each Branch must be independently mergeable** into its
+`mergeBase` — merging it must leave that base building and self-consistent.
+Only Branches merge; Commits are internal steps that ship together as their
+Branch's single PR, so an individual Commit need not be *shippable* alone but
+the Branch as a whole must be. A Commit *must* still leave the Branch tip
+**buildable and testable** — see [Commit](#kinds). Never split one cohesive
+change across separate Branches such that merging one would leave the base
+broken (for example a schema change in one Branch and the code that consumes
+it in another): keep it in one Branch as multiple Commits.
+
+Under `pull-request` / `manual` [merge policies](#project-merge-policy), each
+finished Branch is planned as a PR against its stored `mergeBase` (after
+parent merge, usually `main`). The local `merge` policy integrates each
+finished Branch directly into that same stored `mergeBase` with no PR, so a
+stack still lands bottom-up but never touches a remote PR.
 
 ### Derived terms
 
@@ -107,8 +123,9 @@ These are computed by `derive()` and never written to disk (see
   main agent to fan out parallel subagents.
 - **Branch status** — `not-started` / `in-progress` / `pr-open` / `merged`.
 - **Epic status** — `todo` / `in-progress` / `done` (rollup of its Branches).
-- **base** — the git branch a Branch forks from (its `stackedOn`'s `branchName`,
-  else `main`).
+- **base** — display of a Branch's stored `mergeBase` (tree chip `base=<ref>`,
+  or `base=(unset)` when `mergeBase` is absent). Never re-derived from
+  `stackedOn`.
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
@@ -247,14 +264,18 @@ runs in the Project workspace (same cwd rules as above) and applies:
 
 - **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
   the PR later. (Default.)
-- **`pull-request`** — push the Branch and open a **draft** PR against its base
-  (the derived `base`: the parent Branch tip when stacked, else `main`), then
-  record the url via `issue open-pr <branchId> <url>`. It does **not** wait for
-  merge or set `merged`, so the Branch derives to `pr-open`.
-- **`merge`** — merge the Branch into its stack base, push the updated base ref,
+- **`pull-request`** — push the Branch and open a **draft** PR against its
+  stored `mergeBase`, then record the url via `issue open-pr <branchId>
+  <url>`. It does **not** wait for merge or set `merged`, so the Branch
+  derives to `pr-open`.
+- **`merge`** — merge the Branch into its stored `mergeBase`, push that ref,
   and set `merged` via `issue set-merged <branchId>` (Branch derives to
-  `merged`). This is the local, no-PR integration path; the base is the same
-  derived `base` (parent tip when stacked, else `main`).
+  `merged`). This is the local, no-PR integration path. `set-merged`
+  cascades `child.mergeBase = parent.mergeBase` for stacked children (see
+  [stacked-PR merge model](#the-stacked-pr-merge-model)). When a parent
+  lands, **GitHub retargets** open child PRs; the tracker only updates
+  metadata — finish-branch never runs `gh pr edit --base` (or any PR
+  retarget CLI).
 
 **Resumable / idempotent.** The work loop is resumable, so finish-branch may run
 twice for the same Branch. Before acting, the git subagent reads the Branch's
@@ -264,9 +285,9 @@ so a re-run never opens a duplicate PR or re-merges.
 
 **Failure and recovery.** On failure the git subagent raises `issue attention` on
 the Branch and stops. A `merge` conflict is aborted (`git merge --abort`) so the
-base is never left half-merged; but a *completed* local merge whose `push`
-failed is left in place — with `merged` still unset it is exactly the resumable
-state above, so the retry just re-pushes.
+`mergeBase` ref is never left half-merged; but a *completed* local merge whose
+`push` failed is left in place — with `merged` still unset it is exactly the
+resumable state above, so the retry just re-pushes.
 
 Epic — the Epic/Branch/Commit common fields plus:
 
@@ -280,10 +301,11 @@ Branch — the Epic/Branch/Commit common fields plus:
 | field | type | notes |
 | --- | --- | --- |
 | `partOf` | string | the Epic id (required) |
-| `branchName` | string? | set once the git branch is created |
-| `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => base `main` |
+| `branchName` | string? | set once the git branch is created; rename refused while stacked children exist |
+| `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => root |
+| `mergeBase` | string? | stored git ref for start-branch / finish-branch; root defaults `main`; see [stacked-PR merge model](#the-stacked-pr-merge-model) |
 | `prUrl` | string? | optional |
-| `merged` | boolean | defaults `false` |
+| `merged` | boolean | defaults `false`; `set-merged` cascades child `mergeBase` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set by `issue set-spec-review`; machine-readable spec-review gate |
 
 Commit — the Epic/Branch/Commit common fields plus:
@@ -381,8 +403,9 @@ no consumer can persist a broken file.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
   `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
-  `status`/`commitSha`/`noDiff` for a Commit; `branchName`/`stackedOn`/`prUrl`/`merged`/`specReview` for
-  a Branch), and `description` (written to `description.md`). Clearable fields are removed
+  `status`/`commitSha`/`noDiff` for a Commit;
+  `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/`specReview` for a
+  Branch), and `description` (written to `description.md`). Clearable fields are removed
   when patched to `null`. A patch that names a field not valid for the issue's
   kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
@@ -643,7 +666,7 @@ preserves everything else from the existing same-kind issue.
 | `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha`, `noDiff` (Commit) | imperative only (`set-status`/`set-commit`/`set-no-diff`); `apply` preserves |
-| `branchName`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`); `apply` preserves |
+| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`; `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (`assign`/`attention`); read via `assignee`; `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
@@ -661,7 +684,8 @@ so cannot drift:
 - **Commit `ready`** — `status === "todo"`, its Branch (`partOf`) exists with a
   `branchName` and is not merged, and all earlier sibling Commits (by sequence)
   are `done`. A `todo` Commit that is not ready is `blocked`.
-- **Branch base** — the `stackedOn` Branch's `branchName` if set, else `main`.
+- **Branch base** — same as [base](#derived-terms) (derived display of stored
+  `mergeBase` for the tree/detail chips).
 - **Branch status** — `merged` if `merged`; else `pr-open` if it has Commits,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
