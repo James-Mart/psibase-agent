@@ -154,7 +154,7 @@ describe("show", () => {
     expect(stdout).toContain("kind: branch");
     expect(stdout).toContain("title: Branch A");
     expect(stdout).toContain("partOf: e");
-    expect(stdout).toContain("base: main");
+    expect(stdout).toContain("mergeBase: main");
     expect(stdout).toContain("branchName: feat/a");
     expect(stdout).toContain("merged: false");
     expect(stdout).toContain("# Branch A");
@@ -311,6 +311,19 @@ describe("tree", () => {
     const byTitle = runCli(["tree", "--project", "Proj"]);
     expect(byTitle.status).toBe(0);
     expect(byTitle.stdout).toBe(byId.stdout);
+  });
+
+  it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
+    // Create via the CLI so post-migration semantics apply: child of an
+    // unnamed parent leaves mergeBase unset until set-branch-name cascades.
+    const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    expect(add.status).toBe(0);
+    const childId = add.stdout.trim();
+    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(
+      new RegExp(`^\\s+branch ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
+    );
   });
 });
 

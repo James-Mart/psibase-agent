@@ -32,6 +32,10 @@ import { nextSiblingOrder, siblingGroupKey } from "../order.js";
 import { derive } from "./derive.js";
 import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
+import {
+  ensureMergeBaseBackfilled,
+  initialMergeBase,
+} from "./merge-base.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
 import { validateNonClearablePatch } from "./patch.js";
@@ -128,7 +132,16 @@ export function readAll(): { issues: Issue[]; problems: Problem[] } {
   return { issues, problems };
 }
 
+// One-time mergeBase migration. Safe to call from list/create/apply; no-ops
+// after the marker file exists.
+export function ensureMergeBasesMigrated(): void {
+  ensureMergeBaseBackfilled((branch) => {
+    persist(branch, serializeIssue(branch));
+  });
+}
+
 export function list(): IssuesResponse {
+  ensureMergeBasesMigrated();
   const { issues, problems } = readAll();
   const derived = derive(issues);
   // Parse each chat.jsonl so out-of-band corruption surfaces in the tree/CLI,
@@ -188,6 +201,8 @@ function toDetail(issue: Issue, jsonText: string, description: string): IssueDet
 }
 
 export function read(id: string): IssueDetail {
+  // Surface post-migration mergeBase on show/detail without requiring a prior list.
+  ensureMergeBasesMigrated();
   if (!existsSync(dirOf(id))) {
     throw new IssueError("not_found", `unknown issue "${id}"`);
   }
@@ -256,6 +271,9 @@ function assertWritable(target: Issue, all: Issue[]): void {
 
 export function create(input: CreateInput): Promise<IssueRecord> {
   return serialize(() => {
+    // Migrate pre-field Branches before any create so intentional unset on a
+    // new stacked child is not later filled by the one-time backfill.
+    ensureMergeBasesMigrated();
     const title = input.title?.trim();
     if (!title) throw new IssueError("validation", "title is required");
 
@@ -298,6 +316,8 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (input.kind === "branch") {
       draft.merged = false;
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
+      const mergeBase = initialMergeBase(input.stackedOn, issues);
+      if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
     if (input.kind === "commit") draft.status = "todo";
     if (input.kind === "project") {

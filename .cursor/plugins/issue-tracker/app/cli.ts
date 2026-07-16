@@ -33,7 +33,7 @@ import {
 } from "./server/services/apply-schema.js";
 import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
-import { EPIC_BASE } from "./server/services/derive.js";
+import { CHIP_UNSET } from "./server/services/merge-base.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
 import { validateFullCommitSha } from "./server/services/commit-sha.js";
@@ -133,8 +133,8 @@ function branchChips(branch: BranchRecord, derived: Record<string, DerivedState>
   const d = derived[branch.id];
   const chips: string[] = [];
   if (d?.branchStatus) chips.push(`status=${d.branchStatus}`);
-  chips.push(`base=${d?.base ?? EPIC_BASE}`);
-  chips.push(`branch=${branch.branchName ?? "(unset)"}`);
+  chips.push(`base=${d?.base ?? CHIP_UNSET}`);
+  chips.push(`branch=${branch.branchName ?? CHIP_UNSET}`);
   if (branch.prUrl) chips.push(`pr=${branch.prUrl}`);
   if (branch.merged) chips.push("merged");
   if (d?.blocked) chips.push("blocked");
@@ -608,8 +608,7 @@ program
       }
       if (detail.kind === "branch") {
         if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
-        const { derived } = list();
-        lines.push(`base: ${derived[detail.id]?.base ?? EPIC_BASE}`);
+        lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
         if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
         lines.push(`merged: ${detail.merged}`);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { derive, EPIC_BASE } from "./derive";
+import { derive } from "./derive";
+import { EPIC_BASE } from "./merge-base";
 import type { Issue } from "../schemas";
 
 let clock = 0;
@@ -136,28 +137,28 @@ describe("derive - commit ready/blocked", () => {
 });
 
 describe("derive - branch base resolution", () => {
-  it("uses the stackedOn branch's branchName as base", () => {
+  it("uses the stored mergeBase as base", () => {
     const issues = [
       epic("e"),
-      branch("base", "e", { branchName: "feat/base" }),
-      branch("b", "e", { stackedOn: "base" }),
+      branch("base", "e", { branchName: "feat/base", mergeBase: EPIC_BASE }),
+      branch("b", "e", { stackedOn: "base", mergeBase: "feat/base" }),
     ];
     const { byId } = derive(issues);
     expect(byId.b.base).toBe("feat/base");
   });
 
-  it("falls back to the epic base (main) with no stackedOn", () => {
-    const issues = [epic("e"), branch("b", "e")];
+  it("surfaces a root Branch's stored mergeBase (typically main)", () => {
+    const issues = [epic("e"), branch("b", "e", { mergeBase: EPIC_BASE })];
     expect(derive(issues).byId.b.base).toBe(EPIC_BASE);
   });
 
-  it("falls back to main when the stackedOn branch has no branchName", () => {
+  it("omits base when mergeBase is unset (does not re-derive from stackedOn)", () => {
     const issues = [
       epic("e"),
-      branch("base", "e"),
+      branch("base", "e", { branchName: "feat/base", mergeBase: EPIC_BASE }),
       branch("b", "e", { stackedOn: "base" }),
     ];
-    expect(derive(issues).byId.b.base).toBe(EPIC_BASE);
+    expect(derive(issues).byId.b.base).toBeUndefined();
   });
 });
 

@@ -27,7 +27,7 @@ export const BRANCH_FORM_FIELD_KEYS = [
   "merged",
 ] as const;
 
-export const BRANCH_IMPERATIVE_ONLY_KEYS = ["specReview"] as const;
+export const BRANCH_IMPERATIVE_ONLY_KEYS = ["specReview", "mergeBase"] as const;
 
 export const BRANCH_FIELD_KEYS = [
   ...BRANCH_FORM_FIELD_KEYS,
@@ -37,6 +37,7 @@ export const BRANCH_FIELD_KEYS = [
 // Optional branch runtime state preserved by apply when already set on disk.
 export const BRANCH_RUNTIME_OPTIONAL_KEYS = [
   "branchName",
+  "mergeBase",
   "prUrl",
   "specReview",
 ] as const;
@@ -105,6 +106,7 @@ export const FIELD_LABELS = {
   partOf: "Part of",
   order: "Order",
   branchName: "Branch name",
+  mergeBase: "Merge base",
   stackedOn: "Stacked on",
   blockedBy: "Blocked by",
   prUrl: "PR URL",

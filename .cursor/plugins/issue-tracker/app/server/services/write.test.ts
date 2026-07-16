@@ -93,6 +93,35 @@ describe("validate-at-write on the service layer", () => {
     expect(record.kind === "branch" && record.branchName).toBe("feat/a");
   });
 
+  it("defaults mergeBase to main on a root Branch create", async () => {
+    const { create } = await loadService();
+    const record = await create({ kind: "branch", title: "Root", partOf: "e" });
+    expect(record.kind === "branch" && record.mergeBase).toBe("main");
+  });
+
+  it("sets mergeBase from a named parent's branchName on stacked create", async () => {
+    const { create, update } = await loadService();
+    await update("a", { branchName: "feat/a" });
+    const child = await create({
+      kind: "branch",
+      title: "Child",
+      partOf: "e",
+      stackedOn: "a",
+    });
+    expect(child.kind === "branch" && child.mergeBase).toBe("feat/a");
+  });
+
+  it("leaves mergeBase unset when stacking on an unnamed parent", async () => {
+    const { create } = await loadService();
+    const child = await create({
+      kind: "branch",
+      title: "Child",
+      partOf: "e",
+      stackedOn: "a",
+    });
+    expect(child.kind === "branch" && child.mergeBase).toBeUndefined();
+  });
+
   it("appends order on create", async () => {
     const { create } = await loadService();
     const first = await create({ kind: "commit", title: "C1", partOf: "a" });

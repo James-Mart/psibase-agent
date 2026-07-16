@@ -8,6 +8,7 @@ import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
 import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
 import {
   commitIssueBatch,
+  ensureMergeBasesMigrated,
   onDiskHasUnknownKeys,
   readAll,
   readDescription,
@@ -18,6 +19,7 @@ import { checkIntegrity } from "./integrity.js";
 import { nextSiblingOrder } from "../order.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
+import { initialMergeBase } from "./merge-base.js";
 import { subtreeIds } from "./subtree.js";
 
 // What `apply` changed, by id. On an idempotent re-apply all three are empty.
@@ -30,9 +32,9 @@ export interface ApplySummary {
 // Build the on-disk issue for a desired doc node. Doc-owned fields (title,
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
-// (status, commitSha, noDiff, branchName, prUrl, merged, specReview, assignee, needsAttention,
-// attentionReason, workspace, mergePolicy) and `createdAt` are preserved from a same-kind existing
-// issue; for a brand-new issue they are left off the draft entirely so
+// (status, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
+// needsAttention, attentionReason, workspace, mergePolicy) and `createdAt` are preserved from a
+// same-kind existing issue; for a brand-new issue they are left off the draft entirely so
 // `parseIssue` fills them from the schema `.default()`s — the same single
 // source of truth `create()` seeds from, so the two entry points cannot drift.
 // `apply` never reads or writes runtime state beyond preserving it, and never
@@ -107,6 +109,9 @@ function buildIssue(
       for (const key of BRANCH_RUNTIME_OPTIONAL_KEYS) {
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
+    } else {
+      const mergeBase = initialMergeBase(stackedOn, onDisk);
+      if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
   }
 
@@ -211,6 +216,9 @@ function resolveRoot(
 // so it cannot race HTTP/CLI writes.
 export function apply(doc: ApplyDoc): Promise<ApplySummary> {
   return serialize(() => {
+    // Same one-time mergeBase migration as list/create — must run before apply
+    // creates stacked children that intentionally leave mergeBase unset.
+    ensureMergeBasesMigrated();
     const now = new Date().toISOString();
     const desired = flattenApplyDoc(doc);
 
