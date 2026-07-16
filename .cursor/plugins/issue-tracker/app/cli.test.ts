@@ -577,6 +577,91 @@ describe("set-no-diff", () => {
   });
 });
 
+describe("set-commit", () => {
+  const sha1 = "0123456789abcdef0123456789abcdef01234567";
+  const sha256 =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("accepts a full 40-character sha1", () => {
+    expect(runCli(["set-commit", "c1", sha1]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw.commitSha).toBe(sha1);
+  });
+
+  it("accepts a full 64-character sha256", () => {
+    expect(runCli(["set-commit", "c1", sha256]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw.commitSha).toBe(sha256);
+  });
+
+  it("rejects an abbreviated sha", () => {
+    const { stderr, status } = runCli(["set-commit", "c1", "4019c25"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha "4019c25"/);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw).not.toHaveProperty("commitSha");
+  });
+
+  it("rejects a 39-character sha", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "0123456789abcdef0123456789abcdef0123456",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw).not.toHaveProperty("commitSha");
+  });
+
+  it("rejects non-hex characters", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "ghijghijghijghijghijghijghijghijghijghij",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+  });
+
+  it("rejects uppercase hex", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "0123456789ABCDEF0123456789ABCDEF01234567",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+  });
+
+  it("rejects a non-commit id", () => {
+    const { stderr, status } = runCli(["set-commit", "a", sha1]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/only valid on a commit/);
+  });
+});
+
 describe("assignee", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });

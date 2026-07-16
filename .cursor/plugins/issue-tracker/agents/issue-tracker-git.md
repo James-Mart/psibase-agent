@@ -88,7 +88,7 @@ For the **dirty + no `noDiff`** row:
    the implementor left everything unstaged for this finalize step.
 2. `git commit -m "<Commit title>"` (message = the Commit issue's title).
 3. `issue set-status <commitId> done`
-4. `issue set-commit <commitId> <sha>` (`<sha>` = the new commit's full hash)
+4. `issue set-commit <commitId> $(git rev-parse HEAD)`
 5. Finish and stop.
 
 ## Finish Branch

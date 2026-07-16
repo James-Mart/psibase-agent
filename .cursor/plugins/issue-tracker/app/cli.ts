@@ -36,6 +36,7 @@ import { resolveProjectId } from "./server/scope.js";
 import { EPIC_BASE } from "./server/services/derive.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
+import { validateFullCommitSha } from "./server/services/commit-sha.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -344,8 +345,17 @@ program
 program
   .command("set-commit")
   .argument("<id>", "commit id")
-  .argument("<sha>", "git commit sha")
-  .action((id, sha) => run(() => update(id, { commitSha: sha })));
+  .argument("<sha>", "full git commit sha (40 or 64 hex chars)")
+  .action((id, sha) =>
+    run(() => {
+      validateFullCommitSha(sha);
+      const detail = read(id);
+      if (detail.kind !== "commit") {
+        throw new Error(`commitSha is only valid on a commit, not a ${detail.kind}`);
+      }
+      return update(id, { commitSha: sha });
+    }),
+  );
 
 program
   .command("set-workspace")
