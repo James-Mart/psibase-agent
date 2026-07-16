@@ -122,6 +122,84 @@ describe("validate-at-write on the service layer", () => {
     expect(child.kind === "branch" && child.mergeBase).toBeUndefined();
   });
 
+  it("cascades mergeBase to empty stacked children on first set-branch-name", async () => {
+    const { update } = await loadService();
+    // Seed child "b" has no mergeBase; naming "a" should fill it.
+    await update("a", { branchName: "feat/a" });
+    const child = JSON.parse(
+      readFileSync(join(dir, "b", "issue.json"), "utf8"),
+    ) as { mergeBase?: string };
+    expect(child.mergeBase).toBe("feat/a");
+  });
+
+  it("does not clobber a child mergeBase already set when naming the parent", async () => {
+    writeIssue("kept", {
+      kind: "branch",
+      title: "Kept",
+      partOf: "e",
+      stackedOn: "a",
+      mergeBase: "custom-base",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    await update("a", { branchName: "feat/a" });
+    const kept = JSON.parse(
+      readFileSync(join(dir, "kept", "issue.json"), "utf8"),
+    ) as { mergeBase?: string };
+    const empty = JSON.parse(
+      readFileSync(join(dir, "b", "issue.json"), "utf8"),
+    ) as { mergeBase?: string };
+    expect(kept.mergeBase).toBe("custom-base");
+    expect(empty.mergeBase).toBe("feat/a");
+  });
+
+  it("refuses rename of branchName when stacked children exist", async () => {
+    const { update } = await loadService();
+    await update("a", { branchName: "feat/a" });
+    await expect(update("a", { branchName: "feat/a-renamed" })).rejects.toThrow(
+      /cannot change branchName.*"a".*stacked children.*\bb\b/,
+    );
+  });
+
+  it("allows a same-value set-branch-name no-op even with stacked children", async () => {
+    const { update } = await loadService();
+    await update("a", { branchName: "feat/a" });
+    const again = await update("a", { branchName: "feat/a" });
+    expect(again.kind === "branch" && again.branchName).toBe("feat/a");
+  });
+
+  it("allows rename of branchName when there are no stacked children", async () => {
+    const { update } = await loadService();
+    await update("b", { stackedOn: null });
+    await update("a", { branchName: "feat/a" });
+    const renamed = await update("a", { branchName: "feat/a2" });
+    expect(renamed.kind === "branch" && renamed.branchName).toBe("feat/a2");
+  });
+
+  it("retargets child mergeBase to parent.mergeBase on set-merged", async () => {
+    const { update } = await loadService();
+    await update("a", { branchName: "feat/a", mergeBase: "main" });
+    // Child got feat/a from the name cascade; merging retargets to main.
+    await update("a", { merged: true });
+    const child = JSON.parse(
+      readFileSync(join(dir, "b", "issue.json"), "utf8"),
+    ) as { mergeBase?: string };
+    expect(child.mergeBase).toBe("main");
+  });
+
+  it("set-merged mergeBase cascade is idempotent", async () => {
+    const { update } = await loadService();
+    await update("a", { branchName: "feat/a", mergeBase: "main" });
+    await update("a", { merged: true });
+    await update("a", { merged: true });
+    const child = JSON.parse(
+      readFileSync(join(dir, "b", "issue.json"), "utf8"),
+    ) as { mergeBase?: string };
+    expect(child.mergeBase).toBe("main");
+  });
+
   it("appends order on create", async () => {
     const { create } = await loadService();
     const first = await create({ kind: "commit", title: "C1", partOf: "a" });

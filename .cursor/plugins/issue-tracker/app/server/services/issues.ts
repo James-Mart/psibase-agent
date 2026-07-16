@@ -33,8 +33,11 @@ import { derive } from "./derive.js";
 import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import {
+  branchNameRenameError,
   ensureMergeBaseBackfilled,
   initialMergeBase,
+  planMergeBaseCascades,
+  type MergeBaseCascadePatch,
 } from "./merge-base.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
@@ -341,6 +344,32 @@ export function create(input: CreateInput): Promise<IssueRecord> {
   });
 }
 
+/** Materialize planned mergeBase child patches; throws if a target is missing. */
+function applyMergeBaseCascadePatches(
+  cascadePatches: MergeBaseCascadePatch[],
+  issues: Issue[],
+  now: string,
+): Issue[] {
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
+  const cascaded: Issue[] = [];
+  for (const { id: childId, mergeBase } of cascadePatches) {
+    const child = byId.get(childId);
+    if (!child || child.kind !== "branch") {
+      throw new IssueError(
+        "validation",
+        `mergeBase cascade target "${childId}" is missing or not a branch`,
+      );
+    }
+    const childParsed = parseIssue(mergeIssue(child, { mergeBase }));
+    if (!childParsed.ok) {
+      throw new IssueError("validation", childParsed.message);
+    }
+    childParsed.issue.updatedAt = now;
+    cascaded.push(childParsed.issue);
+  }
+  return cascaded;
+}
+
 export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
   return serialize(() => {
     const existing = readIssueOrThrow(id);
@@ -350,6 +379,10 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     validateWorkspacePatch(jsonPatch);
     validateCommitShaPatch(jsonPatch);
     validateNonClearablePatch(jsonPatch);
+
+    const renameError = branchNameRenameError(existing, jsonPatch, issues);
+    if (renameError) throw new IssueError("validation", renameError);
+
     const merged = mergeIssue(existing, jsonPatch);
 
     const parsed = parseIssue(merged);
@@ -379,19 +412,58 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
     }
 
+    const cascadePatches = planMergeBaseCascades(
+      existing,
+      jsonPatch,
+      next,
+      issues,
+    );
+
     const jsonUnchanged =
       JSON.stringify(parsed.issue) === JSON.stringify(existing);
-    if (jsonUnchanged && description === undefined) {
+    if (
+      jsonUnchanged &&
+      cascadePatches.length === 0 &&
+      description === undefined
+    ) {
       return read(id);
     }
 
-    parsed.issue.updatedAt = new Date().toISOString();
-    assertWritable(parsed.issue, issues);
-    const jsonText = serializeIssue(parsed.issue);
-    persist(parsed.issue, jsonText);
-    if (description !== undefined) {
-      writeFileSync(join(dirOf(id), "description.md"), description);
+    const now = new Date().toISOString();
+    const cascaded = applyMergeBaseCascadePatches(cascadePatches, issues, now);
+
+    const writes: IssueWrite[] = [];
+    if (!jsonUnchanged || description !== undefined) {
+      parsed.issue.updatedAt = now;
+      writes.push({ issue: parsed.issue, description });
     }
+    for (const child of cascaded) {
+      writes.push({ issue: child });
+    }
+
+    if (cascaded.length === 0) {
+      // Single-node write: keep the historical scoped check so unrelated
+      // pre-existing integrity problems do not block this update.
+      assertWritable(parsed.issue, issues);
+    } else {
+      const prospective = new Map(issues.map((issue) => [issue.id, issue]));
+      for (const write of writes) {
+        prospective.set(write.issue.id, write.issue);
+      }
+      // Parent may be unchanged (idempotent set-merged) — still include it so
+      // cascade targets are validated against the post-write parent state.
+      prospective.set(parsed.issue.id, parsed.issue);
+      const problems = checkIntegrity([...prospective.values()]);
+      if (problems.length > 0) {
+        throw new IssueError(
+          "validation",
+          problems.map((p) => p.message).join("; "),
+        );
+      }
+    }
+
+    commitIssueBatch(writes, []);
+    const jsonText = serializeIssue(parsed.issue);
     const finalDescription =
       description !== undefined ? description : readDescription(id);
     return toDetail(parsed.issue, jsonText, finalDescription);

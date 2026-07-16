@@ -158,8 +158,9 @@ describe("apply — create from empty", () => {
     const summary = await apply(doc);
     expect(summary.created).toEqual(["b1s2"]);
     expect(readIssue("b1s2").mergeBase).toBe("feat/b1");
-    // Existing unset child is preserved (not filled by re-apply).
-    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    // Naming the parent cascaded into the previously-unset child; apply must
+    // preserve that filled mergeBase (not clear it on re-apply).
+    expect(readIssue("b1s").mergeBase).toBe("feat/b1");
   });
 
   it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
