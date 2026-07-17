@@ -1,15 +1,9 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { issuesDir } from "../config.js";
-import { parseIssue, type Issue, type IssuePatch } from "../schemas.js";
+import type { Issue, IssuePatch } from "../schemas.js";
 import { CHIP_UNSET, EPIC_BASE } from "../fields.js";
+import { forEachOnDiskIssue } from "./scan-disk.js";
 
 // Re-exported from the client-safe `fields` module so browser code can read
 // these pure constants without pulling this fs-backed module into the bundle.
@@ -163,24 +157,10 @@ export function readBranchesMissingMergeBaseKey(): {
 } {
   const issues: Issue[] = [];
   const rawMissingMergeBase: string[] = [];
-  if (!existsSync(issuesDir)) return { issues, rawMissingMergeBase };
-
-  for (const id of readdirSync(issuesDir)) {
-    const dir = join(issuesDir, id);
-    if (!statSync(dir).isDirectory()) continue;
-    const jsonPath = join(dir, "issue.json");
-    if (!existsSync(jsonPath)) continue;
-    let raw: unknown;
-    try {
-      raw = JSON.parse(readFileSync(jsonPath, "utf8"));
-    } catch {
-      continue;
-    }
-    const parsed = parseIssue(raw);
-    if (!parsed.ok) continue;
-    issues.push(parsed.issue);
+  for (const { id, raw, issue } of forEachOnDiskIssue()) {
+    issues.push(issue);
     if (
-      parsed.issue.kind === "branch" &&
+      issue.kind === "branch" &&
       (!raw || typeof raw !== "object" || !("mergeBase" in raw))
     ) {
       rawMissingMergeBase.push(id);

@@ -8,7 +8,7 @@ import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
 import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
 import {
   commitIssueBatch,
-  ensureMergeBasesMigrated,
+  ensureMigrations,
   onDiskHasUnknownKeys,
   readAll,
   readDescription,
@@ -20,6 +20,7 @@ import { nextSiblingOrder } from "../order.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
 import { initialMergeBase } from "./merge-base.js";
+import { ancestorIsArchived } from "./archived-visibility.js";
 import { subtreeIds } from "./subtree.js";
 
 // What `apply` changed, by id. On an idempotent re-apply all three are empty.
@@ -33,10 +34,10 @@ export interface ApplySummary {
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
 // (status, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
-// needsAttention, attentionReason, workspace, mergePolicy) and `createdAt` are preserved from a
-// same-kind existing issue; for a brand-new issue they are left off the draft entirely so
-// `parseIssue` fills them from the schema `.default()`s — the same single
-// source of truth `create()` seeds from, so the two entry points cannot drift.
+// needsAttention, attentionReason, archived, workspace, mergePolicy) and `createdAt` are
+// preserved from a same-kind existing issue; for a brand-new issue they are left off the
+// draft entirely so `parseIssue` fills them from the schema `.default()`s — except
+// `archived`, which is seeded true when any ancestor is archived (matching `create`).
 // `apply` never reads or writes runtime state beyond preserving it, and never
 // touches chat.jsonl. `updatedAt` is set to `now`; callers revert it when
 // nothing actually changed so re-apply does not churn timestamps.
@@ -93,7 +94,10 @@ function buildIssue(
     if (prior) {
       draft.needsAttention = prior.needsAttention;
       draft.attentionReason = prior.attentionReason;
+      draft.archived = prior.archived;
       if (prior.assignee !== undefined) draft.assignee = prior.assignee;
+    } else if (ancestorIsArchived(desired.partOf, onDisk)) {
+      draft.archived = true;
     }
   }
 
@@ -216,9 +220,9 @@ function resolveRoot(
 // so it cannot race HTTP/CLI writes.
 export function apply(doc: ApplyDoc): Promise<ApplySummary> {
   return serialize(() => {
-    // Same one-time mergeBase migration as list/create — must run before apply
-    // creates stacked children that intentionally leave mergeBase unset.
-    ensureMergeBasesMigrated();
+    // Same one-time migrations as list/create — mergeBase before intentional
+    // unset on new stacked children; archived before create-under-archived.
+    ensureMigrations();
     const now = new Date().toISOString();
     const desired = flattenApplyDoc(doc);
 

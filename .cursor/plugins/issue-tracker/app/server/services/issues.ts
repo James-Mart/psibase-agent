@@ -39,6 +39,12 @@ import {
   planMergeBaseCascades,
   type MergeBaseCascadePatch,
 } from "./merge-base.js";
+import {
+  ensureArchivedBackfilled,
+  planArchivedCascade,
+  type ArchivedCascadePatch,
+} from "./archived.js";
+import { ancestorIsArchived } from "./archived-visibility.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
 import { validateNonClearablePatch } from "./patch.js";
@@ -143,8 +149,22 @@ export function ensureMergeBasesMigrated(): void {
   });
 }
 
-export function list(): IssuesResponse {
+// One-time archived migration. Safe to call from list/create/apply; no-ops
+// after the marker file exists.
+export function ensureArchivedMigrated(): void {
+  ensureArchivedBackfilled((issue) => {
+    persist(issue, serializeIssue(issue));
+  });
+}
+
+/** Run every one-shot on-disk migration. Prefer this over calling each ensure* alone. */
+export function ensureMigrations(): void {
   ensureMergeBasesMigrated();
+  ensureArchivedMigrated();
+}
+
+export function list(): IssuesResponse {
+  ensureMigrations();
   const { issues, problems } = readAll();
   const derived = derive(issues);
   // Parse each chat.jsonl so out-of-band corruption surfaces in the tree/CLI,
@@ -203,8 +223,8 @@ function toDetail(issue: Issue, jsonText: string, description: string): IssueDet
 }
 
 export function read(id: string): IssueDetail {
-  // Surface post-migration mergeBase on show/detail without requiring a prior list.
-  ensureMergeBasesMigrated();
+  // Surface post-migration fields on show/detail without requiring a prior list.
+  ensureMigrations();
   if (!existsSync(dirOf(id))) {
     throw new IssueError("not_found", `unknown issue "${id}"`);
   }
@@ -275,7 +295,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
   return serialize(() => {
     // Migrate pre-field Branches before any create so intentional unset on a
     // new stacked child is not later filled by the one-time backfill.
-    ensureMergeBasesMigrated();
+    ensureMigrations();
     const title = input.title?.trim();
     if (!title) throw new IssueError("validation", "title is required");
 
@@ -303,6 +323,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (input.kind !== "project") {
       draft.needsAttention = false;
       draft.attentionReason = null;
+      draft.archived = ancestorIsArchived(input.partOf, issues);
       if (input.assignee) draft.assignee = input.assignee;
     }
     if (PARENT_KIND[input.kind]) {
@@ -343,23 +364,47 @@ export function create(input: CreateInput): Promise<IssueRecord> {
   });
 }
 
-/** Materialize planned mergeBase child patches; throws if a target is missing. */
-function applyMergeBaseCascadePatches(
-  cascadePatches: MergeBaseCascadePatch[],
+/** Group planned cascade field patches by child and apply one merged write each. */
+function applyCascadePatches(
+  mergeBasePatches: MergeBaseCascadePatch[],
+  archivedPatches: ArchivedCascadePatch[],
   issues: Issue[],
   now: string,
 ): Issue[] {
   const byId = new Map(issues.map((issue) => [issue.id, issue]));
+  const patchesById = new Map<string, IssuePatch>();
+
+  for (const { id: childId, mergeBase } of mergeBasePatches) {
+    const prior = patchesById.get(childId) ?? {};
+    patchesById.set(childId, { ...prior, mergeBase });
+  }
+  for (const { id: childId, archived } of archivedPatches) {
+    const prior = patchesById.get(childId) ?? {};
+    patchesById.set(childId, { ...prior, archived });
+  }
+
   const cascaded: Issue[] = [];
-  for (const { id: childId, mergeBase } of cascadePatches) {
+  for (const [childId, patch] of patchesById) {
     const child = byId.get(childId);
-    if (!child || child.kind !== "branch") {
+    if (!child) {
+      throw new IssueError(
+        "validation",
+        `cascade target "${childId}" is missing`,
+      );
+    }
+    if (patch.mergeBase !== undefined && child.kind !== "branch") {
       throw new IssueError(
         "validation",
         `mergeBase cascade target "${childId}" is missing or not a branch`,
       );
     }
-    const childParsed = parseIssue(mergeIssue(child, { mergeBase }));
+    if (patch.archived !== undefined && child.kind === "project") {
+      throw new IssueError(
+        "validation",
+        `archived cascade target "${childId}" is missing or not archivable`,
+      );
+    }
+    const childParsed = parseIssue(mergeIssue(child, patch));
     if (!childParsed.ok) {
       throw new IssueError("validation", childParsed.message);
     }
@@ -411,10 +456,15 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
     }
 
-    const cascadePatches = planMergeBaseCascades(
+    const mergeBaseCascadePatches = planMergeBaseCascades(
       existing,
       jsonPatch,
       next,
+      issues,
+    );
+    const archivedCascadePatches = planArchivedCascade(
+      existing,
+      jsonPatch,
       issues,
     );
 
@@ -422,14 +472,20 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       JSON.stringify(parsed.issue) === JSON.stringify(existing);
     if (
       jsonUnchanged &&
-      cascadePatches.length === 0 &&
+      mergeBaseCascadePatches.length === 0 &&
+      archivedCascadePatches.length === 0 &&
       description === undefined
     ) {
       return read(id);
     }
 
     const now = new Date().toISOString();
-    const cascaded = applyMergeBaseCascadePatches(cascadePatches, issues, now);
+    const cascaded = applyCascadePatches(
+      mergeBaseCascadePatches,
+      archivedCascadePatches,
+      issues,
+      now,
+    );
 
     const writes: IssueWrite[] = [];
     if (!jsonUnchanged || description !== undefined) {
