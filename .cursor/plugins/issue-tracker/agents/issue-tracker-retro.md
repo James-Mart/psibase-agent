@@ -61,8 +61,9 @@ tracker context — not a product-workspace checkout. Do not run product-repo
   `Source run: [<title>](issue:<sourceEpicId>)` and conversation id
   `<parentId>` per **## Transcript resolution**. Organize Branches by
   token-waste theme.
-- **No grill / no coordinator summary:** after `apply` or the clean-run
-  comment, return control immediately with no summary payload.
+- **No grill / no coordinator summary:** after the terminal retro comment
+  (per **## Terminal retro comment**), return control immediately with no
+  summary payload.
 
 ## Transcript resolution
 
@@ -93,24 +94,45 @@ Mine `<root>/<parentId>.jsonl` and, when present,
 3. Filter to remaining meta gaps per **## Invariants**.
 4. Follow exactly one section: **## Clean run** or **## Gaps remain**.
 
-## Clean run
+## Terminal retro comment
 
-If nothing remains:
+Both **## Clean run** and **## Gaps remain** end by posting a `retro`-role
+comment on the source Epic. This arms the work-skill Phase 2 idempotency guard.
 
 ```bash
-issue comment <sourceEpicId> --role <comment-role> --body "retro: no remaining confusion gaps"
+issue comment <sourceEpicId> --role <comment-role> --body "<body>"
 ```
 
-Then stop.
+| Path | `<body>` |
+|------|----------|
+| Clean run | `retro: no remaining confusion gaps` |
+| Gaps remain | `retro: residual epic applied (issue:<residualEpicId>)` |
+
+For Gaps remain, use the Epic `id` from the authored YAML as
+`<residualEpicId>`.
+
+## Clean run
+
+If nothing remains, post the terminal retro comment (Clean run body per
+**## Terminal retro comment**). Then stop.
 
 ## Gaps remain
 
-Author one nested epic-form YAML with `project: issue-tracker` per
-**## Invariants** and `issue-tracker-decompose`, then `issue apply` it.
+1. Author one nested epic-form YAML with `project: issue-tracker` per
+   **## Invariants** and `issue-tracker-decompose`.
+2. `issue apply` it.
+3. Post the terminal retro comment (Gaps remain body per
+   **## Terminal retro comment**) with `<residualEpicId>` from the authored
+   YAML Epic `id`.
+4. If step 3 fails after a successful step 2, raise
+   `issue attention <sourceEpicId> --reason "..."` and stop — do not treat
+   apply alone as terminal.
+
 Then stop.
 
 ## Escalation
 
 If blocked (missing/unreadable transcripts, cannot load source Epic
-context, `issue apply` refusal, CLI refusal), raise
+context, `issue apply` refusal, terminal retro comment refusal after a
+successful apply, CLI refusal), raise
 `issue attention <sourceEpicId> --reason "..."` and stop; do not guess.
