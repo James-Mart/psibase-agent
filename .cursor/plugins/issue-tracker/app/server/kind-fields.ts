@@ -101,7 +101,6 @@ export const EPIC_GET_FIELDS = {
   updatedAt: STORED,
   description: DESCRIPTION,
   epicStatus: DERIVED,
-  ready: DERIVED,
   blocked: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
 
@@ -124,7 +123,6 @@ export const BRANCH_GET_FIELDS = {
   updatedAt: STORED,
   description: DESCRIPTION,
   branchStatus: DERIVED,
-  ready: DERIVED,
   blocked: DERIVED,
   base: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
@@ -144,7 +142,6 @@ export const COMMIT_GET_FIELDS = {
   createdAt: STORED,
   updatedAt: STORED,
   description: DESCRIPTION,
-  ready: DERIVED,
   blocked: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
 

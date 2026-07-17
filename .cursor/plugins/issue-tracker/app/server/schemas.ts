@@ -168,7 +168,6 @@ export type BranchStatus = "not-started" | "in-progress" | "pr-open" | "merged";
 export type EpicStatus = "todo" | "in-progress" | "done";
 
 export interface DerivedState {
-  ready: boolean;
   blocked: boolean;
   branchStatus?: BranchStatus;
   epicStatus?: EpicStatus;
@@ -179,7 +178,6 @@ export interface IssuesResponse {
   issues: IssueRecord[];
   problems: Problem[];
   derived: Record<string, DerivedState>;
-  ready: string[];
 }
 
 export type ParseResult =

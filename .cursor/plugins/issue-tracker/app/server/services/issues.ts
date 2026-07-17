@@ -155,7 +155,6 @@ export function list(): IssuesResponse {
     issues: issues.map(toRecord),
     problems: [...problems, ...chatProblems, ...derived.problems],
     derived: derived.byId,
-    ready: derived.ready,
   };
 }
 

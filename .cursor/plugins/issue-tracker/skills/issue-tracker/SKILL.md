@@ -3,10 +3,9 @@ name: issue-tracker
 description: >-
   Launch the issue-tracker web UI: a dark shadcn app over a file-backed
   Project > Epic > Branch > Commit work tracker that maps onto git stacked PRs,
-  with Markdown specs, per-issue chat, derived ready/blocked state, and a live
-  Ready view. Use when the user asks to open the issue tracker, launch the
-  tracker UI, see the Project/Epic/Branch/Commit tree, or watch agents work a
-  stack of PRs live.
+  with Markdown specs, per-issue chat, and derived blocked/status state. Use
+  when the user asks to open the issue tracker, launch the tracker UI, see the
+  Project/Epic/Branch/Commit tree, or watch agents work a stack of PRs live.
 disable-model-invocation: true
 ---
 
@@ -38,13 +37,12 @@ Tell the user the UI is available at http://localhost:8060.
 ## What it shows
 
 - **Project sidebar** — a collapsible sidebar lists Projects; selecting one
-  scopes the tree and Ready view to that Project. Create/rename/delete Projects
-  from the sidebar (deleting a Project cascades to all its Epics/Branches/Commits).
+  scopes the tree to that Project. Create/rename/delete Projects from the
+  sidebar (deleting a Project cascades to all its Epics/Branches/Commits).
 - **Tree view** — collapsible Epic > Branch > Commit outline (scoped to the
   selected Project) with derived status badges, git/stack chips (branch, base,
   PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
   dimmed.
-- **Ready view** — a flat list of the issues that can be picked up right now.
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
   cross-links and relative links to that issue's `attachments/`), an edit form
   (`assignee`, `needsAttention`, `status`, git facts), attachment

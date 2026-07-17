@@ -5,12 +5,11 @@ import type {
   Issue,
   Problem,
 } from "../schemas.js";
-import { bySequence, stackedBranchOrder } from "../order.js";
+import { bySequence } from "../order.js";
 import { checkIntegrity } from "./integrity.js";
 
 export interface DeriveResult {
   byId: Record<string, DerivedState>;
-  ready: string[];
   problems: Problem[];
 }
 
@@ -24,62 +23,6 @@ export function epicIsDone(state: DerivedState | undefined): boolean {
 
 type Branch = Extract<Issue, { kind: "branch" }>;
 type Commit = Extract<Issue, { kind: "commit" }>;
-
-function readyInStructuralOrder(
-  issues: Issue[],
-  state: Record<string, DerivedState>,
-): string[] {
-  const epicsOf = new Map<string, Issue[]>();
-  const branchesOf = new Map<string, Branch[]>();
-  const commitsOf = new Map<string, Commit[]>();
-  const projects = issues.filter((i) => i.kind === "project").sort(bySequence);
-
-  for (const issue of issues) {
-    if (issue.kind === "epic") {
-      const bucket = epicsOf.get(issue.partOf) ?? [];
-      bucket.push(issue);
-      epicsOf.set(issue.partOf, bucket);
-    } else if (issue.kind === "branch") {
-      const bucket = branchesOf.get(issue.partOf) ?? [];
-      bucket.push(issue);
-      branchesOf.set(issue.partOf, bucket);
-    } else if (issue.kind === "commit") {
-      const bucket = commitsOf.get(issue.partOf) ?? [];
-      bucket.push(issue);
-      commitsOf.set(issue.partOf, bucket);
-    }
-  }
-  for (const bucket of epicsOf.values()) bucket.sort(bySequence);
-  for (const bucket of commitsOf.values()) bucket.sort(bySequence);
-
-  const ready: string[] = [];
-  const consider = (id: string, issue: Issue): void => {
-    const d = state[id];
-    if (!d) return;
-    if (issue.kind === "commit" && d.ready) ready.push(id);
-    if (
-      issue.kind === "branch" &&
-      d.ready &&
-      d.branchStatus === "not-started"
-    ) {
-      ready.push(id);
-    }
-  };
-
-  for (const project of projects) {
-    for (const epic of epicsOf.get(project.id) ?? []) {
-      if (state[epic.id]?.blocked) continue; // a blocked Epic surfaces nothing
-      const branches = stackedBranchOrder(branchesOf.get(epic.id) ?? []);
-      for (const branch of branches) {
-        consider(branch.id, branch);
-        for (const commit of commitsOf.get(branch.id) ?? []) {
-          consider(commit.id, commit);
-        }
-      }
-    }
-  }
-  return ready;
-}
 
 export function derive(issues: Issue[]): DeriveResult {
   const problems = checkIntegrity(issues);
@@ -102,12 +45,12 @@ export function derive(issues: Issue[]): DeriveResult {
 
   const state: Record<string, DerivedState> = {};
 
-  // A stacked Branch forks its parent's tip, so it is ready once the parent's
+  // A stacked Branch forks its parent's tip, so it is not blocked once the parent's
   // tip exists (it has a `branchName`) and the parent's commits are all `done`
   // (no merge gate). A parent with no `branchName` is not-started: there is no
-  // tip to fork yet, so the child must stay blocked (guarding against the
-  // vacuous `[].every(...)` on a parent with zero commits). A root Branch (no
-  // `stackedOn`) has no parent to wait on and is ready immediately.
+  // tip to fork yet, so the child stays blocked (guarding against the vacuous
+  // `[].every(...)` on a parent with zero commits). A root Branch (no
+  // `stackedOn`) has no parent to wait on and is not blocked.
   const parentTipDone = (branch: Branch): boolean => {
     if (!branch.stackedOn) return true;
     const parent = byId.get(branch.stackedOn);
@@ -129,10 +72,8 @@ export function derive(issues: Issue[]): DeriveResult {
     // `base` is the stored `mergeBase` only — never re-derived from `stackedOn`.
     // When unset, omit it so the tree chip shows `base=(unset)`.
     const branchStatus = branchStatusOf(branch);
-    const ready = parentTipDone(branch);
     state[branch.id] = {
-      ready,
-      blocked: branchStatus === "not-started" && !ready,
+      blocked: branchStatus === "not-started" && !parentTipDone(branch),
       branchStatus,
       ...(branch.mergeBase !== undefined ? { base: branch.mergeBase } : {}),
     };
@@ -146,10 +87,9 @@ export function derive(issues: Issue[]): DeriveResult {
     const earlierDone = siblings
       .slice(0, siblings.indexOf(commit))
       .every((c) => c.status === "done");
-    const ready = commit.status === "todo" && hasBranch && earlierDone;
     state[commit.id] = {
-      ready,
-      blocked: commit.status === "todo" && !ready,
+      blocked:
+        commit.status === "todo" && !(hasBranch && earlierDone),
     };
   }
 
@@ -165,7 +105,7 @@ export function derive(issues: Issue[]): DeriveResult {
         : started.length > 0
           ? "in-progress"
           : "todo";
-    state[epic.id] = { ready: false, blocked: false, epicStatus };
+    state[epic.id] = { blocked: false, epicStatus };
   }
 
   // An Epic is blocked while any Epic it `blockedBy` is not done (done = all its
@@ -176,7 +116,5 @@ export function derive(issues: Issue[]): DeriveResult {
       derived.blocked = epic.blockedBy.some((dep) => !epicIsDone(state[dep]));
   }
 
-  const ready = readyInStructuralOrder(issues, state);
-
-  return { byId: state, ready, problems };
+  return { byId: state, problems };
 }
