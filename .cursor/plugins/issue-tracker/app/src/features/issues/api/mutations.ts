@@ -9,7 +9,9 @@ import type {
   IssuePatch,
   IssueRecord,
 } from "@server/schemas";
+import type { Attachment } from "@server/services/attachments";
 import type { DeletionResult } from "@server/services/deletion";
+import { attachmentsApiPath } from "../lib/attachments";
 import { issuesKeys } from "./keys";
 
 function messageOf(err: unknown): string {
@@ -64,8 +66,37 @@ export function useDeleteIssue() {
       for (const deletedId of data?.deleted ?? [id]) {
         qc.removeQueries({ queryKey: issuesKeys.detail(deletedId) });
         qc.removeQueries({ queryKey: issuesKeys.chat(deletedId) });
+        qc.removeQueries({ queryKey: issuesKeys.attachments(deletedId) });
       }
     },
+  });
+}
+
+export function useUploadAttachment(id: string) {
+  const qc = useQueryClient();
+  return useMutation<Attachment, Error, File>({
+    mutationFn: (file) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<Attachment>(attachmentsApiPath(id), {
+        method: "POST",
+        body: form,
+      });
+    },
+    onError: (err) => toast.error(messageOf(err)),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: issuesKeys.attachments(id) }),
+  });
+}
+
+export function useDeleteAttachment(id: string) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (name) =>
+      request<void>(attachmentsApiPath(id, name), { method: "DELETE" }),
+    onError: (err) => toast.error(messageOf(err)),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: issuesKeys.attachments(id) }),
   });
 }
 

@@ -156,7 +156,7 @@ export interface Problem {
 }
 
 export type IssueEventType = "add" | "change" | "unlink" | "unlink-dir";
-export type IssueEventScope = "issue" | "chat";
+export type IssueEventScope = "issue" | "chat" | "attachments";
 
 export interface IssueEvent {
   type: IssueEventType;

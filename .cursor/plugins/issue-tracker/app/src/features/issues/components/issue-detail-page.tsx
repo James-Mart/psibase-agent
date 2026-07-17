@@ -14,8 +14,10 @@ import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
+import { AttachmentsPanel } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
+import { supportsAttachments } from "../lib/attachments";
 
 export function IssueDetailPage() {
   const { projectId = "", id = "" } = useParams();
@@ -132,16 +134,30 @@ export function IssueDetailPage() {
               {issue.kind === "branch" || issue.kind === "commit" ? (
                 <GitStackPanel issue={issue} />
               ) : null}
+              {supportsAttachments(issue.kind) ? (
+                <AttachmentsPanel issue={issue} />
+              ) : null}
               <div className="rounded-lg border bg-card p-6">
                 {issue.description.trim() ? (
-                  <Markdown>{issue.description}</Markdown>
+                  <Markdown
+                    issueId={
+                      supportsAttachments(issue.kind) ? issue.id : undefined
+                    }
+                  >
+                    {issue.description}
+                  </Markdown>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     No description.
                   </p>
                 )}
               </div>
-              <ChatPanel id={issue.id} />
+              <ChatPanel
+                id={issue.id}
+                attachmentsIssueId={
+                  supportsAttachments(issue.kind) ? issue.id : undefined
+                }
+              />
             </>
           )}
         </>

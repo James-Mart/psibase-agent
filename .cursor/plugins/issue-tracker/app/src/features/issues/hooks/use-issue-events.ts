@@ -16,7 +16,12 @@ function parseEvent(data: string): IssueEvent | null {
     return {
       type: parsed.type,
       id: parsed.id,
-      scope: parsed.scope === "chat" ? "chat" : "issue",
+      scope:
+        parsed.scope === "chat"
+          ? "chat"
+          : parsed.scope === "attachments"
+            ? "attachments"
+            : "issue",
     };
   } catch (err) {
     if (import.meta.env.DEV) {
@@ -47,10 +52,15 @@ export function useIssueEvents(): void {
         }
         return;
       }
+      if (event.scope === "attachments") {
+        qc.invalidateQueries({ queryKey: issuesKeys.attachments(event.id) });
+        return;
+      }
       qc.invalidateQueries({ queryKey: issuesKeys.list() });
       if (event.type === "unlink-dir") {
         qc.removeQueries({ queryKey: issuesKeys.detail(event.id) });
         qc.removeQueries({ queryKey: issuesKeys.chat(event.id) });
+        qc.removeQueries({ queryKey: issuesKeys.attachments(event.id) });
       } else {
         qc.invalidateQueries({ queryKey: issuesKeys.detail(event.id) });
       }
