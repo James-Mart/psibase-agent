@@ -73,6 +73,14 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+describe("removed commands", () => {
+  it("rejects the removed ready command", () => {
+    const { status, stderr } = runCli(["ready", "--project", "p"]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/unknown command/i);
+  });
+});
+
 describe("--description-file - reads stdin", () => {
   it("seeds description.md from piped stdin through the create service", () => {
     const { stdout, status } = runCli(
@@ -430,9 +438,8 @@ describe("epic get/set", () => {
     expect(wrongKind.stderr).toMatch(/"br" is a branch, not an epic/);
   });
 
-  it("gets derived epicStatus, ready, and blocked", () => {
+  it("gets derived epicStatus and blocked", () => {
     expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("todo\n");
-    expect(runCli(["epic", "get", "e", "ready"]).stdout).toBe("false\n");
     expect(runCli(["epic", "get", "e", "blocked"]).stdout).toBe("false\n");
 
     expect(runCli(["epic", "set", "e", "blockedBy", '["blocker"]']).status).toBe(0);
@@ -470,6 +477,10 @@ describe("epic get/set", () => {
     const unknownGet = runCli(["epic", "get", "e", "workspace"]);
     expect(unknownGet.status).toBe(1);
     expect(unknownGet.stderr).toContain('unknown field "workspace" for epic');
+
+    const removedReady = runCli(["epic", "get", "e", "ready"]);
+    expect(removedReady.status).toBe(1);
+    expect(removedReady.stderr).toContain('unknown field "ready" for epic');
 
     const unknownSet = runCli(["epic", "set", "e", "workspace", "/tmp"]);
     expect(unknownSet.status).toBe(1);
@@ -555,13 +566,11 @@ describe("branch get/set", () => {
     expect(runCli(["branch", "get", "a", "attentionReason"]).stdout).toBe("");
   });
 
-  it("gets derived branchStatus, base, ready, and blocked", () => {
+  it("gets derived branchStatus, base, and blocked", () => {
     expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("not-started\n");
     expect(runCli(["branch", "get", "a", "base"]).stdout).toBe("main\n");
-    expect(runCli(["branch", "get", "a", "ready"]).stdout).toBe("true\n");
     expect(runCli(["branch", "get", "a", "blocked"]).stdout).toBe("false\n");
 
-    expect(runCli(["branch", "get", "b", "ready"]).stdout).toBe("false\n");
     expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("true\n");
     expect(runCli(["branch", "get", "b", "base"]).stdout).toBe("main\n");
 
@@ -572,7 +581,6 @@ describe("branch get/set", () => {
 
     expect(runCli(["branch", "set", "a", "branchName", "feat/a"]).status).toBe(0);
     expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("in-progress\n");
-    expect(runCli(["branch", "get", "b", "ready"]).stdout).toBe("true\n");
     expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("false\n");
 
     writeIssue("b", {
@@ -638,6 +646,10 @@ describe("branch get/set", () => {
     const unknownGet = runCli(["branch", "get", "a", "blockedBy"]);
     expect(unknownGet.status).toBe(1);
     expect(unknownGet.stderr).toContain('unknown field "blockedBy" for branch');
+
+    const removedReady = runCli(["branch", "get", "a", "ready"]);
+    expect(removedReady.status).toBe(1);
+    expect(removedReady.stderr).toContain('unknown field "ready" for branch');
 
     const unknownSet = runCli(["branch", "set", "a", "mergeBase", "main"]);
     expect(unknownSet.status).toBe(1);
@@ -798,16 +810,12 @@ describe("commit get/set", () => {
     expect(runCli(["commit", "get", "c1", "description"]).stdout).toBe("from file\n");
   });
 
-  it("gets derived ready and blocked", () => {
-    expect(runCli(["commit", "get", "c1", "ready"]).stdout).toBe("true\n");
+  it("gets derived blocked", () => {
     expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c2", "ready"]).stdout).toBe("false\n");
     expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("true\n");
 
     expect(runCli(["commit", "set", "c1", "status", "done"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "ready"]).stdout).toBe("false\n");
     expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c2", "ready"]).stdout).toBe("true\n");
     expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("false\n");
   });
 
@@ -819,6 +827,10 @@ describe("commit get/set", () => {
     const unknownGet = runCli(["commit", "get", "c1", "branchName"]);
     expect(unknownGet.status).toBe(1);
     expect(unknownGet.stderr).toContain('unknown field "branchName" for commit');
+
+    const removedReady = runCli(["commit", "get", "c1", "ready"]);
+    expect(removedReady.status).toBe(1);
+    expect(removedReady.stderr).toContain('unknown field "ready" for commit');
 
     const unknownSet = runCli(["commit", "set", "c1", "branchName", "feat/x"]);
     expect(unknownSet.status).toBe(1);

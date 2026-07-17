@@ -727,37 +727,6 @@ project:
     expect(parsed.ok).toBe(false);
     expect(snapshot()).toBe(before);
   });
-
-  it("re-authoring root branch order reorders the derived ready set", async () => {
-    const { apply, list } = await loadService();
-    // Two root branches (no stackedOn, no branchName) are both not-started and
-    // ready off `main`, so the ready set is exactly them, ordered by doc position.
-    const doc: ApplyDoc = {
-      project: {
-        id: "rp",
-        title: "RP",
-        epics: [
-          {
-            id: "re",
-            title: "RE",
-            branches: [
-              { id: "first-branch", title: "First" },
-              { id: "second-branch", title: "Second" },
-            ],
-          },
-        ],
-      },
-    };
-    await apply(doc);
-    expect(list().ready).toEqual(["first-branch", "second-branch"]);
-
-    doc.project.epics![0].branches = [
-      { id: "second-branch", title: "Second" },
-      { id: "first-branch", title: "First" },
-    ];
-    await apply(doc);
-    expect(list().ready).toEqual(["second-branch", "first-branch"]);
-  });
 });
 
 describe("apply — new root append (rooted subtree docs)", () => {

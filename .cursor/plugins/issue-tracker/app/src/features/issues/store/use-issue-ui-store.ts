@@ -13,8 +13,6 @@ export interface ProjectDialogTarget {
   title?: string;
 }
 
-export type IssueView = "tree" | "ready";
-
 const EXPANDED_KEY = "issue-tracker.expanded";
 
 function loadExpanded(): Record<string, boolean> {
@@ -46,8 +44,6 @@ function saveExpanded(expanded: Record<string, boolean>): void {
 }
 
 interface IssueUiState {
-  view: IssueView;
-  setView: (value: IssueView) => void;
   search: string;
   setSearch: (value: string) => void;
   expanded: Record<string, boolean>;
@@ -64,8 +60,6 @@ interface IssueUiState {
 }
 
 export const useIssueUiStore = create<IssueUiState>((set) => ({
-  view: "tree",
-  setView: (value) => set({ view: value }),
   search: "",
   setSearch: (value) => set({ search: value }),
   expanded: loadExpanded(),

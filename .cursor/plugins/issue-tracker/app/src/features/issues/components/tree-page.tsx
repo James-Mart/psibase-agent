@@ -1,18 +1,16 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, ListChecks, ListTree, Plus, Search } from "lucide-react";
+import { AlertTriangle, Plus, Search } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils/cn";
 import { useIssuesQuery } from "../api/queries";
 import { IssueTree } from "./issue-tree";
-import { ReadyView } from "./ready-view";
 import { buildTree, filterToProject, parentOf } from "../lib/build-tree";
 import { issueMatchesSearch } from "../lib/search";
-import { useIssueUiStore, type IssueView } from "../store/use-issue-ui-store";
+import { useIssueUiStore } from "../store/use-issue-ui-store";
 
 function filterWithAncestors(
   issues: IssueRecord[],
@@ -43,39 +41,6 @@ function filterWithAncestors(
   return issues.filter((issue) => keep.has(issue.id));
 }
 
-function ViewToggle({
-  view,
-  setView,
-}: {
-  view: IssueView;
-  setView: (value: IssueView) => void;
-}) {
-  const options: { value: IssueView; label: string; Icon: typeof ListTree }[] = [
-    { value: "tree", label: "Tree", Icon: ListTree },
-    { value: "ready", label: "Ready", Icon: ListChecks },
-  ];
-  return (
-    <div className="flex rounded-md border p-0.5">
-      {options.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => setView(value)}
-          className={cn(
-            "flex items-center gap-1.5 rounded px-2.5 py-1 text-sm",
-            view === value
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Icon className="h-4 w-4" />
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function TreePage() {
   const { projectId = "" } = useParams();
   const { data, isLoading, error } = useIssuesQuery();
@@ -83,8 +48,6 @@ export function TreePage() {
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
-  const view = useIssueUiStore((s) => s.view);
-  const setView = useIssueUiStore((s) => s.setView);
 
   const issues = data?.issues ?? [];
   const project = useMemo(
@@ -151,17 +114,14 @@ export function TreePage() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by title or id"
-                className="pl-9"
-              />
-            </div>
-            <ViewToggle view={view} setView={setView} />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title or id"
+              className="pl-9"
+            />
           </div>
 
           {error ? (
@@ -193,8 +153,6 @@ export function TreePage() {
                 <Skeleton className="h-8 w-11/12" />
                 <Skeleton className="h-8 w-10/12" />
               </div>
-            ) : view === "ready" && data ? (
-              <ReadyView data={data} />
             ) : (
               <IssueTree nodes={nodes} derived={derived} issues={scoped} />
             )}

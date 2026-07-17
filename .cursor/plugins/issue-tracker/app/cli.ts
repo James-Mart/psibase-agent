@@ -603,28 +603,6 @@ program
   );
 
 program
-  .command("ready")
-  .description("print a project's ready set (next actionable commits + startable branches)")
-  .requiredOption("--project <id|title>", "project id or title to scope the ready set to")
-  .action((opts) =>
-    run(() => {
-      const { issues, ready } = list();
-      const projectId = resolveProjectId(issues, opts.project);
-      const scope = subtreeIds(issues, projectId);
-      const byId = new Map(issues.map((issue) => [issue.id, issue]));
-      const scoped = ready.filter((id) => scope.has(id));
-      if (scoped.length === 0) {
-        console.log("nothing ready");
-        return;
-      }
-      for (const id of scoped) {
-        const issue = byId.get(id);
-        if (issue) console.log(`${issue.kind}\t${id}\t${issue.title}`);
-      }
-    }),
-  );
-
-program
   .command("list")
   .description("print a project's issues, derived state, and any problems as JSON")
   .requiredOption("--project <id|title>", "project id or title to scope the listing to")
@@ -639,7 +617,6 @@ program
         derived: Object.fromEntries(
           Object.entries(full.derived).filter(([id]) => scope.has(id)),
         ),
-        ready: full.ready.filter((id) => scope.has(id)),
       };
       console.log(JSON.stringify(scoped, null, 2));
     }),
