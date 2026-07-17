@@ -50,9 +50,17 @@ function makeGitWorkspace(): string {
   return ws;
 }
 
-function blockedByOf(id: string): string[] {
+function issueJsonField<T>(id: string, key: string): T {
   const raw = JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8"));
-  return raw.blockedBy;
+  return raw[key];
+}
+
+function blockedByOf(id: string): string[] {
+  return issueJsonField(id, "blockedBy");
+}
+
+function mergeBaseOf(id: string): string | undefined {
+  return issueJsonField(id, "mergeBase");
 }
 
 beforeEach(() => {
@@ -476,6 +484,184 @@ describe("epic get/set", () => {
     expect(blockedByOf("e")).toEqual(["blocker"]);
     expect(runCli(["attention", "e", "--reason", "legacy"]).status).toBe(0);
     expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("legacy\n");
+  });
+});
+
+describe("branch get/set", () => {
+  const AT = "2026-07-10T14:00:00.000Z";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "branch",
+      title: "Branch B",
+      partOf: "e",
+      stackedOn: "a",
+      merged: false,
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeFileSync(join(dir, "a", "description.md"), "# Branch\n\nbody\n");
+  });
+
+  it("gets and sets allowlisted branch fields", () => {
+    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Branch A\n");
+    expect(runCli(["branch", "get", "a", "description"]).stdout).toBe("# Branch\n\nbody\n");
+    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("false\n");
+    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("a\n");
+
+    expect(runCli(["branch", "set", "a", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Renamed\n");
+
+    expect(runCli(["branch", "set", "a", "branchName", "feat/a"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "branchName"]).stdout).toBe("feat/a\n");
+
+    expect(runCli(["branch", "set", "b", "stackedOn", "--clear"]).status).toBe(0);
+    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("");
+    expect(runCli(["branch", "set", "b", "stackedOn", "a"]).status).toBe(0);
+    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("a\n");
+
+    expect(runCli(["branch", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("https://pr/1\n");
+    expect(runCli(["branch", "set", "a", "prUrl", "--clear"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("");
+
+    expect(runCli(["branch", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "specReview"]).stdout).toBe("passed\n");
+
+    expect(runCli(["branch", "set", "a", "assignee", "bot"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "assignee"]).stdout).toBe("bot\n");
+    expect(runCli(["branch", "set", "a", "assignee", "--clear"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "assignee"]).stdout).toBe("");
+
+    expect(
+      runCli(["branch", "set", "a", "needsAttention", "true", "--reason", "blocked"]).status,
+    ).toBe(0);
+    expect(runCli(["branch", "get", "a", "needsAttention"]).stdout).toBe("true\n");
+    expect(runCli(["branch", "get", "a", "attentionReason"]).stdout).toBe("blocked\n");
+    expect(runCli(["branch", "set", "a", "needsAttention", "false"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "needsAttention"]).stdout).toBe("false\n");
+    expect(runCli(["branch", "get", "a", "attentionReason"]).stdout).toBe("");
+  });
+
+  it("gets derived branchStatus, base, ready, and blocked", () => {
+    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("not-started\n");
+    expect(runCli(["branch", "get", "a", "base"]).stdout).toBe("main\n");
+    expect(runCli(["branch", "get", "a", "ready"]).stdout).toBe("true\n");
+    expect(runCli(["branch", "get", "a", "blocked"]).stdout).toBe("false\n");
+
+    expect(runCli(["branch", "get", "b", "ready"]).stdout).toBe("false\n");
+    expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("true\n");
+    expect(runCli(["branch", "get", "b", "base"]).stdout).toBe("main\n");
+
+    const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    expect(add.status).toBe(0);
+    const childId = add.stdout.trim();
+    expect(runCli(["branch", "get", childId, "base"]).stdout).toBe("");
+
+    expect(runCli(["branch", "set", "a", "branchName", "feat/a"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("in-progress\n");
+    expect(runCli(["branch", "get", "b", "ready"]).stdout).toBe("true\n");
+    expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("false\n");
+
+    writeIssue("b", {
+      kind: "branch",
+      title: "Branch B",
+      partOf: "e",
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      merged: false,
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    expect(runCli(["branch", "get", "b", "base"]).stdout).toBe("feat/a\n");
+
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "done",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    expect(runCli(["branch", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("pr-open\n");
+  });
+
+  it("cascades mergeBase on merged via kind set", () => {
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      branchName: "feat/a",
+      mergeBase: "main",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "branch",
+      title: "Branch B",
+      partOf: "e",
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      merged: false,
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+
+    expect(runCli(["branch", "set", "a", "merged", "true"]).status).toBe(0);
+    expect(mergeBaseOf("b")).toBe("main");
+    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("true\n");
+  });
+
+  it("refuses kind mismatch, unknown fields, and unsettable mergeBase", () => {
+    const mismatch = runCli(["branch", "get", "e", "title"]);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stderr).toContain('"e" is an epic, not a branch');
+
+    const unknownGet = runCli(["branch", "get", "a", "blockedBy"]);
+    expect(unknownGet.status).toBe(1);
+    expect(unknownGet.stderr).toContain('unknown field "blockedBy" for branch');
+
+    const unknownSet = runCli(["branch", "set", "a", "mergeBase", "main"]);
+    expect(unknownSet.status).toBe(1);
+    expect(unknownSet.stderr).toContain(
+      'unknown or unsettable field "mergeBase" for branch',
+    );
+  });
+
+  it("keeps epic get/set and old field verbs working", () => {
+    expect(runCli(["epic", "get", "e", "title"]).stdout).toBe("Epic\n");
+    expect(runCli(["set-branch-name", "a", "feat/legacy"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "branchName"]).stdout).toBe("feat/legacy\n");
+    expect(runCli(["open-pr", "a", "https://pr/legacy"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("https://pr/legacy\n");
+    expect(runCli(["set-merged", "a"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("true\n");
   });
 });
 

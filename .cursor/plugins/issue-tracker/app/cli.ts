@@ -326,6 +326,7 @@ async function run(action: () => unknown): Promise<void> {
 
 registerKindGetSet(program, "project", run);
 registerKindGetSet(program, "epic", run);
+registerKindGetSet(program, "branch", run);
 
 program
   .command("create-project")
