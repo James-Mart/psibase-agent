@@ -28,7 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
+import { useDescriptionEditorUpload } from "../hooks/use-description-editor-upload";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
+import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
+import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
@@ -84,9 +87,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 export function IssueDetailEdit({
   issue,
   onDone,
+  upload,
 }: {
   issue: IssueDetail;
   onDone: () => void;
+  upload?: UploadAttachmentMutation;
 }) {
   const update = useUpdateIssue();
   const [form, setForm] = useState<FormState>(() => formStateFromIssue(issue));
@@ -94,6 +99,12 @@ export function IssueDetailEdit({
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const { textareaRef, textareaProps } = useDescriptionEditorUpload(
+    upload,
+    form.description,
+    (value) => set("description", value),
+  );
 
   const reload = () => {
     setForm(formStateFromIssue(issue));
@@ -279,9 +290,12 @@ export function IssueDetailEdit({
 
       <Field label="Description (Markdown)">
         <Textarea
+          ref={textareaRef}
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
           className="min-h-[280px] font-mono"
+          {...{ [DESCRIPTION_EDITOR_ATTR]: "" }}
+          {...textareaProps}
         />
       </Field>
 

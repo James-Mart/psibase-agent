@@ -3,19 +3,22 @@ import { Download, Paperclip, Trash2, Upload } from "lucide-react";
 import type { IssueDetail } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import { useAttachmentsQuery } from "../api/queries";
-import {
-  useDeleteAttachment,
-  useUploadAttachment,
-} from "../api/mutations";
+import { useDeleteAttachment } from "../api/mutations";
+import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
 import {
   attachmentsApiPath,
   formatAttachmentSize,
 } from "../lib/attachments";
 
-export function AttachmentsPanel({ issue }: { issue: IssueDetail }) {
+export function AttachmentsPanel({
+  issue,
+  upload,
+}: {
+  issue: IssueDetail;
+  upload: UploadAttachmentMutation;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { data, isLoading, error } = useAttachmentsQuery(issue.id);
-  const upload = useUploadAttachment(issue.id);
   const remove = useDeleteAttachment(issue.id);
 
   const items = data ?? [];
