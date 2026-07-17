@@ -99,6 +99,13 @@ names are owned by
 [issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#commit-interface-seams);
 do not restate the rule here.
 
+### Commit Change paths
+
+When a Commit Change names file paths, workspace-relative path rules are owned
+by
+[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#commit-change-paths);
+do not restate the rule here.
+
 ### Commit shape: vertical slices, not horizontal layers
 
 Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Commit kind + stacked-PR
@@ -135,3 +142,5 @@ Completeness pass before done:
   Project/Epic/Branch restates its children's per-unit list.
 - Every Commit that introduces or wires an interface spells out API shape and
   field names (see [Interface seams](#interface-seams)).
+- Every Commit Change that names file paths uses workspace-relative paths (see
+  [Commit Change paths](#commit-change-paths)).
