@@ -100,10 +100,10 @@ Load `mergeBase`, `branchName`, and `mergePolicy` per **## Git facts** (else
 attention and stop). `mergePolicy` selects *how* only — merge/PR always
 targets stored `mergeBase` using the stored `branchName`.
 
-Apply the Project's merge policy to a Branch whose last Commit is `done`, per
-**SPEC § Project merge policy** (the authoritative contract — semantics,
-idempotency, and recovery live there). This section is only the concrete
-`git`/`gh` steps; all run in the workspace cwd.
+Apply the Project's merge policy to a Branch, per **SPEC § Project merge policy** 
+(the authoritative contract — semantics, idempotency, and recovery live there).
+This section is only the concrete `git`/`gh` steps; all run in the workspace 
+cwd.
 
 1. **Idempotent no-op:** if the policy's end state already holds — `merged` for
    `merge`, `prUrl` for `pull-request` — do nothing and stop (success).
