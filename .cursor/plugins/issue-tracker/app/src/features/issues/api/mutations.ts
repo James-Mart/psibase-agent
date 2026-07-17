@@ -8,9 +8,11 @@ import type {
   IssueDetail,
   IssuePatch,
   IssueRecord,
+  IssuesResponse,
 } from "@server/schemas";
 import type { Attachment } from "@server/services/attachments";
 import type { DeletionResult } from "@server/services/deletion";
+import { subtreeIds } from "@server/services/subtree";
 import { attachmentsApiPath } from "../lib/attachments";
 import { issuesKeys } from "./keys";
 
@@ -38,7 +40,25 @@ export function useUpdateIssue() {
       }),
     onError: (err) => toast.error(messageOf(err)),
     onSuccess: (data) => qc.setQueryData(issuesKeys.detail(data.id), data),
-    onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.list() }),
+    onSettled: async (_data, _err, vars) => {
+      if (vars?.patch.archived === undefined) {
+        qc.invalidateQueries({ queryKey: issuesKeys.list() });
+        return;
+      }
+      // Archive cascade updates the subtree on disk — await one list resync
+      // and refresh detail caches for every affected id so child views do not
+      // lag behind the patched root.
+      const list = qc.getQueryData<IssuesResponse>(issuesKeys.list());
+      const affected = list
+        ? subtreeIds(list.issues, vars.id)
+        : new Set([vars.id]);
+      await qc.invalidateQueries({ queryKey: issuesKeys.list() });
+      await Promise.all(
+        [...affected].map((id) =>
+          qc.invalidateQueries({ queryKey: issuesKeys.detail(id) }),
+        ),
+      );
+    },
   });
 }
 

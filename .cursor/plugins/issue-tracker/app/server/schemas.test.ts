@@ -160,6 +160,22 @@ describe("parseIssue - valid per kind", () => {
       expect(result.issue.attentionReason).toBeNull();
     }
   });
+
+  it("defaults archived to false when absent on epic/branch/commit", () => {
+    for (const raw of [epic, branch, commit]) {
+      const result = parseIssue(raw);
+      expect(result.ok).toBe(true);
+      if (result.ok && result.issue.kind !== "project") {
+        expect(result.issue.archived).toBe(false);
+      }
+    }
+  });
+
+  it("strips archived on a project (field is epic/branch/commit only)", () => {
+    const result = parseIssue({ ...project, archived: true });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect("archived" in result.issue).toBe(false);
+  });
 });
 
 describe("parseIssue - malformed is rejected with a message", () => {

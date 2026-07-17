@@ -31,6 +31,8 @@ const mutableCommon = {
   assignee: z.string().optional(),
   needsAttention: z.boolean().default(false),
   attentionReason: z.string().nullable().default(null),
+  // Explicit visibility flag (not auto-derived from Done). Absent parses as false.
+  archived: z.boolean().default(false),
 };
 const timestamps = {
   createdAt: nonEmpty,

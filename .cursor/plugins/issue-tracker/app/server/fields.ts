@@ -16,6 +16,7 @@ export const COMMON_MERGEABLE_KEYS = [
   "assignee",
   "needsAttention",
   "attentionReason",
+  "archived",
   "partOf",
   "order",
 ] as const;
@@ -109,6 +110,7 @@ export const FIELD_LABELS = {
   assignee: "Assignee",
   needsAttention: "Needs attention",
   attentionReason: "Attention reason",
+  archived: "Archived",
   partOf: "Part of",
   order: "Order",
   branchName: "Branch name",

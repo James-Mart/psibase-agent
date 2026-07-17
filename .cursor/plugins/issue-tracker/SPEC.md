@@ -137,6 +137,9 @@ These are computed by `derive()` and never written to disk (see
   Surfaced in the detail panel when set; omitted from the tree outline. An empty
   working tree alone is **not** a completion signal — see
   [Finish commit](#finish-commit).
+- **archived** — stored visibility flag on Epic / Branch / Commit (never
+  Project). Explicit; **not** auto-derived from Done. Cascade and CLI/UI
+  filtering — see [Archived visibility](#archived-visibility).
 - **problems** — integrity issues that are surfaced, never silently ignored:
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
@@ -189,9 +192,9 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
 | kind | settable fields |
 | --- | --- |
 | project | `title`, `workspace`, `mergePolicy`, `description` |
-| epic | `title`, `assignee`, `needsAttention`, `partOf`, `blockedBy`, `description` |
-| branch | `title`, `assignee`, `needsAttention`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
-| commit | `title`, `assignee`, `needsAttention`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
+| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `description` |
+| branch | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
+| commit | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
 
 #### Value parsing
 
@@ -458,6 +461,20 @@ one scopes the tree to that Project's subtree (its Epics and their
 Branches/Commits). Projects themselves are not rendered as nodes inside the
 tree — they are the selectable root. Projects are ordered by `order`.
 
+<a id="archived-visibility"></a>
+
+**Archived visibility.** Epic / Branch / Commit carry a stored boolean
+`archived` (default / absent = `false`). Projects are never archived. Setting
+`archived` true or false on a node applies the same value to all descendants
+(cascade). Creating a child under any archived ancestor starts the child
+`archived: true`. Archiving a child while its parent stays unarchived remains
+allowed. `issue tree` and `issue list` omit archived rows by default; pass
+`--show-archived` to include them. The web UI tree uses the same filter rule:
+archived rows are hidden unless the client "Show archived" preference is on
+(default off; fills the former Ready view-control slot next to search). Detail
+header and tree-row hover expose Archive / Unarchive actions that PATCH
+`archived` through the same cascade path as CLI `set`.
+
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
 position (and rejects an explicit `order` key). Imperative `create` appends
@@ -499,12 +516,13 @@ no consumer can persist a broken file.
   `description.md`.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
-  `attentionReason`, `partOf`, the kind-specific fields (`blockedBy` for an Epic;
-  `status`/`commitSha`/`noDiff` for a Commit;
-  `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/`specReview` for a
-  Branch), and `description` (written to `description.md`). Clearable fields are removed
-  when patched to `null`. A patch that names a field not valid for the issue's
-  kind is rejected.
+  `attentionReason`, `archived` (Epic / Branch / Commit; cascades to
+  descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
+  kind-specific fields (`blockedBy` for an Epic; `status`/`commitSha`/`noDiff`
+  for a Commit; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
+  `specReview` for a Branch), and `description` (written to `description.md`).
+  Clearable fields are removed when patched to `null`. A patch that names a
+  field not valid for the issue's kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
   surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
   over HTTP as `DELETE /api/issues/:id` and via the CLI `delete` command.

@@ -131,12 +131,17 @@ Branch/Commit only; basename path-safety; 25 MiB cap):
   when no positional is given. Branches print in **stacked
   depth-first order** (a Branch immediately followed by what forks from it) and
   Commits in sequence, so the output *is* the canonical implementation order.
+  Omits archived Epic / Branch / Commit rows by default; pass `--show-archived`
+  to include them.
 
 ### Other flags
 
 - **project title in place of id** — `list`/`tree` accept `--project` as either
   a project id **or** a unique project title, so you don't have to run
   `projects` first (an ambiguous/unknown title errors nonzero).
+- **`--show-archived`** — `list`/`tree` include archived Epic / Branch / Commit
+  issues (hidden by default). See
+  [SPEC.md](../../SPEC.md#archived-visibility).
 
 ## Commit interface seams
 

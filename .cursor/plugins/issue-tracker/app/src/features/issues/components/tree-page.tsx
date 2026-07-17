@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Plus, Search } from "lucide-react";
+import { AlertTriangle, Archive, Plus, Search } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
+import { visibleIssues } from "@server/services/archived-visibility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,6 +49,8 @@ export function TreePage() {
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
+  const showArchived = useIssueUiStore((s) => s.showArchived);
+  const setShowArchived = useIssueUiStore((s) => s.setShowArchived);
 
   const issues = data?.issues ?? [];
   const project = useMemo(
@@ -58,8 +61,12 @@ export function TreePage() {
     [issues, projectId],
   );
   const scoped = useMemo(
-    () => filterToProject(issues, projectId || null),
-    [issues, projectId],
+    () =>
+      visibleIssues(
+        filterToProject(issues, projectId || null),
+        showArchived,
+      ),
+    [issues, projectId, showArchived],
   );
   const filtered = useMemo(
     () => filterWithAncestors(scoped, search),
@@ -114,14 +121,32 @@ export function TreePage() {
         </div>
       ) : (
         <>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title or id"
-              className="pl-9"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by title or id"
+                className="pl-9"
+              />
+            </div>
+            <Button
+              type="button"
+              variant={showArchived ? "secondary" : "outline"}
+              size="sm"
+              className="shrink-0"
+              aria-pressed={showArchived}
+              title={
+                showArchived
+                  ? "Hide archived issues"
+                  : "Show archived issues"
+              }
+              onClick={() => setShowArchived(!showArchived)}
+            >
+              <Archive className="h-4 w-4" />
+              Show archived
+            </Button>
           </div>
 
           {error ? (

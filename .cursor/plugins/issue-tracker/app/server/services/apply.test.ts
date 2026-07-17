@@ -469,11 +469,11 @@ describe("apply — atomic rejection", () => {
       updatedAt: AT,
     });
 
-    const { apply, ensureMergeBasesMigrated } = await loadService();
-    // One-time mergeBase backfill runs at the start of apply; settle it before
-    // the "no writes on reject" snapshot so migration isn't mistaken for a
+    const { apply, ensureMigrations } = await loadService();
+    // One-time migrations run at the start of apply; settle them before the
+    // "no writes on reject" snapshot so migration isn't mistaken for a
     // partial apply write.
-    ensureMergeBasesMigrated();
+    ensureMigrations();
     const before = snapshot();
 
     const doc: ApplyDoc = {
@@ -558,7 +558,8 @@ describe("apply — epic-scoped doc", () => {
     writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
     writeIssue("p2", { kind: "project", title: "P2", createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p2", createdAt: AT, updatedAt: AT });
-    const { apply } = await loadService();
+    const { apply, ensureMigrations } = await loadService();
+    ensureMigrations();
     const before = snapshot();
 
     const doc = { project: "p1", epic: { id: "e1", title: "E1" } } as ApplyDoc;

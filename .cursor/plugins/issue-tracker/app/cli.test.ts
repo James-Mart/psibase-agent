@@ -1056,6 +1056,91 @@ describe("tree", () => {
   });
 });
 
+describe("archived field, cascade, and CLI filtering", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("gets/sets archived on epic and cascades to descendants", () => {
+    expect(runCli(["epic", "get", "e", "archived"]).stdout).toBe("false\n");
+    expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "archived"]).stdout).toBe("true\n");
+    expect(runCli(["branch", "get", "a", "archived"]).stdout).toBe("true\n");
+    expect(runCli(["commit", "get", "c1", "archived"]).stdout).toBe("true\n");
+
+    expect(runCli(["epic", "set", "e", "archived", "false"]).status).toBe(0);
+    expect(runCli(["branch", "get", "a", "archived"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c1", "archived"]).stdout).toBe("false\n");
+  });
+
+  it("hides archived issues from tree/list unless --show-archived", () => {
+    expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
+
+    const treeHidden = runCli(["tree", "--project", "p"]);
+    expect(treeHidden.status).toBe(0);
+    expect(treeHidden.stdout).toContain("project p");
+    expect(treeHidden.stdout).not.toContain("epic e");
+    expect(treeHidden.stdout).not.toContain("branch a");
+
+    const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
+    expect(treeShown.status).toBe(0);
+    expect(treeShown.stdout).toContain("epic e");
+    expect(treeShown.stdout).toContain("branch a");
+
+    const listHidden = runCli(["list", "--project", "p"]);
+    expect(listHidden.status).toBe(0);
+    const hiddenIds = JSON.parse(listHidden.stdout).issues.map(
+      (issue: { id: string }) => issue.id,
+    );
+    expect(hiddenIds).toEqual(["p"]);
+
+    const listShown = runCli(["list", "--project", "p", "--show-archived"]);
+    expect(listShown.status).toBe(0);
+    const shownIds = JSON.parse(listShown.stdout).issues.map(
+      (issue: { id: string }) => issue.id,
+    );
+    expect(shownIds.sort()).toEqual(["a", "c1", "e", "p"]);
+  });
+
+  it("creates a child under an archived parent as archived", () => {
+    expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
+    const add = runCli(["add-branch", "Child", "--part-of", "e"]);
+    expect(add.status).toBe(0);
+    const childId = add.stdout.trim();
+    expect(runCli(["branch", "get", childId, "archived"]).stdout).toBe("true\n");
+  });
+
+  it("refuses project set archived", () => {
+    const result = runCli(["project", "set", "p", "archived", "true"]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/unknown or unsettable field "archived"/);
+  });
+});
+
 describe("project-title resolution errors surface through the CLI", () => {
   beforeEach(() => {
     writeIssue("p1", { kind: "project", title: "Dup", createdAt: nextAt(), updatedAt: nextAt() });
