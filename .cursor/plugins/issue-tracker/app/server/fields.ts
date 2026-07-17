@@ -5,6 +5,12 @@ import {
   type MergePolicy,
 } from "./schemas.js";
 
+/** Default git base for a root Branch (no `stackedOn`). */
+export const EPIC_BASE = "main";
+
+/** Display token for an unset tree/detail chip (`base=(unset)`, `branch=(unset)`). */
+export const CHIP_UNSET = "(unset)";
+
 export const COMMON_MERGEABLE_KEYS = [
   "title",
   "assignee",

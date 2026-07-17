@@ -3,7 +3,7 @@ import { GitCommitHorizontal, GitPullRequest } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { IssueDetail, IssueRecord } from "@server/schemas";
 import { bySequence } from "@server/order";
-import { CHIP_UNSET } from "@server/services/merge-base";
+import { CHIP_UNSET } from "@server/fields";
 import { useIssuesQuery } from "../api/queries";
 import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";

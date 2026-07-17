@@ -9,12 +9,11 @@ import {
 import { join } from "path";
 import { issuesDir } from "../config.js";
 import { parseIssue, type Issue, type IssuePatch } from "../schemas.js";
+import { CHIP_UNSET, EPIC_BASE } from "../fields.js";
 
-/** Default git base for a root Branch (no `stackedOn`). */
-export const EPIC_BASE = "main";
-
-/** Display token for an unset tree/detail chip (`base=(unset)`, `branch=(unset)`). */
-export const CHIP_UNSET = "(unset)";
+// Re-exported from the client-safe `fields` module so browser code can read
+// these pure constants without pulling this fs-backed module into the bundle.
+export { CHIP_UNSET, EPIC_BASE };
 
 const BACKFILL_FLAG = ".merge-base-backfilled";
 

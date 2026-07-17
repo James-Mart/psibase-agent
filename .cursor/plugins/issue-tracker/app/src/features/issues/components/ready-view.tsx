@@ -6,7 +6,7 @@ import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { issuePath } from "../lib/links";
 import { issueMatchesSearch } from "../lib/search";
 import { filterToProject, issuesById } from "../lib/build-tree";
-import { CHIP_UNSET } from "@server/services/merge-base";
+import { CHIP_UNSET } from "@server/fields";
 import { IssueBadges } from "./issue-badges";
 
 function ReadyRow({ issue }: { issue: IssueRecord }) {
