@@ -31,7 +31,7 @@ or a fixed linear action — this skill is meant to be replaced by a determinist
 script. Never set status on a Branch or Epic — Branch/Epic status derives
 automatically (see SPEC.md). Git and git-fact recording are delegated — see
 Rules. Commit `assignee` is overloaded as the implementor **model id** (set by
-the model discriminator via `issue assign`). Before each implementor spawn,
+the model discriminator via `issue commit set <commitId> assignee …`). Before each implementor spawn,
 **Resolve implementor model** (below) and pass the result as Task `model`.
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
@@ -82,7 +82,8 @@ Run these three commands in order (use `<epicId>` throughout):
      reorder by hand.
    - `base=<ref>` — human display of the Branch's stored `mergeBase` (or
      `base=(unset)` when empty). Informational only; do not copy into git
-     spawn stubs — the git agent reads `mergeBase` from `issue show`.
+     spawn stubs — the git agent reads `mergeBase` from
+     `issue branch get <branchId> mergeBase`.
    - `branch=<name>` — git branch name once recorded; do not copy into spawn
      stubs.
    - `branch=(unset)` — no git branch recorded yet; spawn start-branch (see
@@ -96,7 +97,7 @@ Run these three commands in order (use `<epicId>` throughout):
      (SPEC § Project workspace).
    - If `Workspace:` is absent, the Project has no workspace and every
      repo-touching subagent would immediately escalate, so **stop and hand back to
-     the user** to set it (`issue set-workspace <projectId> <path>`) before
+     the user** to set it (`issue project set <projectId> workspace <path>`) before
      spawning anything.
 3. `issue list --project <projectId>` — read `problems` and
    `derived[<epicId>].blocked`.
@@ -121,8 +122,8 @@ Run these three commands in order (use `<epicId>` throughout):
 
 ### Resolve implementor model
 
-Given a Commit id: run `issue assignee <commitId>`. If stdout is empty, raise
-`issue attention <commitId> --reason "no implementor model assigned"` and stop
+Given a Commit id: run `issue commit get <commitId> assignee`. If stdout is empty, raise
+`issue commit set <commitId> needsAttention true --reason "no implementor model assigned"` and stop
 — do not spawn the implementor. Otherwise use stdout (trimmed) as Task `model`.
 Never `show|head`, never infer from discriminator chat or prior Commits.
 
@@ -136,13 +137,13 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
-| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`set-status in-progress` only) |
+| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`issue commit set … status in-progress` only) |
 | Git | `issue-tracker-git` | Start a Branch; finish a Commit after revise; finish a Branch | Composer 2.5 (pinned in agent frontmatter) | writes |
-| Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue assign` only) |
+| Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Commit `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue commit set … assignee` only) |
 | Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume** | From Commit `assignee` (Resolve implementor model) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
-| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Branch when Branch `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`set-spec-review` / `add-commit` / `comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Branch in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Task `model`) | writes (`comment` / `apply` / `attention`) |
+| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Branch when Branch `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue branch set … specReview` / `add-commit` / `comment`) |
+| Retro | `issue-tracker-retro` | Completion when every Branch in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Task `model`) | writes (`comment` / `apply` / `issue <kind> set … needsAttention`) |
 
 Implement and revise are the **same** implementor agent. Code-quality is
 advisory (read-only `issue comment`) — it surfaces issues but is **not** in
@@ -173,14 +174,14 @@ creates and records the git branch.
 
 ### Per-Commit cycle (for each Commit, in sequence)
 
-1. **Mark in-progress.** `issue set-status <commit> in-progress`.
+1. **Mark in-progress.** `issue commit set <commitId> status in-progress`.
 2. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
    model-discriminator spawn stub. Wait until it finishes (or raises
-   `issue attention`). Do not read its result.
+   needsAttention). Do not read its result.
 3. **Implement.** Resolve implementor model for `<commit>`. Spawn
    `issue-tracker-implementor` with Task `model` set to that value. Use the
    implement spawn stub. Remember the Task agent id for resume. Wait for
-   finished or blocked (`issue attention <id>`). Do not read its diff or
+   finished or blocked (needsAttention on `<id>`). Do not read its diff or
    ingest a report.
 4. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
    (read-only) with the code-quality spawn stub.
@@ -200,10 +201,11 @@ Repeat until finish-branch:
    validator-injected remediation Commit), **run** the full Per-Commit cycle
    for each in tree order (fresh implement spawn; resume only for the revise
    step). Then continue from step 1.
-3. **`specReview` gate.** Read `specReview` with `issue show <branchId>` —
-   never by parsing chat. If unset, spawn
-   `issue-tracker-spec-conformance-validator` with the spec-conformance spawn
-   stub. Wait until it finishes (or raises `issue attention`); do not ingest
+3. **`specReview` gate.** Read `specReview` with
+   `issue branch get <branchId> specReview` — never by parsing chat or `show`.
+   If unset, spawn `issue-tracker-spec-conformance-validator` with the
+   spec-conformance spawn stub. Wait until it finishes (or raises
+   needsAttention); do not ingest
    its report. Then continue from step 1.
 4. **Finish and advance.** All Commits are `done` and `specReview` is set
    (`passed` or `failed`) — do **not** run the validator again. Spawn
@@ -213,7 +215,7 @@ Repeat until finish-branch:
 ### Escalation
 
 If a subagent is genuinely blocked (missing decision, ambiguous spec, external
-dependency), have it raise `issue attention <id> --reason "..."` on the issue
+dependency), have it raise `issue <kind> set <id> needsAttention true --reason "..."` on the issue
 instead of guessing, and surface the block to the user rather than forcing
 progress.
 
@@ -227,7 +229,7 @@ alone as “fully finished” for retro purposes.
 
 The Branch walk ends when every Commit in the Epic is `done`. Give a short
 final summary: which Branches were built, and anything still open or escalated
-(`issue attention`). For validator findings and what the implementor accepted or
+(needsAttention escalation). For validator findings and what the implementor accepted or
 declined on revise, point the user at the tracker comments
 (`issue show <id> --chat`) rather than collecting them into your context. Note
 how finished Branches landed from the `issue tree` chips (`pr=` for an opened
@@ -236,7 +238,7 @@ PR, `merged` for a merged Branch, neither when left for the human).
 ### Phase 2 — Retro gate
 
 Distinct coordinator hook after the Branch walk — **not** part of Close-Branch.
-Re-read `issue tree --epic <epicId>` (or `issue show` Branch chips). Spawn
+Re-read `issue tree --epic <epicId>`. Spawn
 `issue-tracker-retro` only when **all** of the following hold:
 
 1. The Epic has **at least one** Branch (a zero-Branch Epic must not spawn
@@ -252,7 +254,7 @@ Re-read `issue tree --epic <epicId>` (or `issue show` Branch chips). Spawn
 
 When the gate holds, spawn **once** with Task `model`
 `cursor-grok-4.5-high-fast` (Models table) and the retro spawn stub (source
-Epic id + title). Wait until the Task finishes (or raises `issue attention`).
+Epic id + title). Wait until the Task finishes (or raises needsAttention).
 Do **not** mine transcripts yourself, and do **not** expect or relay a retro
 summary into your context. If the gate fails only because some Branch is not
 `merged` yet, skip the spawn; a later re-run of this skill on the same Epic
@@ -333,9 +335,13 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 ## Rules
 
 - Never implement, verify, or run the app yourself — always delegate. You own
-  only coordination and `issue set-status <commit> in-progress`.
-- Never run `git`/`gh` or the git-fact record commands (`set-branch-name` /
-  `set-status done` / `set-commit` / `open-pr` / `set-merged`) yourself — spawn
+  only coordination and `issue commit set <commitId> status in-progress`.
+- Prefer `issue <kind> get` for scalar field reads — do not parse `show` /
+  `summary` / `tree` for a single field (except `summary`'s `Workspace:`
+  bootstrap line and `tree` chips for walk order).
+- Never run `git`/`gh` or the git-fact record commands (`issue branch set … branchName` /
+  `issue commit set … status` / `issue commit set … commitSha` / `issue branch set … prUrl` /
+  `issue branch set … merged`) yourself — spawn
   `issue-tracker-git` for Branch start, Commit finalize, and Branch finish only.
 - Work one Epic, one Commit at a time, in the Branch order `issue tree` prints;
   finish a Branch before the Branches stacked on it.
