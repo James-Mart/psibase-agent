@@ -45,12 +45,32 @@ instead of `npx tsx cli.ts <verb>`.
   `add-commit`) on stdout — capture it to link children. `apply` (below) makes
   this unnecessary for whole-tree authoring, since ids are author-chosen.
 - **Updates are partial merges** — only the named field changes; the rest is
-  untouched. The CLI sets but never clears scalars
-  (`branchName`/`stackedOn`/`commitSha`/`noDiff`/`prUrl`/`specReview`/`assignee`); clearing is a human
-  UI action (`attention --clear` excepted).
+  untouched. Field writes: kind-scoped `set` below.
 - **Nonzero exit = the write was refused** with no on-disk change; read the
   message and fix the input.
 - Cross-link issues inside any body/description: `[text](issue:<id>)`.
+
+### Kind-scoped `get` / `set`
+
+Field read/write: `issue <kind> get|set …` (`project` | `epic` | `branch` |
+`commit`). Allowlists, flags, and `--clear` semantics:
+`issue <kind> get|set --help` and
+[SPEC.md](../../SPEC.md#kind-scoped-get--set).
+
+- **Prefer `get` for scalar reads** — do not parse `show` / `summary` / `tree`
+  for a single field. (`summary`'s `Workspace:` line remains the bootstrap
+  contract for Project workspace resolution.)
+- **`needsAttention true` requires `--reason`**.
+- **`description`**: create with `--description` / `--description-file` on the
+  create verbs; update with
+  `issue <kind> set <id> description --file <path|->` (omit the positional
+  value). Pass `-` for stdin to avoid shell-escaping multiline Markdown. When
+  the description introduces or wires an interface, see
+  [Commit interface seams](#commit-interface-seams).
+- **Reparent**: `issue <kind> set <id> partOf <parent>` (Commit→Branch,
+  Branch→Epic, Epic→Project).
+- **Epic `blockedBy`**: prefer `--add` / `--remove` for incremental edits; a
+  positional JSON array fully replaces.
 
 ### Declarative apply
 
@@ -112,19 +132,8 @@ Branch/Commit only; basename path-safety; 25 MiB cap):
   depth-first order** (a Branch immediately followed by what forks from it) and
   Commits in sequence, so the output *is* the canonical implementation order.
 
-### Other verbs / flags
+### Other flags
 
-- **`block <id>`** — edits an **Epic's** `blockedBy` (the sole cross-Epic edge).
-  Exactly one of: `--by <ids...>` (full replace), `--add <ids...>` (union in),
-  `--remove <ids...>` (drop). Prefer `--add`/`--remove` for incremental edits;
-  `--by` overwrites the whole list.
-- **`set-part-of <id> <parent>`** — reparent a node (Commit→Branch, Branch→Epic,
-  Epic→Project). The service validates the new parent's kind/existence.
-- **`--description-file <path>`** (on the create verbs and `set-description`) —
-  read `description.md` from a file instead of an inline `--description`; pass
-  `-` to read from **stdin** (pipe/heredoc), which avoids shell-escaping
-  multiline Markdown. When the description introduces or wires an interface, see
-  [Commit interface seams](#commit-interface-seams).
 - **project title in place of id** — `list`/`ready`/`tree` accept `--project`
   as either a project id **or** a unique project title, so you don't have to run
   `projects` first (an ambiguous/unknown title errors nonzero).
