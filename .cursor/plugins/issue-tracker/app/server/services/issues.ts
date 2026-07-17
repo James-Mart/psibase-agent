@@ -123,12 +123,7 @@ function readRaw(id: string): {
 }
 
 function toRecord(issue: Issue): IssueRecord {
-  const dir = dirOf(issue.id);
-  return {
-    ...issue,
-    hasDescription: existsSync(join(dir, "description.md")),
-    hasChat: existsSync(join(dir, "chat.jsonl")),
-  };
+  return issue;
 }
 
 export function readAll(): { issues: Issue[]; problems: Problem[] } {

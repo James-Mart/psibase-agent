@@ -2,13 +2,11 @@ import { Fragment } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  FileText,
   GitBranch,
   FolderKanban,
   GitCommitHorizontal,
   GitPullRequest,
   Layers,
-  MessageSquare,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -53,7 +51,22 @@ const KIND_ICON: Record<IssueKind, typeof Layers> = {
   task: GitCommitHorizontal,
 };
 
-function GitChip({
+function PrLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title={url}
+      className="text-muted-foreground hover:text-foreground"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <GitPullRequest className="h-3.5 w-3.5" />
+    </a>
+  );
+}
+
+function TreeRowDerivedMeta({
   issue,
   derived,
 }: {
@@ -61,37 +74,15 @@ function GitChip({
   derived?: DerivedState;
 }) {
   if (issue.kind === "story") {
+    if (!derived?.storyStatus) return null;
     return (
-      <span className="flex items-center gap-2 text-xs">
-        {issue.branchName ? (
-          <span className="font-mono text-muted-foreground">
-            {issue.branchName}
-          </span>
-        ) : null}
-        {issue.mergeBase ? (
-          <span className="text-muted-foreground/70">on {issue.mergeBase}</span>
-        ) : null}
-        {issue.prUrl ? (
-          <a
-            href={issue.prUrl}
-            target="_blank"
-            rel="noreferrer"
-            title={issue.prUrl}
-            className="text-muted-foreground hover:text-foreground"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GitPullRequest className="h-3.5 w-3.5" />
-          </a>
-        ) : null}
-        {derived?.storyStatus ? (
-          <span className={STORY_STATUS_CLASS[derived.storyStatus]}>
-            {STORY_STATUS_LABEL[derived.storyStatus]}
-          </span>
-        ) : null}
+      <span className={`text-xs ${STORY_STATUS_CLASS[derived.storyStatus]}`}>
+        {STORY_STATUS_LABEL[derived.storyStatus]}
       </span>
     );
   }
-  if (issue.kind === "epic" && derived?.epicStatus) {
+  if (issue.kind === "epic") {
+    if (!derived?.epicStatus) return null;
     return (
       <span className={`text-xs ${EPIC_STATUS_CLASS[derived.epicStatus]}`}>
         {EPIC_STATUS_LABEL[derived.epicStatus]}
@@ -247,13 +238,10 @@ function TreeRow({
             </span>
           ) : null}
           <IssueBadges issue={issue} compact />
-          <GitChip issue={issue} derived={state} />
-          {issue.hasDescription ? (
-            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          {issue.kind === "story" && issue.prUrl ? (
+            <PrLink url={issue.prUrl} />
           ) : null}
-          {issue.hasChat ? (
-            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-          ) : null}
+          <TreeRowDerivedMeta issue={issue} derived={state} />
           {issue.kind === "task" ? (
             <TaskStatusSelect id={issue.id} status={issue.status} />
           ) : null}

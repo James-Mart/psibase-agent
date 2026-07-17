@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
-import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
+import { projectPath } from "../lib/links";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
@@ -20,10 +21,49 @@ import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { supportsAttachments } from "../lib/attachments";
 
+function CopyIssueIdButton({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+  const resetCopiedRef = useRef<ReturnType<typeof window.setTimeout>>();
+
+  useEffect(() => {
+    return () => {
+      if (resetCopiedRef.current !== undefined) {
+        window.clearTimeout(resetCopiedRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      title="Copy id"
+      className="shrink-0 text-muted-foreground"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(id);
+          setCopied(true);
+          if (resetCopiedRef.current !== undefined) {
+            window.clearTimeout(resetCopiedRef.current);
+          }
+          resetCopiedRef.current = window.setTimeout(() => setCopied(false), 1500);
+        } catch {
+          toast.error("Could not copy to clipboard");
+        }
+      }}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </Button>
+  );
+}
+
 export function IssueDetailPage() {
+  const navigate = useNavigate();
   const { projectId = "", id = "" } = useParams();
-  const { go: goToProjectTree, hrefFor: projectTreeHref } =
-    useGoToProjectTree();
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
   const [editing, setEditing] = useState(false);
 
@@ -47,17 +87,13 @@ export function IssueDetailPage() {
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-      <a
-        href={projectTreeHref(projectId)}
+      <Link
+        to={projectPath(projectId)}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        onClick={(e) => {
-          e.preventDefault();
-          goToProjectTree(projectId);
-        }}
       >
         <ArrowLeft className="h-4 w-4" />
         Back to tree
-      </a>
+      </Link>
 
       {error && !missing ? (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
@@ -97,9 +133,12 @@ export function IssueDetailPage() {
               <h1 className="break-words text-2xl font-semibold">
                 {issue.title}
               </h1>
-              <span className="font-mono text-xs text-muted-foreground">
-                {issue.id}
-              </span>
+              <div className="mt-0.5 flex items-center gap-0.5">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {issue.id}
+                </span>
+                <CopyIssueIdButton id={issue.id} />
+              </div>
               <IssueBadges issue={issue} className="mt-2" />
             </div>
             {!editing ? (
@@ -118,7 +157,7 @@ export function IssueDetailPage() {
                   size="sm"
                   onClick={() => {
                     requestDelete(issue.id);
-                    goToProjectTree(projectId);
+                    navigate(projectPath(projectId));
                   }}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />

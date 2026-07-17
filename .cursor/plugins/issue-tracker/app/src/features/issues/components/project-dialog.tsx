@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FIELD_LABELS } from "@server/fields";
 import type { MergePolicy } from "@server/schemas";
 import { Button } from "@/components/ui/button";
@@ -13,13 +14,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateIssue, useUpdateIssue } from "../api/mutations";
-import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
+import { projectPath } from "../lib/links";
 import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
 
 export function ProjectDialog() {
-  const { go: goToProjectTree } = useGoToProjectTree();
+  const navigate = useNavigate();
   const target = useIssueUiStore((s) => s.projectDialog);
   const close = useIssueUiStore((s) => s.closeProjectDialog);
   const createIssue = useCreateIssue();
@@ -60,7 +61,7 @@ export function ProjectDialog() {
         },
         {
           onSuccess: (project) => {
-            goToProjectTree(project.id);
+            navigate(projectPath(project.id));
             close();
           },
         },

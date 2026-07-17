@@ -25,8 +25,6 @@ function story(id: string, partOf: string, stackedOn?: string): IssueRecord {
     attentionReason: null,
     archived: false,
     ...(stackedOn ? { stackedOn } : {}),
-    hasDescription: false,
-    hasChat: false,
   };
 }
 
@@ -42,8 +40,6 @@ function epic(id: string): IssueRecord {
     needsAttention: false,
     attentionReason: null,
     archived: false,
-    hasDescription: false,
-    hasChat: false,
   };
 }
 
@@ -60,8 +56,6 @@ function task(id: string, partOf: string): IssueRecord {
     needsAttention: false,
     attentionReason: null,
     archived: false,
-    hasDescription: false,
-    hasChat: false,
   };
 }
 
@@ -102,8 +96,6 @@ describe("isStoryTreeDropTarget", () => {
         needsAttention: false,
         attentionReason: null,
     archived: false,
-        hasDescription: false,
-        hasChat: false,
       }),
     ).toBe(false);
   });
