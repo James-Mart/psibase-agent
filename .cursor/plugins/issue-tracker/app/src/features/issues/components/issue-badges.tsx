@@ -23,9 +23,9 @@ export function IssueBadges({
   const attentionReason =
     "attentionReason" in issue ? issue.attentionReason : null;
   const specReview =
-    !compact && issue.kind === "branch" ? issue.specReview : undefined;
+    !compact && issue.kind === "story" ? issue.specReview : undefined;
   const noDiff =
-    !compact && issue.kind === "commit" ? issue.noDiff : undefined;
+    !compact && issue.kind === "task" ? issue.noDiff : undefined;
 
   if (!assignee && !needsAttention && !specReview && !noDiff) return null;
   return (

@@ -17,7 +17,7 @@ import {
   remove,
   update,
 } from "../services/issues.js";
-import { moveBranch } from "../services/move-branch.js";
+import { moveStory } from "../services/move-story.js";
 import type {
   ChatMessageInput,
   CreateInput,
@@ -107,14 +107,14 @@ issuesRouter.post(
 );
 
 issuesRouter.post(
-  "/:id/move-branch",
+  "/:id/move-story",
   asyncRoute(async (req, res) => {
     const target = (req.body as { target?: unknown })?.target;
     if (typeof target !== "string" || !target) {
       res.status(400).json({ error: "target is required" });
       return;
     }
-    const result = await moveBranch(req.params.id, target);
+    const result = await moveStory(req.params.id, target);
     res.json(result);
   }),
 );

@@ -1,11 +1,11 @@
 import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../schemas.js";
 import {
   PROJECT_FIELD_KEYS,
-  BRANCH_RUNTIME_OPTIONAL_KEYS,
-  COMMIT_OPTIONAL_PRESERVE_KEYS,
+  STORY_RUNTIME_OPTIONAL_KEYS,
+  TASK_OPTIONAL_PRESERVE_KEYS,
 } from "../fields.js";
 import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
-import { flattenApplyDoc, isBranchDoc, isEpicDoc } from "./apply-schema.js";
+import { flattenApplyDoc, isStoryDoc, isEpicDoc } from "./apply-schema.js";
 import {
   commitIssueBatch,
   ensureMigrations,
@@ -63,8 +63,8 @@ function buildIssue(
   // nesting); a branch-rooted doc has no nesting, so `preserveStackedOn` keeps
   // the on-disk fork point — a branch doc never moves its fork point.
   let stackedOn: string | undefined;
-  if (desired.kind === "branch") {
-    const prior = existing && existing.kind === "branch" ? existing : undefined;
+  if (desired.kind === "story") {
+    const prior = existing && existing.kind === "story" ? existing : undefined;
     stackedOn = preserveStackedOn ? prior?.stackedOn : desired.stackedOn;
   }
 
@@ -105,12 +105,12 @@ function buildIssue(
     draft.blockedBy = desired.blockedBy ?? [];
   }
 
-  if (desired.kind === "branch") {
-    const prior = existing && existing.kind === "branch" ? existing : undefined;
+  if (desired.kind === "story") {
+    const prior = existing && existing.kind === "story" ? existing : undefined;
     if (stackedOn !== undefined) draft.stackedOn = stackedOn;
     if (prior) {
       draft.merged = prior.merged;
-      for (const key of BRANCH_RUNTIME_OPTIONAL_KEYS) {
+      for (const key of STORY_RUNTIME_OPTIONAL_KEYS) {
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
     } else {
@@ -119,11 +119,11 @@ function buildIssue(
     }
   }
 
-  if (desired.kind === "commit") {
-    const prior = existing && existing.kind === "commit" ? existing : undefined;
+  if (desired.kind === "task") {
+    const prior = existing && existing.kind === "task" ? existing : undefined;
     if (prior) {
       draft.status = prior.status;
-      for (const key of COMMIT_OPTIONAL_PRESERVE_KEYS) {
+      for (const key of TASK_OPTIONAL_PRESERVE_KEYS) {
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
     }
@@ -195,12 +195,12 @@ function resolveRoot(
     }
   };
 
-  if (isBranchDoc(doc)) {
+  if (isStoryDoc(doc)) {
     requireKind(doc.project, "project");
     requireKind(doc.epic, "epic");
     requireContainment(doc.epic, doc.project);
-    requireContainment(doc.branch.id, doc.epic);
-    return { rootId: doc.branch.id, rootKind: "branch", preserveStackedOn: true };
+    requireContainment(doc.story.id, doc.epic);
+    return { rootId: doc.story.id, rootKind: "story", preserveStackedOn: true };
   }
   if (isEpicDoc(doc)) {
     requireKind(doc.project, "project");
@@ -212,7 +212,7 @@ function resolveRoot(
 
 // Reconcile the declared root's subtree to match `doc`: create new nodes, update
 // existing ones (preserving imperative/progress state), and prune on-disk issues
-// in that subtree the doc omits. The root is a Project, an Epic, or a Branch (see
+// in that subtree the doc omits. The root is a Project, an Epic, or a Story (see
 // `resolveRoot`), so the scope can be a whole project, one epic, or one branch's
 // commit list. The entire prospective set is validated with a single
 // `checkIntegrity` pass before any write, so a doc that would leave the graph

@@ -34,10 +34,10 @@ const epic = (
 const branch = (
   id: string,
   partOf: string,
-  extra: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  extra: Partial<Extract<Issue, { kind: "story" }>> = {},
 ): Issue => ({
   id,
-  kind: "branch",
+  kind: "story",
   title: id,
   partOf,
   order: 0,
@@ -51,7 +51,7 @@ const branch = (
 
 const commit = (id: string, partOf: string, order = 0): Issue => ({
   id,
-  kind: "commit",
+  kind: "task",
   title: id,
   partOf,
   order,
@@ -89,9 +89,9 @@ describe("checkIntegrity", () => {
     expect(problems[0].message).toContain("unknown issue");
   });
 
-  it("flags a commit whose partOf is not a branch", () => {
+  it("flags a commit whose partOf is not a story", () => {
     const problems = checkIntegrity([project("root"), epic("e1"), commit("c1", "e1")]);
-    expect(problems.some((p) => p.message.includes("must be a branch"))).toBe(true);
+    expect(problems.some((p) => p.message.includes("must be a story"))).toBe(true);
   });
 
   it("flags a branch whose partOf is not an epic", () => {
@@ -108,14 +108,14 @@ describe("checkIntegrity", () => {
     expect(problems.some((p) => p.message.includes("stackedOn"))).toBe(true);
   });
 
-  it("flags a stackedOn that is not a branch", () => {
+  it("flags a stackedOn that is not a story", () => {
     const problems = checkIntegrity([
       epic("e1"),
       branch("b1", "e1", { stackedOn: "e1" }),
     ]);
     expect(
       problems.some(
-        (p) => p.message.includes("stackedOn") && p.message.includes("branch"),
+        (p) => p.message.includes("stackedOn") && p.message.includes("story"),
       ),
     ).toBe(true);
   });
@@ -293,7 +293,7 @@ describe("validate-at-write (problemsFor against a prospective state)", () => {
 
   it("rejects a write with a kind violation", () => {
     const prospective = [epic("e1"), commit("c", "e1")];
-    expect(problemsFor("c", prospective)[0].message).toContain("must be a branch");
+    expect(problemsFor("c", prospective)[0].message).toContain("must be a story");
   });
 
   it("accepts a valid write", () => {

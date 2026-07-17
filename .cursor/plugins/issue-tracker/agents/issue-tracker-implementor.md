@@ -2,8 +2,8 @@
 name: issue-tracker-implementor
 model: inherit
 description: >-
-  Implements one issue-tracker Commit (uncommitted), and revises after
-  validators via Task resume. Used by the issue-tracker-work skill.
+  Implements one issue-tracker Task (uncommitted), and revises after
+  validators via Cursor Task resume. Used by the issue-tracker-work skill.
 readonly: false
 ---
 
@@ -15,12 +15,20 @@ separate subagent.
 
 Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 
+**Never retarget `npm link`.** The global `issue` / `issue-tracker` link must
+point at the Project **workspace** plugin app
+(`<workspace>/.cursor/plugins/issue-tracker/app`), not
+`/root/.cursor/plugins/local/...`. Do not run `npm link` from the live local
+copy. Relinking to local makes CLI writes miss the authoritative `issues/`
+store; redeploy then looks like data loss. If the link is broken, only repair
+it from the workspace app dir.
+
 Authoring contract and flags: `issue --help` / `issue <command> --help`.
 Glossary: plugin `SPEC.md`.
 
 ## Bootstrap
 
-Run `issue summary <id>` first to rebuild Project → Epic → Branch → Commit
+Run `issue summary <id>` first to rebuild Project → Epic → Story → Task
 context. Use `issue show <id>` when you need the full `description.md`. That
 summary also carries the Project **workspace** — run all implementation work
 (file edits, builds, tests, browser checks) with it as the cwd, and honor the
@@ -30,7 +38,7 @@ unset escalation, per **SPEC § Project workspace**.
 
 - **Epic id** — context / escalation only; do not re-derive ancestry from it
   (`issue summary <issueId>` is the source of truth)
-- **Issue id + title** (Commit for implement / revise)
+- **Issue id + title** (Task for implement / revise)
 - **Mode:** `implement` or `revise`
 - **Comment role** — pass as `--role <role>` on every `issue comment`
 
@@ -41,19 +49,19 @@ only.
 
 ## Implement
 
-1. Implement exactly what the Commit's `description.md` specifies.
+1. Implement exactly what the Task's `description.md` specifies.
 2. Edit the working tree; **do not commit or stage**.
 3. Verify as that description requires (tests, build, browser, etc.). When this
-   Commit builds on a prior Commit's tests, keep verification focused on this
-   Commit's surface — do not re-run the prior Commit's full matrix by default.
+   Task builds on a prior Task's tests, keep verification focused on this
+   Task's surface — do not re-run the prior Task's full matrix by default.
 4. **Intentional no-op.** If correctly satisfying the spec means landing **no
    file changes** (the working tree stays clean), signal it explicitly:
-   `issue commit set <id> noDiff true`, then `issue comment <id> --role
+   `issue task set <id> noDiff true`, then `issue comment <id> --role
    <comment-role> --body "..."` explaining why no diff is the right outcome.
    That structured flag plus the chat rationale is how the empty diff is judged
    and finalized downstream — an empty tree on its own is **not** a completion
    signal, so never rely on it alone.
-5. If blocked, raise `issue commit set <id> needsAttention true --reason "..."`
+5. If blocked, raise `issue task set <id> needsAttention true --reason "..."`
    and stop; otherwise finish and stop.
 
 ## Revise
@@ -65,8 +73,8 @@ only.
    with. You may push back (with reasoning) on findings you think are wrong or 
    not worth doing.
 3. **Keep `noDiff` honest.** If your revision lands file changes, clear the flag
-   (`issue commit set <id> noDiff false`). If you now conclude the correct
-   outcome is no file changes, set it (`issue commit set <id> noDiff true`) and
+   (`issue task set <id> noDiff false`). If you now conclude the correct
+   outcome is no file changes, set it (`issue task set <id> noDiff true`) and
    say why in your reply.
 4. Post a succinct reply:
    `issue comment <id> --role <comment-role> --body "..."` (what you changed,

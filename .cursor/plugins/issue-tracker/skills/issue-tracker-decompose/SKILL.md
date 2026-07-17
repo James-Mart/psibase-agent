@@ -1,9 +1,9 @@
 ---
 name: issue-tracker-decompose
 description: >-
-  Decompose a spec into a standalone Project > Epic > Branch > Commit tree in the
+  Decompose a spec into a standalone Project > Epic > Story > Task tree in the
   issue-tracker by authoring one nested YAML doc and `apply`-ing it. Use when
-  planning a stack of git PRs, deciding Branch vs Commit grain, or turning a plan
+  planning a stack of git PRs, deciding Story vs Task grain, or turning a plan
   doc into tracked issues. Assumes the CLI from issue-tracker-authoring; glossary
   in SPEC.md.
 ---
@@ -34,8 +34,8 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
 ```
 
 - **Nesting is the structure.** Kind comes from where a node sits
-  (`project` → `epics` → `branches` → `commits`, and `stacked` for a Branch that
-  forks off another Branch); `partOf` and `stackedOn` are inferred from the
+  (`project` → `epics` → `stories` → `tasks`, and `stacked` for a Story that
+  forks off another Story); `partOf` and `stackedOn` are inferred from the
   nesting, never written by hand. The full doc shape is in
   [SPEC.md](../../SPEC.md#apply-doc-format).
 - **Ids are author-chosen and stable.** Every node carries a required kebab `id`
@@ -47,10 +47,10 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   nesting; `blockedBy` is an **Epic-level** list of other same-Project Epic ids —
   the sole edge that crosses an Epic boundary. Model dependencies *within* an
   Epic as **stacks** (`stackedOn`), not `blockedBy`. When a unit needs code from
-  two parallel Branches at once (a multi-parent / cross-stack dependency that a
-  single fork point can't express), don't reach for a Branch-level edge: split it
+  two parallel Stories at once (a multi-parent / cross-stack dependency that a
+  single fork point can't express), don't reach for a Story-level edge: split it
   into a **separate Epic that is `blockedBy` the first**, keeping Epics small
-  (see the diamond in SPEC.md — keeps parallel branches parallel instead of
+  (see the diamond in SPEC.md — keeps parallel stories parallel instead of
   linearizing them, at the cost of waiting for the blocking Epic to merge).
 - **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
@@ -62,74 +62,74 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
   incrementally with `create`/`add` or kind `set`.
 - **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
-  To edit one epic or branch without touching its siblings, root the doc there
+  To edit one epic or story without touching its siblings, root the doc there
   and reference the enclosing parents by id: an **epic form** (`project: <id>`
   string + `epic:` object) reconciles just that epic within the project, and a
-  **branch form** (`project: <id>` + `epic: <id>` strings + `branch:` object)
-  reconciles just that branch and its commit list within the epic. A branch doc
-  owns only its own commits (stacked children belong to the epic) and preserves
-  the branch's fork point. Full shapes in [SPEC.md](../../SPEC.md#apply-doc-format).
+  **story form** (`project: <id>` + `epic: <id>` strings + `story:` object)
+  reconciles just that story and its task list within the epic. A story doc
+  owns only its own tasks (stacked children belong to the epic) and preserves
+  the story's fork point. Full shapes in [SPEC.md](../../SPEC.md#apply-doc-format).
 
-## Grain: Branch vs Commit
+## Grain: Story vs Task
 
 - **Project** — the top-level container that groups related Epics. Organizational
   only (no status); its `description.md` is a short overview of the whole product
   area. Every Epic must belong to a Project.
 - **Epic** — overview + cross-cutting design principles/invariants only (what
   governs every phase). Not the full spec.
-- **Branch** = one PR / shippable unit: scope, approach, and any data-model or
-  interface detail specific to it. Normally several commits; one commit's worth
-  of work is a Commit, not a Branch.
-- **Commit** = one git commit: implementor-resolution detail (what to do + how to
+- **Story** = one PR / shippable unit: scope, approach, and any data-model or
+  interface detail specific to it. Normally several tasks; one task's worth
+  of work is a Task, not a Story.
+- **Task** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Must be a standalone vertical
   slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
-  Tree nesting supplies context, so linking commit → epic is unnecessary.
-  **Commits run in the order they appear in the doc** (top-to-bottom); authors
+  Tree nesting supplies context, so linking task → epic is unnecessary.
+  **Tasks run in the order they appear in the doc** (top-to-bottom); authors
   never specify `order` — array position is implementation order.
 
-**Each Branch must be independently mergeable to `main`.** Branches merge to
-`main` (stacked children after their fork-point Branch, in stack order), and only
-Branches merge — Commits are internal steps that ship together as the Branch's
-one PR. So never split one cohesive change across Branches such that merging one
-leaves `main` broken (e.g. a schema change in one Branch and the code that
-consumes it in another): keep it in a single Branch as multiple Commits. See the
+**Each Story must be independently mergeable to `main`.** Stories merge to
+`main` (stacked children after their fork-point Story, in stack order), and only
+Stories merge — Tasks are internal steps that ship together as the Story's
+one PR. So never split one cohesive change across Stories such that merging one
+leaves `main` broken (e.g. a schema change in one Story and the code that
+consumes it in another): keep it in a single Story as multiple Tasks. See the
 stacked-PR merge model in [SPEC.md](../../SPEC.md).
 
 ### Interface seams
 
-When a Commit introduces or wires an interface, required API shape and field
+When a Task introduces or wires an interface, required API shape and field
 names are owned by
-[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#commit-interface-seams);
+[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#task-interface-seams);
 do not restate the rule here.
 
-### Commit Change paths
+### Task Change paths
 
-When a Commit Change names file paths, workspace-relative path rules are owned
+When a Task Change names file paths, workspace-relative path rules are owned
 by
-[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#commit-change-paths);
+[issue-tracker-authoring](../issue-tracker-authoring/SKILL.md#task-change-paths);
 do not restate the rule here.
 
-### Commit shape: vertical slices, not horizontal layers
+### Task shape: vertical slices, not horizontal layers
 
-Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Commit kind + stacked-PR
-merge model): each Commit must leave the Branch tip **buildable and testable**.
+Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Task kind + stacked-PR
+merge model): each Task must leave the Story tip **buildable and testable**.
 
 **Prefer** vertical slices — one thin end-to-end cut of a capability (types +
 implementation + a focused test) that stands alone.
 
 **Avoid** horizontal layering that does not stand alone:
 
-- **Bad:** Commit 1 adds types/interfaces only; Commit 2 "wires them up"; Commit 3
-  adds tests — or a half-migration Commit that does not compile. Early Commits do
+- **Bad:** Task 1 adds types/interfaces only; Task 2 "wires them up"; Task 3
+  adds tests — or a half-migration Task that does not compile. Early Tasks do
   not prove anything on their own.
-- **Good:** Commit 1 adds one complete capability (types, implementation, and a
-  focused test) that builds; Commit 2 adds the next capability the same way.
+- **Good:** Task 1 adds one complete capability (types, implementation, and a
+  focused test) that builds; Task 2 adds the next capability the same way.
 
-A plan's *phases* are the Branch grain, its *todos/steps* the Commit grain. Group
-related todos into one Branch and land them as commits; when mapping todos to
-Commits, reshape horizontal layering into vertical slices (split or merge until
-each Commit stands alone as above). Split only a genuinely oversized phase. One
-todo → one Branch (a stack of one-commit PRs with an empty Commit tier) means you
+A plan's *phases* are the Story grain, its *todos/steps* the Task grain. Group
+related todos into one Story and land them as tasks; when mapping todos to
+Tasks, reshape horizontal layering into vertical slices (split or merge until
+each Task stands alone as above). Split only a genuinely oversized phase. One
+todo → one Story (a stack of one-task PRs with an empty Task tier) means you
 split at the wrong tier.
 
 Completeness pass before done:
@@ -137,13 +137,13 @@ Completeness pass before done:
 - Every part of the source design is represented.
 - Companion material follows issue-tracker-authoring **Attachments** (no
   external workspace paths).
-- No Branch/Commit is title-only; no Branch holds just one commit and the
-  Branch count isn't merely the bullet count.
+- No Story/Task is title-only; no Story holds just one task and the
+  Story count isn't merely the bullet count.
 - **Parent/child prose boundaries** — follow the localize guidance above
   ([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)):
-  Epic holds no phase- or commit-level detail that belongs in children; no
-  Project/Epic/Branch restates its children's per-unit list.
-- Every Commit that introduces or wires an interface spells out API shape and
+  Epic holds no phase- or task-level detail that belongs in children; no
+  Project/Epic/Story restates its children's per-unit list.
+- Every Task that introduces or wires an interface spells out API shape and
   field names (see [Interface seams](#interface-seams)).
-- Every Commit Change that names file paths uses workspace-relative paths (see
-  [Commit Change paths](#commit-change-paths)).
+- Every Task Change that names file paths uses workspace-relative paths (see
+  [Task Change paths](#task-change-paths)).

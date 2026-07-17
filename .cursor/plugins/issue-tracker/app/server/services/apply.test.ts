@@ -77,11 +77,11 @@ function baseDoc(): ProjectApplyDoc {
           id: "epic-a",
           title: "Epic A",
           blockedBy: ["epic-b"],
-          branches: [
+          stories: [
             {
               id: "b1",
               title: "Branch one",
-              commits: [{ id: "c1", title: "Commit one" }],
+              tasks: [{ id: "c1", title: "Commit one" }],
               stacked: [{ id: "b1s", title: "Stacked on one" }],
             },
             { id: "b2", title: "Branch two" },
@@ -115,26 +115,26 @@ describe("apply — create from empty", () => {
     expect(epic && epic.kind === "epic" ? epic.blockedBy : []).toEqual(["epic-b"]);
 
     const b1 = byId.get("b1");
-    if (b1?.kind !== "branch") throw new Error("b1 missing");
+    if (b1?.kind !== "story") throw new Error("b1 missing");
     expect(b1.partOf).toBe("epic-a");
     expect(b1.stackedOn).toBeUndefined();
     expect(b1.mergeBase).toBe("main");
 
     const b1s = byId.get("b1s");
-    if (b1s?.kind !== "branch") throw new Error("b1s missing");
+    if (b1s?.kind !== "story") throw new Error("b1s missing");
     expect(b1s.partOf).toBe("epic-a");
     expect(b1s.stackedOn).toBe("b1");
     // Parent has no branchName yet — leave unset for the set-branch-name cascade.
     expect(b1s.mergeBase).toBeUndefined();
 
     const b2 = byId.get("b2");
-    if (b2?.kind !== "branch") throw new Error("b2 missing");
+    if (b2?.kind !== "story") throw new Error("b2 missing");
     expect(b2.partOf).toBe("epic-a");
     expect(b2.stackedOn).toBeUndefined();
     expect(b2.mergeBase).toBe("main");
 
     const c1 = byId.get("c1");
-    if (c1?.kind !== "commit") throw new Error("c1 missing");
+    if (c1?.kind !== "task") throw new Error("c1 missing");
     expect(c1.partOf).toBe("b1");
     expect(c1.status).toBe("todo");
 
@@ -151,7 +151,7 @@ describe("apply — create from empty", () => {
     await update("b1", { branchName: "feat/b1" });
 
     const doc = baseDoc();
-    doc.project.epics![0].branches![0].stacked!.push({
+    doc.project.epics![0].stories![0].stacked!.push({
       id: "b1s2",
       title: "Second stacked child",
     });
@@ -276,8 +276,8 @@ describe("apply — update preserves imperative progress state", () => {
 
     // Re-apply with changed titles so b2 and c1 actually go through the update path.
     const doc = baseDoc();
-    doc.project.epics![0].branches![1].title = "Branch two renamed";
-    doc.project.epics![0].branches![0].commits![0].title = "Commit one renamed";
+    doc.project.epics![0].stories![1].title = "Branch two renamed";
+    doc.project.epics![0].stories![0].tasks![0].title = "Commit one renamed";
     const summary = await apply(doc);
     expect(summary.updated.sort()).toEqual(["b2", "c1"]);
     expect(summary.deleted).toEqual([]);
@@ -357,11 +357,11 @@ describe("apply — prune by default", () => {
     // repair that surviving out-of-scope blockedBy.
     writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("b1", { kind: "branch", title: "B1", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("b1", { kind: "story", title: "B1", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("e-victim", { kind: "epic", title: "Victim", partOf: "p1", order: 1, createdAt: AT, updatedAt: AT });
-    writeIssue("b2", { kind: "branch", title: "B2", partOf: "e-victim", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("b2", { kind: "story", title: "B2", partOf: "e-victim", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("c2", {
-      kind: "commit",
+      kind: "task",
       title: "C2",
       partOf: "b2",
       order: 0,
@@ -370,7 +370,7 @@ describe("apply — prune by default", () => {
       updatedAt: AT,
     });
     writeIssue("b2s", {
-      kind: "branch",
+      kind: "story",
       title: "B2 stacked",
       partOf: "e-victim",
       order: 1,
@@ -401,7 +401,7 @@ describe("apply — prune by default", () => {
         id: "p1",
         title: "P1",
         epics: [
-          { id: "e1", title: "E1", branches: [{ id: "b1", title: "B1" }] },
+          { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
         ],
       },
     };
@@ -447,7 +447,7 @@ describe("apply — atomic rejection", () => {
       id: "epic-c",
       title: "Epic C",
       blockedBy: ["ghost"],
-      branches: [{ id: "b3", title: "Branch three" }],
+      stories: [{ id: "b3", title: "Branch three" }],
     });
 
     await expect(apply(doc)).rejects.toThrow(/unknown issue "ghost"/);
@@ -462,7 +462,7 @@ describe("apply — atomic rejection", () => {
     writeIssue("p2", { kind: "project", title: "P2", createdAt: AT, updatedAt: AT });
     writeIssue("e2", { kind: "epic", title: "E2", partOf: "p2", createdAt: AT, updatedAt: AT });
     writeIssue("shared", {
-      kind: "branch",
+      kind: "story",
       title: "Shared",
       partOf: "e2",
       createdAt: AT,
@@ -484,7 +484,7 @@ describe("apply — atomic rejection", () => {
           {
             id: "e1",
             title: "E1",
-            branches: [{ id: "shared", title: "Collision" }],
+            stories: [{ id: "shared", title: "Collision" }],
           },
         ],
       },
@@ -506,10 +506,10 @@ describe("apply — epic-scoped doc", () => {
   function seedTwoEpicProject(): void {
     writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("b1", { kind: "branch", title: "B1", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("b-old", { kind: "branch", title: "Old", partOf: "e1", order: 1, createdAt: AT, updatedAt: AT });
+    writeIssue("b1", { kind: "story", title: "B1", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("b-old", { kind: "story", title: "Old", partOf: "e1", order: 1, createdAt: AT, updatedAt: AT });
     writeIssue("e2", { kind: "epic", title: "E2", partOf: "p1", order: 1, createdAt: AT, updatedAt: AT });
-    writeIssue("b2", { kind: "branch", title: "B2", partOf: "e2", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("b2", { kind: "story", title: "B2", partOf: "e2", order: 0, createdAt: AT, updatedAt: AT });
   }
 
   it("prunes within the target epic only and leaves siblings + project untouched", async () => {
@@ -518,7 +518,7 @@ describe("apply — epic-scoped doc", () => {
 
     const doc = {
       project: "p1",
-      epic: { id: "e1", title: "E1", branches: [{ id: "b1", title: "B1" }] },
+      epic: { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
     } as ApplyDoc;
     const summary = await apply(doc);
 
@@ -576,9 +576,9 @@ describe("apply — branch-scoped doc", () => {
   function seedStack(): void {
     writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", createdAt: AT, updatedAt: AT });
-    writeIssue("base", { kind: "branch", title: "Base", partOf: "e1", createdAt: AT, updatedAt: AT });
+    writeIssue("base", { kind: "story", title: "Base", partOf: "e1", createdAt: AT, updatedAt: AT });
     writeIssue("base-c", {
-      kind: "commit",
+      kind: "task",
       title: "Base commit",
       partOf: "base",
       status: "todo",
@@ -586,7 +586,7 @@ describe("apply — branch-scoped doc", () => {
       updatedAt: AT,
     });
     writeIssue("feat", {
-      kind: "branch",
+      kind: "story",
       title: "Feat",
       partOf: "e1",
       stackedOn: "base",
@@ -594,7 +594,7 @@ describe("apply — branch-scoped doc", () => {
       updatedAt: AT,
     });
     writeIssue("feat-old", {
-      kind: "commit",
+      kind: "task",
       title: "Old commit",
       partOf: "feat",
       status: "todo",
@@ -610,10 +610,10 @@ describe("apply — branch-scoped doc", () => {
     const doc = {
       project: "p1",
       epic: "e1",
-      branch: {
+      story: {
         id: "feat",
         title: "Feat",
-        commits: [{ id: "feat-new", title: "New commit" }],
+        tasks: [{ id: "feat-new", title: "New commit" }],
       },
     } as ApplyDoc;
     const summary = await apply(doc);
@@ -625,10 +625,10 @@ describe("apply — branch-scoped doc", () => {
     const byId = new Map(list().issues.map((i) => [i.id, i]));
     // The fork point is preserved even though the branch doc never declared it.
     const feat = byId.get("feat");
-    expect(feat?.kind === "branch" ? feat.stackedOn : undefined).toBe("base");
+    expect(feat?.kind === "story" ? feat.stackedOn : undefined).toBe("base");
     // base and its commit sit outside feat's subtree, so they are untouched.
-    expect(byId.get("base")?.kind).toBe("branch");
-    expect(byId.get("base-c")?.kind).toBe("commit");
+    expect(byId.get("base")?.kind).toBe("story");
+    expect(byId.get("base-c")?.kind).toBe("task");
     expect(list().problems).toEqual([]);
   });
 
@@ -641,7 +641,7 @@ describe("apply — branch-scoped doc", () => {
     const doc = {
       project: "p1",
       epic: "e1",
-      branch: { id: "b", title: "B" },
+      story: { id: "b", title: "B" },
     } as ApplyDoc;
     await expect(apply(doc)).rejects.toThrow(/already belongs to "p2"/);
   });
@@ -650,13 +650,13 @@ describe("apply — branch-scoped doc", () => {
     writeIssue("p1", { kind: "project", title: "P1", createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", createdAt: AT, updatedAt: AT });
     writeIssue("e-other", { kind: "epic", title: "Other", partOf: "p1", createdAt: AT, updatedAt: AT });
-    writeIssue("feat", { kind: "branch", title: "Feat", partOf: "e-other", createdAt: AT, updatedAt: AT });
+    writeIssue("feat", { kind: "story", title: "Feat", partOf: "e-other", createdAt: AT, updatedAt: AT });
     const { apply } = await loadService();
 
     const doc = {
       project: "p1",
       epic: "e1",
-      branch: { id: "feat", title: "Feat" },
+      story: { id: "feat", title: "Feat" },
     } as ApplyDoc;
     await expect(apply(doc)).rejects.toThrow(/already belongs to "e-other"/);
   });
@@ -673,11 +673,11 @@ describe("apply — sibling order", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: [
+                tasks: [
                   { id: "first", title: "First" },
                   { id: "second", title: "Second" },
                 ],
@@ -691,7 +691,7 @@ describe("apply — sibling order", () => {
     expect(readIssue("first").order).toBe(0);
     expect(readIssue("second").order).toBe(1);
 
-    doc.project.epics![0].branches![0].commits = [
+    doc.project.epics![0].stories![0].tasks = [
       { id: "second", title: "Second" },
       { id: "first", title: "First" },
     ];
@@ -713,10 +713,10 @@ project:
   epics:
     - id: e
       title: E
-      branches:
+      stories:
         - id: b
           title: B
-          commits:
+          tasks:
             - id: c1
               title: C1
               order: 0
@@ -735,13 +735,13 @@ describe("apply — new root append (rooted subtree docs)", () => {
     // Project with an epic that already has one root branch at order 0.
     writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("e1", { kind: "epic", title: "E1", partOf: "p1", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("base", { kind: "branch", title: "Base", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("base", { kind: "story", title: "Base", partOf: "e1", order: 0, createdAt: AT, updatedAt: AT });
 
     const { apply, list } = await loadService();
     const doc = {
       project: "p1",
       epic: "e1",
-      branch: { id: "newb", title: "New branch" },
+      story: { id: "newb", title: "New branch" },
     } as ApplyDoc;
     await apply(doc);
 
@@ -778,11 +778,11 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: commitIds.map((id) => ({ id, title: id })),
+                tasks: commitIds.map((id) => ({ id, title: id })),
               },
             ],
           },
@@ -815,9 +815,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
           {
             id: "e",
             title: "E",
-            branches: [
-              { id: "b1", title: "B1", commits: b1.map((id) => ({ id, title: id })) },
-              { id: "b2", title: "B2", commits: b2.map((id) => ({ id, title: id })) },
+            stories: [
+              { id: "b1", title: "B1", tasks: b1.map((id) => ({ id, title: id })) },
+              { id: "b2", title: "B2", tasks: b2.map((id) => ({ id, title: id })) },
             ],
           },
         ],
@@ -848,16 +848,16 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: [{ id: "c1", title: "c1" }],
+                tasks: [{ id: "c1", title: "c1" }],
                 stacked: [
                   {
                     id: "nb",
                     title: "New stacked",
-                    commits: [
+                    tasks: [
                       { id: "c2", title: "c2" },
                       { id: "c3", title: "c3" },
                     ],
@@ -873,7 +873,7 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
 
     expect(summary.created).toEqual(["nb"]);
     const nb = list().issues.find((i) => i.id === "nb");
-    expect(nb?.kind === "branch" ? nb.stackedOn : undefined).toBe("b");
+    expect(nb?.kind === "story" ? nb.stackedOn : undefined).toBe("b");
     expect(readIssue("c1")).toMatchObject({ partOf: "b", order: 0 });
     expect(readIssue("c2")).toMatchObject({ partOf: "nb", order: 0 });
     expect(readIssue("c3")).toMatchObject({ partOf: "nb", order: 1 });
@@ -890,14 +890,14 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
           {
             id: "e",
             title: "E",
-            branches: relocate
-              ? [{ id: "bb", title: "BB", commits: [
+            stories: relocate
+              ? [{ id: "bb", title: "BB", tasks: [
                   { id: "b1", title: "b1" },
                   { id: "a1", title: "a1" },
                 ] }]
               : [
-                  { id: "ba", title: "BA", commits: [{ id: "a1", title: "a1" }] },
-                  { id: "bb", title: "BB", commits: [{ id: "b1", title: "b1" }] },
+                  { id: "ba", title: "BA", tasks: [{ id: "a1", title: "a1" }] },
+                  { id: "bb", title: "BB", tasks: [{ id: "b1", title: "b1" }] },
                 ],
           },
         ],
@@ -925,7 +925,7 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "base1",
                 title: "Base1",

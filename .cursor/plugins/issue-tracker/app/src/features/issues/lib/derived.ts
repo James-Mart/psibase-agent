@@ -1,20 +1,20 @@
-import type { BranchStatus, CommitStatus, EpicStatus, SpecReviewStatus } from "@server/schemas";
+import type { StoryStatus, TaskStatus, EpicStatus, SpecReviewStatus } from "@server/schemas";
 import type { BadgeProps } from "@/components/ui/badge";
 
-export const COMMIT_STATUS_CLASS: Record<CommitStatus, string> = {
+export const TASK_STATUS_CLASS: Record<TaskStatus, string> = {
   todo: "text-muted-foreground",
   "in-progress": "[color:hsl(var(--warning))]",
   done: "[color:hsl(var(--success))]",
 };
 
-export const BRANCH_STATUS_LABEL: Record<BranchStatus, string> = {
+export const STORY_STATUS_LABEL: Record<StoryStatus, string> = {
   "not-started": "not started",
   "in-progress": "in progress",
   "pr-open": "PR open",
   merged: "merged",
 };
 
-export const BRANCH_STATUS_CLASS: Record<BranchStatus, string> = {
+export const STORY_STATUS_CLASS: Record<StoryStatus, string> = {
   "not-started": "text-muted-foreground",
   "in-progress": "[color:hsl(var(--warning))]",
   "pr-open": "text-foreground",

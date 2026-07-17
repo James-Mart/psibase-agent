@@ -20,7 +20,7 @@ const epic = {
 
 const branch = {
   id: "auth-endpoints",
-  kind: "branch",
+  kind: "story",
   title: "Auth endpoints",
   partOf: "add-auth",
   branchName: "feat/auth",
@@ -32,7 +32,7 @@ const branch = {
 
 const commit = {
   id: "login-route",
-  kind: "commit",
+  kind: "task",
   title: "Add login route",
   partOf: "auth-endpoints",
   status: "in-progress",
@@ -83,7 +83,7 @@ describe("parseIssue - valid per kind", () => {
   it("parses a branch with its stackedOn fork point and no blockedBy", () => {
     const result = parseIssue(branch);
     expect(result.ok).toBe(true);
-    if (result.ok && result.issue.kind === "branch") {
+    if (result.ok && result.issue.kind === "story") {
       expect(result.issue.stackedOn).toBe("db-schema");
       expect("blockedBy" in result.issue).toBe(false);
     }
@@ -92,12 +92,12 @@ describe("parseIssue - valid per kind", () => {
   it("parses an optional mergeBase on a branch", () => {
     const withBase = parseIssue({ ...branch, mergeBase: "main" });
     expect(withBase.ok).toBe(true);
-    if (withBase.ok && withBase.issue.kind === "branch") {
+    if (withBase.ok && withBase.issue.kind === "story") {
       expect(withBase.issue.mergeBase).toBe("main");
     }
     const absent = parseIssue(branch);
     expect(absent.ok).toBe(true);
-    if (absent.ok && absent.issue.kind === "branch") {
+    if (absent.ok && absent.issue.kind === "story") {
       expect(absent.issue.mergeBase).toBeUndefined();
     }
     expect(parseIssue({ ...branch, mergeBase: "" }).ok).toBe(false);
@@ -106,19 +106,19 @@ describe("parseIssue - valid per kind", () => {
   it("parses a branch with an optional specReview", () => {
     const passed = parseIssue({ ...branch, specReview: "passed" });
     expect(passed.ok).toBe(true);
-    if (passed.ok && passed.issue.kind === "branch") {
+    if (passed.ok && passed.issue.kind === "story") {
       expect(passed.issue.specReview).toBe("passed");
     }
 
     const failed = parseIssue({ ...branch, specReview: "failed" });
     expect(failed.ok).toBe(true);
-    if (failed.ok && failed.issue.kind === "branch") {
+    if (failed.ok && failed.issue.kind === "story") {
       expect(failed.issue.specReview).toBe("failed");
     }
 
     const absent = parseIssue(branch);
     expect(absent.ok).toBe(true);
-    if (absent.ok && absent.issue.kind === "branch") {
+    if (absent.ok && absent.issue.kind === "story") {
       expect(absent.issue.specReview).toBeUndefined();
     }
   });
@@ -130,7 +130,7 @@ describe("parseIssue - valid per kind", () => {
   it("parses a commit with a stored status", () => {
     const result = parseIssue(commit);
     expect(result.ok).toBe(true);
-    if (result.ok && result.issue.kind === "commit") {
+    if (result.ok && result.issue.kind === "task") {
       expect(result.issue.status).toBe("in-progress");
     }
   });
@@ -138,13 +138,13 @@ describe("parseIssue - valid per kind", () => {
   it("parses a commit with an optional noDiff", () => {
     const withNoDiff = parseIssue({ ...commit, noDiff: true });
     expect(withNoDiff.ok).toBe(true);
-    if (withNoDiff.ok && withNoDiff.issue.kind === "commit") {
+    if (withNoDiff.ok && withNoDiff.issue.kind === "task") {
       expect(withNoDiff.issue.noDiff).toBe(true);
     }
 
     const absent = parseIssue(commit);
     expect(absent.ok).toBe(true);
-    if (absent.ok && absent.issue.kind === "commit") {
+    if (absent.ok && absent.issue.kind === "task") {
       expect(absent.issue.noDiff).toBeUndefined();
     }
   });

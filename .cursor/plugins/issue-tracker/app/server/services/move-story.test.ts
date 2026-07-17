@@ -16,7 +16,7 @@ function readJson(id: string): Record<string, unknown> {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "issue-tracker-move-branch-"));
+  dir = mkdtempSync(join(tmpdir(), "issue-tracker-move-story-"));
   vi.resetModules();
   vi.stubEnv("ISSUES_DIR", dir);
   writeIssue("p", {
@@ -44,7 +44,7 @@ beforeEach(() => {
   });
   // e1 stack: a (root) -> b -> c
   writeIssue("a", {
-    kind: "branch",
+    kind: "story",
     title: "A",
     partOf: "e1",
     order: 0,
@@ -52,7 +52,7 @@ beforeEach(() => {
     updatedAt: AT,
   });
   writeIssue("b", {
-    kind: "branch",
+    kind: "story",
     title: "B",
     partOf: "e1",
     stackedOn: "a",
@@ -61,7 +61,7 @@ beforeEach(() => {
     updatedAt: AT,
   });
   writeIssue("c", {
-    kind: "branch",
+    kind: "story",
     title: "C",
     partOf: "e1",
     stackedOn: "b",
@@ -71,7 +71,7 @@ beforeEach(() => {
   });
   // e2 has a root branch to restack onto / collide orders with
   writeIssue("x", {
-    kind: "branch",
+    kind: "story",
     title: "X",
     partOf: "e2",
     order: 0,
@@ -86,27 +86,27 @@ afterEach(() => {
 });
 
 async function load() {
-  return import("./move-branch.js");
+  return import("./move-story.js");
 }
 
 async function loadList() {
   return import("./issues.js");
 }
 
-describe("moveBranch", () => {
+describe("moveStory", () => {
   it("restacks a whole stack onto a branch in the same epic", async () => {
     writeIssue("peer", {
-      kind: "branch",
+      kind: "story",
       title: "Peer",
       partOf: "e1",
       order: 1,
       createdAt: AT,
       updatedAt: AT,
     });
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
     const { list } = await loadList();
 
-    const result = await moveBranch("b", "peer");
+    const result = await moveStory("b", "peer");
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").stackedOn).toBe("peer");
@@ -118,10 +118,10 @@ describe("moveBranch", () => {
   });
 
   it("moves a whole stack across epics when restacking onto a foreign branch", async () => {
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
     const { list } = await loadList();
 
-    const result = await moveBranch("b", "x");
+    const result = await moveStory("b", "x");
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").partOf).toBe("e2");
@@ -134,10 +134,10 @@ describe("moveBranch", () => {
   });
 
   it("reparents a whole stack onto another epic as a new root stack", async () => {
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
     const { list } = await loadList();
 
-    const result = await moveBranch("b", "e2");
+    const result = await moveStory("b", "e2");
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").partOf).toBe("e2");
@@ -150,10 +150,10 @@ describe("moveBranch", () => {
   });
 
   it("unstacks onto its own epic (clears stackedOn, keeps descendants)", async () => {
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
     const { list } = await loadList();
 
-    const result = await moveBranch("b", "e1");
+    const result = await moveStory("b", "e1");
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").partOf).toBe("e1");
@@ -166,26 +166,26 @@ describe("moveBranch", () => {
   });
 
   it("rejects restacking onto self", async () => {
-    const { moveBranch } = await load();
-    await expect(moveBranch("b", "b")).rejects.toThrow(/cycle/i);
+    const { moveStory } = await load();
+    await expect(moveStory("b", "b")).rejects.toThrow(/cycle/i);
   });
 
   it("rejects restacking onto a stackedOn descendant", async () => {
-    const { moveBranch } = await load();
-    await expect(moveBranch("a", "c")).rejects.toThrow(/cycle/i);
+    const { moveStory } = await load();
+    await expect(moveStory("a", "c")).rejects.toThrow(/cycle/i);
     // Nothing written
     expect(readJson("a").stackedOn).toBeUndefined();
     expect(readJson("b").stackedOn).toBe("a");
   });
 
   it("rejects a non-branch source", async () => {
-    const { moveBranch } = await load();
-    await expect(moveBranch("e1", "e2")).rejects.toThrow(/must be a branch/);
+    const { moveStory } = await load();
+    await expect(moveStory("e1", "e2")).rejects.toThrow(/must be a story/);
   });
 
   it("rejects a commit or project target", async () => {
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       status: "todo",
@@ -193,28 +193,28 @@ describe("moveBranch", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    const { moveBranch } = await load();
-    await expect(moveBranch("b", "c1")).rejects.toThrow(/branch or epic/);
-    await expect(moveBranch("b", "p")).rejects.toThrow(/branch or epic/);
+    const { moveStory } = await load();
+    await expect(moveStory("b", "c1")).rejects.toThrow(/story or epic/);
+    await expect(moveStory("b", "p")).rejects.toThrow(/story or epic/);
   });
 
   it("rejects an unknown source or target", async () => {
-    const { moveBranch } = await load();
-    await expect(moveBranch("ghost", "e1")).rejects.toThrow(/unknown issue/);
-    await expect(moveBranch("b", "ghost")).rejects.toThrow(/unknown issue/);
+    const { moveStory } = await load();
+    await expect(moveStory("ghost", "e1")).rejects.toThrow(/unknown issue/);
+    await expect(moveStory("b", "ghost")).rejects.toThrow(/unknown issue/);
   });
 
   it("is a no-op when already unstacked under the target epic", async () => {
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
     const before = readJson("a");
-    const result = await moveBranch("a", "e1");
+    const result = await moveStory("a", "e1");
     expect(result.moved).toEqual(["a", "b", "c"]);
     expect(readJson("a")).toEqual(before);
   });
 
   it("leaves commits under their branches when reparenting a stack", async () => {
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "b",
       status: "todo",
@@ -223,7 +223,7 @@ describe("moveBranch", () => {
       updatedAt: AT,
     });
     writeIssue("c2", {
-      kind: "commit",
+      kind: "task",
       title: "C2",
       partOf: "c",
       status: "todo",
@@ -231,9 +231,9 @@ describe("moveBranch", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    const { moveBranch } = await load();
+    const { moveStory } = await load();
 
-    await moveBranch("b", "e2");
+    await moveStory("b", "e2");
 
     expect(readJson("c1").partOf).toBe("b");
     expect(readJson("c2").partOf).toBe("c");

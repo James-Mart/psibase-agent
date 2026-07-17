@@ -31,11 +31,11 @@ const epic = (
 const branch = (
   id: string,
   partOf: string,
-  extra: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  extra: Partial<Extract<Issue, { kind: "story" }>> = {},
   order = 0,
 ): Issue => ({
   id,
-  kind: "branch",
+  kind: "story",
   title: id,
   partOf,
   order,
@@ -50,11 +50,11 @@ const branch = (
 const commit = (
   id: string,
   partOf: string,
-  extra: Partial<Extract<Issue, { kind: "commit" }>> = {},
+  extra: Partial<Extract<Issue, { kind: "task" }>> = {},
   order = 0,
 ): Issue => ({
   id,
-  kind: "commit",
+  kind: "task",
   title: id,
   partOf,
   order,
@@ -159,7 +159,7 @@ describe("derive - branch base resolution", () => {
 describe("derive - branch status", () => {
   it("is merged when merged", () => {
     const issues = [epic("e"), branch("b", "e", { merged: true, branchName: "x" })];
-    expect(derive(issues).byId.b.branchStatus).toBe("merged");
+    expect(derive(issues).byId.b.storyStatus).toBe("merged");
   });
 
   it("is pr-open when all child commits are done and a prUrl is set", () => {
@@ -169,7 +169,7 @@ describe("derive - branch status", () => {
       commit("c1", "b", { status: "done", commitSha: "a" }),
       commit("c2", "b", { status: "done", commitSha: "b" }),
     ];
-    expect(derive(issues).byId.b.branchStatus).toBe("pr-open");
+    expect(derive(issues).byId.b.storyStatus).toBe("pr-open");
   });
 
   it("is in-progress when a branchName exists but not all commits are done", () => {
@@ -179,12 +179,12 @@ describe("derive - branch status", () => {
       commit("c1", "b", { status: "done", commitSha: "a" }),
       commit("c2", "b"),
     ];
-    expect(derive(issues).byId.b.branchStatus).toBe("in-progress");
+    expect(derive(issues).byId.b.storyStatus).toBe("in-progress");
   });
 
   it("is not-started when there is no branchName", () => {
     const issues = [epic("e"), branch("b", "e")];
-    expect(derive(issues).byId.b.branchStatus).toBe("not-started");
+    expect(derive(issues).byId.b.storyStatus).toBe("not-started");
   });
 
   it("is not pr-open when the branch has a prUrl but zero commits", () => {
@@ -192,7 +192,7 @@ describe("derive - branch status", () => {
       epic("e"),
       branch("b", "e", { branchName: "feat/b", prUrl: "http://pr/1" }),
     ];
-    expect(derive(issues).byId.b.branchStatus).toBe("in-progress");
+    expect(derive(issues).byId.b.storyStatus).toBe("in-progress");
   });
 });
 
@@ -303,6 +303,6 @@ describe("derive - problems", () => {
     ];
     const problems = derive(issues).problems;
     expect(problems.filter((p) => /cycle/i.test(p.message)).map((p) => p.id).sort()).toEqual(["a", "b"]);
-    expect(problems.some((p) => p.id === "c" && /must be a branch/.test(p.message))).toBe(true);
+    expect(problems.some((p) => p.id === "c" && /must be a story/.test(p.message))).toBe(true);
   });
 });

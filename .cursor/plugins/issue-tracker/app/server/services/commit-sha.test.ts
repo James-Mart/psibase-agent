@@ -22,7 +22,7 @@ beforeEach(() => {
   writeIssue("p", { kind: "project", title: "P", order: 0, createdAt: AT, updatedAt: AT });
   writeIssue("e", { kind: "epic", title: "E", partOf: "p", order: 0, createdAt: AT, updatedAt: AT });
   writeIssue("b", {
-    kind: "branch",
+    kind: "story",
     title: "B",
     partOf: "e",
     merged: false,
@@ -31,7 +31,7 @@ beforeEach(() => {
     updatedAt: AT,
   });
   writeIssue("c", {
-    kind: "commit",
+    kind: "task",
     title: "C",
     partOf: "b",
     status: "todo",
@@ -55,8 +55,8 @@ describe("commit sha", () => {
     const { update, read } = await loadService();
     await update("c", { commitSha: SHA1 });
     const detail = read("c");
-    expect(detail.kind).toBe("commit");
-    if (detail.kind === "commit") {
+    expect(detail.kind).toBe("task");
+    if (detail.kind === "task") {
       expect(detail.commitSha).toBe(SHA1);
     }
   });
@@ -65,7 +65,7 @@ describe("commit sha", () => {
     const { update, read } = await loadService();
     await update("c", { commitSha: SHA256 });
     const detail = read("c");
-    if (detail.kind === "commit") {
+    if (detail.kind === "task") {
       expect(detail.commitSha).toBe(SHA256);
     }
   });
@@ -75,7 +75,7 @@ describe("commit sha", () => {
     await update("c", { commitSha: SHA1 });
     await update("c", { commitSha: null });
     const detail = read("c");
-    if (detail.kind === "commit") {
+    if (detail.kind === "task") {
       expect(detail.commitSha).toBeUndefined();
     }
     const raw = JSON.parse(readFileSync(join(dir, "c", "issue.json"), "utf8"));

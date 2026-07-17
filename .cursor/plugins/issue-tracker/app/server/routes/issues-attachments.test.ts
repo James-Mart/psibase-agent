@@ -36,7 +36,7 @@ beforeEach(async () => {
     updatedAt: AT,
   });
   writeIssue("c", {
-    kind: "commit",
+    kind: "task",
     title: "C",
     partOf: "e",
     order: 0,

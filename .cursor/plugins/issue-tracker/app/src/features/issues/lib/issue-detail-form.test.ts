@@ -4,7 +4,7 @@ import { blockedByFormValue, projectMetaValue } from "./issue-detail-form";
 
 const branch: IssueDetail = {
   id: "auth-endpoints",
-  kind: "branch",
+  kind: "story",
   title: "Auth endpoints",
   partOf: "add-auth",
   branchName: "feat/auth",
@@ -12,6 +12,7 @@ const branch: IssueDetail = {
   assignee: undefined,
   needsAttention: false,
   attentionReason: null,
+    archived: false,
   order: 0,
   createdAt: "2026-07-09T14:35:00.000Z",
   updatedAt: "2026-07-09T15:00:00.000Z",
@@ -30,6 +31,7 @@ const epic: IssueDetail = {
   assignee: undefined,
   needsAttention: false,
   attentionReason: null,
+    archived: false,
   order: 0,
   createdAt: "2026-07-09T14:00:00.000Z",
   updatedAt: "2026-07-09T14:00:00.000Z",

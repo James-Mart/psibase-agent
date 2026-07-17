@@ -11,17 +11,17 @@ export { CHIP_UNSET, EPIC_BASE };
 
 const BACKFILL_FLAG = ".merge-base-backfilled";
 
-type Branch = Extract<Issue, { kind: "branch" }>;
+type Story = Extract<Issue, { kind: "story" }>;
 
-function branchById(issues: Issue[]): Map<string, Branch> {
-  const map = new Map<string, Branch>();
+function storyById(issues: Issue[]): Map<string, Story> {
+  const map = new Map<string, Story>();
   for (const issue of issues) {
-    if (issue.kind === "branch") map.set(issue.id, issue);
+    if (issue.kind === "story") map.set(issue.id, issue);
   }
   return map;
 }
 
-// Initial `mergeBase` for create / apply of a new Branch.
+// Initial `mergeBase` for create / apply of a new Story.
 // Root → `main`. Stacked child → parent's `branchName` when set; otherwise
 // leave unset until the parent's first `set-branch-name` cascade.
 export function initialMergeBase(
@@ -29,15 +29,15 @@ export function initialMergeBase(
   issues: Issue[],
 ): string | undefined {
   if (!stackedOn) return EPIC_BASE;
-  const parent = branchById(issues).get(stackedOn);
+  const parent = storyById(issues).get(stackedOn);
   return parent?.branchName;
 }
 
 /** Branches whose `stackedOn` is `parentId` (direct children only). */
-export function stackedChildren(parentId: string, issues: Issue[]): Branch[] {
+export function stackedChildren(parentId: string, issues: Issue[]): Story[] {
   return issues.filter(
-    (issue): issue is Branch =>
-      issue.kind === "branch" && issue.stackedOn === parentId,
+    (issue): issue is Story =>
+      issue.kind === "story" && issue.stackedOn === parentId,
   );
 }
 
@@ -76,14 +76,14 @@ export type MergeBaseCascadePatch = { id: string; mergeBase: string };
 
 /**
  * Refuse a real `branchName` change (not a same-value no-op) while any child is
- * stacked on this Branch. Returns an error message, or null when allowed.
+ * stacked on this Story. Returns an error message, or null when allowed.
  */
 export function branchNameRenameError(
   existing: Issue,
   jsonPatch: IssuePatch,
   issues: Issue[],
 ): string | null {
-  if (existing.kind !== "branch" || !existing.branchName) return null;
+  if (existing.kind !== "story" || !existing.branchName) return null;
   if (!("branchName" in jsonPatch) || jsonPatch.branchName === undefined) {
     return null;
   }
@@ -104,7 +104,7 @@ export function planMergeBaseCascades(
   next: Issue,
   issues: Issue[],
 ): MergeBaseCascadePatch[] {
-  if (existing.kind !== "branch" || next.kind !== "branch") return [];
+  if (existing.kind !== "story" || next.kind !== "story") return [];
 
   const patches: MergeBaseCascadePatch[] = [];
   const firstTimeName =
@@ -148,10 +148,10 @@ export interface MergeBaseBackfillResult {
   skipped: boolean;
 }
 
-// Scan on-disk issues for backfill: every parseable issue, plus Branch ids whose
+// Scan on-disk issues for backfill: every parseable issue, plus Story ids whose
 // raw issue.json lacks a `mergeBase` key (intentional post-migration absences
 // keep the key absent after the marker exists).
-export function readBranchesMissingMergeBaseKey(): {
+export function readStoriesMissingMergeBaseKey(): {
   issues: Issue[];
   rawMissingMergeBase: string[];
 } {
@@ -160,7 +160,7 @@ export function readBranchesMissingMergeBaseKey(): {
   for (const { id, raw, issue } of forEachOnDiskIssue()) {
     issues.push(issue);
     if (
-      issue.kind === "branch" &&
+      issue.kind === "story" &&
       (!raw || typeof raw !== "object" || !("mergeBase" in raw))
     ) {
       rawMissingMergeBase.push(id);
@@ -169,23 +169,23 @@ export function readBranchesMissingMergeBaseKey(): {
   return { issues, rawMissingMergeBase };
 }
 
-// One-time: for every on-disk Branch whose issue.json lacks `mergeBase`, set
+// One-time: for every on-disk Story whose issue.json lacks `mergeBase`, set
 // `initialMergeBase(...) ?? main` and persist. Subsequent calls are no-ops
 // once the marker file exists (so create's intentional unset survives).
 export function ensureMergeBaseBackfilled(
-  persistBranch: (issue: Branch) => void,
+  persistStory: (issue: Story) => void,
 ): MergeBaseBackfillResult {
   if (mergeBaseBackfillDone()) return { updated: [], skipped: true };
 
-  const { issues, rawMissingMergeBase } = readBranchesMissingMergeBaseKey();
+  const { issues, rawMissingMergeBase } = readStoriesMissingMergeBaseKey();
   const missing = new Set(rawMissingMergeBase);
   const updated: string[] = [];
 
   for (const issue of issues) {
-    if (issue.kind !== "branch" || !missing.has(issue.id)) continue;
+    if (issue.kind !== "story" || !missing.has(issue.id)) continue;
     const mergeBase = initialMergeBase(issue.stackedOn, issues) ?? EPIC_BASE;
-    const next: Branch = { ...issue, mergeBase };
-    persistBranch(next);
+    const next: Story = { ...issue, mergeBase };
+    persistStory(next);
     updated.push(issue.id);
   }
 

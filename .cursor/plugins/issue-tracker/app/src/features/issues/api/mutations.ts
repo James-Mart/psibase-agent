@@ -120,19 +120,19 @@ export function useDeleteAttachment(id: string) {
   });
 }
 
-export interface MoveBranchResult {
+export interface MoveStoryResult {
   moved: string[];
 }
 
-export function useMoveBranch() {
+export function useMoveStory() {
   const qc = useQueryClient();
   return useMutation<
-    MoveBranchResult,
+    MoveStoryResult,
     Error,
     { id: string; target: string }
   >({
     mutationFn: ({ id, target }) =>
-      request<MoveBranchResult>(`/api/issues/${id}/move-branch`, {
+      request<MoveStoryResult>(`/api/issues/${id}/move-story`, {
         method: "POST",
         body: { target },
       }),

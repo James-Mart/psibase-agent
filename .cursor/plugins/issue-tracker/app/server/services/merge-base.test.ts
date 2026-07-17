@@ -17,11 +17,11 @@ const AT = "2026-07-09T14:00:00.000Z";
 
 function branch(
   id: string,
-  extra: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  extra: Partial<Extract<Issue, { kind: "story" }>> = {},
 ): Issue {
   return {
     id,
-    kind: "branch",
+    kind: "story",
     title: id,
     partOf: "e",
     order: 0,
@@ -184,7 +184,7 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
 
   it("backfills missing mergeBase once: root→main, child→parent name or main", async () => {
     writeIssue("root", {
-      kind: "branch",
+      kind: "story",
       title: "Root",
       partOf: "e",
       branchName: "feat/root",
@@ -193,7 +193,7 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
       updatedAt: AT,
     });
     writeIssue("child-named", {
-      kind: "branch",
+      kind: "story",
       title: "Child named parent",
       partOf: "e",
       stackedOn: "root",
@@ -202,7 +202,7 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
       updatedAt: AT,
     });
     writeIssue("orphan-parent", {
-      kind: "branch",
+      kind: "story",
       title: "Unnamed root",
       partOf: "e",
       order: 1,
@@ -210,7 +210,7 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
       updatedAt: AT,
     });
     writeIssue("child-unnamed", {
-      kind: "branch",
+      kind: "story",
       title: "Child unnamed parent",
       partOf: "e",
       stackedOn: "orphan-parent",
@@ -230,7 +230,7 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
 
     // Second list does not clobber an intentional post-migration clear.
     writeIssue("fresh-child", {
-      kind: "branch",
+      kind: "story",
       title: "Fresh",
       partOf: "e",
       stackedOn: "orphan-parent",

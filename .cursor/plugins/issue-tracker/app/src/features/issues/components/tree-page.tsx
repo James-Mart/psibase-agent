@@ -27,7 +27,7 @@ function filterWithAncestors(
       keep.add(current.id);
       // Retain the containment parent and, for a branch, the branch it forks
       // from, so a matched nested branch keeps its stack ancestors and nests.
-      if (current.kind === "branch" && current.stackedOn) {
+      if (current.kind === "story" && current.stackedOn) {
         const base = byId.get(current.stackedOn);
         if (base) retain(base);
       }

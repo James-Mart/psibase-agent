@@ -133,7 +133,7 @@ export function IssueDetailPage() {
             <>
               <IssueMetaPanel issue={issue} />
               {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
-              {issue.kind === "branch" || issue.kind === "commit" ? (
+              {issue.kind === "story" || issue.kind === "task" ? (
                 <GitStackPanel issue={issue} />
               ) : null}
               {supportsAttachments(issue.kind) ? (

@@ -40,7 +40,7 @@ beforeEach(() => {
     updatedAt: AT,
   });
   writeIssue("b", {
-    kind: "branch",
+    kind: "story",
     title: "B",
     partOf: "e",
     order: 0,
@@ -48,7 +48,7 @@ beforeEach(() => {
     updatedAt: AT,
   });
   writeIssue("c", {
-    kind: "commit",
+    kind: "task",
     title: "C",
     partOf: "b",
     order: 0,
@@ -207,11 +207,11 @@ describe("apply leaves attachment bytes untouched", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: [
+                tasks: [
                   {
                     id: "c",
                     title: "C",

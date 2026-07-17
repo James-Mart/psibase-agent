@@ -22,10 +22,10 @@ function groupKeyFor(
       return "project";
     case "epic":
       return `epic:${partOf}`;
-    case "commit":
-      return `commit:${partOf}`;
-    case "branch":
-      return `branch:${partOf}:${stackedOn ?? ""}`;
+    case "task":
+      return `task:${partOf}`;
+    case "story":
+      return `story:${partOf}:${stackedOn ?? ""}`;
   }
 }
 
@@ -33,7 +33,7 @@ export function siblingGroupKey(issue: Issue): string {
   return groupKeyFor(
     issue.kind,
     "partOf" in issue ? issue.partOf : undefined,
-    issue.kind === "branch" ? issue.stackedOn : undefined,
+    issue.kind === "story" ? issue.stackedOn : undefined,
   );
 }
 
@@ -58,19 +58,19 @@ export function nextSiblingOrder(
   return max + 1;
 }
 
-type BranchLike = Extract<Issue, { kind: "branch" }>;
+type StoryLike = Extract<Issue, { kind: "story" }>;
 
-// A Branch's only inter-Branch edge is its single `stackedOn` fork point;
-// `blockedBy` is Epic-level now and never a Branch dependency. Consumed by the
+// A Story's only inter-Story edge is its single `stackedOn` fork point;
+// `blockedBy` is Epic-level now and never a Story dependency. Consumed by the
 // integrity cycle check.
-export function branchDependencyIds(branch: BranchLike): string[] {
-  return branch.stackedOn ? [branch.stackedOn] : [];
+export function storyDependencyIds(story: StoryLike): string[] {
+  return story.stackedOn ? [story.stackedOn] : [];
 }
 
 type EpicLike = Extract<Issue, { kind: "epic" }>;
 
 // An Epic's dependency edges are exactly its `blockedBy` ids (each an Epic in
-// the same Project). Peer to `branchDependencyIds` so the integrity cycle check
+// the same Project). Peer to `storyDependencyIds` so the integrity cycle check
 // builds both graph kinds through one named extractor apiece, and stays a thin
 // assembler over them.
 export function epicDependencyIds(epic: EpicLike): string[] {
@@ -100,17 +100,17 @@ export function epicsBlockedBy<T extends Issue>(
 // nests here; `blockedBy` is a cross-Epic dependency, not a fork point, so it
 // does not affect this order. Generic over the branch shape so the CLI (with
 // its `IssueRecord` branches) and a future SDK script can share one traversal.
-export function stackedBranchOrder<T extends BranchLike>(branches: T[]): T[] {
-  const inSet = new Set(branches.map((b) => b.id));
+export function stackedStoryOrder<T extends StoryLike>(stories: T[]): T[] {
+  const inSet = new Set(stories.map((s) => s.id));
   const roots: T[] = [];
   const childrenOf = new Map<string, T[]>();
-  for (const branch of branches) {
-    if (branch.stackedOn && inSet.has(branch.stackedOn)) {
-      const bucket = childrenOf.get(branch.stackedOn) ?? [];
-      bucket.push(branch);
-      childrenOf.set(branch.stackedOn, bucket);
+  for (const story of stories) {
+    if (story.stackedOn && inSet.has(story.stackedOn)) {
+      const bucket = childrenOf.get(story.stackedOn) ?? [];
+      bucket.push(story);
+      childrenOf.set(story.stackedOn, bucket);
     } else {
-      roots.push(branch);
+      roots.push(story);
     }
   }
   roots.sort(bySequence);
@@ -118,44 +118,44 @@ export function stackedBranchOrder<T extends BranchLike>(branches: T[]): T[] {
 
   const ordered: T[] = [];
   const seen = new Set<string>();
-  const visit = (branch: T): void => {
-    if (seen.has(branch.id)) return; // defensive: a stackedOn cycle is a problem
-    seen.add(branch.id);
-    ordered.push(branch);
-    for (const child of childrenOf.get(branch.id) ?? []) visit(child);
+  const visit = (story: T): void => {
+    if (seen.has(story.id)) return; // defensive: a stackedOn cycle is a problem
+    seen.add(story.id);
+    ordered.push(story);
+    for (const child of childrenOf.get(story.id) ?? []) visit(child);
   };
   for (const root of roots) visit(root);
   return ordered;
 }
 
-// The Branch at `rootId` plus every Branch that transitively `stackedOn`-
-// descends from it, ordered by `stackedBranchOrder` (DFS + sibling `order`).
+// The Story at `rootId` plus every Story that transitively `stackedOn`-
+// descends from it, ordered by `stackedStoryOrder` (DFS + sibling `order`).
 // Collection walks the reverse stackedOn edges; ordering stays one definition.
-export function stackedOnSubtree<T extends BranchLike>(
-  branches: T[],
+export function stackedOnSubtree<T extends StoryLike>(
+  stories: T[],
   rootId: string,
 ): T[] {
-  const byId = new Map(branches.map((b) => [b.id, b]));
+  const byId = new Map(stories.map((s) => [s.id, s]));
   if (!byId.has(rootId)) return [];
 
   const childrenOf = new Map<string, T[]>();
-  for (const branch of branches) {
-    if (!branch.stackedOn) continue;
-    const bucket = childrenOf.get(branch.stackedOn) ?? [];
-    bucket.push(branch);
-    childrenOf.set(branch.stackedOn, bucket);
+  for (const story of stories) {
+    if (!story.stackedOn) continue;
+    const bucket = childrenOf.get(story.stackedOn) ?? [];
+    bucket.push(story);
+    childrenOf.set(story.stackedOn, bucket);
   }
 
   const members: T[] = [];
   const seen = new Set<string>();
   const collect = (id: string): void => {
     if (seen.has(id)) return;
-    const branch = byId.get(id);
-    if (!branch) return;
+    const story = byId.get(id);
+    if (!story) return;
     seen.add(id);
-    members.push(branch);
+    members.push(story);
     for (const child of childrenOf.get(id) ?? []) collect(child.id);
   };
   collect(rootId);
-  return stackedBranchOrder(members);
+  return stackedStoryOrder(members);
 }

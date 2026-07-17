@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { mergeIssue } from "./merge";
 import type { Issue } from "../schemas";
 
-type CommitIssue = Extract<Issue, { kind: "commit" }>;
+type CommitIssue = Extract<Issue, { kind: "task" }>;
 const asCommit = (issue: Issue): CommitIssue => issue as CommitIssue;
 
 const commit: Issue = {
   id: "login-route",
-  kind: "commit",
+  kind: "task",
   title: "Add login route",
   partOf: "auth-endpoints",
   order: 0,
@@ -21,9 +21,9 @@ const commit: Issue = {
 describe("mergeIssue", () => {
   it("changes only the named field and preserves the rest", () => {
     const merged = mergeIssue(commit, { status: "done" });
-    expect(merged.kind === "commit" && merged.status).toBe("done");
+    expect(merged.kind === "task" && merged.status).toBe("done");
     expect(merged.title).toBe(commit.title);
-    expect(merged.kind === "commit" && merged.partOf).toBe(commit.partOf);
+    expect(merged.kind === "task" && merged.partOf).toBe(commit.partOf);
     expect(merged.createdAt).toBe(commit.createdAt);
   });
 
@@ -35,7 +35,7 @@ describe("mergeIssue", () => {
 
   it("ignores undefined patch fields (no blind overwrite)", () => {
     const merged = mergeIssue(commit, { status: undefined });
-    expect(merged.kind === "commit" && merged.status).toBe("todo");
+    expect(merged.kind === "task" && merged.status).toBe("todo");
   });
 
   it("applies null attentionReason explicitly", () => {
@@ -77,7 +77,7 @@ describe("mergeIssue", () => {
     expect(assigned.assignee).toBe("codex");
     const cleared = mergeIssue(assigned, { assignee: null, commitSha: null });
     expect("assignee" in cleared).toBe(false);
-    expect(cleared.kind === "commit" && "commitSha" in cleared).toBe(false);
+    expect(cleared.kind === "task" && "commitSha" in cleared).toBe(false);
   });
 
   it("keeps a null attentionReason as an explicit value, not a deletion", () => {

@@ -1,5 +1,5 @@
 import {
-  COMMIT_STATUSES,
+  TASK_STATUSES,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type IssueKind,
@@ -35,7 +35,7 @@ export const EPIC_SET_FIELDS = {
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
-export const BRANCH_SET_FIELDS = {
+export const STORY_SET_FIELDS = {
   title: { type: "string" },
   assignee: { type: "string" },
   needsAttention: { type: "needsAttention" },
@@ -49,13 +49,13 @@ export const BRANCH_SET_FIELDS = {
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
-export const COMMIT_SET_FIELDS = {
+export const TASK_SET_FIELDS = {
   title: { type: "string" },
   assignee: { type: "string" },
   needsAttention: { type: "needsAttention" },
   archived: { type: "boolean" },
   partOf: { type: "string" },
-  status: { type: "enum", values: COMMIT_STATUSES },
+  status: { type: "enum", values: TASK_STATUSES },
   commitSha: { type: "commitSha" },
   noDiff: { type: "boolean" },
   description: { type: "description" },
@@ -64,8 +64,8 @@ export const COMMIT_SET_FIELDS = {
 export const KIND_SET_FIELDS = {
   project: PROJECT_SET_FIELDS,
   epic: EPIC_SET_FIELDS,
-  branch: BRANCH_SET_FIELDS,
-  commit: COMMIT_SET_FIELDS,
+  story: STORY_SET_FIELDS,
+  task: TASK_SET_FIELDS,
 } as const satisfies Record<IssueKind, Record<string, SetFieldSpec>>;
 
 export type GetFieldSource = "stored" | "description" | "derived";
@@ -108,7 +108,7 @@ export const EPIC_GET_FIELDS = {
   blocked: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
 
-export const BRANCH_GET_FIELDS = {
+export const STORY_GET_FIELDS = {
   id: STORED,
   kind: STORED,
   title: STORED,
@@ -127,12 +127,12 @@ export const BRANCH_GET_FIELDS = {
   createdAt: STORED,
   updatedAt: STORED,
   description: DESCRIPTION,
-  branchStatus: DERIVED,
+  storyStatus: DERIVED,
   blocked: DERIVED,
   base: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
 
-export const COMMIT_GET_FIELDS = {
+export const TASK_GET_FIELDS = {
   id: STORED,
   kind: STORED,
   title: STORED,
@@ -154,8 +154,8 @@ export const COMMIT_GET_FIELDS = {
 export const KIND_GET_FIELDS = {
   project: PROJECT_GET_FIELDS,
   epic: EPIC_GET_FIELDS,
-  branch: BRANCH_GET_FIELDS,
-  commit: COMMIT_GET_FIELDS,
+  story: STORY_GET_FIELDS,
+  task: TASK_GET_FIELDS,
 } as const satisfies Record<IssueKind, Record<string, GetFieldSpec>>;
 
 const clearableSet = new Set<string>(CLEARABLE_KEYS);

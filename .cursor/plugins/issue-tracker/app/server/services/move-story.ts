@@ -14,18 +14,18 @@ import { checkIntegrity } from "./integrity.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
 
-export interface MoveBranchResult {
-  /** Branch ids in the moved stack (dragged root first, then descendants). */
+export interface MoveStoryResult {
+  /** Story ids in the moved stack (dragged root first, then descendants). */
   moved: string[];
 }
 
-type Branch = Extract<Issue, { kind: "branch" }>;
+type Story = Extract<Issue, { kind: "story" }>;
 
-function asBranch(issue: Issue, label: string): Branch {
-  if (issue.kind !== "branch") {
+function asStory(issue: Issue, label: string): Story {
+  if (issue.kind !== "story") {
     throw new IssueError(
       "validation",
-      `${label} must be a branch, not a ${issue.kind}`,
+      `${label} must be a story, not a ${issue.kind}`,
     );
   }
   return issue;
@@ -40,46 +40,44 @@ function requireIssue(issues: Issue[], id: string): Issue {
 }
 
 /**
- * Atomically reparent and/or restack a Branch together with every transitive
+ * Atomically reparent and/or restack a Story together with every transitive
  * `stackedOn` descendant, validated once via `checkIntegrity` and written with
  * a single `commitIssueBatch`.
  *
- * - Target Branch → restack onto it (reparent the stack into the target's Epic
+ * - Target Story → restack onto it (reparent the stack into the target's Epic
  *   when that Epic differs).
  * - Target Epic → reparent the stack into that Epic; clears the root's
  *   `stackedOn` (unstack when the Epic is already the current one).
  */
-export function moveBranch(
+export function moveStory(
   id: string,
   targetId: string,
-): Promise<MoveBranchResult> {
+): Promise<MoveStoryResult> {
   return serialize(() => {
     const { issues } = readAll();
-    const source = asBranch(requireIssue(issues, id), "move-branch source");
+    const source = asStory(requireIssue(issues, id), "move-story source");
 
     const target = requireIssue(issues, targetId);
-    if (target.kind !== "branch" && target.kind !== "epic") {
+    if (target.kind !== "story" && target.kind !== "epic") {
       throw new IssueError(
         "validation",
-        `move-branch target must be a branch or epic, not a ${target.kind}`,
+        `move-story target must be a story or epic, not a ${target.kind}`,
       );
     }
 
-    const branches = issues.filter(
-      (i): i is Branch => i.kind === "branch",
-    );
-    const stack = stackedOnSubtree(branches, source.id);
-    const moved = stack.map((b) => b.id);
+    const stories = issues.filter((i): i is Story => i.kind === "story");
+    const stack = stackedOnSubtree(stories, source.id);
+    const moved = stack.map((s) => s.id);
     const stackSet = new Set(moved);
 
     let destEpic: string;
     let rootStackedOn: string | null | undefined;
 
-    if (target.kind === "branch") {
+    if (target.kind === "story") {
       if (stackSet.has(targetId)) {
         throw new IssueError(
           "validation",
-          `move-branch would create a stackedOn cycle (target "${targetId}" is in the moved stack)`,
+          `move-story would create a stackedOn cycle (target "${targetId}" is in the moved stack)`,
         );
       }
       destEpic = target.partOf;
@@ -94,47 +92,47 @@ export function moveBranch(
     const prospective = new Map(byId);
     const writes: IssueWrite[] = [];
 
-    // Root is first in `moved` (stackedOnSubtree / stackedBranchOrder), so
+    // Root is first in `moved` (stackedOnSubtree / stackedStoryOrder), so
     // order re-append sees the destination sibling group correctly.
-    for (const branchId of moved) {
-      const existing = asBranch(
-        byId.get(branchId)!,
-        `stack member "${branchId}"`,
+    for (const storyId of moved) {
+      const existing = asStory(
+        byId.get(storyId)!,
+        `stack member "${storyId}"`,
       );
       const patch: IssuePatch = { partOf: destEpic };
-      if (branchId === source.id) {
+      if (storyId === source.id) {
         patch.stackedOn = rootStackedOn;
       }
 
       const parsed = parseIssue(mergeIssue(existing, patch));
       if (!parsed.ok) throw new IssueError("validation", parsed.message);
-      const branch = asBranch(parsed.issue, `updated "${branchId}"`);
+      const story = asStory(parsed.issue, `updated "${storyId}"`);
 
       // Only the dragged root can land in a foreign sibling group; re-append
-      // its order there (same rule as a single-branch `update`). Descendants
+      // its order there (same rule as a single-story `update`). Descendants
       // keep relative order — their sibling buckets move as a unit.
       if (
-        branchId === source.id &&
-        siblingGroupKey(branch) !== siblingGroupKey(existing)
+        storyId === source.id &&
+        siblingGroupKey(story) !== siblingGroupKey(existing)
       ) {
-        branch.order = nextSiblingOrder(
+        story.order = nextSiblingOrder(
           [...prospective.values()],
-          "branch",
-          branch.partOf,
-          branch.stackedOn,
+          "story",
+          story.partOf,
+          story.stackedOn,
           source.id,
         );
       }
 
       const unchanged =
-        branch.partOf === existing.partOf &&
-        branch.stackedOn === existing.stackedOn &&
-        branch.order === existing.order;
+        story.partOf === existing.partOf &&
+        story.stackedOn === existing.stackedOn &&
+        story.order === existing.order;
       if (unchanged) continue;
 
-      branch.updatedAt = now;
-      prospective.set(branchId, branch);
-      writes.push({ issue: branch });
+      story.updatedAt = now;
+      prospective.set(storyId, story);
+      writes.push({ issue: story });
     }
 
     if (writes.length === 0) {
