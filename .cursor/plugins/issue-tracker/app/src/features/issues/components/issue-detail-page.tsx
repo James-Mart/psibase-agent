@@ -1,11 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { IssueDetail } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils/cn";
 import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
+import { useUploadAttachment } from "../api/mutations";
+import {
+  useIssueDetailFileUpload,
+  type UploadAttachmentMutation,
+} from "../hooks/use-issue-detail-file-upload";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
@@ -20,6 +34,9 @@ import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { supportsAttachments } from "../lib/attachments";
+
+const DETAIL_SHELL_CLASS =
+  "mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8";
 
 function CopyIssueIdButton({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
@@ -61,10 +78,143 @@ function CopyIssueIdButton({ id }: { id: string }) {
   );
 }
 
-export function IssueDetailPage() {
+function DetailShell({
+  className,
+  children,
+  ...rootProps
+}: {
+  className?: string;
+  children: ReactNode;
+} & HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn(DETAIL_SHELL_CLASS, className)} {...rootProps}>
+      {children}
+    </div>
+  );
+}
+
+function IssueDetailBody({
+  issue,
+  projectId,
+  editing,
+  setEditing,
+  upload,
+}: {
+  issue: IssueDetail;
+  projectId: string;
+  editing: boolean;
+  setEditing: (value: boolean) => void;
+  upload?: UploadAttachmentMutation;
+}) {
   const navigate = useNavigate();
-  const { projectId = "", id = "" } = useParams();
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
+  const attach = supportsAttachments(issue.kind);
+
+  return (
+    <>
+      <header className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            {KIND_LABEL[issue.kind]}
+          </span>
+          <h1 className="break-words text-2xl font-semibold">{issue.title}</h1>
+          <div className="mt-0.5 flex items-center gap-0.5">
+            <span className="font-mono text-xs text-muted-foreground">
+              {issue.id}
+            </span>
+            <CopyIssueIdButton id={issue.id} />
+          </div>
+          <IssueBadges issue={issue} className="mt-2" />
+        </div>
+        {!editing ? (
+          <div className="flex shrink-0 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
+            <ArchiveIssueButton issue={issue} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                requestDelete(issue.id);
+                navigate(projectPath(projectId));
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        ) : null}
+      </header>
+
+      {editing ? (
+        <IssueDetailEdit issue={issue} onDone={() => setEditing(false)} />
+      ) : (
+        <>
+          <IssueMetaPanel issue={issue} />
+          {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
+          {issue.kind === "story" || issue.kind === "task" ? (
+            <GitStackPanel issue={issue} />
+          ) : null}
+          {attach && upload ? (
+            <AttachmentsPanel issue={issue} upload={upload} />
+          ) : null}
+          <div className="rounded-lg border bg-card p-6">
+            {issue.description.trim() ? (
+              <Markdown issueId={attach ? issue.id : undefined}>
+                {issue.description}
+              </Markdown>
+            ) : (
+              <p className="text-sm text-muted-foreground">No description.</p>
+            )}
+          </div>
+          <ChatPanel
+            id={issue.id}
+            attachmentsIssueId={attach ? issue.id : undefined}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+/** Owns the shared upload mutation + page drop/paste target for attachable issues. */
+function IssueDetailAttachable({
+  issue,
+  projectId,
+  editing,
+  setEditing,
+  backLink,
+}: {
+  issue: IssueDetail;
+  projectId: string;
+  editing: boolean;
+  setEditing: (value: boolean) => void;
+  backLink: ReactNode;
+}) {
+  const upload = useUploadAttachment(issue.id);
+  const { rootProps } = useIssueDetailFileUpload(upload);
+
+  return (
+    <DetailShell {...rootProps}>
+      {backLink}
+      <IssueDetailBody
+        issue={issue}
+        projectId={projectId}
+        editing={editing}
+        setEditing={setEditing}
+        upload={upload}
+      />
+    </DetailShell>
+  );
+}
+
+export function IssueDetailPage() {
+  const { projectId = "", id = "" } = useParams();
   const [editing, setEditing] = useState(false);
 
   const { data: issue, isLoading, error } = useIssueDetailQuery(id);
@@ -85,15 +235,36 @@ export function IssueDetailPage() {
   const showScopeError = missing || wrongProject;
   const loading = isLoading || (Boolean(issue) && listLoading);
 
+  const backLink = (
+    <Link
+      to={projectPath(projectId)}
+      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back to tree
+    </Link>
+  );
+
+  if (
+    issue &&
+    !showScopeError &&
+    !loading &&
+    supportsAttachments(issue.kind)
+  ) {
+    return (
+      <IssueDetailAttachable
+        issue={issue}
+        projectId={projectId}
+        editing={editing}
+        setEditing={setEditing}
+        backLink={backLink}
+      />
+    );
+  }
+
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-      <Link
-        to={projectPath(projectId)}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to tree
-      </Link>
+    <DetailShell>
+      {backLink}
 
       {error && !missing ? (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
@@ -124,85 +295,13 @@ export function IssueDetailPage() {
       ) : null}
 
       {issue && !showScopeError ? (
-        <>
-          <header className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {KIND_LABEL[issue.kind]}
-              </span>
-              <h1 className="break-words text-2xl font-semibold">
-                {issue.title}
-              </h1>
-              <div className="mt-0.5 flex items-center gap-0.5">
-                <span className="font-mono text-xs text-muted-foreground">
-                  {issue.id}
-                </span>
-                <CopyIssueIdButton id={issue.id} />
-              </div>
-              <IssueBadges issue={issue} className="mt-2" />
-            </div>
-            {!editing ? (
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditing(true)}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                </Button>
-                <ArchiveIssueButton issue={issue} />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    requestDelete(issue.id);
-                    navigate(projectPath(projectId));
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ) : null}
-          </header>
-
-          {editing ? (
-            <IssueDetailEdit issue={issue} onDone={() => setEditing(false)} />
-          ) : (
-            <>
-              <IssueMetaPanel issue={issue} />
-              {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
-              {issue.kind === "story" || issue.kind === "task" ? (
-                <GitStackPanel issue={issue} />
-              ) : null}
-              {supportsAttachments(issue.kind) ? (
-                <AttachmentsPanel issue={issue} />
-              ) : null}
-              <div className="rounded-lg border bg-card p-6">
-                {issue.description.trim() ? (
-                  <Markdown
-                    issueId={
-                      supportsAttachments(issue.kind) ? issue.id : undefined
-                    }
-                  >
-                    {issue.description}
-                  </Markdown>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No description.
-                  </p>
-                )}
-              </div>
-              <ChatPanel
-                id={issue.id}
-                attachmentsIssueId={
-                  supportsAttachments(issue.kind) ? issue.id : undefined
-                }
-              />
-            </>
-          )}
-        </>
+        <IssueDetailBody
+          issue={issue}
+          projectId={projectId}
+          editing={editing}
+          setEditing={setEditing}
+        />
       ) : null}
-    </div>
+    </DetailShell>
   );
 }

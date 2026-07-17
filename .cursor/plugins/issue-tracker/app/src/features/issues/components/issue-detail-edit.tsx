@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
+import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
@@ -282,6 +283,7 @@ export function IssueDetailEdit({
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
           className="min-h-[280px] font-mono"
+          {...{ [DESCRIPTION_EDITOR_ATTR]: "" }}
         />
       </Field>
 
