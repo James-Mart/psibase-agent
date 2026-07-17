@@ -750,6 +750,8 @@ from the id (no path fields in `issue.json`), so metadata cannot point at a
 missing file. Markdown links into `attachments/` are a separate convention and
 may dangle — see [Attachments](#attachments).
 
+<a id="parent-prose-must-not-restate-descendant-lists"></a>
+
 **The complete design lives distributed across tiers.** The Epic replaces a
 giant plan/spec only when the whole design is captured in the tree: overview and
 cross-cutting invariants in the Epic, standalone unit prose in each Branch,
@@ -757,7 +759,13 @@ implementor-resolution detail in each Commit. Companion material belongs **with
 the issue that uses it** — inlined in `description.md` or attached beside it
 (link rules in [Attachments](#attachments)). Verbatim copy into the Epic with
 empty children is not sufficient — distribution and a completeness pass are
-what make the tracker a standalone basis for a future implementor.
+what make the tracker a standalone basis for a future implementor. A parent's
+`description.md` MUST NOT enumerate or restate the specific work its children
+individually cover. Parent prose carries scope, approach, cross-cutting
+invariants, and context; the *enumeration of units* is the child list itself
+(Project → its Epics, Epic → its Branches, Branch → its Commits) — not a
+mirrored per-child checklist in the parent. Children get pruned or reshaped
+during plan cleanup, so a parent that mirrors them drifts into orphan claims.
 
 **A validated service layer is the only writer.** The CLI (for agents) and the
 HTTP routes (for the UI) are thin adapters over `services/issues.ts` (and
