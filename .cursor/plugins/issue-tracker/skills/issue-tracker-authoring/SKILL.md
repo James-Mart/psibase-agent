@@ -98,9 +98,14 @@ Branch/Commit only; basename path-safety; 25 MiB cap):
   script.
 - **`summary <id>`** — Project → Epic → Branch → Commit bootstrap chain; each
   node that has attachments includes the same listing (omitted when empty).
-- **`tree`** — print an indented Project > Epic > Branch > Commit outline with
+- **`tree [id]`** — print an indented Project > Epic > Branch > Commit outline with
   derived status/stack chips (status, base, branch, PR, merged, sha, blocked).
-  `--project <id|title>` or `--epic <id>` scopes it. Branches print in **stacked
+  A trailing id scopes by kind: `project` → that Project subtree (same as
+  `--project <id>`), `epic` → that Epic subtree (same as `--epic <id>`),
+  `branch` → that Branch line plus its Commits only, `commit` → refused (pass
+  the parent Branch or Epic). Unknown ids error; do not combine `[id]` with
+  `--project` or `--epic`. `--project <id|title>` or `--epic <id>` still scope
+  when no positional is given. Branches print in **stacked
   depth-first order** (a Branch immediately followed by what forks from it) and
   Commits in sequence, so the output *is* the canonical implementation order.
 

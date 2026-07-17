@@ -159,6 +159,19 @@ function commitChips(commit: CommitRecord, derived: Record<string, DerivedState>
   return [...chips, ...attentionChip(commit)];
 }
 
+// Render one Branch line plus its Commits (no stacked child Branches).
+function renderBranch(branch: BranchRecord, indent: number, ctx: TreeContext): string[] {
+  const lines = [
+    nodeLine(indent, "branch", branch.id, branch.title, branchChips(branch, ctx.derived)),
+  ];
+  for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
+    lines.push(
+      nodeLine(indent + 1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)),
+    );
+  }
+  return lines;
+}
+
 // Render one Epic subtree starting at `indent`. Branches print in stacked
 // depth-first order (roots first, each followed by what forks from it); within
 // a Branch its Commits print first (in sequence) and its stacked children
@@ -169,12 +182,99 @@ function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string
   const inSet = new Set(branches.map((b) => b.id));
   for (const branch of branches) {
     const level = indent + 1 + branchDepth(branch, inSet, ctx.branchById);
-    lines.push(nodeLine(level, "branch", branch.id, branch.title, branchChips(branch, ctx.derived)));
-    for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
-      lines.push(nodeLine(level + 1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)));
+    lines.push(...renderBranch(branch, level, ctx));
+  }
+  return lines;
+}
+
+// Resolved `tree` scope: positional id and/or --project/--epic flags, after
+// conflict and kind checks. Branch scope carries the record so render does not
+// re-look it up.
+type TreeScope =
+  | { kind: "all" }
+  | { kind: "project"; projectRef: string }
+  | { kind: "epic"; epicId: string }
+  | { kind: "branch"; branch: BranchRecord };
+
+function resolveTreeScope(
+  id: string | undefined,
+  opts: { project?: string; epic?: string },
+  issues: IssueRecord[],
+): TreeScope {
+  if (id && (opts.project || opts.epic)) {
+    throw new Error("cannot combine tree [id] with --project or --epic");
+  }
+  if (id) {
+    const issue = issues.find((candidate) => candidate.id === id);
+    if (!issue) throw new Error(`unknown issue "${id}"`);
+    switch (issue.kind) {
+      case "project":
+        return { kind: "project", projectRef: issue.id };
+      case "epic":
+        return { kind: "epic", epicId: issue.id };
+      case "branch":
+        return { kind: "branch", branch: issue };
+      case "commit":
+        throw new Error(
+          `cannot scope tree to a commit; pass branch "${issue.partOf}" or its epic instead`,
+        );
+    }
+  }
+  if (opts.epic) return { kind: "epic", epicId: opts.epic };
+  if (opts.project) return { kind: "project", projectRef: opts.project };
+  return { kind: "all" };
+}
+
+function renderProjects(
+  issues: IssueRecord[],
+  ctx: TreeContext,
+  projectRef?: string,
+): string[] {
+  const epicsOf = new Map<string, IssueRecord[]>();
+  for (const issue of issues) {
+    if (issue.kind !== "epic") continue;
+    const bucket = epicsOf.get(issue.partOf) ?? [];
+    bucket.push(issue);
+    epicsOf.set(issue.partOf, bucket);
+  }
+
+  const projectId = projectRef ? resolveProjectId(issues, projectRef) : undefined;
+  const projects = issues
+    .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
+      issue.kind === "project" && (!projectId || issue.id === projectId),
+    )
+    .sort(bySequence);
+
+  const lines: string[] = [];
+  for (const project of projects) {
+    lines.push(nodeLine(0, "project", project.id, project.title, []));
+    for (const epic of (epicsOf.get(project.id) ?? []).sort(bySequence)) {
+      lines.push(...renderEpic(epic, 1, ctx));
     }
   }
   return lines;
+}
+
+function renderTreeScope(
+  scope: TreeScope,
+  issues: IssueRecord[],
+  ctx: TreeContext,
+): string[] {
+  switch (scope.kind) {
+    case "branch":
+      return renderBranch(scope.branch, 0, ctx);
+    case "epic": {
+      const epic = issues.find(
+        (issue) => issue.id === scope.epicId && issue.kind === "epic",
+      );
+      if (!epic) throw new Error(`unknown epic "${scope.epicId}"`);
+      return renderEpic(epic, 0, ctx);
+    }
+    case "project":
+      return renderProjects(issues, ctx, scope.projectRef);
+    case "all":
+      return renderProjects(issues, ctx);
+  }
 }
 
 // Render the subtree an `apply` doc is rooted at (Project, Epic, or Branch), so
@@ -182,12 +282,7 @@ function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string
 function renderApplyRoot(doc: ApplyDoc, issues: IssueRecord[], ctx: TreeContext): string[] {
   if (isBranchDoc(doc)) {
     const branch = ctx.branchById.get(doc.branch.id);
-    if (!branch) return [];
-    const lines = [nodeLine(0, "branch", branch.id, branch.title, branchChips(branch, ctx.derived))];
-    for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
-      lines.push(nodeLine(1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)));
-    }
-    return lines;
+    return branch ? renderBranch(branch, 0, ctx) : [];
   }
   if (isEpicDoc(doc)) {
     const epic = issues.find((i) => i.id === doc.epic.id && i.kind === "epic");
@@ -770,46 +865,17 @@ program
   .description(
     "print an indented Project > Epic > Branch > Commit outline with derived chips",
   )
+  .argument(
+    "[id]",
+    "scope by issue id (project/epic/branch subtree; commits are refused)",
+  )
   .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
   .option("--epic <id>", "scope the outline to a single epic subtree")
-  .action((opts) =>
+  .action((id, opts) =>
     run(() => {
       const { issues, derived } = list();
       const ctx = buildTreeContext(issues, derived);
-
-      if (opts.epic) {
-        const epic = issues.find(
-          (issue) => issue.id === opts.epic && issue.kind === "epic",
-        );
-        if (!epic) throw new Error(`unknown epic "${opts.epic}"`);
-        console.log(renderEpic(epic, 0, ctx).join("\n"));
-        return;
-      }
-
-      const epicsOf = new Map<string, IssueRecord[]>();
-      for (const issue of issues) {
-        if (issue.kind !== "epic") continue;
-        const bucket = epicsOf.get(issue.partOf) ?? [];
-        bucket.push(issue);
-        epicsOf.set(issue.partOf, bucket);
-      }
-
-      const projectId = opts.project
-        ? resolveProjectId(issues, opts.project)
-        : undefined;
-      const projects = issues
-        .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
-          issue.kind === "project" && (!projectId || issue.id === projectId),
-        )
-        .sort(bySequence);
-
-      const lines: string[] = [];
-      for (const project of projects) {
-        lines.push(nodeLine(0, "project", project.id, project.title, []));
-        for (const epic of (epicsOf.get(project.id) ?? []).sort(bySequence)) {
-          lines.push(...renderEpic(epic, 1, ctx));
-        }
-      }
+      const lines = renderTreeScope(resolveTreeScope(id, opts, issues), issues, ctx);
       if (lines.length === 0) {
         console.log("no projects");
         return;
