@@ -15,6 +15,19 @@ export type IssueDetailFileUploadRootProps = Pick<
   "className" | "onDragEnter" | "onDragLeave" | "onDragOver" | "onDrop"
 >;
 
+/** Covers the gap between sequential editor `mutateAsync` calls when `isPending` flickers false. */
+const editorUploadBatchBusy = { current: false };
+
+export function setEditorUploadBatchBusy(busy: boolean): void {
+  editorUploadBatchBusy.current = busy;
+}
+
+export function isAttachmentUploadBusy(
+  mutation: UploadAttachmentMutation,
+): boolean {
+  return mutation.isPending || editorUploadBatchBusy.current;
+}
+
 function shouldHandleFileDrag(
   target: EventTarget | null,
   dataTransfer: DataTransfer | null,
@@ -42,7 +55,9 @@ export function useIssueDetailFileUpload(
 
   const uploadFiles = useCallback((files: File[]) => {
     const mutation = uploadRef.current;
-    if (!mutation || files.length === 0 || mutation.isPending) return;
+    if (!mutation || files.length === 0 || isAttachmentUploadBusy(mutation)) {
+      return;
+    }
     for (const file of files) {
       mutation.mutate(ensureAttachmentFileName(file));
     }

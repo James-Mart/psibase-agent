@@ -152,7 +152,11 @@ function IssueDetailBody({
       </header>
 
       {editing ? (
-        <IssueDetailEdit issue={issue} onDone={() => setEditing(false)} />
+        <IssueDetailEdit
+          issue={issue}
+          onDone={() => setEditing(false)}
+          upload={upload}
+        />
       ) : (
         <>
           <IssueMetaPanel issue={issue} />
