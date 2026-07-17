@@ -59,8 +59,11 @@ only.
 ## Revise
 
 1. Read feedback with `issue show <id> --chat`.
-2. Address findings you agree with. You are the senior engineer, you may push 
-   back (with reasoning) on findings you think are wrong or not worth doing.
+2. The feedback was delivered by a weaker engineer. You are the senior engineer. 
+   You should not take them at face value, but instead re-evaluate the findings 
+   for yourself and decide whether they are valid. Address findings you agree 
+   with. You may push back (with reasoning) on findings you think are wrong or 
+   not worth doing.
 3. **Keep `noDiff` honest.** If your revision lands file changes, clear the flag
    (`issue set-no-diff <id> false`). If you now conclude the correct outcome is
    no file changes, set it (`issue set-no-diff <id> true`) and say why in your
