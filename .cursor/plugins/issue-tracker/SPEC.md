@@ -36,8 +36,9 @@ Every issue has a `kind`, one of four tiers:
   **meaningful** (vertical slices, not horizontal layers such as types-only,
   wire-up-later, or half-migrations that do not compile). The only kind with a
   **stored** `status` (`todo` / `in-progress` / `done`), an optional `commitSha`
-  (set when done with a real git commit), and an optional `noDiff` flag (set by
-  `issue set-no-diff` when the implementor deliberately lands no file changes).
+  (set when done with a real git commit), and an optional `noDiff` flag (set via
+  kind [`set`](#kind-scoped-get--set) when the implementor deliberately lands no
+  file changes).
 
 ### Relationships
 
@@ -81,17 +82,17 @@ re-derived from `stackedOn` at git time.
 - **Root** (no `stackedOn`): `mergeBase = main` at create / `apply`.
 - **Stacked child**: set to the parent's `branchName` when the parent is
   already named at child create / `apply`; otherwise left unset until the
-  parent's first `set-branch-name`, which fills empty child `mergeBase`s in
-  the same command.
-- **On `set-merged`**: every child with `stackedOn = parent` gets
+  parent's first `branchName` [`set`](#kind-scoped-get--set), which fills empty
+  child `mergeBase`s in the same command.
+- **On `merged` → `true`**: every child with `stackedOn = parent` gets
   `child.mergeBase = parent.mergeBase` (idempotent). That is how a stack
   retargets after the parent lands — typically onto `main`. Open GitHub PRs
   are retargeted by GitHub itself; the tracker does not run PR-base CLI — see
   [Project merge policy](#project-merge-policy).
 - **Rename guard**: once a Branch has a `branchName` and any child is
-  stacked on it, `set-branch-name` refuses a real rename (same-value no-op
-  still allowed). Empty-only cascade on first name is enough because children
-  cannot be left pointing at a stale parent name.
+  stacked on it, a real `branchName` rename is refused (same-value no-op still
+  allowed). Empty-only cascade on first name is enough because children cannot
+  be left pointing at a stale parent name.
 
 A stack still lands bottom-up: finish the parent first, then each child.
 Consequently **each Branch must be independently mergeable** into its
@@ -130,15 +131,94 @@ These are computed by `derive()` and never written to disk (see
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
 - **specReview** — a Branch-only machine-readable spec-review gate (`passed` /
-  `failed`; absent until set by `issue set-spec-review`). Surfaced in the detail
-  panel when set; omitted from the tree outline.
+  `failed`; absent until set via kind [`set`](#kind-scoped-get--set)). Surfaced
+  in the detail panel when set; omitted from the tree outline.
 - **noDiff** — a Commit-only signal that the implementor intentionally landed no
-  file changes (`true`; absent until set by `issue set-no-diff`). Surfaced in the
-  detail panel when set; omitted from the tree outline. An empty working tree
-  alone is **not** a completion signal — see [Finish commit](#finish-commit).
+  file changes (`true`; absent until set via kind [`set`](#kind-scoped-get--set)).
+  Surfaced in the detail panel when set; omitted from the tree outline. An empty
+  working tree alone is **not** a completion signal — see
+  [Finish commit](#finish-commit).
 - **problems** — integrity issues that are surfaced, never silently ignored:
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
+
+## Kind-scoped `get` / `set`
+
+Field read/write on the CLI is kind-scoped:
+
+- `issue <kind> get <id> <field>`
+- `issue <kind> set <id> <field> [value] [--clear] [--add <ids...>] [--remove <ids...>] [--file <path|->] [--reason <text>]`
+
+`<kind>` is one of `project` | `epic` | `branch` | `commit`. The verb kind must
+equal the issue's stored `kind` (hard error otherwise). Field names are
+camelCase, identical to schema / `issue.json` keys. There is no cross-kind
+`get`/`set`; shared fields are repeated on each kind that owns them.
+
+Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
+`show` / `summary` / `tree` for a single field. (`summary`'s `Workspace:` line
+remains the bootstrap contract for [Project workspace](#project-workspace)
+resolution.)
+
+Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
+`summary` / `show` / `list` / `tree` / `ready` / `projects`) are unchanged.
+
+### `get`
+
+- Prints the value alone on stdout (composable in `$(...)`).
+- Scalars raw; arrays/objects as JSON.
+- Unset optional → empty stdout, exit 0. Fields with a schema default print that
+  default: an Epic with no blockers prints `[]` (arrays as JSON), not empty
+  stdout.
+- Readable surface is **wider than set**: any stored field for that kind plus
+  derived fields (`epicStatus`, `branchStatus`, `ready`, `blocked`, `base`, …).
+- Includes `description` and `attentionReason` as readable fields.
+
+### `set`
+
+- Typed coercion + validation; same `update` + `checkIntegrity` write path as
+  `apply` / create.
+- Per-kind **set** allowlists (not a flat shared allowlist). Shared machinery is
+  only coerce/dispatch (bool/enum/JSON/array/`--clear`/`--file`/`--reason`).
+- `order` is not settable. `mergeBase` is not settable (create/`apply`/cascades).
+- `attentionReason` is not directly settable (see
+  [`needsAttention`](#needsattention)).
+- **CLI/UI parity:** `set` can do anything the UI edit form can, including
+  *clearing* fields via `--clear` (behaviors below).
+
+#### Set allowlists
+
+| kind | settable fields |
+| --- | --- |
+| project | `title`, `workspace`, `mergePolicy`, `description` |
+| epic | `title`, `assignee`, `needsAttention`, `partOf`, `blockedBy`, `description` |
+| branch | `title`, `assignee`, `needsAttention`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
+| commit | `title`, `assignee`, `needsAttention`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
+
+#### Value parsing
+
+- Enums: literal strings.
+- Booleans: only `true` / `false`.
+- Arrays (`blockedBy`): full replace takes a positional JSON array; incremental
+  edits use `--add <ids...>` / `--remove <ids...>` (variadic ids). Exactly one
+  mode per call — positional value, `--add`, `--remove`, and `--clear` are
+  mutually exclusive.
+- `--clear` (mutually exclusive with a positional value / `--add` / `--remove`):
+  - **Clearable scalars** (`assignee`, `commitSha`, `branchName`, `stackedOn`,
+    `prUrl`, `workspace`): blanks the field (absent / `null`).
+  - **`blockedBy`**: sets `[]` (empty array, not null).
+  - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
+    `needsAttention false`).
+- `description`: omit positional value when `--file <path|->` is passed.
+  `--file` is the generic "value from a file" flag. Create verbs keep their own
+  `--description-file` until create folds under `issue <kind>`, so both
+  spellings coexist temporarily.
+
+#### `needsAttention`
+
+- `issue <kind> set <id> needsAttention true --reason <text>` — `--reason` is
+  required.
+- `issue <kind> set <id> needsAttention false` — also clears `attentionReason`.
+- `issue <kind> set <id> needsAttention --clear` — equivalent to `false`.
 
 ## On-disk layout
 
@@ -210,9 +290,11 @@ short overview of the Project.
 ### Project workspace
 
 A Project's optional `workspace` is the absolute path to the local git checkout
-its Epics' work lands in. It is set with `issue set-workspace <projectId> <path>`
-(cleared with `--clear`) and surfaced on the Project node by both `issue show`
-(a `workspace:` line) and `issue summary` (a `Workspace:` line under the Project).
+its Epics' work lands in. It is set with
+`issue project set <projectId> workspace <path>` (cleared with `--clear`) and
+surfaced on the Project node by both `issue show` (a `workspace:` line) and
+`issue summary` (a `Workspace:` line under the Project). Prefer
+`issue project get <projectId> workspace` for a single-field read.
 
 The field exists so the work loop's **repo-touching subagents** (git,
 implementor, and both validators) know where to operate. The **model
@@ -229,8 +311,9 @@ coordinator must not pass one, but if one leaks in, ignore it). From that output
 - the workspace is the `Workspace:` line under the Project;
 - the project id is the id on the `Project: <id> — <title>` line (used to build
   the attention message and, for git finish-branch, to look up the Project's
-  [merge policy](#project-merge-policy) via `issue show <projectId>`; do not
-  re-derive ancestry any other way).
+  [merge policy](#project-merge-policy) via
+  `issue project get <projectId> mergePolicy`; do not re-derive ancestry any
+  other way).
 
 **Use as cwd.** Run **every** repo command — git, builds, tests, and any
 file-edit / diff-inspection — with the workspace path as the shell working
@@ -241,7 +324,7 @@ keep invoking it as-is.
 
 **Unset → escalate, never fall back.** If `issue summary` prints no `Workspace:`
 line, do **not** touch any repo. Raise
-`issue attention <epicId> --reason "Project workspace unset — set it with 'issue set-workspace <projectId> <path>'"`
+`issue epic set <epicId> needsAttention true --reason "Project workspace unset — set it with 'issue project set <projectId> workspace <path>'"`
 (substituting the ids) and stop. Attention always lands on the **Epic**: a
 Project carries no needs-attention fields, so it is never the target.
 
@@ -264,43 +347,45 @@ across the tree) is not capped when needed to score accurately.
 ### Project merge policy
 
 A Project's `mergePolicy` decides what happens to a Branch once its last Commit
-is `done`. It is set with `issue set-merge-policy <projectId> <policy>` and read
-off the Project node by `issue show <projectId>` (a `mergePolicy:` line). It
-defaults to **`manual`**, matching today's posture where a human opens and
-merges PRs.
+is `done`. It is set with `issue project set <projectId> mergePolicy <policy>`
+and read with `issue project get <projectId> mergePolicy`. It defaults to
+**`manual`**, matching today's posture where a human opens and merges PRs.
 
 The work loop **always** finishes a Branch by spawning the git subagent in
 `finish-branch` mode; the coordinator never reads or branches on `mergePolicy`.
-Only the git subagent interprets it, from `issue show <projectId>`, so there is
-exactly one reader and the skill can never contradict the field. `finish-branch`
-runs in the Project workspace (same cwd rules as above) and applies:
+Only the git subagent interprets it, from
+`issue project get <projectId> mergePolicy`, so there is exactly one reader and
+the skill can never contradict the field. `finish-branch` runs in the Project
+workspace (same cwd rules as above) and applies:
 
 - **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
   the PR later. (Default.)
 - **`pull-request`** — push the Branch and open a **draft** PR against its
-  stored `mergeBase`, then record the url via `issue open-pr <branchId>
-  <url>`. It does **not** wait for merge or set `merged`, so the Branch
-  derives to `pr-open`.
+  stored `mergeBase`, then record the url via
+  `issue branch set <branchId> prUrl <url>`. It does **not** wait for merge or
+  set `merged`, so the Branch derives to `pr-open`.
 - **`merge`** — merge the Branch into its stored `mergeBase`, push that ref,
-  and set `merged` via `issue set-merged <branchId>` (Branch derives to
-  `merged`). This is the local, no-PR integration path. `set-merged`
-  cascades `child.mergeBase = parent.mergeBase` for stacked children (see
-  [stacked-PR merge model](#the-stacked-pr-merge-model)). When a parent
+  and set `merged` via `issue branch set <branchId> merged true` (Branch
+  derives to `merged`). This is the local, no-PR integration path. Setting
+  `merged` cascades `child.mergeBase = parent.mergeBase` for stacked children
+  (see [stacked-PR merge model](#the-stacked-pr-merge-model)). When a parent
   lands, **GitHub retargets** open child PRs; the tracker only updates
   metadata — finish-branch never runs `gh pr edit --base` (or any PR
   retarget CLI).
 
 **Resumable / idempotent.** The work loop is resumable, so finish-branch may run
 twice for the same Branch. Before acting, the git subagent reads the Branch's
-`prUrl` / `merged` (via `issue show <branchId>`) and no-ops when the policy's end
-state already holds — `merged` set for `merge`, `prUrl` set for `pull-request` —
-so a re-run never opens a duplicate PR or re-merges.
+`prUrl` / `merged` (via `issue branch get <branchId> prUrl` /
+`issue branch get <branchId> merged`) and no-ops when the policy's end state
+already holds — `merged` set for `merge`, `prUrl` set for `pull-request` — so a
+re-run never opens a duplicate PR or re-merges.
 
-**Failure and recovery.** On failure the git subagent raises `issue attention` on
-the Branch and stops. A `merge` conflict is aborted (`git merge --abort`) so the
-`mergeBase` ref is never left half-merged; but a *completed* local merge whose
-`push` failed is left in place — with `merged` still unset it is exactly the
-resumable state above, so the retry just re-pushes.
+**Failure and recovery.** On failure the git subagent raises attention on the
+Branch (`issue branch set <branchId> needsAttention true --reason "…"`) and
+stops. A `merge` conflict is aborted (`git merge --abort`) so the `mergeBase`
+ref is never left half-merged; but a *completed* local merge whose `push`
+failed is left in place — with `merged` still unset it is exactly the resumable
+state above, so the retry just re-pushes.
 
 Epic — the Epic/Branch/Commit common fields plus:
 
@@ -318,8 +403,8 @@ Branch — the Epic/Branch/Commit common fields plus:
 | `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => root |
 | `mergeBase` | string? | stored git ref for start-branch / finish-branch; root defaults `main`; see [stacked-PR merge model](#the-stacked-pr-merge-model) |
 | `prUrl` | string? | optional |
-| `merged` | boolean | defaults `false`; `set-merged` cascades child `mergeBase` |
-| `specReview` | `"passed"` \| `"failed"`? | absent until set by `issue set-spec-review`; machine-readable spec-review gate |
+| `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
+| `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
 
 Commit — the Epic/Branch/Commit common fields plus:
 
@@ -328,7 +413,7 @@ Commit — the Epic/Branch/Commit common fields plus:
 | `partOf` | string | the Branch id (required) |
 | `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
 | `commitSha` | string? | set when done |
-| `noDiff` | boolean? | absent until set by `issue set-no-diff`; signals an intentional empty implementor diff |
+| `noDiff` | boolean? | absent until set; signals an intentional empty implementor diff |
 
 Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
 authored as a separate priority field), `label`, inline
@@ -339,20 +424,20 @@ authored as a separate priority field), `label`, inline
 When the work loop spawns the git subagent in `finish-commit` mode, it finalizes
 one Commit. The coordinator never inspects the working tree or the `noDiff` flag —
 only the git subagent does. The subagent reads the Commit's `noDiff` (via
-`issue summary` / `issue show`) and the working-tree state (`git status`), then
-applies:
+`issue commit get <commitId> noDiff`) and the working-tree state (`git status`),
+then applies:
 
 | `noDiff` | Tree | Action |
 | --- | --- | --- |
-| `true` | clean (empty) | `issue set-status <commitId> done` only — no `git commit`, no `set-commit`; leave `noDiff` set. |
-| `true` | dirty | Escalate — the flag contradicts a non-empty tree. |
-| absent / `false` | clean (empty) | Escalate — an empty tree without `noDiff` is not a completion signal. |
-| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue set-status <commitId> done`, `issue set-commit <commitId> $(git rev-parse HEAD)`. |
+| `true` | clean (empty) | `issue commit set <commitId> status done` only — no `git commit`, no `commitSha`; leave `noDiff` set. |
+| `true` | dirty | Escalate: `issue commit set <commitId> needsAttention true --reason "…"` — the flag contradicts a non-empty tree. |
+| absent / `false` | clean (empty) | Escalate: `issue commit set <commitId> needsAttention true --reason "…"` — an empty tree without `noDiff` is not a completion signal. |
+| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue commit set <commitId> status done`, `issue commit set <commitId> commitSha $(git rev-parse HEAD)`. |
 
-The implementor sets `noDiff` with `issue set-no-diff <commitId> true` (and
+The implementor sets `noDiff` via kind [`set`](#kind-scoped-get--set) (and
 explains why in chat) when the correct outcome is no file changes; validators and
-the git subagent honor the flag. Clearing it (`issue set-no-diff <commitId> false`)
-is required if a revision later lands file changes.
+the git subagent honor the flag. Clearing it (`noDiff false`) is required if a
+revision later lands file changes.
 
 **Tree nesting and sibling order.** The tree nests a Branch under the Branch it
 forks from: a Branch renders as a child of its `stackedOn` Branch (which must be
@@ -674,19 +759,19 @@ preserves everything else from the existing same-kind issue.
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
-| `workspace` (Project) | imperative only (`set-workspace`); `apply` preserves |
-| `mergePolicy` (Project) | imperative only (`set-merge-policy`); `apply` preserves |
-| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`) |
+| `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
-| `status`, `commitSha`, `noDiff` (Commit) | imperative only (`set-status`/`set-commit`/`set-no-diff`); `apply` preserves |
-| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (`set-branch-name`/`open-pr`/`set-merged`/`set-spec-review`; `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
-| `assignee`, `needsAttention`/`attentionReason` | imperative write (`assign`/`attention`); read via `assignee`; `apply` preserves |
+| `status`, `commitSha`, `noDiff` (Commit) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
+| `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
 
 So authoring/decomposition is declarative through `apply`, while working the
-stack (progress, git facts, escalation, chat, attachments) stays on the
-one-shot imperative verbs — the two never fight over a field.
+stack (progress, git facts, escalation, chat, attachments) stays on kind
+`get`/`set` and the kept one-shot verbs — the two never fight over a field.
 
 ## Derived state
 
