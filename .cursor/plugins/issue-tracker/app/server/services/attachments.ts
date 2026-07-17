@@ -31,6 +31,11 @@ function attachmentsDir(id: string): string {
   return join(issuesDir, id, "attachments");
 }
 
+/** Absolute on-disk path for `issues/<id>/attachments/<name>`. */
+export function attachmentPath(id: string, name: string): string {
+  return join(attachmentsDir(id), name);
+}
+
 function mimeOf(name: string): string {
   return mime.lookup(name) || "application/octet-stream";
 }
@@ -77,7 +82,7 @@ function withAttachmentFile<T>(
   return serialize(() => {
     requireAttachable(id);
     assertSafeBasename(name);
-    return fn(join(attachmentsDir(id), name));
+    return fn(attachmentPath(id, name));
   });
 }
 

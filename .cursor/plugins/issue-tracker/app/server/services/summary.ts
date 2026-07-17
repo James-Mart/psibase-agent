@@ -1,8 +1,15 @@
 import type { Issue, IssueKind } from "../schemas.js";
 import { KIND_LABEL } from "../kind.js";
+import { attachmentPath, listAttachments } from "./attachments.js";
 import { IssueError } from "./errors.js";
 import { readAll, readDescription } from "./issues.js";
 import { ancestorChain } from "./subtree.js";
+
+/** Name + size as rendered by show/summary; not full Attachment metadata. */
+export interface SummaryAttachment {
+  name: string;
+  size: number;
+}
 
 export interface SummaryNode {
   kind: IssueKind;
@@ -12,6 +19,8 @@ export interface SummaryNode {
   descriptionSummary: string;
   /** Set when a Commit intentionally landed no file changes. */
   noDiff?: true;
+  /** Present when the issue has one or more attachments. */
+  attachments?: SummaryAttachment[];
 }
 
 export interface IssueSummary {
@@ -41,6 +50,25 @@ export function summarizeDescription(md: string): string {
 }
 
 /**
+ * Agent-oriented lines listing attachment names, sizes, and on-disk paths.
+ * `indent` prefixes every line (e.g. `"  "` under a summary node).
+ */
+export function formatAttachmentsSection(
+  id: string,
+  attachments: SummaryAttachment[],
+  indent = "",
+): string[] {
+  if (attachments.length === 0) return [];
+  return [
+    `${indent}Attachments:`,
+    ...attachments.map(
+      (att) =>
+        `${indent}  ${att.name} (${att.size} bytes) — ${attachmentPath(id, att.name)}`,
+    ),
+  ];
+}
+
+/**
  * Pure builder: walk `partOf` from `id` and attach description summaries.
  * Accepts any kind; a Branch/Epic/Project stops at that node rather than
  * inventing descendants.
@@ -49,6 +77,10 @@ export function buildSummary(
   id: string,
   issues: Issue[],
   descriptionOf: (id: string) => string = () => "",
+  attachmentsOf: (
+    id: string,
+    kind: IssueKind,
+  ) => SummaryAttachment[] | undefined = () => undefined,
 ): IssueSummary {
   const chain = ancestorChain(id, issues);
   const root = chain[0];
@@ -56,20 +88,36 @@ export function buildSummary(
     ...(root?.kind === "project" && root.workspace
       ? { workspace: root.workspace }
       : {}),
-    nodes: chain.map((issue) => ({
-      kind: issue.kind,
-      id: issue.id,
-      title: issue.title,
-      descriptionSummary: summarizeDescription(descriptionOf(issue.id)),
-      ...(issue.kind === "commit" && issue.noDiff ? { noDiff: true as const } : {}),
-    })),
+    nodes: chain.map((issue) => {
+      const attachments = attachmentsOf(issue.id, issue.kind);
+      return {
+        kind: issue.kind,
+        id: issue.id,
+        title: issue.title,
+        descriptionSummary: summarizeDescription(descriptionOf(issue.id)),
+        ...(issue.kind === "commit" && issue.noDiff
+          ? { noDiff: true as const }
+          : {}),
+        ...(attachments ? { attachments } : {}),
+      };
+    }),
   };
+}
+
+function loadAttachments(
+  id: string,
+  kind: IssueKind,
+): SummaryAttachment[] | undefined {
+  if (kind === "project") return undefined;
+  const listed = listAttachments(id);
+  if (listed.length === 0) return undefined;
+  return listed.map(({ name, size }) => ({ name, size }));
 }
 
 /** Load the on-disk graph and build a summary for `id`. */
 export function summarize(id: string): IssueSummary {
   const { issues } = readAll();
-  return buildSummary(id, issues, readDescription);
+  return buildSummary(id, issues, readDescription, loadAttachments);
 }
 
 /** Agent-oriented plain-text rendering of {@link IssueSummary}. */
@@ -92,6 +140,9 @@ export function formatSummary(summary: IssueSummary): string {
     }
     if (node.kind === "commit" && node.noDiff) {
       lines.push(`  noDiff: true`);
+    }
+    if (node.attachments) {
+      lines.push(...formatAttachmentsSection(node.id, node.attachments, "  "));
     }
   }
   lines.push("");

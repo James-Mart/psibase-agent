@@ -2,6 +2,7 @@
 // One-time setup to invoke this CLI as `issue <verb>` instead of `npx tsx cli.ts <verb>`:
 //   cd .cursor/plugins/issue-tracker/app && npm link
 import { readFileSync } from "fs";
+import { basename } from "path";
 import { Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import {
@@ -34,9 +35,19 @@ import {
 import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
-import { formatSummary, summarize } from "./server/services/summary.js";
+import {
+  formatAttachmentsSection,
+  formatSummary,
+  summarize,
+} from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
 import { validateFullCommitSha } from "./server/services/commit-sha.js";
+import {
+  attachmentPath,
+  listAttachments,
+  putAttachment,
+  removeAttachment,
+} from "./server/services/attachments.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -328,6 +339,49 @@ program
         console.log();
         console.log(treeLines.join("\n"));
       }
+    }),
+  );
+
+program
+  .command("attach")
+  .argument("<id>", "issue id (epic, branch, or commit)")
+  .argument("<file>", "path to file to attach")
+  .description("upsert an attachment; stored name is the source file basename")
+  .action((id, file) =>
+    run(async () => {
+      const bytes = readFileSync(file);
+      const meta = await putAttachment(id, basename(file), bytes);
+      console.log(
+        `attached ${meta.name} (${meta.size} bytes) — ${attachmentPath(id, meta.name)}`,
+      );
+    }),
+  );
+
+program
+  .command("attachments")
+  .argument("<id>", "issue id (epic, branch, or commit)")
+  .description("list attachment names and sizes")
+  .action((id) =>
+    run(() => {
+      const attachments = listAttachments(id);
+      if (attachments.length === 0) {
+        console.log("(no attachments)");
+        return;
+      }
+      for (const att of attachments) {
+        console.log(`${att.name}\t${att.size}`);
+      }
+    }),
+  );
+
+program
+  .command("detach")
+  .argument("<id>", "issue id (epic, branch, or commit)")
+  .argument("<name>", "attachment basename to remove")
+  .action((id, name) =>
+    run(async () => {
+      await removeAttachment(id, name);
+      console.log(`detached ${name} from ${id}`);
     }),
   );
 
@@ -625,6 +679,7 @@ program
         if (detail.needsAttention) {
           lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
         }
+        lines.push(...formatAttachmentsSection(id, listAttachments(id)));
       }
       console.log(lines.join("\n"));
       console.log();

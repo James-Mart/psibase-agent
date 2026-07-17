@@ -7,6 +7,7 @@ import {
   buildSummary,
   formatSummary,
   summarizeDescription,
+  type SummaryAttachment,
 } from "./summary.js";
 
 const AT = "2026-07-09T14:00:00.000Z";
@@ -164,6 +165,29 @@ describe("formatSummary", () => {
     expect(text).toContain("Project: p — Proj");
     expect(text).toContain("  Workspace: /tmp/repo");
     expect(text).not.toContain("mergePolicy");
+  });
+
+  it("prints attachments when attachmentsOf returns them and omits when empty", () => {
+    const attachmentsOf = (
+      id: string,
+    ): SummaryAttachment[] | undefined =>
+      id === "c1" ? [{ name: "mock.tsx", size: 6 }] : undefined;
+    const summary = buildSummary(
+      "c1",
+      nestedIssues,
+      descriptionOf,
+      attachmentsOf,
+    );
+    expect(summary.nodes[3].attachments).toEqual([
+      { name: "mock.tsx", size: 6 },
+    ]);
+    const text = formatSummary(summary);
+    expect(text).toContain("  Attachments:");
+    expect(text).toContain("  mock.tsx (6 bytes) — ");
+    expect(text).toMatch(/attachments\/mock\.tsx/);
+
+    const empty = formatSummary(buildSummary("c1", nestedIssues, descriptionOf));
+    expect(empty).not.toContain("Attachments:");
   });
 });
 
