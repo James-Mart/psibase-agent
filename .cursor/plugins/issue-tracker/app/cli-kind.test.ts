@@ -61,12 +61,20 @@ describe("coerceSetPatch", () => {
       patch: { noDiff: false },
     },
     {
-      name: "json array",
+      name: "array full replace",
       kind: "epic" as const,
       field: "blockedBy",
       value: '["a","b"]',
       opts: {},
       patch: { blockedBy: ["a", "b"] },
+    },
+    {
+      name: "array --clear empties",
+      kind: "epic" as const,
+      field: "blockedBy",
+      value: undefined,
+      opts: { clear: true },
+      patch: { blockedBy: [] },
     },
     {
       name: "needsAttention true with --reason",
@@ -94,6 +102,24 @@ describe("coerceSetPatch", () => {
     },
   ])("$name", ({ kind, field, value, opts, patch }) => {
     expect(coerceSetPatch(kind, field, value, opts)).toEqual(patch);
+  });
+
+  it("unions --add into current blockedBy", () => {
+    expect(
+      coerceSetPatch("epic", "blockedBy", undefined, { add: ["b", "a"] }, ["a"]),
+    ).toEqual({ blockedBy: ["a", "b"] });
+  });
+
+  it("drops --remove from current blockedBy", () => {
+    expect(
+      coerceSetPatch(
+        "epic",
+        "blockedBy",
+        undefined,
+        { remove: ["b"] },
+        ["a", "b", "c"],
+      ),
+    ).toEqual({ blockedBy: ["a", "c"] });
   });
 
   it("reads description from --file", () => {
@@ -131,12 +157,20 @@ describe("coerceSetPatch", () => {
       error: /invalid noDiff "maybe"/,
     },
     {
-      name: "invalid json",
+      name: "invalid array json",
       kind: "epic" as const,
       field: "blockedBy",
       value: "[",
       opts: {},
       error: /invalid blockedBy JSON/,
+    },
+    {
+      name: "non-string array json",
+      kind: "epic" as const,
+      field: "blockedBy",
+      value: "[1,2]",
+      opts: {},
+      error: /expected a JSON array of strings/,
     },
     {
       name: "non-clearable --clear",
@@ -177,6 +211,30 @@ describe("coerceSetPatch", () => {
       value: undefined,
       opts: {},
       error: /provide a value for title/,
+    },
+    {
+      name: "--add on non-array field",
+      kind: "project" as const,
+      field: "title",
+      value: undefined,
+      opts: { add: ["x"] },
+      error: /only valid for array fields/,
+    },
+    {
+      name: "array value with --add",
+      kind: "epic" as const,
+      field: "blockedBy",
+      value: '["a"]',
+      opts: { add: ["b"] },
+      error: /mutually exclusive/,
+    },
+    {
+      name: "array missing mode",
+      kind: "epic" as const,
+      field: "blockedBy",
+      value: undefined,
+      opts: {},
+      error: /provide a JSON array value, --file, --add, --remove, or --clear/,
     },
   ])("rejects $name", ({ kind, field, value, opts, error }) => {
     expect(() => coerceSetPatch(kind, field, value, opts)).toThrow(error);

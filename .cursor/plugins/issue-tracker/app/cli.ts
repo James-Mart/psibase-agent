@@ -50,7 +50,7 @@ import {
 } from "./server/services/attachments.js";
 import { coerceBoolean, coerceEnum } from "./cli-coerce.js";
 import { readCliFileArg } from "./cli-io.js";
-import { registerKindGetSet } from "./cli-kind.js";
+import { kindSet, registerKindGetSet } from "./cli-kind.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -325,6 +325,7 @@ async function run(action: () => unknown): Promise<void> {
 }
 
 registerKindGetSet(program, "project", run);
+registerKindGetSet(program, "epic", run);
 
 program
   .command("create-project")
@@ -552,6 +553,7 @@ program
   // `--by`/`--add`/`--remove` are mutually exclusive: `--by` is a full replace
   // while `--add`/`--remove` are incremental, so combining them has no
   // unsurprising meaning. Require exactly one rather than inventing a precedence.
+  // Mutation goes through kindSet so array coerce stays single-sourced.
   .action((id, opts) =>
     run(() => {
       const modes = (["by", "add", "remove"] as const).filter(
@@ -567,17 +569,13 @@ program
             .join(", ")})`,
         );
       }
-      const detail = read(id);
-      if (detail.kind !== "epic") {
-        throw new Error(`blockedBy is only valid on an epic, not a ${detail.kind}`);
+      if (opts.by) {
+        return kindSet("epic", id, "blockedBy", JSON.stringify(opts.by), {});
       }
-      if (opts.by) return update(id, { blockedBy: opts.by });
-
-      const current = detail.blockedBy;
-      const blockedBy = opts.add
-        ? [...current, ...opts.add.filter((bid: string) => !current.includes(bid))]
-        : current.filter((bid) => !opts.remove.includes(bid));
-      return update(id, { blockedBy });
+      if (opts.add) {
+        return kindSet("epic", id, "blockedBy", undefined, { add: opts.add });
+      }
+      return kindSet("epic", id, "blockedBy", undefined, { remove: opts.remove });
     }),
   );
 

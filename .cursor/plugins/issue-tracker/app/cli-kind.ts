@@ -14,6 +14,8 @@ export type KindSetOptions = {
   clear?: boolean;
   file?: string;
   reason?: string;
+  add?: string[];
+  remove?: string[];
 };
 
 function articleFor(kind: IssueKind): "a" | "an" {
@@ -51,7 +53,64 @@ function countSetModes(
   if (value !== undefined) modes.push("value");
   if (opts.file !== undefined) modes.push("--file");
   if (opts.clear) modes.push("--clear");
+  if (opts.add !== undefined) modes.push("--add");
+  if (opts.remove !== undefined) modes.push("--remove");
   return modes;
+}
+
+function formatModes(modes: string[]): string {
+  return modes.join(", ");
+}
+
+function coerceArrayPatch(
+  field: string,
+  value: string | undefined,
+  opts: KindSetOptions,
+  current: string[] | undefined,
+): IssuePatch {
+  const modes = countSetModes(value, opts);
+  if (modes.length === 0) {
+    throw new Error(
+      `provide a JSON array value, --file, --add, --remove, or --clear for ${field}`,
+    );
+  }
+  if (modes.length > 1) {
+    throw new Error(
+      `value, --file, --clear, --add, and --remove are mutually exclusive (got ${formatModes(modes)})`,
+    );
+  }
+  if (opts.clear) {
+    return { [field]: [] } as IssuePatch;
+  }
+  if (opts.add !== undefined) {
+    if (!current) {
+      throw new Error(`current value required for --add on ${field}`);
+    }
+    return {
+      [field]: [
+        ...current,
+        ...opts.add.filter((id) => !current.includes(id)),
+      ],
+    } as IssuePatch;
+  }
+  if (opts.remove !== undefined) {
+    if (!current) {
+      throw new Error(`current value required for --remove on ${field}`);
+    }
+    return {
+      [field]: current.filter((id) => !opts.remove!.includes(id)),
+    } as IssuePatch;
+  }
+
+  const raw = resolveFileOrValue(value, opts.file);
+  if (raw === undefined) {
+    throw new Error(`provide a value for ${field}`);
+  }
+  const parsed = coerceJson(raw, field);
+  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
+    throw new Error(`invalid ${field}: expected a JSON array of strings`);
+  }
+  return { [field]: parsed } as IssuePatch;
 }
 
 export function coerceSetPatch(
@@ -59,6 +118,7 @@ export function coerceSetPatch(
   field: string,
   value: string | undefined,
   opts: KindSetOptions,
+  currentArray?: string[],
 ): IssuePatch {
   const tables = KIND_SET_FIELDS[kind] as Record<string, SetFieldSpec>;
   const spec = tables[field];
@@ -66,10 +126,20 @@ export function coerceSetPatch(
     throw new Error(`unknown or unsettable field "${field}" for ${kind}`);
   }
 
+  if (spec.type === "array") {
+    return coerceArrayPatch(field, value, opts, currentArray);
+  }
+
+  if (opts.add !== undefined || opts.remove !== undefined) {
+    throw new Error("--add and --remove are only valid for array fields");
+  }
+
   const modes = countSetModes(value, opts);
   if (opts.clear) {
     if (modes.length > 1) {
-      throw new Error("--clear cannot be combined with a value or --file");
+      throw new Error(
+        "--clear cannot be combined with a value, --file, --add, or --remove",
+      );
     }
     if (spec.type === "needsAttention") {
       return { needsAttention: false, attentionReason: null };
@@ -280,6 +350,14 @@ export function kindGetValue(
   return formatGetValue(storedFieldValue(detail, field));
 }
 
+function currentArrayValue(detail: IssueDetail, field: string): string[] {
+  const value = storedFieldValue(detail, field);
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw new Error(`field "${field}" is not a string array on ${detail.kind}`);
+  }
+  return value;
+}
+
 export function kindSet(
   kind: IssueKind,
   id: string,
@@ -287,8 +365,12 @@ export function kindSet(
   value: string | undefined,
   opts: KindSetOptions,
 ): ReturnType<typeof update> {
-  assertKind(kind, id);
-  const patch = coerceSetPatch(kind, field, value, opts);
+  const detail = assertKind(kind, id);
+  const tables = KIND_SET_FIELDS[kind] as Record<string, SetFieldSpec>;
+  const spec = tables[field];
+  const currentArray =
+    spec?.type === "array" ? currentArrayValue(detail, field) : undefined;
+  const patch = coerceSetPatch(kind, field, value, opts, currentArray);
   return update(id, patch);
 }
 
@@ -319,6 +401,8 @@ export function registerKindGetSet(
     .option("--clear", "clear the field")
     .option("--file <path>", "read value from a file (use - for stdin)")
     .option("--reason <text>", "required when setting needsAttention true")
+    .option("--add <ids...>", "union ids into an array field")
+    .option("--remove <ids...>", "drop ids from an array field")
     .action(
       (id: string, field: string, value: string | undefined, opts: KindSetOptions) =>
         run(() => kindSet(kind, id, field, value, opts)),

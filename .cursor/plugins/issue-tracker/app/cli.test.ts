@@ -50,6 +50,11 @@ function makeGitWorkspace(): string {
   return ws;
 }
 
+function blockedByOf(id: string): string[] {
+  const raw = JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8"));
+  return raw.blockedBy;
+}
+
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "issue-tracker-cli-"));
   clock = 0;
@@ -338,6 +343,142 @@ describe("project get/set", () => {
   });
 });
 
+describe("epic get/set", () => {
+  const AT = "2026-07-10T14:00:00.000Z";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("blocker", {
+      kind: "epic",
+      title: "Blocker",
+      partOf: "p",
+      order: 1,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("other", {
+      kind: "epic",
+      title: "Other",
+      partOf: "p",
+      order: 2,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(join(dir, "e", "description.md"), "# Epic\n\nbody\n");
+  });
+
+  it("gets and sets allowlisted epic fields", () => {
+    expect(runCli(["epic", "get", "e", "title"]).stdout).toBe("Epic\n");
+    expect(runCli(["epic", "get", "e", "description"]).stdout).toBe("# Epic\n\nbody\n");
+    expect(runCli(["epic", "get", "e", "blockedBy"]).stdout).toBe("[]\n");
+
+    expect(runCli(["epic", "set", "e", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "title"]).stdout).toBe("Renamed\n");
+
+    expect(runCli(["epic", "set", "e", "assignee", "bot"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "assignee"]).stdout).toBe("bot\n");
+    expect(runCli(["epic", "set", "e", "assignee", "--clear"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "assignee"]).stdout).toBe("");
+
+    expect(
+      runCli(["epic", "set", "e", "needsAttention", "true", "--reason", "need decision"]).status,
+    ).toBe(0);
+    expect(runCli(["epic", "get", "e", "needsAttention"]).stdout).toBe("true\n");
+    expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("need decision\n");
+    expect(runCli(["epic", "set", "e", "needsAttention", "false"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "needsAttention"]).stdout).toBe("false\n");
+    expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("");
+  });
+
+  it("replaces and incrementally edits blockedBy", () => {
+    expect(
+      runCli(["epic", "set", "e", "blockedBy", '["blocker"]']).status,
+    ).toBe(0);
+    expect(blockedByOf("e")).toEqual(["blocker"]);
+    expect(runCli(["epic", "get", "e", "blockedBy"]).stdout).toBe('["blocker"]\n');
+
+    expect(runCli(["epic", "set", "e", "blockedBy", "--add", "other"]).status).toBe(0);
+    expect(blockedByOf("e").sort()).toEqual(["blocker", "other"]);
+
+    expect(runCli(["epic", "set", "e", "blockedBy", "--remove", "blocker"]).status).toBe(0);
+    expect(blockedByOf("e")).toEqual(["other"]);
+
+    expect(runCli(["epic", "set", "e", "blockedBy", "--clear"]).status).toBe(0);
+    expect(blockedByOf("e")).toEqual([]);
+    expect(runCli(["epic", "get", "e", "blockedBy"]).stdout).toBe("[]\n");
+  });
+
+  it("gets derived epicStatus, ready, and blocked", () => {
+    expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("todo\n");
+    expect(runCli(["epic", "get", "e", "ready"]).stdout).toBe("false\n");
+    expect(runCli(["epic", "get", "e", "blocked"]).stdout).toBe("false\n");
+
+    expect(runCli(["epic", "set", "e", "blockedBy", '["blocker"]']).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "blocked"]).stdout).toBe("true\n");
+
+    writeIssue("br", {
+      kind: "branch",
+      title: "Branch",
+      partOf: "e",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("todo\n");
+
+    writeIssue("br", {
+      kind: "branch",
+      title: "Branch",
+      partOf: "e",
+      branchName: "feat",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("in-progress\n");
+  });
+
+  it("refuses kind mismatch and unknown fields", () => {
+    const mismatch = runCli(["epic", "get", "p", "title"]);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stderr).toContain('"p" is a project, not an epic');
+
+    const unknownGet = runCli(["epic", "get", "e", "workspace"]);
+    expect(unknownGet.status).toBe(1);
+    expect(unknownGet.stderr).toContain('unknown field "workspace" for epic');
+
+    const unknownSet = runCli(["epic", "set", "e", "workspace", "/tmp"]);
+    expect(unknownSet.status).toBe(1);
+    expect(unknownSet.stderr).toContain(
+      'unknown or unsettable field "workspace" for epic',
+    );
+  });
+
+  it("keeps project get/set and old field verbs working", () => {
+    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Proj\n");
+    expect(runCli(["project", "set", "p", "title", "Still Proj"]).status).toBe(0);
+    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Still Proj\n");
+
+    expect(runCli(["block", "e", "--add", "blocker"]).status).toBe(0);
+    expect(blockedByOf("e")).toEqual(["blocker"]);
+    expect(runCli(["attention", "e", "--reason", "legacy"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("legacy\n");
+  });
+});
+
 describe("tree", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
@@ -506,11 +647,6 @@ describe("block", () => {
     });
   }
 
-  function blockedByOf(id: string): string[] {
-    const raw = JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8"));
-    return raw.blockedBy;
-  }
-
   it("--add unions only the named ids into the current blockedBy", () => {
     seedEpics(["a"]);
     const { status } = runCli(["block", "t", "--add", "b"]);
@@ -569,7 +705,7 @@ describe("block", () => {
     });
     const { stderr, status } = runCli(["block", "br", "--add", "a"]);
     expect(status).toBe(1);
-    expect(stderr).toMatch(/only valid on an epic/);
+    expect(stderr).toMatch(/"br" is a branch, not an epic/);
   });
 });
 

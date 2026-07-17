@@ -11,6 +11,7 @@ export type FieldCoerce =
   | { type: "boolean" }
   | { type: "enum"; values: readonly string[] }
   | { type: "json" }
+  | { type: "array" }
   | { type: "description" }
   | { type: "needsAttention" };
 
@@ -28,7 +29,7 @@ export const EPIC_SET_FIELDS = {
   assignee: { type: "string" },
   needsAttention: { type: "needsAttention" },
   partOf: { type: "string" },
-  blockedBy: { type: "json" },
+  blockedBy: { type: "array" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
