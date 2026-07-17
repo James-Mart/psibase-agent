@@ -51,8 +51,7 @@ tracker context — not a product-workspace checkout. Do not run product-repo
 - **Meta only:** hunt remaining tracker / work-loop **meta** confusion —
   gaps in the issue-tracker plugin’s skills, agents, SPEC, CLI, or
   authoring. Do **not** hunt product-workspace code-quality or project
-  coding conventions. State this cut only in that form — do not enumerate
-  examples of what to hunt or ignore.
+  coding conventions.
 - **Remaining gaps only:** skip anything already fixed.
 - **Output Project:** residual Epics always use `project: issue-tracker` —
   never the source Epic’s Product project, even when that Project differs.

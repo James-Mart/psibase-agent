@@ -89,7 +89,8 @@ Run these three commands in order (use `<epicId>` throughout):
      Start a Branch). Do **not** invent or substitute a branch name — not the
      Branch id, not a guess from the title.
    - `pr=`, `merged`, `blocked` — progress signals only; ignore for spawn
-     inputs.
+     *inputs*. Exception: Completion’s retro gate (below) reads `merged` chips
+     to decide whether to spawn retro — that is not a spawn-input.
 2. `issue summary <epicId>` — read `Project:` and `Workspace:`.
    - Take `<projectId>` from the id token on `Project: <projectId> — <title>`
      (SPEC § Project workspace).
@@ -141,6 +142,7 @@ dependency is satisfied — and it may proceed — once its parent's Commits are
 | Implementor | `issue-tracker-implementor` | Implement a Commit; per-commit revise via Task **resume** | From Commit `assignee` (Resolve implementor model) | writes |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Commit's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Branch when Branch `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`set-spec-review` / `add-commit` / `comment`) |
+| Retro | `issue-tracker-retro` | Completion when every Branch in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Task `model`) | writes (`comment` / `apply` / `attention`) |
 
 Implement and revise are the **same** implementor agent. Code-quality is
 advisory (read-only `issue comment`) — it surfaces issues but is **not** in
@@ -217,17 +219,50 @@ progress.
 
 ## Completion
 
-The loop ends when every Commit in the Epic is `done`. Give a short final
-summary: which Branches were built, and anything still open or escalated
+Completion has two phases. Phase 1 can finish while Phase 2 is still waiting
+(e.g. under `pull-request` / `manual` before humans merge). Do not treat Phase 1
+alone as “fully finished” for retro purposes.
+
+### Phase 1 — Commit-done summary
+
+The Branch walk ends when every Commit in the Epic is `done`. Give a short
+final summary: which Branches were built, and anything still open or escalated
 (`issue attention`). For validator findings and what the implementor accepted or
 declined on revise, point the user at the tracker comments
 (`issue show <id> --chat`) rather than collecting them into your context. Note
 how finished Branches landed from the `issue tree` chips (`pr=` for an opened
 PR, `merged` for a merged Branch, neither when left for the human).
 
+### Phase 2 — Retro gate
+
+Distinct coordinator hook after the Branch walk — **not** part of Close-Branch.
+Re-read `issue tree --epic <epicId>` (or `issue show` Branch chips). Spawn
+`issue-tracker-retro` only when **all** of the following hold:
+
+1. The Epic has **at least one** Branch (a zero-Branch Epic must not spawn
+   retro — same non-vacuous rule as derived Epic `done`).
+2. **Every** Branch carries the `merged` chip. Detect from those chips only —
+   do not guess from merge policy or finish-branch outcomes. Under `merge`
+   policy this usually follows the last finish-branch; under `pull-request` /
+   `manual` it runs only after humans (or later process) have set every Branch
+   merged.
+3. The source Epic’s chat has **no** prior comment with role `retro` (check
+   `issue show <epicId> --chat`). If a `retro`-role comment already exists,
+   skip — retro already ran for this Epic.
+
+When the gate holds, spawn **once** with Task `model`
+`cursor-grok-4.5-high-fast` (Models table) and the retro spawn stub (source
+Epic id + title). Wait until the Task finishes (or raises `issue attention`).
+Do **not** mine transcripts yourself, and do **not** expect or relay a retro
+summary into your context. If the gate fails only because some Branch is not
+`merged` yet, skip the spawn; a later re-run of this skill on the same Epic
+re-evaluates Phase 2 once the chips show all merged (the `retro`-role comment
+guard keeps that re-run from duplicating a completed retro).
+
 Everything lives on disk and every derived fact is recomputed on read, so the
 loop is fully **resumable**: re-running the skill on the Epic re-reads
-`issue tree --epic <id>` and continues from the first not-`done` Commit.
+`issue tree --epic <id>` and continues from the first not-`done` Commit (or,
+when all Commits are already `done`, from Completion Phase 2 above).
 
 ## Spawn stubs
 
@@ -275,6 +310,10 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 
 > Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: revise. Comment role:
 > `implementor`.
+
+**Retro** — `subagent_type: issue-tracker-retro`
+
+> Epic: `<epicId>` (`<title>`). Comment role: `retro`.
 
 ## Rules
 
