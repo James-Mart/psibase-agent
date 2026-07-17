@@ -13,7 +13,8 @@ export type FieldCoerce =
   | { type: "json" }
   | { type: "array" }
   | { type: "description" }
-  | { type: "needsAttention" };
+  | { type: "needsAttention" }
+  | { type: "commitSha" };
 
 export type SetFieldSpec = FieldCoerce;
 
@@ -52,7 +53,7 @@ export const COMMIT_SET_FIELDS = {
   needsAttention: { type: "needsAttention" },
   partOf: { type: "string" },
   status: { type: "enum", values: COMMIT_STATUSES },
-  commitSha: { type: "string" },
+  commitSha: { type: "commitSha" },
   noDiff: { type: "boolean" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;

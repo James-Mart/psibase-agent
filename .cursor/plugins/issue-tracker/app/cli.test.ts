@@ -665,6 +665,142 @@ describe("branch get/set", () => {
   });
 });
 
+describe("commit get/set", () => {
+  const AT = "2026-07-10T14:00:00.000Z";
+  const sha1 = "0123456789abcdef0123456789abcdef01234567";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      branchName: "feat/a",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "Commit 1",
+      partOf: "a",
+      status: "todo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("c2", {
+      kind: "commit",
+      title: "Commit 2",
+      partOf: "a",
+      status: "todo",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeFileSync(join(dir, "c1", "description.md"), "# Commit\n\nbody\n");
+  });
+
+  it("gets and sets allowlisted commit fields", () => {
+    expect(runCli(["commit", "get", "c1", "title"]).stdout).toBe("Commit 1\n");
+    expect(runCli(["commit", "get", "c1", "description"]).stdout).toBe("# Commit\n\nbody\n");
+    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("todo\n");
+    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("");
+
+    expect(runCli(["commit", "set", "c1", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "title"]).stdout).toBe("Renamed\n");
+
+    expect(runCli(["commit", "set", "c1", "status", "in-progress"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("in-progress\n");
+
+    expect(runCli(["commit", "set", "c1", "commitSha", sha1]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
+    expect(runCli(["commit", "set", "c1", "commitSha", "--clear"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe("");
+
+    expect(runCli(["commit", "set", "c1", "noDiff", "true"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("true\n");
+    expect(runCli(["commit", "set", "c1", "noDiff", "false"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("");
+
+    expect(runCli(["commit", "set", "c1", "assignee", "bot"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("bot\n");
+    expect(runCli(["commit", "set", "c1", "assignee", "--clear"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("");
+
+    expect(
+      runCli(["commit", "set", "c1", "needsAttention", "true", "--reason", "blocked"]).status,
+    ).toBe(0);
+    expect(runCli(["commit", "get", "c1", "needsAttention"]).stdout).toBe("true\n");
+    expect(runCli(["commit", "get", "c1", "attentionReason"]).stdout).toBe("blocked\n");
+    expect(runCli(["commit", "set", "c1", "needsAttention", "false"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "needsAttention"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c1", "attentionReason"]).stdout).toBe("");
+  });
+
+  it("sets description from --file", () => {
+    const descFile = join(dir, "desc.md");
+    writeFileSync(descFile, "from file\n");
+    expect(
+      runCli(["commit", "set", "c1", "description", "--file", descFile]).status,
+    ).toBe(0);
+    expect(runCli(["commit", "get", "c1", "description"]).stdout).toBe("from file\n");
+  });
+
+  it("gets derived ready and blocked", () => {
+    expect(runCli(["commit", "get", "c1", "ready"]).stdout).toBe("true\n");
+    expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c2", "ready"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("true\n");
+
+    expect(runCli(["commit", "set", "c1", "status", "done"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "ready"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["commit", "get", "c2", "ready"]).stdout).toBe("true\n");
+    expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("false\n");
+  });
+
+  it("refuses kind mismatch, unknown fields, and invalid commitSha", () => {
+    const mismatch = runCli(["commit", "get", "a", "title"]);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stderr).toContain('"a" is a branch, not a commit');
+
+    const unknownGet = runCli(["commit", "get", "c1", "branchName"]);
+    expect(unknownGet.status).toBe(1);
+    expect(unknownGet.stderr).toContain('unknown field "branchName" for commit');
+
+    const unknownSet = runCli(["commit", "set", "c1", "branchName", "feat/x"]);
+    expect(unknownSet.status).toBe(1);
+    expect(unknownSet.stderr).toContain(
+      'unknown or unsettable field "branchName" for commit',
+    );
+
+    const badSha = runCli(["commit", "set", "c1", "commitSha", "4019c25"]);
+    expect(badSha.status).toBe(1);
+    expect(badSha.stderr).toMatch(/invalid commit sha "4019c25"/);
+  });
+
+  it("keeps branch get/set and old field verbs working", () => {
+    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Branch A\n");
+    expect(runCli(["set-status", "c1", "done"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("done\n");
+    expect(runCli(["set-commit", "c1", sha1]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
+    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
+    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("true\n");
+  });
+});
+
 describe("tree", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });

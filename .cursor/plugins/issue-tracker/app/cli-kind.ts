@@ -8,6 +8,7 @@ import {
   type SetFieldSpec,
 } from "./server/kind-fields.js";
 import { list, read, update } from "./server/services/issues.js";
+import { validateFullCommitSha } from "./server/services/commit-sha.js";
 import type { IssueDetail, IssueKind, IssuePatch } from "./server/schemas.js";
 
 export type KindSetOptions = {
@@ -181,6 +182,9 @@ export function coerceSetPatch(
   switch (spec.type) {
     case "string":
       return { [field]: raw } as IssuePatch;
+    case "commitSha":
+      validateFullCommitSha(raw);
+      return { commitSha: raw };
     case "boolean":
       return { [field]: coerceBoolean(raw, field) } as IssuePatch;
     case "enum":
@@ -200,124 +204,7 @@ function formatGetValue(value: unknown): string | null {
 }
 
 function storedFieldValue(detail: IssueDetail, field: string): unknown {
-  switch (detail.kind) {
-    case "project":
-      switch (field) {
-        case "id":
-          return detail.id;
-        case "kind":
-          return detail.kind;
-        case "title":
-          return detail.title;
-        case "workspace":
-          return detail.workspace;
-        case "mergePolicy":
-          return detail.mergePolicy;
-        case "order":
-          return detail.order;
-        case "createdAt":
-          return detail.createdAt;
-        case "updatedAt":
-          return detail.updatedAt;
-        default:
-          throw new Error(`unknown field "${field}" for project`);
-      }
-    case "epic":
-      switch (field) {
-        case "id":
-          return detail.id;
-        case "kind":
-          return detail.kind;
-        case "title":
-          return detail.title;
-        case "partOf":
-          return detail.partOf;
-        case "assignee":
-          return detail.assignee;
-        case "needsAttention":
-          return detail.needsAttention;
-        case "attentionReason":
-          return detail.attentionReason;
-        case "blockedBy":
-          return detail.blockedBy;
-        case "order":
-          return detail.order;
-        case "createdAt":
-          return detail.createdAt;
-        case "updatedAt":
-          return detail.updatedAt;
-        default:
-          throw new Error(`unknown field "${field}" for epic`);
-      }
-    case "branch":
-      switch (field) {
-        case "id":
-          return detail.id;
-        case "kind":
-          return detail.kind;
-        case "title":
-          return detail.title;
-        case "partOf":
-          return detail.partOf;
-        case "assignee":
-          return detail.assignee;
-        case "needsAttention":
-          return detail.needsAttention;
-        case "attentionReason":
-          return detail.attentionReason;
-        case "branchName":
-          return detail.branchName;
-        case "mergeBase":
-          return detail.mergeBase;
-        case "stackedOn":
-          return detail.stackedOn;
-        case "prUrl":
-          return detail.prUrl;
-        case "merged":
-          return detail.merged;
-        case "specReview":
-          return detail.specReview;
-        case "order":
-          return detail.order;
-        case "createdAt":
-          return detail.createdAt;
-        case "updatedAt":
-          return detail.updatedAt;
-        default:
-          throw new Error(`unknown field "${field}" for branch`);
-      }
-    case "commit":
-      switch (field) {
-        case "id":
-          return detail.id;
-        case "kind":
-          return detail.kind;
-        case "title":
-          return detail.title;
-        case "partOf":
-          return detail.partOf;
-        case "assignee":
-          return detail.assignee;
-        case "needsAttention":
-          return detail.needsAttention;
-        case "attentionReason":
-          return detail.attentionReason;
-        case "status":
-          return detail.status;
-        case "commitSha":
-          return detail.commitSha;
-        case "noDiff":
-          return detail.noDiff;
-        case "order":
-          return detail.order;
-        case "createdAt":
-          return detail.createdAt;
-        case "updatedAt":
-          return detail.updatedAt;
-        default:
-          throw new Error(`unknown field "${field}" for commit`);
-      }
-  }
+  return (detail as Record<string, unknown>)[field];
 }
 
 export function kindGetValue(

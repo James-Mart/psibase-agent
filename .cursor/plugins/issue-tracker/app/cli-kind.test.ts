@@ -61,6 +61,14 @@ describe("coerceSetPatch", () => {
       patch: { noDiff: false },
     },
     {
+      name: "commitSha",
+      kind: "commit" as const,
+      field: "commitSha",
+      value: "0123456789abcdef0123456789abcdef01234567",
+      opts: {},
+      patch: { commitSha: "0123456789abcdef0123456789abcdef01234567" },
+    },
+    {
       name: "array full replace",
       kind: "epic" as const,
       field: "blockedBy",
@@ -155,6 +163,14 @@ describe("coerceSetPatch", () => {
       value: "maybe",
       opts: {},
       error: /invalid noDiff "maybe"/,
+    },
+    {
+      name: "invalid commitSha",
+      kind: "commit" as const,
+      field: "commitSha",
+      value: "4019c25",
+      opts: {},
+      error: /invalid commit sha/,
     },
     {
       name: "invalid array json",

@@ -16,6 +16,7 @@ import {
 } from "./server/services/issues.js";
 import {
   COMMIT_STATUSES,
+  KINDS,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type CommitStatus,
@@ -324,9 +325,9 @@ async function run(action: () => unknown): Promise<void> {
   }
 }
 
-registerKindGetSet(program, "project", run);
-registerKindGetSet(program, "epic", run);
-registerKindGetSet(program, "branch", run);
+for (const kind of KINDS) {
+  registerKindGetSet(program, kind, run);
+}
 
 program
   .command("create-project")
