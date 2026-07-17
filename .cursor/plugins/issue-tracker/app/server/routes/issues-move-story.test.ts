@@ -18,11 +18,11 @@ function readJson(id: string): Record<string, unknown> {
   return JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8"));
 }
 
-async function postMoveBranch(
+async function postMoveStory(
   id: string,
   body: unknown,
 ): Promise<{ status: number; json: unknown }> {
-  const res = await fetch(`${baseUrl}/api/issues/${id}/move-branch`, {
+  const res = await fetch(`${baseUrl}/api/issues/${id}/move-story`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -32,7 +32,7 @@ async function postMoveBranch(
 }
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), "issue-tracker-move-branch-route-"));
+  dir = mkdtempSync(join(tmpdir(), "issue-tracker-move-story-route-"));
   vi.resetModules();
   vi.stubEnv("ISSUES_DIR", dir);
 
@@ -60,7 +60,7 @@ beforeEach(async () => {
     updatedAt: AT,
   });
   writeIssue("a", {
-    kind: "branch",
+    kind: "story",
     title: "A",
     partOf: "e1",
     order: 0,
@@ -68,7 +68,7 @@ beforeEach(async () => {
     updatedAt: AT,
   });
   writeIssue("b", {
-    kind: "branch",
+    kind: "story",
     title: "B",
     partOf: "e1",
     stackedOn: "a",
@@ -77,7 +77,7 @@ beforeEach(async () => {
     updatedAt: AT,
   });
   writeIssue("x", {
-    kind: "branch",
+    kind: "story",
     title: "X",
     partOf: "e2",
     order: 0,
@@ -105,10 +105,10 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe("POST /api/issues/:id/move-branch", () => {
+describe("POST /api/issues/:id/move-story", () => {
   it("restacks a branch onto a peer via HTTP", async () => {
     writeIssue("peer", {
-      kind: "branch",
+      kind: "story",
       title: "Peer",
       partOf: "e1",
       order: 1,
@@ -116,14 +116,14 @@ describe("POST /api/issues/:id/move-branch", () => {
       updatedAt: AT,
     });
 
-    const { status, json } = await postMoveBranch("b", { target: "peer" });
+    const { status, json } = await postMoveStory("b", { target: "peer" });
     expect(status).toBe(200);
     expect(json).toEqual({ moved: ["b"] });
     expect(readJson("b").stackedOn).toBe("peer");
   });
 
   it("reparents a stack onto another epic via HTTP", async () => {
-    const { status, json } = await postMoveBranch("b", { target: "e2" });
+    const { status, json } = await postMoveStory("b", { target: "e2" });
     expect(status).toBe(200);
     expect(json).toEqual({ moved: ["b"] });
     expect(readJson("b").partOf).toBe("e2");
@@ -131,19 +131,19 @@ describe("POST /api/issues/:id/move-branch", () => {
   });
 
   it("returns 400 when target is missing", async () => {
-    const { status, json } = await postMoveBranch("b", {});
+    const { status, json } = await postMoveStory("b", {});
     expect(status).toBe(400);
     expect(json).toEqual({ error: "target is required" });
   });
 
   it("returns 400 for cycle rejection", async () => {
-    const { status, json } = await postMoveBranch("a", { target: "b" });
+    const { status, json } = await postMoveStory("a", { target: "b" });
     expect(status).toBe(400);
     expect(json).toMatchObject({ error: expect.stringMatching(/cycle/i) });
   });
 
   it("returns 404 for an unknown source", async () => {
-    const { status, json } = await postMoveBranch("ghost", { target: "e1" });
+    const { status, json } = await postMoveStory("ghost", { target: "e1" });
     expect(status).toBe(404);
     expect(json).toMatchObject({ error: expect.stringMatching(/unknown issue/i) });
   });

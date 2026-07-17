@@ -1,5 +1,5 @@
 import type {
-  BranchStatus,
+  StoryStatus,
   DerivedState,
   EpicStatus,
   Issue,
@@ -14,93 +14,92 @@ export interface DeriveResult {
 }
 
 // An Epic counts as "done" (and so stops blocking its dependents) once its
-// derived status is `done` — all its Branches merged. The single source for
+// derived status is `done` — all its Stories merged. The single source for
 // this predicate: consumed by the blocked pass below and by the UI's
 // per-dependency badge so both read the same rule.
 export function epicIsDone(state: DerivedState | undefined): boolean {
   return state?.epicStatus === "done";
 }
 
-type Branch = Extract<Issue, { kind: "branch" }>;
-type Commit = Extract<Issue, { kind: "commit" }>;
+type Story = Extract<Issue, { kind: "story" }>;
+type Task = Extract<Issue, { kind: "task" }>;
 
 export function derive(issues: Issue[]): DeriveResult {
   const problems = checkIntegrity(issues);
   const byId = new Map(issues.map((issue) => [issue.id, issue]));
 
-  const commitsOf = new Map<string, Commit[]>();
-  const branchesOf = new Map<string, Branch[]>();
+  const tasksOf = new Map<string, Task[]>();
+  const storiesOf = new Map<string, Story[]>();
   for (const issue of issues) {
-    if (issue.kind === "commit") {
-      const bucket = commitsOf.get(issue.partOf) ?? [];
+    if (issue.kind === "task") {
+      const bucket = tasksOf.get(issue.partOf) ?? [];
       bucket.push(issue);
-      commitsOf.set(issue.partOf, bucket);
-    } else if (issue.kind === "branch") {
-      const bucket = branchesOf.get(issue.partOf) ?? [];
+      tasksOf.set(issue.partOf, bucket);
+    } else if (issue.kind === "story") {
+      const bucket = storiesOf.get(issue.partOf) ?? [];
       bucket.push(issue);
-      branchesOf.set(issue.partOf, bucket);
+      storiesOf.set(issue.partOf, bucket);
     }
   }
-  for (const bucket of commitsOf.values()) bucket.sort(bySequence);
+  for (const bucket of tasksOf.values()) bucket.sort(bySequence);
 
   const state: Record<string, DerivedState> = {};
 
-  // A stacked Branch forks its parent's tip, so it is not blocked once the parent's
-  // tip exists (it has a `branchName`) and the parent's commits are all `done`
+  // A stacked Story forks its parent's tip, so it is not blocked once the parent's
+  // tip exists (it has a `branchName`) and the parent's tasks are all `done`
   // (no merge gate). A parent with no `branchName` is not-started: there is no
   // tip to fork yet, so the child stays blocked (guarding against the vacuous
-  // `[].every(...)` on a parent with zero commits). A root Branch (no
+  // `[].every(...)` on a parent with zero tasks). A root Story (no
   // `stackedOn`) has no parent to wait on and is not blocked.
-  const parentTipDone = (branch: Branch): boolean => {
-    if (!branch.stackedOn) return true;
-    const parent = byId.get(branch.stackedOn);
-    if (parent?.kind !== "branch") return false;
+  const parentTipDone = (story: Story): boolean => {
+    if (!story.stackedOn) return true;
+    const parent = byId.get(story.stackedOn);
+    if (parent?.kind !== "story") return false;
     if (!parent.branchName) return false;
-    return (commitsOf.get(parent.id) ?? []).every((c) => c.status === "done");
+    return (tasksOf.get(parent.id) ?? []).every((t) => t.status === "done");
   };
 
-  const branchStatusOf = (branch: Branch): BranchStatus => {
-    if (branch.merged) return "merged";
-    const children = commitsOf.get(branch.id) ?? [];
-    const allDone = children.every((c) => c.status === "done");
-    if (children.length > 0 && allDone && branch.prUrl) return "pr-open";
-    if (branch.branchName) return "in-progress";
+  const storyStatusOf = (story: Story): StoryStatus => {
+    if (story.merged) return "merged";
+    const children = tasksOf.get(story.id) ?? [];
+    const allDone = children.every((t) => t.status === "done");
+    if (children.length > 0 && allDone && story.prUrl) return "pr-open";
+    if (story.branchName) return "in-progress";
     return "not-started";
   };
 
-  for (const branch of issues.filter((i): i is Branch => i.kind === "branch")) {
+  for (const story of issues.filter((i): i is Story => i.kind === "story")) {
     // `base` is the stored `mergeBase` only — never re-derived from `stackedOn`.
     // When unset, omit it so the tree chip shows `base=(unset)`.
-    const branchStatus = branchStatusOf(branch);
-    state[branch.id] = {
-      blocked: branchStatus === "not-started" && !parentTipDone(branch),
-      branchStatus,
-      ...(branch.mergeBase !== undefined ? { base: branch.mergeBase } : {}),
+    const storyStatus = storyStatusOf(story);
+    state[story.id] = {
+      blocked: storyStatus === "not-started" && !parentTipDone(story),
+      storyStatus,
+      ...(story.mergeBase !== undefined ? { base: story.mergeBase } : {}),
     };
   }
 
-  for (const commit of issues.filter((i): i is Commit => i.kind === "commit")) {
-    const branch = byId.get(commit.partOf);
-    const hasBranch =
-      branch?.kind === "branch" && Boolean(branch.branchName) && !branch.merged;
-    const siblings = commitsOf.get(commit.partOf) ?? [];
+  for (const task of issues.filter((i): i is Task => i.kind === "task")) {
+    const story = byId.get(task.partOf);
+    const hasStory =
+      story?.kind === "story" && Boolean(story.branchName) && !story.merged;
+    const siblings = tasksOf.get(task.partOf) ?? [];
     const earlierDone = siblings
-      .slice(0, siblings.indexOf(commit))
-      .every((c) => c.status === "done");
-    state[commit.id] = {
-      blocked:
-        commit.status === "todo" && !(hasBranch && earlierDone),
+      .slice(0, siblings.indexOf(task))
+      .every((t) => t.status === "done");
+    state[task.id] = {
+      blocked: task.status === "todo" && !(hasStory && earlierDone),
     };
   }
 
   const epics = issues.filter((i) => i.kind === "epic");
   for (const epic of epics) {
-    const branches = branchesOf.get(epic.id) ?? [];
-    const started = branches.filter(
-      (b) => state[b.id]?.branchStatus !== "not-started",
+    const stories = storiesOf.get(epic.id) ?? [];
+    const started = stories.filter(
+      (s) => state[s.id]?.storyStatus !== "not-started",
     );
     const epicStatus: EpicStatus =
-      branches.length > 0 && branches.every((b) => b.merged)
+      stories.length > 0 && stories.every((s) => s.merged)
         ? "done"
         : started.length > 0
           ? "in-progress"
@@ -109,7 +108,7 @@ export function derive(issues: Issue[]): DeriveResult {
   }
 
   // An Epic is blocked while any Epic it `blockedBy` is not done (done = all its
-  // Branches merged). Computed in a second pass so every Epic's status is known.
+  // Stories merged). Computed in a second pass so every Epic's status is known.
   for (const epic of epics) {
     const derived = state[epic.id];
     if (derived)

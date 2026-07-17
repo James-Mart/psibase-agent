@@ -46,7 +46,7 @@ describe("coerceSetPatch", () => {
     },
     {
       name: "boolean true",
-      kind: "branch" as const,
+      kind: "story" as const,
       field: "merged",
       value: "true",
       opts: {},
@@ -54,7 +54,7 @@ describe("coerceSetPatch", () => {
     },
     {
       name: "boolean false",
-      kind: "commit" as const,
+      kind: "task" as const,
       field: "noDiff",
       value: "false",
       opts: {},
@@ -62,7 +62,7 @@ describe("coerceSetPatch", () => {
     },
     {
       name: "commitSha",
-      kind: "commit" as const,
+      kind: "task" as const,
       field: "commitSha",
       value: "0123456789abcdef0123456789abcdef01234567",
       opts: {},
@@ -158,7 +158,7 @@ describe("coerceSetPatch", () => {
     },
     {
       name: "invalid boolean",
-      kind: "commit" as const,
+      kind: "task" as const,
       field: "noDiff",
       value: "maybe",
       opts: {},
@@ -166,7 +166,7 @@ describe("coerceSetPatch", () => {
     },
     {
       name: "invalid commitSha",
-      kind: "commit" as const,
+      kind: "task" as const,
       field: "commitSha",
       value: "4019c25",
       opts: {},

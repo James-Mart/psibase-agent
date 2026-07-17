@@ -2,21 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   epicDependencyIds,
   epicsBlockedBy,
-  stackedBranchOrder,
+  stackedStoryOrder,
   stackedOnSubtree,
 } from "./order";
 import type { Issue } from "./schemas";
 
-type Branch = Extract<Issue, { kind: "branch" }>;
+type Story = Extract<Issue, { kind: "story" }>;
 type Epic = Extract<Issue, { kind: "epic" }>;
 
 const branch = (
   id: string,
   order: number,
-  extra: Partial<Branch> = {},
-): Branch => ({
+  extra: Partial<Story> = {},
+): Story => ({
   id,
-  kind: "branch",
+  kind: "story",
   title: id,
   partOf: "e",
   order,
@@ -46,14 +46,14 @@ const epic = (
   ...extra,
 });
 
-const ids = (branches: Branch[]): string[] => branches.map((b) => b.id);
+const ids = (branches: Story[]): string[] => branches.map((b) => b.id);
 
-describe("stackedBranchOrder", () => {
+describe("stackedStoryOrder", () => {
   it("emits each root immediately followed by what is stacked on it (depth-first)", () => {
     const a = branch("a", 0);
     const b = branch("b", 0, { stackedOn: "a" });
     const c = branch("c", 0, { stackedOn: "b" });
-    expect(ids(stackedBranchOrder([c, a, b]))).toEqual(["a", "b", "c"]);
+    expect(ids(stackedStoryOrder([c, a, b]))).toEqual(["a", "b", "c"]);
   });
 
   it("orders sibling roots and sibling children by stored order", () => {
@@ -61,7 +61,7 @@ describe("stackedBranchOrder", () => {
     const late = branch("late", 1);
     const childEarly = branch("child-early", 0, { stackedOn: "early" });
     const childLate = branch("child-late", 1, { stackedOn: "early" });
-    expect(ids(stackedBranchOrder([late, childLate, childEarly, early]))).toEqual([
+    expect(ids(stackedStoryOrder([late, childLate, childEarly, early]))).toEqual([
       "early",
       "child-early",
       "child-late",
@@ -71,22 +71,22 @@ describe("stackedBranchOrder", () => {
 
   it("treats a stackedOn pointing outside the set as a root", () => {
     const b = branch("b", 0, { stackedOn: "not-in-set" });
-    expect(ids(stackedBranchOrder([b]))).toEqual(["b"]);
+    expect(ids(stackedStoryOrder([b]))).toEqual(["b"]);
   });
 
   it("terminates on a pure stackedOn cycle (both are children, so no root anchors traversal)", () => {
     const a = branch("a", 0, { stackedOn: "b" });
     const b = branch("b", 0, { stackedOn: "a" });
-    expect(stackedBranchOrder([a, b])).toEqual([]);
+    expect(stackedStoryOrder([a, b])).toEqual([]);
   });
 
   it("returns an empty array for no branches", () => {
-    expect(stackedBranchOrder([])).toEqual([]);
+    expect(stackedStoryOrder([])).toEqual([]);
   });
 });
 
 describe("stackedOnSubtree", () => {
-  it("returns the root and transitive stackedOn descendants in stackedBranchOrder", () => {
+  it("returns the root and transitive stackedOn descendants in stackedStoryOrder", () => {
     const a = branch("a", 0);
     const b = branch("b", 0, { stackedOn: "a" });
     const c = branch("c", 0, { stackedOn: "b" });

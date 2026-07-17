@@ -1,6 +1,6 @@
 import { PARENT_KIND, type Issue, type IssueKind, type Problem } from "../schemas.js";
 import {
-  branchDependencyIds,
+  storyDependencyIds,
   epicDependencyIds,
   siblingGroupKey,
 } from "../order.js";
@@ -85,11 +85,11 @@ function dependencyCycles(
 ): Set<string> {
   const edges = new Map<string, string[]>();
   for (const issue of issues) {
-    if (issue.kind === "branch") {
+    if (issue.kind === "story") {
       edges.set(
         issue.id,
-        branchDependencyIds(issue).filter(
-          (id) => byId.get(id)?.kind === "branch",
+        storyDependencyIds(issue).filter(
+          (id) => byId.get(id)?.kind === "story",
         ),
       );
     } else if (issue.kind === "epic") {
@@ -142,11 +142,11 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
         problems,
       );
     }
-    if (issue.kind === "branch" && issue.stackedOn) {
+    if (issue.kind === "story" && issue.stackedOn) {
       checkReferentInSameContainer(
         issue,
         issue.stackedOn,
-        "branch",
+        "story",
         "stackedOn",
         "Epic",
         byId,

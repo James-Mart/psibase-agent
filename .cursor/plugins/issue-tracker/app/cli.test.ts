@@ -100,7 +100,7 @@ describe("summary", () => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       merged: false,
@@ -108,7 +108,7 @@ describe("summary", () => {
       updatedAt: nextAt(),
     });
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "Do the thing",
       partOf: "a",
       status: "todo",
@@ -120,7 +120,7 @@ describe("summary", () => {
   it("wires the verb through to formatted stdout", () => {
     const { stdout, status } = runCli(["summary", "c1"]);
     expect(status).toBe(0);
-    expect(stdout).toContain("Commit: c1 — Do the thing");
+    expect(stdout).toContain("Task: c1 — Do the thing");
     expect(stdout).toContain("For more details, try `issue show <id>` or `issue tree`.");
   });
 
@@ -154,7 +154,7 @@ describe("show", () => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       branchName: "feat/a",
@@ -173,7 +173,7 @@ describe("show", () => {
     const { stdout, status } = runCli(["show", "a"]);
     expect(status).toBe(0);
     expect(stdout).toContain("id: a");
-    expect(stdout).toContain("kind: branch");
+    expect(stdout).toContain("kind: story");
     expect(stdout).toContain("title: Branch A");
     expect(stdout).toContain("partOf: e");
     expect(stdout).toContain("mergeBase: main");
@@ -425,7 +425,7 @@ describe("epic get/set", () => {
     );
 
     writeIssue("br", {
-      kind: "branch",
+      kind: "story",
       title: "Branch",
       partOf: "e",
       merged: false,
@@ -435,7 +435,7 @@ describe("epic get/set", () => {
     });
     const wrongKind = runCli(["epic", "set", "br", "blockedBy", "--add", "blocker"]);
     expect(wrongKind.status).toBe(1);
-    expect(wrongKind.stderr).toMatch(/"br" is a branch, not an epic/);
+    expect(wrongKind.stderr).toMatch(/"br" is a story, not an epic/);
   });
 
   it("gets derived epicStatus and blocked", () => {
@@ -446,7 +446,7 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "get", "e", "blocked"]).stdout).toBe("true\n");
 
     writeIssue("br", {
-      kind: "branch",
+      kind: "story",
       title: "Branch",
       partOf: "e",
       merged: false,
@@ -457,7 +457,7 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("todo\n");
 
     writeIssue("br", {
-      kind: "branch",
+      kind: "story",
       title: "Branch",
       partOf: "e",
       branchName: "feat",
@@ -490,7 +490,7 @@ describe("epic get/set", () => {
   });
 });
 
-describe("branch get/set", () => {
+describe("story get/set", () => {
   const AT = "2026-07-10T14:00:00.000Z";
 
   beforeEach(() => {
@@ -505,7 +505,7 @@ describe("branch get/set", () => {
       updatedAt: nextAt(),
     });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       merged: false,
@@ -514,7 +514,7 @@ describe("branch get/set", () => {
       updatedAt: AT,
     });
     writeIssue("b", {
-      kind: "branch",
+      kind: "story",
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
@@ -527,64 +527,64 @@ describe("branch get/set", () => {
   });
 
   it("gets and sets allowlisted branch fields", () => {
-    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Branch A\n");
-    expect(runCli(["branch", "get", "a", "description"]).stdout).toBe("# Branch\n\nbody\n");
-    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("false\n");
-    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("a\n");
+    expect(runCli(["story", "get", "a", "title"]).stdout).toBe("Branch A\n");
+    expect(runCli(["story", "get", "a", "description"]).stdout).toBe("# Branch\n\nbody\n");
+    expect(runCli(["story", "get", "a", "merged"]).stdout).toBe("false\n");
+    expect(runCli(["story", "get", "b", "stackedOn"]).stdout).toBe("a\n");
 
-    expect(runCli(["branch", "set", "a", "title", "Renamed"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Renamed\n");
+    expect(runCli(["story", "set", "a", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "title"]).stdout).toBe("Renamed\n");
 
-    expect(runCli(["branch", "set", "a", "branchName", "feat/a"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "branchName"]).stdout).toBe("feat/a\n");
+    expect(runCli(["story", "set", "a", "branchName", "feat/a"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "branchName"]).stdout).toBe("feat/a\n");
 
-    expect(runCli(["branch", "set", "b", "stackedOn", "--clear"]).status).toBe(0);
-    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("");
-    expect(runCli(["branch", "set", "b", "stackedOn", "a"]).status).toBe(0);
-    expect(runCli(["branch", "get", "b", "stackedOn"]).stdout).toBe("a\n");
+    expect(runCli(["story", "set", "b", "stackedOn", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "get", "b", "stackedOn"]).stdout).toBe("");
+    expect(runCli(["story", "set", "b", "stackedOn", "a"]).status).toBe(0);
+    expect(runCli(["story", "get", "b", "stackedOn"]).stdout).toBe("a\n");
 
-    expect(runCli(["branch", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("https://pr/1\n");
-    expect(runCli(["branch", "set", "a", "prUrl", "--clear"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("");
+    expect(runCli(["story", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "prUrl"]).stdout).toBe("https://pr/1\n");
+    expect(runCli(["story", "set", "a", "prUrl", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "prUrl"]).stdout).toBe("");
 
-    expect(runCli(["branch", "set", "a", "specReview", "passed"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "specReview"]).stdout).toBe("passed\n");
+    expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "specReview"]).stdout).toBe("passed\n");
 
-    expect(runCli(["branch", "set", "a", "assignee", "bot"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "assignee"]).stdout).toBe("bot\n");
-    expect(runCli(["branch", "set", "a", "assignee", "--clear"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "assignee"]).stdout).toBe("");
+    expect(runCli(["story", "set", "a", "assignee", "bot"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("bot\n");
+    expect(runCli(["story", "set", "a", "assignee", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("");
 
     expect(
-      runCli(["branch", "set", "a", "needsAttention", "true", "--reason", "blocked"]).status,
+      runCli(["story", "set", "a", "needsAttention", "true", "--reason", "blocked"]).status,
     ).toBe(0);
-    expect(runCli(["branch", "get", "a", "needsAttention"]).stdout).toBe("true\n");
-    expect(runCli(["branch", "get", "a", "attentionReason"]).stdout).toBe("blocked\n");
-    expect(runCli(["branch", "set", "a", "needsAttention", "false"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "needsAttention"]).stdout).toBe("false\n");
-    expect(runCli(["branch", "get", "a", "attentionReason"]).stdout).toBe("");
+    expect(runCli(["story", "get", "a", "needsAttention"]).stdout).toBe("true\n");
+    expect(runCli(["story", "get", "a", "attentionReason"]).stdout).toBe("blocked\n");
+    expect(runCli(["story", "set", "a", "needsAttention", "false"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "needsAttention"]).stdout).toBe("false\n");
+    expect(runCli(["story", "get", "a", "attentionReason"]).stdout).toBe("");
   });
 
-  it("gets derived branchStatus, base, and blocked", () => {
-    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("not-started\n");
-    expect(runCli(["branch", "get", "a", "base"]).stdout).toBe("main\n");
-    expect(runCli(["branch", "get", "a", "blocked"]).stdout).toBe("false\n");
+  it("gets derived storyStatus, base, and blocked", () => {
+    expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("not-started\n");
+    expect(runCli(["story", "get", "a", "base"]).stdout).toBe("main\n");
+    expect(runCli(["story", "get", "a", "blocked"]).stdout).toBe("false\n");
 
-    expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("true\n");
-    expect(runCli(["branch", "get", "b", "base"]).stdout).toBe("main\n");
+    expect(runCli(["story", "get", "b", "blocked"]).stdout).toBe("true\n");
+    expect(runCli(["story", "get", "b", "base"]).stdout).toBe("main\n");
 
-    const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    const add = runCli(["add-story", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
-    expect(runCli(["branch", "get", childId, "base"]).stdout).toBe("");
+    expect(runCli(["story", "get", childId, "base"]).stdout).toBe("");
 
-    expect(runCli(["branch", "set", "a", "branchName", "feat/a"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("in-progress\n");
-    expect(runCli(["branch", "get", "b", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["story", "set", "a", "branchName", "feat/a"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("in-progress\n");
+    expect(runCli(["story", "get", "b", "blocked"]).stdout).toBe("false\n");
 
     writeIssue("b", {
-      kind: "branch",
+      kind: "story",
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
@@ -594,10 +594,10 @@ describe("branch get/set", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    expect(runCli(["branch", "get", "b", "base"]).stdout).toBe("feat/a\n");
+    expect(runCli(["story", "get", "b", "base"]).stdout).toBe("feat/a\n");
 
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       status: "done",
@@ -605,13 +605,13 @@ describe("branch get/set", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    expect(runCli(["branch", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "branchStatus"]).stdout).toBe("pr-open\n");
+    expect(runCli(["story", "set", "a", "prUrl", "https://pr/1"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("pr-open\n");
   });
 
   it("cascades mergeBase on merged via kind set", () => {
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       branchName: "feat/a",
@@ -622,7 +622,7 @@ describe("branch get/set", () => {
       updatedAt: AT,
     });
     writeIssue("b", {
-      kind: "branch",
+      kind: "story",
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
@@ -633,32 +633,32 @@ describe("branch get/set", () => {
       updatedAt: AT,
     });
 
-    expect(runCli(["branch", "set", "a", "merged", "true"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "merged", "true"]).status).toBe(0);
     expect(mergeBaseOf("b")).toBe("main");
-    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("true\n");
+    expect(runCli(["story", "get", "a", "merged"]).stdout).toBe("true\n");
   });
 
   it("refuses kind mismatch, unknown fields, and unsettable mergeBase", () => {
-    const mismatch = runCli(["branch", "get", "e", "title"]);
+    const mismatch = runCli(["story", "get", "e", "title"]);
     expect(mismatch.status).toBe(1);
-    expect(mismatch.stderr).toContain('"e" is an epic, not a branch');
+    expect(mismatch.stderr).toContain('"e" is an epic, not a story');
 
-    const unknownGet = runCli(["branch", "get", "a", "blockedBy"]);
+    const unknownGet = runCli(["story", "get", "a", "blockedBy"]);
     expect(unknownGet.status).toBe(1);
-    expect(unknownGet.stderr).toContain('unknown field "blockedBy" for branch');
+    expect(unknownGet.stderr).toContain('unknown field "blockedBy" for story');
 
-    const removedReady = runCli(["branch", "get", "a", "ready"]);
+    const removedReady = runCli(["story", "get", "a", "ready"]);
     expect(removedReady.status).toBe(1);
-    expect(removedReady.stderr).toContain('unknown field "ready" for branch');
+    expect(removedReady.stderr).toContain('unknown field "ready" for story');
 
-    const unknownSet = runCli(["branch", "set", "a", "mergeBase", "main"]);
+    const unknownSet = runCli(["story", "set", "a", "mergeBase", "main"]);
     expect(unknownSet.status).toBe(1);
     expect(unknownSet.stderr).toContain(
-      'unknown or unsettable field "mergeBase" for branch',
+      'unknown or unsettable field "mergeBase" for story',
     );
 
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       status: "todo",
@@ -666,22 +666,22 @@ describe("branch get/set", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    const setOnCommit = runCli(["branch", "set", "c1", "specReview", "passed"]);
+    const setOnCommit = runCli(["story", "set", "c1", "specReview", "passed"]);
     expect(setOnCommit.status).toBe(1);
-    expect(setOnCommit.stderr).toMatch(/"c1" is a commit, not a branch/);
+    expect(setOnCommit.stderr).toMatch(/"c1" is a task, not a story/);
   });
 
   it("surfaces specReview in show/list and preserves it across apply", () => {
     expect(runCli(["show", "a"]).stdout).not.toContain("specReview:");
 
-    expect(runCli(["branch", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
     expect(runCli(["show", "a"]).stdout).toContain("specReview: passed");
 
     const listed = JSON.parse(runCli(["list", "--project", "p"]).stdout);
     const branch = listed.issues.find((i: { id: string }) => i.id === "a");
     expect(branch.specReview).toBe("passed");
 
-    const invalid = runCli(["branch", "set", "a", "specReview", "pending"]);
+    const invalid = runCli(["story", "set", "a", "specReview", "pending"]);
     expect(invalid.status).toBe(1);
     expect(invalid.stderr).toMatch(/invalid specReview "pending"/);
 
@@ -692,12 +692,12 @@ describe("branch get/set", () => {
 epic:
   id: e
   title: Epic
-  branches:
+  stories:
     - id: a
       title: Branch A renamed
 `,
     );
-    expect(runCli(["branch", "set", "a", "specReview", "failed"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "specReview", "failed"]).status).toBe(0);
     expect(runCli(["apply", applyPath]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8")).specReview).toBe(
       "failed",
@@ -707,7 +707,7 @@ epic:
   });
 });
 
-describe("commit get/set", () => {
+describe("task get/set", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   const sha1 = "0123456789abcdef0123456789abcdef01234567";
   const sha256 =
@@ -725,7 +725,7 @@ describe("commit get/set", () => {
       updatedAt: nextAt(),
     });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       branchName: "feat/a",
@@ -735,7 +735,7 @@ describe("commit get/set", () => {
       updatedAt: AT,
     });
     writeIssue("a2", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A2",
       partOf: "e",
       merged: false,
@@ -744,7 +744,7 @@ describe("commit get/set", () => {
       updatedAt: AT,
     });
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "Commit 1",
       partOf: "a",
       status: "todo",
@@ -753,7 +753,7 @@ describe("commit get/set", () => {
       updatedAt: AT,
     });
     writeIssue("c2", {
-      kind: "commit",
+      kind: "task",
       title: "Commit 2",
       partOf: "a",
       status: "todo",
@@ -765,85 +765,85 @@ describe("commit get/set", () => {
   });
 
   it("gets and sets allowlisted commit fields", () => {
-    expect(runCli(["commit", "get", "c1", "title"]).stdout).toBe("Commit 1\n");
-    expect(runCli(["commit", "get", "c1", "description"]).stdout).toBe("# Commit\n\nbody\n");
-    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("todo\n");
-    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("");
+    expect(runCli(["task", "get", "c1", "title"]).stdout).toBe("Commit 1\n");
+    expect(runCli(["task", "get", "c1", "description"]).stdout).toBe("# Commit\n\nbody\n");
+    expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("todo\n");
+    expect(runCli(["task", "get", "c1", "noDiff"]).stdout).toBe("");
 
-    expect(runCli(["commit", "set", "c1", "title", "Renamed"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "title"]).stdout).toBe("Renamed\n");
+    expect(runCli(["task", "set", "c1", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "title"]).stdout).toBe("Renamed\n");
 
-    expect(runCli(["commit", "set", "c1", "status", "in-progress"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("in-progress\n");
+    expect(runCli(["task", "set", "c1", "status", "in-progress"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("in-progress\n");
 
-    expect(runCli(["commit", "set", "c1", "commitSha", sha1]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
-    expect(runCli(["commit", "set", "c1", "commitSha", "--clear"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe("");
+    expect(runCli(["task", "set", "c1", "commitSha", sha1]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
+    expect(runCli(["task", "set", "c1", "commitSha", "--clear"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "commitSha"]).stdout).toBe("");
 
-    expect(runCli(["commit", "set", "c1", "noDiff", "true"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("true\n");
-    expect(runCli(["commit", "set", "c1", "noDiff", "false"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("");
+    expect(runCli(["task", "set", "c1", "noDiff", "true"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "noDiff"]).stdout).toBe("true\n");
+    expect(runCli(["task", "set", "c1", "noDiff", "false"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "noDiff"]).stdout).toBe("");
 
-    expect(runCli(["commit", "set", "c1", "assignee", "bot"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("bot\n");
-    expect(runCli(["commit", "set", "c1", "assignee", "--clear"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("");
+    expect(runCli(["task", "set", "c1", "assignee", "bot"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "assignee"]).stdout).toBe("bot\n");
+    expect(runCli(["task", "set", "c1", "assignee", "--clear"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "assignee"]).stdout).toBe("");
 
     expect(
-      runCli(["commit", "set", "c1", "needsAttention", "true", "--reason", "blocked"]).status,
+      runCli(["task", "set", "c1", "needsAttention", "true", "--reason", "blocked"]).status,
     ).toBe(0);
-    expect(runCli(["commit", "get", "c1", "needsAttention"]).stdout).toBe("true\n");
-    expect(runCli(["commit", "get", "c1", "attentionReason"]).stdout).toBe("blocked\n");
-    expect(runCli(["commit", "set", "c1", "needsAttention", "false"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "needsAttention"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c1", "attentionReason"]).stdout).toBe("");
+    expect(runCli(["task", "get", "c1", "needsAttention"]).stdout).toBe("true\n");
+    expect(runCli(["task", "get", "c1", "attentionReason"]).stdout).toBe("blocked\n");
+    expect(runCli(["task", "set", "c1", "needsAttention", "false"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "needsAttention"]).stdout).toBe("false\n");
+    expect(runCli(["task", "get", "c1", "attentionReason"]).stdout).toBe("");
   });
 
   it("sets description from --file", () => {
     const descFile = join(dir, "desc.md");
     writeFileSync(descFile, "from file\n");
     expect(
-      runCli(["commit", "set", "c1", "description", "--file", descFile]).status,
+      runCli(["task", "set", "c1", "description", "--file", descFile]).status,
     ).toBe(0);
-    expect(runCli(["commit", "get", "c1", "description"]).stdout).toBe("from file\n");
+    expect(runCli(["task", "get", "c1", "description"]).stdout).toBe("from file\n");
   });
 
   it("gets derived blocked", () => {
-    expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("true\n");
+    expect(runCli(["task", "get", "c1", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["task", "get", "c2", "blocked"]).stdout).toBe("true\n");
 
-    expect(runCli(["commit", "set", "c1", "status", "done"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "blocked"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["task", "set", "c1", "status", "done"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "blocked"]).stdout).toBe("false\n");
+    expect(runCli(["task", "get", "c2", "blocked"]).stdout).toBe("false\n");
   });
 
   it("refuses kind mismatch, unknown fields, and invalid commitSha / noDiff", () => {
-    const mismatch = runCli(["commit", "get", "a", "title"]);
+    const mismatch = runCli(["task", "get", "a", "title"]);
     expect(mismatch.status).toBe(1);
-    expect(mismatch.stderr).toContain('"a" is a branch, not a commit');
+    expect(mismatch.stderr).toContain('"a" is a story, not a task');
 
-    const unknownGet = runCli(["commit", "get", "c1", "branchName"]);
+    const unknownGet = runCli(["task", "get", "c1", "branchName"]);
     expect(unknownGet.status).toBe(1);
-    expect(unknownGet.stderr).toContain('unknown field "branchName" for commit');
+    expect(unknownGet.stderr).toContain('unknown field "branchName" for task');
 
-    const removedReady = runCli(["commit", "get", "c1", "ready"]);
+    const removedReady = runCli(["task", "get", "c1", "ready"]);
     expect(removedReady.status).toBe(1);
-    expect(removedReady.stderr).toContain('unknown field "ready" for commit');
+    expect(removedReady.stderr).toContain('unknown field "ready" for task');
 
-    const unknownSet = runCli(["commit", "set", "c1", "branchName", "feat/x"]);
+    const unknownSet = runCli(["task", "set", "c1", "branchName", "feat/x"]);
     expect(unknownSet.status).toBe(1);
     expect(unknownSet.stderr).toContain(
-      'unknown or unsettable field "branchName" for commit',
+      'unknown or unsettable field "branchName" for task',
     );
 
-    const badSha = runCli(["commit", "set", "c1", "commitSha", "4019c25"]);
+    const badSha = runCli(["task", "set", "c1", "commitSha", "4019c25"]);
     expect(badSha.status).toBe(1);
     expect(badSha.stderr).toMatch(/invalid commit sha "4019c25"/);
 
     const shortSha = runCli([
-      "commit",
+      "task",
       "set",
       "c1",
       "commitSha",
@@ -853,7 +853,7 @@ describe("commit get/set", () => {
     expect(shortSha.stderr).toMatch(/invalid commit sha/);
 
     const nonHex = runCli([
-      "commit",
+      "task",
       "set",
       "c1",
       "commitSha",
@@ -863,7 +863,7 @@ describe("commit get/set", () => {
     expect(nonHex.stderr).toMatch(/invalid commit sha/);
 
     const upper = runCli([
-      "commit",
+      "task",
       "set",
       "c1",
       "commitSha",
@@ -872,30 +872,30 @@ describe("commit get/set", () => {
     expect(upper.status).toBe(1);
     expect(upper.stderr).toMatch(/invalid commit sha/);
 
-    expect(runCli(["commit", "set", "a", "commitSha", sha1]).stderr).toMatch(
-      /"a" is a branch, not a commit/,
+    expect(runCli(["task", "set", "a", "commitSha", sha1]).stderr).toMatch(
+      /"a" is a story, not a task/,
     );
-    expect(runCli(["commit", "set", "a", "noDiff", "true"]).stderr).toMatch(
-      /"a" is a branch, not a commit/,
+    expect(runCli(["task", "set", "a", "noDiff", "true"]).stderr).toMatch(
+      /"a" is a story, not a task/,
     );
 
-    const badNoDiff = runCli(["commit", "set", "c1", "noDiff", "maybe"]);
+    const badNoDiff = runCli(["task", "set", "c1", "noDiff", "maybe"]);
     expect(badNoDiff.status).toBe(1);
     expect(badNoDiff.stderr).toMatch(/invalid noDiff "maybe"/);
   });
 
   it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {
-    expect(runCli(["commit", "set", "c1", "commitSha", sha256]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "commitSha", sha256]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).commitSha).toBe(
       sha256,
     );
 
     expect(runCli(["show", "c1"]).stdout).not.toContain("noDiff:");
-    expect(runCli(["commit", "set", "c1", "noDiff", "true"]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "noDiff", "true"]).status).toBe(0);
     expect(runCli(["show", "c1"]).stdout).toContain("noDiff: true");
     expect(runCli(["summary", "c1"]).stdout).toContain("noDiff: true");
 
-    expect(runCli(["commit", "set", "c1", "noDiff", "false"]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "noDiff", "false"]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"))).not.toHaveProperty(
       "noDiff",
     );
@@ -904,7 +904,7 @@ describe("commit get/set", () => {
 
   it("gets whitespace assignee as stored and errors on unknown id", () => {
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "Commit 1",
       partOf: "a",
       status: "todo",
@@ -913,23 +913,23 @@ describe("commit get/set", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("   \n");
+    expect(runCli(["task", "get", "c1", "assignee"]).stdout).toBe("   \n");
 
-    const unknown = runCli(["commit", "get", "ghost", "assignee"]);
+    const unknown = runCli(["task", "get", "ghost", "assignee"]);
     expect(unknown.status).toBe(1);
     expect(unknown.stderr).toContain('unknown issue "ghost"');
   });
 
   it("reparents via partOf and rejects bad parents", () => {
-    expect(runCli(["commit", "set", "c1", "partOf", "a2"]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "partOf", "a2"]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).partOf).toBe("a2");
 
-    const wrongKind = runCli(["commit", "set", "c1", "partOf", "e"]);
+    const wrongKind = runCli(["task", "set", "c1", "partOf", "e"]);
     expect(wrongKind.status).toBe(1);
-    expect(wrongKind.stderr).toMatch(/must be a branch, not a epic/);
+    expect(wrongKind.stderr).toMatch(/must be a story, not a epic/);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).partOf).toBe("a2");
 
-    const unknown = runCli(["commit", "set", "c1", "partOf", "ghost"]);
+    const unknown = runCli(["task", "set", "c1", "partOf", "ghost"]);
     expect(unknown.status).toBe(1);
     expect(unknown.stderr).toMatch(/references unknown issue "ghost"/);
   });
@@ -940,7 +940,7 @@ describe("tree", () => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       merged: false,
@@ -948,7 +948,7 @@ describe("tree", () => {
       updatedAt: nextAt(),
     });
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       status: "todo",
@@ -956,7 +956,7 @@ describe("tree", () => {
       updatedAt: nextAt(),
     });
     writeIssue("b", {
-      kind: "branch",
+      kind: "story",
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
@@ -975,18 +975,18 @@ describe("tree", () => {
     // Root branch at +4 with a chip tail. Assert the line shape and each
     // expected chip independently rather than pinning the exact chip set/order,
     // so adding or reordering a chip doesn't break this indentation test.
-    expect(stdout).toMatch(/^ {4}branch a {2}Branch A {2}\[.*\]$/m);
-    expect(stdout).toMatch(/^ {4}branch a\b.*\bstatus=not-started\b/m);
-    expect(stdout).toMatch(/^ {4}branch a\b.*\bbase=main\b/m);
-    expect(stdout).toMatch(/^ {4}branch a\b.*\bbranch=\(unset\)/m);
-    expect(stdout).toMatch(/^ {6}commit c1 {2}C1 {2}\[status=todo\b.*\]$/m);
-    // A branch stacked on a root sits one level deeper (+6, same as its
-    // sibling commit), and carries a base chip.
-    expect(stdout).toMatch(/^ {6}branch b {2}Branch B {2}\[.*base=main.*\]$/m);
+    expect(stdout).toMatch(/^ {4}story a {2}Branch A {2}\[.*\]$/m);
+    expect(stdout).toMatch(/^ {4}story a\b.*\bstatus=not-started\b/m);
+    expect(stdout).toMatch(/^ {4}story a\b.*\bbase=main\b/m);
+    expect(stdout).toMatch(/^ {4}story a\b.*\bbranch=\(unset\)/m);
+    expect(stdout).toMatch(/^ {6}task c1 {2}C1 {2}\[status=todo\b.*\]$/m);
+    // A story stacked on a root sits one level deeper (+6, same as its
+    // sibling task), and carries a base chip.
+    expect(stdout).toMatch(/^ {6}story b {2}Branch B {2}\[.*base=main.*\]$/m);
 
-    // Depth-first: the root branch and its commit precede the stacked branch.
-    expect(stdout.indexOf("branch a")).toBeLessThan(stdout.indexOf("commit c1"));
-    expect(stdout.indexOf("commit c1")).toBeLessThan(stdout.indexOf("branch b"));
+    // Depth-first: the root story and its task precede the stacked story.
+    expect(stdout.indexOf("story a")).toBeLessThan(stdout.indexOf("task c1"));
+    expect(stdout.indexOf("task c1")).toBeLessThan(stdout.indexOf("story b"));
   });
 
   it("scopes by a project title as well as its id", () => {
@@ -999,13 +999,13 @@ describe("tree", () => {
   it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
     // Create via the CLI so post-migration semantics apply: child of an
     // unnamed parent leaves mergeBase unset until branchName cascades.
-    const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    const add = runCli(["add-story", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
     const { stdout, status } = runCli(["tree", "--project", "p"]);
     expect(status).toBe(0);
     expect(stdout).toMatch(
-      new RegExp(`^\\s+branch ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
+      new RegExp(`^\\s+story ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
     );
   });
 
@@ -1026,17 +1026,17 @@ describe("tree", () => {
   it("scopes by a positional branch id to that branch and its commits only", () => {
     const { stdout, status } = runCli(["tree", "a"]);
     expect(status).toBe(0);
-    expect(stdout).toMatch(/^branch a {2}Branch A\b/m);
-    expect(stdout).toMatch(/^ {2}commit c1 {2}C1\b/m);
-    expect(stdout).not.toContain("branch b");
+    expect(stdout).toMatch(/^story a {2}Branch A\b/m);
+    expect(stdout).toMatch(/^ {2}task c1 {2}C1\b/m);
+    expect(stdout).not.toContain("story b");
     expect(stdout).not.toContain("epic e");
   });
 
   it("refuses a positional commit id and names the parent branch", () => {
     const { stderr, status } = runCli(["tree", "c1"]);
     expect(status).toBe(1);
-    expect(stderr).toContain('cannot scope tree to a commit');
-    expect(stderr).toContain('branch "a"');
+    expect(stderr).toContain('cannot scope tree to a task');
+    expect(stderr).toContain('story "a"');
   });
 
   it("refuses an unknown positional id", () => {
@@ -1068,7 +1068,7 @@ describe("archived field, cascade, and CLI filtering", () => {
       updatedAt: nextAt(),
     });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       merged: false,
@@ -1076,7 +1076,7 @@ describe("archived field, cascade, and CLI filtering", () => {
       updatedAt: nextAt(),
     });
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       status: "todo",
@@ -1089,12 +1089,12 @@ describe("archived field, cascade, and CLI filtering", () => {
     expect(runCli(["epic", "get", "e", "archived"]).stdout).toBe("false\n");
     expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
     expect(runCli(["epic", "get", "e", "archived"]).stdout).toBe("true\n");
-    expect(runCli(["branch", "get", "a", "archived"]).stdout).toBe("true\n");
-    expect(runCli(["commit", "get", "c1", "archived"]).stdout).toBe("true\n");
+    expect(runCli(["story", "get", "a", "archived"]).stdout).toBe("true\n");
+    expect(runCli(["task", "get", "c1", "archived"]).stdout).toBe("true\n");
 
     expect(runCli(["epic", "set", "e", "archived", "false"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "archived"]).stdout).toBe("false\n");
-    expect(runCli(["commit", "get", "c1", "archived"]).stdout).toBe("false\n");
+    expect(runCli(["story", "get", "a", "archived"]).stdout).toBe("false\n");
+    expect(runCli(["task", "get", "c1", "archived"]).stdout).toBe("false\n");
   });
 
   it("hides archived issues from tree/list unless --show-archived", () => {
@@ -1104,12 +1104,12 @@ describe("archived field, cascade, and CLI filtering", () => {
     expect(treeHidden.status).toBe(0);
     expect(treeHidden.stdout).toContain("project p");
     expect(treeHidden.stdout).not.toContain("epic e");
-    expect(treeHidden.stdout).not.toContain("branch a");
+    expect(treeHidden.stdout).not.toContain("story a");
 
     const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
     expect(treeShown.status).toBe(0);
     expect(treeShown.stdout).toContain("epic e");
-    expect(treeShown.stdout).toContain("branch a");
+    expect(treeShown.stdout).toContain("story a");
 
     const listHidden = runCli(["list", "--project", "p"]);
     expect(listHidden.status).toBe(0);
@@ -1128,10 +1128,10 @@ describe("archived field, cascade, and CLI filtering", () => {
 
   it("creates a child under an archived parent as archived", () => {
     expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
-    const add = runCli(["add-branch", "Child", "--part-of", "e"]);
+    const add = runCli(["add-story", "Child", "--part-of", "e"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
-    expect(runCli(["branch", "get", childId, "archived"]).stdout).toBe("true\n");
+    expect(runCli(["story", "get", childId, "archived"]).stdout).toBe("true\n");
   });
 
   it("refuses project set archived", () => {
@@ -1188,7 +1188,7 @@ describe("attach / attachments / detach", () => {
       updatedAt: AT,
     });
     writeIssue("a", {
-      kind: "branch",
+      kind: "story",
       title: "Branch A",
       partOf: "e",
       order: 0,
@@ -1197,7 +1197,7 @@ describe("attach / attachments / detach", () => {
       updatedAt: AT,
     });
     writeIssue("c1", {
-      kind: "commit",
+      kind: "task",
       title: "C1",
       partOf: "a",
       order: 0,

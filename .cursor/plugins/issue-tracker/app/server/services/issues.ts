@@ -44,6 +44,7 @@ import {
   planArchivedCascade,
   type ArchivedCascadePatch,
 } from "./archived.js";
+import { ensureKindRenamed } from "./kind-rename.js";
 import { ancestorIsArchived } from "./archived-visibility.js";
 import { planDeletion, type DeletionResult } from "./deletion.js";
 import { uniqueSlug } from "./slug.js";
@@ -159,6 +160,8 @@ export function ensureArchivedMigrated(): void {
 
 /** Run every one-shot on-disk migration. Prefer this over calling each ensure* alone. */
 export function ensureMigrations(): void {
+  // Kind rename must run before parseIssue-based migrations (old kinds won't parse).
+  ensureKindRenamed();
   ensureMergeBasesMigrated();
   ensureArchivedMigrated();
 }
@@ -336,13 +339,13 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       draft.partOf = input.partOf;
     }
     if (input.kind === "epic") draft.blockedBy = [];
-    if (input.kind === "branch") {
+    if (input.kind === "story") {
       draft.merged = false;
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
       const mergeBase = initialMergeBase(input.stackedOn, issues);
       if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
-    if (input.kind === "commit") draft.status = "todo";
+    if (input.kind === "task") draft.status = "todo";
     if (input.kind === "project") {
       if (input.workspace) {
         validateWorkspacePath(input.workspace);
@@ -392,10 +395,10 @@ function applyCascadePatches(
         `cascade target "${childId}" is missing`,
       );
     }
-    if (patch.mergeBase !== undefined && child.kind !== "branch") {
+    if (patch.mergeBase !== undefined && child.kind !== "story") {
       throw new IssueError(
         "validation",
-        `mergeBase cascade target "${childId}" is missing or not a branch`,
+        `mergeBase cascade target "${childId}" is missing or not a story`,
       );
     }
     if (patch.archived !== undefined && child.kind === "project") {
@@ -452,7 +455,7 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     const orderPatched = "order" in jsonPatch;
     if (!orderPatched && siblingGroupKey(next) !== siblingGroupKey(existing)) {
       const partOf = "partOf" in next ? next.partOf : undefined;
-      const stackedOn = next.kind === "branch" ? next.stackedOn : undefined;
+      const stackedOn = next.kind === "story" ? next.stackedOn : undefined;
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
     }
 

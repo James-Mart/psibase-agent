@@ -29,28 +29,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  BranchTreeDnDProvider,
-  useBranchTreeDnD,
-  useBranchTreeDnDContext,
-} from "../hooks/use-branch-tree-dnd";
+  StoryTreeDnDProvider,
+  useStoryTreeDnD,
+  useStoryTreeDnDContext,
+} from "../hooks/use-story-tree-dnd";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
 import {
-  BRANCH_STATUS_CLASS,
-  BRANCH_STATUS_LABEL,
+  STORY_STATUS_CLASS,
+  STORY_STATUS_LABEL,
   EPIC_STATUS_CLASS,
   EPIC_STATUS_LABEL,
 } from "../lib/derived";
 import { ArchiveIssueButton } from "./archive-issue-button";
-import { CommitStatusSelect } from "./commit-status-select";
+import { TaskStatusSelect } from "./task-status-select";
 import { IssueBadges } from "./issue-badges";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
   project: FolderKanban,
   epic: Layers,
-  branch: GitBranch,
-  commit: GitCommitHorizontal,
+  story: GitBranch,
+  task: GitCommitHorizontal,
 };
 
 function GitChip({
@@ -60,7 +60,7 @@ function GitChip({
   issue: IssueRecord;
   derived?: DerivedState;
 }) {
-  if (issue.kind === "branch") {
+  if (issue.kind === "story") {
     return (
       <span className="flex items-center gap-2 text-xs">
         {issue.branchName ? (
@@ -83,9 +83,9 @@ function GitChip({
             <GitPullRequest className="h-3.5 w-3.5" />
           </a>
         ) : null}
-        {derived?.branchStatus ? (
-          <span className={BRANCH_STATUS_CLASS[derived.branchStatus]}>
-            {BRANCH_STATUS_LABEL[derived.branchStatus]}
+        {derived?.storyStatus ? (
+          <span className={STORY_STATUS_CLASS[derived.storyStatus]}>
+            {STORY_STATUS_LABEL[derived.storyStatus]}
           </span>
         ) : null}
       </span>
@@ -98,7 +98,7 @@ function GitChip({
       </span>
     );
   }
-  if (issue.kind === "commit" && issue.commitSha) {
+  if (issue.kind === "task" && issue.commitSha) {
     return (
       <span className="font-mono text-xs text-muted-foreground">
         {issue.commitSha.slice(0, 7)}
@@ -116,7 +116,7 @@ function RowActions({ issue }: { issue: IssueRecord }) {
   return (
     <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
       {childKind ? (
-        issue.kind === "branch" ? (
+        issue.kind === "story" ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -132,22 +132,22 @@ function RowActions({ issue }: { issue: IssueRecord }) {
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
-                  openNew({ presetKind: "commit", presetParent: issue.id });
+                  openNew({ presetKind: "task", presetParent: issue.id });
                 }}
               >
-                Add commit
+                Add task
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
                   openNew({
-                    presetKind: "branch",
+                    presetKind: "story",
                     presetParent: issue.partOf,
                     presetStackedOn: issue.id,
                   });
                 }}
               >
-                Add stacked branch
+                Add stacked story
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -194,11 +194,11 @@ function TreeRow({
   const { issue } = node;
   const expanded = useIssueUiStore((s) => s.expanded[issue.id] ?? true);
   const toggle = useIssueUiStore((s) => s.toggle);
-  const { getRowDnDProps, consumeDragGesture } = useBranchTreeDnDContext();
+  const { getRowDnDProps, consumeDragGesture } = useStoryTreeDnDContext();
   const hasChildren = node.children.length > 0;
   const Icon = KIND_ICON[issue.kind];
   const state = derived[issue.id];
-  const isBranch = issue.kind === "branch";
+  const isStory = issue.kind === "story";
   const { isDragging, isDropTarget, ...rowDnDHandlers } = getRowDnDProps(issue);
 
   return (
@@ -207,7 +207,7 @@ function TreeRow({
         className={cn(
           "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
           hasChildren && "cursor-pointer",
-          isBranch && "cursor-grab active:cursor-grabbing",
+          isStory && "cursor-grab active:cursor-grabbing",
           state?.blocked && "opacity-40",
           isDragging && "opacity-50",
           isDropTarget && "bg-accent ring-1 ring-ring",
@@ -254,8 +254,8 @@ function TreeRow({
           {issue.hasChat ? (
             <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
           ) : null}
-          {issue.kind === "commit" ? (
-            <CommitStatusSelect id={issue.id} status={issue.status} />
+          {issue.kind === "task" ? (
+            <TaskStatusSelect id={issue.id} status={issue.status} />
           ) : null}
           <RowActions issue={issue} />
         </span>
@@ -280,7 +280,7 @@ export function IssueTree({
   derived: DerivedMap;
   issues: IssueRecord[];
 }) {
-  const dnd = useBranchTreeDnD(issues);
+  const dnd = useStoryTreeDnD(issues);
 
   if (nodes.length === 0) {
     return (
@@ -290,7 +290,7 @@ export function IssueTree({
     );
   }
   return (
-    <BranchTreeDnDProvider value={dnd}>
+    <StoryTreeDnDProvider value={dnd}>
       <div className="flex flex-col">
         {nodes.map((node, index) => (
           <Fragment key={node.issue.id}>
@@ -299,6 +299,6 @@ export function IssueTree({
           </Fragment>
         ))}
       </div>
-    </BranchTreeDnDProvider>
+    </StoryTreeDnDProvider>
   );
 }

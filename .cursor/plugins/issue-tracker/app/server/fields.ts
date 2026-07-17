@@ -5,7 +5,7 @@ import {
   type MergePolicy,
 } from "./schemas.js";
 
-/** Default git base for a root Branch (no `stackedOn`). */
+/** Default git base for a root Story (no `stackedOn`). */
 export const EPIC_BASE = "main";
 
 /** Display token for an unset tree/detail chip (`base=(unset)`, `branch=(unset)`). */
@@ -25,61 +25,61 @@ export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
-// Branch fields the manual edit form renders. Imperative-only runtime keys
-// (e.g. specReview) live in BRANCH_IMPERATIVE_ONLY_KEYS and are excluded.
-export const BRANCH_FORM_FIELD_KEYS = [
+// Story fields the manual edit form renders. Imperative-only runtime keys
+// (e.g. specReview) live in STORY_IMPERATIVE_ONLY_KEYS and are excluded.
+export const STORY_FORM_FIELD_KEYS = [
   "branchName",
   "stackedOn",
   "prUrl",
   "merged",
 ] as const;
 
-export const BRANCH_IMPERATIVE_ONLY_KEYS = ["specReview", "mergeBase"] as const;
+export const STORY_IMPERATIVE_ONLY_KEYS = ["specReview", "mergeBase"] as const;
 
-export const BRANCH_FIELD_KEYS = [
-  ...BRANCH_FORM_FIELD_KEYS,
-  ...BRANCH_IMPERATIVE_ONLY_KEYS,
+export const STORY_FIELD_KEYS = [
+  ...STORY_FORM_FIELD_KEYS,
+  ...STORY_IMPERATIVE_ONLY_KEYS,
 ] as const;
 
-// Optional branch runtime state preserved by apply when already set on disk.
-export const BRANCH_RUNTIME_OPTIONAL_KEYS = [
+// Optional story runtime state preserved by apply when already set on disk.
+export const STORY_RUNTIME_OPTIONAL_KEYS = [
   "branchName",
   "mergeBase",
   "prUrl",
   "specReview",
 ] as const;
 
-// Commit fields the manual edit form renders. Imperative-only runtime keys
-// (e.g. noDiff) live in COMMIT_IMPERATIVE_ONLY_KEYS and are excluded.
-export const COMMIT_FORM_FIELD_KEYS = ["status", "commitSha"] as const;
+// Task fields the manual edit form renders. Imperative-only runtime keys
+// (e.g. noDiff) live in TASK_IMPERATIVE_ONLY_KEYS and are excluded.
+export const TASK_FORM_FIELD_KEYS = ["status", "commitSha"] as const;
 
-export const COMMIT_IMPERATIVE_ONLY_KEYS = ["noDiff"] as const;
+export const TASK_IMPERATIVE_ONLY_KEYS = ["noDiff"] as const;
 
-export const COMMIT_RUNTIME_OPTIONAL_KEYS = COMMIT_IMPERATIVE_ONLY_KEYS;
+export const TASK_RUNTIME_OPTIONAL_KEYS = TASK_IMPERATIVE_ONLY_KEYS;
 
-// Optional commit fields preserved by apply when already set on disk.
-export const COMMIT_OPTIONAL_PRESERVE_KEYS = [
+// Optional task fields preserved by apply when already set on disk.
+export const TASK_OPTIONAL_PRESERVE_KEYS = [
   "commitSha",
-  ...COMMIT_IMPERATIVE_ONLY_KEYS,
+  ...TASK_IMPERATIVE_ONLY_KEYS,
 ] as const;
 
-export const COMMIT_FIELD_KEYS = [
-  ...COMMIT_FORM_FIELD_KEYS,
-  ...COMMIT_IMPERATIVE_ONLY_KEYS,
+export const TASK_FIELD_KEYS = [
+  ...TASK_FORM_FIELD_KEYS,
+  ...TASK_IMPERATIVE_ONLY_KEYS,
 ] as const;
 
 export type ProjectFieldKey = (typeof PROJECT_FIELD_KEYS)[number];
 export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
-export type BranchFormFieldKey = (typeof BRANCH_FORM_FIELD_KEYS)[number];
-export type BranchFieldKey = (typeof BRANCH_FIELD_KEYS)[number];
-export type BranchRuntimeOptionalKey = (typeof BRANCH_RUNTIME_OPTIONAL_KEYS)[number];
-export type CommitFieldKey = (typeof COMMIT_FIELD_KEYS)[number];
+export type StoryFormFieldKey = (typeof STORY_FORM_FIELD_KEYS)[number];
+export type StoryFieldKey = (typeof STORY_FIELD_KEYS)[number];
+export type StoryRuntimeOptionalKey = (typeof STORY_RUNTIME_OPTIONAL_KEYS)[number];
+export type TaskFieldKey = (typeof TASK_FIELD_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
   project: PROJECT_FIELD_KEYS,
   epic: EPIC_FIELD_KEYS,
-  branch: BRANCH_FORM_FIELD_KEYS,
-  commit: COMMIT_FORM_FIELD_KEYS,
+  story: STORY_FORM_FIELD_KEYS,
+  task: TASK_FORM_FIELD_KEYS,
 } as const satisfies Record<IssueKind, readonly string[]>;
 
 export const CLEARABLE_KEYS = [
@@ -140,6 +140,6 @@ export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,
   ...PROJECT_FIELD_KEYS,
   ...EPIC_FIELD_KEYS,
-  ...BRANCH_FIELD_KEYS,
-  ...COMMIT_FIELD_KEYS,
+  ...STORY_FIELD_KEYS,
+  ...TASK_FIELD_KEYS,
 ] as const satisfies readonly (keyof IssuePatch)[];

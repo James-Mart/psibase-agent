@@ -9,9 +9,9 @@ import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
 import {
-  BRANCH_STATUS_CLASS,
-  BRANCH_STATUS_LABEL,
-  COMMIT_STATUS_CLASS,
+  STORY_STATUS_CLASS,
+  STORY_STATUS_LABEL,
+  TASK_STATUS_CLASS,
 } from "../lib/derived";
 
 function BranchPanel({
@@ -19,17 +19,17 @@ function BranchPanel({
   issues,
   derived,
 }: {
-  issue: Extract<IssueDetail, { kind: "branch" }>;
+  issue: Extract<IssueDetail, { kind: "story" }>;
   issues: IssueRecord[];
   derived: ReturnType<typeof useIssuesQuery>["data"];
 }) {
   const { projectId = "" } = useParams();
   const state = derived?.derived[issue.id];
   const stackedOnHere = issues.filter(
-    (i) => i.kind === "branch" && i.stackedOn === issue.id,
+    (i) => i.kind === "story" && i.stackedOn === issue.id,
   );
   const commits = issues
-    .filter((i) => i.kind === "commit" && i.partOf === issue.id)
+    .filter((i) => i.kind === "task" && i.partOf === issue.id)
     .sort(bySequence);
 
   return (
@@ -37,12 +37,12 @@ function BranchPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Git / stack
       </div>
-      {state?.branchStatus ? (
+      {state?.storyStatus ? (
         <Row
           label="Status"
           value={
-            <span className={BRANCH_STATUS_CLASS[state.branchStatus]}>
-              {BRANCH_STATUS_LABEL[state.branchStatus]}
+            <span className={STORY_STATUS_CLASS[state.storyStatus]}>
+              {STORY_STATUS_LABEL[state.storyStatus]}
             </span>
           }
         />
@@ -111,8 +111,8 @@ function BranchPanel({
                 >
                   <GitCommitHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="truncate">{c.title}</span>
-                  {c.kind === "commit" ? (
-                    <span className={`ml-auto text-xs ${COMMIT_STATUS_CLASS[c.status]}`}>
+                  {c.kind === "task" ? (
+                    <span className={`ml-auto text-xs ${TASK_STATUS_CLASS[c.status]}`}>
                       {c.status}
                     </span>
                   ) : null}
@@ -132,7 +132,7 @@ function CommitPanel({
   issue,
   issues,
 }: {
-  issue: Extract<IssueDetail, { kind: "commit" }>;
+  issue: Extract<IssueDetail, { kind: "task" }>;
   issues: IssueRecord[];
 }) {
   const branch = issues.find((i) => i.id === issue.partOf);
@@ -142,17 +142,17 @@ function CommitPanel({
         Git / stack
       </div>
       <Row
-        label="Branch"
+        label="Story"
         value={
           <IssueLink id={issue.partOf} className="font-mono text-primary hover:underline">
             {issue.partOf}
           </IssueLink>
         }
       />
-      {branch?.kind === "branch" && branch.branchName ? (
+      {branch?.kind === "story" && branch.branchName ? (
         <Row label="Branch name" value={<span className="font-mono">{branch.branchName}</span>} />
       ) : null}
-      <Row label="Status" value={<span className={COMMIT_STATUS_CLASS[issue.status]}>{issue.status}</span>} />
+      <Row label="Status" value={<span className={TASK_STATUS_CLASS[issue.status]}>{issue.status}</span>} />
       <Row
         label="Commit SHA"
         value={
@@ -171,10 +171,10 @@ export function GitStackPanel({ issue }: { issue: IssueDetail }) {
   const { data } = useIssuesQuery();
   const issues = useMemo(() => data?.issues ?? [], [data?.issues]);
   if (!data) return null;
-  if (issue.kind === "branch") {
+  if (issue.kind === "story") {
     return <BranchPanel issue={issue} issues={issues} derived={data} />;
   }
-  if (issue.kind === "commit") {
+  if (issue.kind === "task") {
     return <CommitPanel issue={issue} issues={issues} />;
   }
   return null;

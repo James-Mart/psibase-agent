@@ -47,11 +47,11 @@ function epic(
 function branch(
   id: string,
   partOf: string,
-  overrides: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  overrides: Partial<Extract<Issue, { kind: "story" }>> = {},
 ): Issue {
   return {
     id,
-    kind: "branch",
+    kind: "story",
     title: id,
     partOf,
     merged: false,
@@ -68,11 +68,11 @@ function branch(
 function commit(
   id: string,
   partOf: string,
-  overrides: Partial<Extract<Issue, { kind: "commit" }>> = {},
+  overrides: Partial<Extract<Issue, { kind: "task" }>> = {},
 ): Issue {
   return {
     id,
-    kind: "commit",
+    kind: "task",
     title: id,
     partOf,
     status: "todo",
@@ -205,7 +205,7 @@ describe("archived on-disk (migration + cascade/create)", () => {
       ...defaults,
     });
     writeIssue("b", {
-      kind: "branch",
+      kind: "story",
       title: "B",
       partOf: "e",
       merged: false,
@@ -215,7 +215,7 @@ describe("archived on-disk (migration + cascade/create)", () => {
       ...defaults,
     });
     writeIssue("c", {
-      kind: "commit",
+      kind: "task",
       title: "C",
       partOf: "b",
       status: "todo",
@@ -271,11 +271,11 @@ describe("archived on-disk (migration + cascade/create)", () => {
     const { update, create } = await import("./issues.js");
     await update("e", { archived: true });
     const child = await create({
-      kind: "branch",
+      kind: "story",
       title: "New Branch",
       partOf: "e",
     });
-    expect(child.kind === "branch" && child.archived).toBe(true);
+    expect(child.kind === "story" && child.archived).toBe(true);
     expect(readIssue(child.id).archived).toBe(true);
   });
 

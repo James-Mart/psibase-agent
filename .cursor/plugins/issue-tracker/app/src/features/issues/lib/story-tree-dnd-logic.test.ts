@@ -1,19 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IssueRecord } from "@server/schemas";
 import {
-  canDropBranchOntoEpic,
-  canRestackBranchOntoBranch,
-} from "./branch-drop";
+  canDropStoryOntoEpic,
+  canRestackStoryOntoStory,
+} from "./story-drop";
 import {
-  isBranchTreeDraggable,
-  isBranchTreeDropTarget,
-  processBranchDrop,
-} from "./branch-tree-dnd-logic";
+  isStoryTreeDraggable,
+  isStoryTreeDropTarget,
+  processStoryDrop,
+} from "./story-tree-dnd-logic";
 
-function branch(id: string, partOf: string, stackedOn?: string): IssueRecord {
+function story(id: string, partOf: string, stackedOn?: string): IssueRecord {
   return {
     id,
-    kind: "branch",
+    kind: "story",
     title: id,
     partOf,
     order: 0,
@@ -23,6 +23,7 @@ function branch(id: string, partOf: string, stackedOn?: string): IssueRecord {
     merged: false,
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     ...(stackedOn ? { stackedOn } : {}),
     hasDescription: false,
     hasChat: false,
@@ -40,15 +41,16 @@ function epic(id: string): IssueRecord {
     updatedAt: "2020-01-01T00:00:00.000Z",
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     hasDescription: false,
     hasChat: false,
   };
 }
 
-function commit(id: string, partOf: string): IssueRecord {
+function task(id: string, partOf: string): IssueRecord {
   return {
     id,
-    kind: "commit",
+    kind: "task",
     title: id,
     partOf,
     status: "todo",
@@ -57,6 +59,7 @@ function commit(id: string, partOf: string): IssueRecord {
     updatedAt: "2020-01-01T00:00:00.000Z",
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     hasDescription: false,
     hasChat: false,
   };
@@ -65,31 +68,31 @@ function commit(id: string, partOf: string): IssueRecord {
 const issues: IssueRecord[] = [
   epic("e1"),
   epic("e2"),
-  branch("a", "e1"),
-  branch("b", "e1", "a"),
-  branch("peer", "e1"),
-  branch("x", "e2"),
-  commit("c1", "b"),
+  story("a", "e1"),
+  story("b", "e1", "a"),
+  story("peer", "e1"),
+  story("x", "e2"),
+  task("c1", "b"),
 ];
 
-describe("isBranchTreeDraggable", () => {
+describe("isStoryTreeDraggable", () => {
   it("allows branches only", () => {
-    expect(isBranchTreeDraggable(branch("a", "e1"))).toBe(true);
-    expect(isBranchTreeDraggable(epic("e1"))).toBe(false);
-    expect(isBranchTreeDraggable(commit("c1", "b"))).toBe(false);
+    expect(isStoryTreeDraggable(story("a", "e1"))).toBe(true);
+    expect(isStoryTreeDraggable(epic("e1"))).toBe(false);
+    expect(isStoryTreeDraggable(task("c1", "b"))).toBe(false);
   });
 });
 
-describe("isBranchTreeDropTarget", () => {
+describe("isStoryTreeDropTarget", () => {
   it("allows branches and epics", () => {
-    expect(isBranchTreeDropTarget(branch("a", "e1"))).toBe(true);
-    expect(isBranchTreeDropTarget(epic("e1"))).toBe(true);
+    expect(isStoryTreeDropTarget(story("a", "e1"))).toBe(true);
+    expect(isStoryTreeDropTarget(epic("e1"))).toBe(true);
   });
 
   it("refuses commits and other kinds", () => {
-    expect(isBranchTreeDropTarget(commit("c1", "b"))).toBe(false);
+    expect(isStoryTreeDropTarget(task("c1", "b"))).toBe(false);
     expect(
-      isBranchTreeDropTarget({
+      isStoryTreeDropTarget({
         id: "p",
         kind: "project",
         title: "p",
@@ -98,6 +101,7 @@ describe("isBranchTreeDropTarget", () => {
         updatedAt: "2020-01-01T00:00:00.000Z",
         needsAttention: false,
         attentionReason: null,
+    archived: false,
         hasDescription: false,
         hasChat: false,
       }),
@@ -105,14 +109,14 @@ describe("isBranchTreeDropTarget", () => {
   });
 });
 
-describe("processBranchDrop", () => {
+describe("processStoryDrop", () => {
   it("calls onMove for a legal restack onto a branch", () => {
     const onMove = vi.fn();
-    processBranchDrop({
+    processStoryDrop({
       sourceId: "b",
       targetId: "peer",
       canDrop: (sourceId) =>
-        canRestackBranchOntoBranch(issues, sourceId, "peer"),
+        canRestackStoryOntoStory(issues, sourceId, "peer"),
       onMove,
     });
     expect(onMove).toHaveBeenCalledWith("b", "peer");
@@ -120,10 +124,10 @@ describe("processBranchDrop", () => {
 
   it("calls onMove for a legal reparent onto an epic", () => {
     const onMove = vi.fn();
-    processBranchDrop({
+    processStoryDrop({
       sourceId: "b",
       targetId: "e2",
-      canDrop: (sourceId) => canDropBranchOntoEpic(issues, sourceId, "e2"),
+      canDrop: (sourceId) => canDropStoryOntoEpic(issues, sourceId, "e2"),
       onMove,
     });
     expect(onMove).toHaveBeenCalledWith("b", "e2");
@@ -131,24 +135,24 @@ describe("processBranchDrop", () => {
 
   it("does not call onMove for illegal drops (self, descendant, commit target)", () => {
     const onMove = vi.fn();
-    processBranchDrop({
+    processStoryDrop({
       sourceId: "b",
       targetId: "b",
       canDrop: (sourceId) =>
-        canRestackBranchOntoBranch(issues, sourceId, "b"),
+        canRestackStoryOntoStory(issues, sourceId, "b"),
       onMove,
     });
-    processBranchDrop({
+    processStoryDrop({
       sourceId: "a",
       targetId: "b",
       canDrop: (sourceId) =>
-        canRestackBranchOntoBranch(issues, sourceId, "b"),
+        canRestackStoryOntoStory(issues, sourceId, "b"),
       onMove,
     });
-    processBranchDrop({
+    processStoryDrop({
       sourceId: "b",
       targetId: "c1",
-      canDrop: () => isBranchTreeDropTarget(commit("c1", "b")),
+      canDrop: () => isStoryTreeDropTarget(task("c1", "b")),
       onMove,
     });
     expect(onMove).not.toHaveBeenCalled();
@@ -156,7 +160,7 @@ describe("processBranchDrop", () => {
 
   it("does not call onMove when sourceId is missing", () => {
     const onMove = vi.fn();
-    processBranchDrop({
+    processStoryDrop({
       sourceId: null,
       targetId: "peer",
       canDrop: () => true,

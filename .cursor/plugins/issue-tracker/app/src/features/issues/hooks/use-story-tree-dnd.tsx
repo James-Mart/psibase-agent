@@ -9,18 +9,18 @@ import {
   type ReactNode,
 } from "react";
 import type { IssueRecord } from "@server/schemas";
-import { useMoveBranch } from "../api/mutations";
+import { useMoveStory } from "../api/mutations";
 import {
-  BRANCH_DRAG_MIME,
-  canDropBranchOntoEpic,
-  canRestackBranchOntoBranch,
-  readBranchDragId,
-} from "../lib/branch-drop";
+  STORY_DRAG_MIME,
+  canDropStoryOntoEpic,
+  canRestackStoryOntoStory,
+  readStoryDragId,
+} from "../lib/story-drop";
 import {
-  isBranchTreeDraggable,
-  isBranchTreeDropTarget,
-  processBranchDrop,
-} from "../lib/branch-tree-dnd-logic";
+  isStoryTreeDraggable,
+  isStoryTreeDropTarget,
+  processStoryDrop,
+} from "../lib/story-tree-dnd-logic";
 
 export type RowDnDProps = Pick<
   HTMLAttributes<HTMLDivElement>,
@@ -35,21 +35,21 @@ export type RowDnDProps = Pick<
   isDropTarget: boolean;
 };
 
-export interface BranchTreeDnD {
+export interface StoryTreeDnD {
   getRowDnDProps: (issue: IssueRecord) => RowDnDProps;
   /** True once if the last gesture was a drag (clears the flag). */
   consumeDragGesture: () => boolean;
 }
 
-const BranchTreeDnDContext = createContext<BranchTreeDnD | null>(null);
+const StoryTreeDnDContext = createContext<StoryTreeDnD | null>(null);
 
 const INERT_ROW_DND: RowDnDProps = {
   isDragging: false,
   isDropTarget: false,
 };
 
-export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
-  const moveBranch = useMoveBranch();
+export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
+  const moveStory = useMoveStory();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -86,17 +86,17 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
       onDrop: (event: DragEvent) => {
         event.preventDefault();
         const sourceId =
-          readBranchDragId(event.dataTransfer) ?? draggingIdRef.current;
+          readStoryDragId(event.dataTransfer) ?? draggingIdRef.current;
         clearDrag();
-        processBranchDrop({
+        processStoryDrop({
           sourceId,
           targetId,
           canDrop,
-          onMove: (id, target) => moveBranch.mutate({ id, target }),
+          onMove: (id, target) => moveStory.mutate({ id, target }),
         });
       },
     }),
-    [clearDrag, moveBranch],
+    [clearDrag, moveStory],
   );
 
   const getRowDnDProps = useCallback(
@@ -104,16 +104,16 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
       const id = issue.id;
       const isDropTarget = dropTargetId === id;
 
-      if (isBranchTreeDraggable(issue)) {
+      if (isStoryTreeDraggable(issue)) {
         return {
           ...dropTargetHandlers(id, (sourceId) =>
-            canRestackBranchOntoBranch(issues, sourceId, id),
+            canRestackStoryOntoStory(issues, sourceId, id),
           ),
           draggable: true,
           isDragging: draggingId === id,
           isDropTarget,
           onDragStart: (event: DragEvent) => {
-            event.dataTransfer.setData(BRANCH_DRAG_MIME, id);
+            event.dataTransfer.setData(STORY_DRAG_MIME, id);
             event.dataTransfer.setData("text/plain", id);
             event.dataTransfer.effectAllowed = "move";
             draggedDuringGestureRef.current = true;
@@ -125,10 +125,10 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
         };
       }
 
-      if (isBranchTreeDropTarget(issue) && issue.kind === "epic") {
+      if (isStoryTreeDropTarget(issue) && issue.kind === "epic") {
         return {
           ...dropTargetHandlers(id, (sourceId) =>
-            canDropBranchOntoEpic(issues, sourceId, id),
+            canDropStoryOntoEpic(issues, sourceId, id),
           ),
           isDragging: false,
           isDropTarget,
@@ -149,24 +149,24 @@ export function useBranchTreeDnD(issues: IssueRecord[]): BranchTreeDnD {
   return { getRowDnDProps, consumeDragGesture };
 }
 
-export function BranchTreeDnDProvider({
+export function StoryTreeDnDProvider({
   value,
   children,
 }: {
-  value: BranchTreeDnD;
+  value: StoryTreeDnD;
   children: ReactNode;
 }) {
   return (
-    <BranchTreeDnDContext.Provider value={value}>
+    <StoryTreeDnDContext.Provider value={value}>
       {children}
-    </BranchTreeDnDContext.Provider>
+    </StoryTreeDnDContext.Provider>
   );
 }
 
-export function useBranchTreeDnDContext(): BranchTreeDnD {
-  const ctx = useContext(BranchTreeDnDContext);
+export function useStoryTreeDnDContext(): StoryTreeDnD {
+  const ctx = useContext(StoryTreeDnDContext);
   if (!ctx) {
-    throw new Error("useBranchTreeDnDContext requires BranchTreeDnDProvider");
+    throw new Error("useStoryTreeDnDContext requires StoryTreeDnDProvider");
   }
   return ctx;
 }

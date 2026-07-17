@@ -59,7 +59,7 @@ describe("list() malformed filter", () => {
     });
     writeIssue("dangling", {
       id: "dangling",
-      kind: "branch",
+      kind: "story",
       title: "Dangling",
       partOf: "ghost",
       createdAt: AT,

@@ -95,7 +95,7 @@ export function buildSummary(
         id: issue.id,
         title: issue.title,
         descriptionSummary: summarizeDescription(descriptionOf(issue.id)),
-        ...(issue.kind === "commit" && issue.noDiff
+        ...(issue.kind === "task" && issue.noDiff
           ? { noDiff: true as const }
           : {}),
         ...(attachments ? { attachments } : {}),
@@ -138,7 +138,7 @@ export function formatSummary(summary: IssueSummary): string {
     if (node.descriptionSummary) {
       lines.push(`  Description: ${node.descriptionSummary}`);
     }
-    if (node.kind === "commit" && node.noDiff) {
+    if (node.kind === "task" && node.noDiff) {
       lines.push(`  noDiff: true`);
     }
     if (node.attachments) {

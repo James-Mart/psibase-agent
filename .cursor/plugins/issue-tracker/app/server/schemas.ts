@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { ClearableKey } from "./fields.js";
 
-export const KINDS = ["project", "epic", "branch", "commit"] as const;
-export const COMMIT_STATUSES = ["todo", "in-progress", "done"] as const;
+export const KINDS = ["project", "epic", "story", "task"] as const;
+export const TASK_STATUSES = ["todo", "in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
 
@@ -62,12 +62,12 @@ export const epicSchema = z.object({
   ...timestamps,
 });
 
-export const branchSchema = z.object({
+export const storySchema = z.object({
   id: nonEmpty,
-  kind: z.literal("branch"),
+  kind: z.literal("story"),
   partOf: nonEmpty,
   branchName: z.string().optional(),
-  // Git ref this Branch forks from / merges into. Set at create/apply (root →
+  // Git ref this Story forks from / merges into. Set at create/apply (root →
   // `main`; stacked child → parent's `branchName` when known). Absent until the
   // parent is named for a child created before that. Never silently re-derived
   // from `stackedOn` at git/spawn time — see stored `mergeBase` / derived `base`.
@@ -81,11 +81,11 @@ export const branchSchema = z.object({
   ...timestamps,
 });
 
-export const commitSchema = z.object({
+export const taskSchema = z.object({
   id: nonEmpty,
-  kind: z.literal("commit"),
+  kind: z.literal("task"),
   partOf: nonEmpty,
-  status: z.enum(COMMIT_STATUSES).default("todo"),
+  status: z.enum(TASK_STATUSES).default("todo"),
   commitSha: z.string().optional(),
   noDiff: z.boolean().optional(),
   ...mutableCommon,
@@ -96,34 +96,34 @@ export const commitSchema = z.object({
 export const issueSchema = z.discriminatedUnion("kind", [
   projectSchema,
   epicSchema,
-  branchSchema,
-  commitSchema,
+  storySchema,
+  taskSchema,
 ]);
 
 export type Issue = z.infer<typeof issueSchema>;
 export type IssueKind = (typeof KINDS)[number];
-export type CommitStatus = (typeof COMMIT_STATUSES)[number];
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type MergePolicy = (typeof MERGE_POLICIES)[number];
 export type SpecReviewStatus = (typeof SPEC_REVIEW_STATUSES)[number];
 
 export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
   project: null,
   epic: "project",
-  branch: "epic",
-  commit: "branch",
+  story: "epic",
+  task: "story",
 };
 
 export const CHILD_KIND: Record<IssueKind, IssueKind | null> = {
   project: "epic",
-  epic: "branch",
-  branch: "commit",
-  commit: null,
+  epic: "story",
+  story: "task",
+  task: null,
 };
 
 type IssueFields = Omit<z.infer<typeof projectSchema>, "kind"> &
   Omit<z.infer<typeof epicSchema>, "kind"> &
-  Omit<z.infer<typeof branchSchema>, "kind"> &
-  Omit<z.infer<typeof commitSchema>, "kind">;
+  Omit<z.infer<typeof storySchema>, "kind"> &
+  Omit<z.infer<typeof taskSchema>, "kind">;
 
 export type IssuePatch = Partial<
   Omit<IssueFields, "id" | "createdAt" | "updatedAt" | ClearableKey>
@@ -166,12 +166,12 @@ export interface IssueEvent {
   scope: IssueEventScope;
 }
 
-export type BranchStatus = "not-started" | "in-progress" | "pr-open" | "merged";
+export type StoryStatus = "not-started" | "in-progress" | "pr-open" | "merged";
 export type EpicStatus = "todo" | "in-progress" | "done";
 
 export interface DerivedState {
   blocked: boolean;
-  branchStatus?: BranchStatus;
+  storyStatus?: StoryStatus;
   epicStatus?: EpicStatus;
   base?: string;
 }

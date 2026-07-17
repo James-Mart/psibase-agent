@@ -79,7 +79,7 @@ export function NewIssueDialog() {
         <DialogHeader>
           <DialogTitle>New {KIND_LABEL[kind].toLowerCase()}</DialogTitle>
           <DialogDescription>
-            Create an issue in the Epic &rsaquo; Branch &rsaquo; Commit tree.
+            Create an issue in the Epic &rsaquo; Story &rsaquo; Task tree.
           </DialogDescription>
         </DialogHeader>
 

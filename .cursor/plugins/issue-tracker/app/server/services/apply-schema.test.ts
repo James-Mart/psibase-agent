@@ -18,12 +18,12 @@ const doc = {
         id: "epic-billing",
         title: "Billing rework",
         description: "Cross-cutting invariants...",
-        branches: [
+        stories: [
           {
             id: "phase-0",
             title: "Extract tx cache",
             description: "Scope + approach.",
-            commits: [
+            tasks: [
               {
                 id: "p0-extract-module",
                 title: "Extract tx-cache module",
@@ -76,6 +76,33 @@ describe("parseApplyDoc", () => {
     });
   });
 
+  it("rejects rooted branch: (old YAML key)", () => {
+    const result = parseApplyDoc({
+      project: "p",
+      epic: "e",
+      branch: { id: "b", title: "B" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain('"story:"');
+  });
+
+  it("rejects branches/commits child keys (old YAML keys)", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        epics: [
+          {
+            id: "e",
+            title: "E",
+            branches: [{ id: "b", title: "B", commits: [{ id: "c", title: "C" }] }],
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("rejects a node missing its id", () => {
     const result = parseApplyDoc({
       project: { title: "No id" },
@@ -116,11 +143,11 @@ describe("parseApplyDoc", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: [
+                tasks: [
                   { id: "c1", title: "C1", order: 0 },
                   { id: "c2", title: "C2", order: 0 },
                 ],
@@ -154,11 +181,11 @@ describe("parseApplyDoc", () => {
           {
             id: "e",
             title: "E",
-            branches: [
+            stories: [
               {
                 id: "b",
                 title: "B",
-                commits: [{ id: "b", title: "collides with branch" }],
+                tasks: [{ id: "b", title: "collides with branch" }],
               },
             ],
           },
@@ -194,8 +221,8 @@ describe("flattenApplyDoc", () => {
   it("infers kind from the child key", () => {
     expect(map.get("my-project")?.kind).toBe("project");
     expect(map.get("epic-billing")?.kind).toBe("epic");
-    expect(map.get("phase-0")?.kind).toBe("branch");
-    expect(map.get("p0-extract-module")?.kind).toBe("commit");
+    expect(map.get("phase-0")?.kind).toBe("story");
+    expect(map.get("p0-extract-module")?.kind).toBe("task");
   });
 
   it("leaves the project without a partOf", () => {
@@ -214,21 +241,21 @@ describe("flattenApplyDoc", () => {
 
   it("keeps a stacked branch in its epic and records the fork point", () => {
     const stacked = map.get("phase-1");
-    if (!stacked || stacked.kind !== "branch") throw new Error("missing branch");
+    if (!stacked || stacked.kind !== "story") throw new Error("missing branch");
     expect(stacked.partOf).toBe("epic-billing");
     expect(stacked.stackedOn).toBe("phase-0");
   });
 
   it("infers stackedOn through nested stacking", () => {
     const deep = map.get("phase-2");
-    if (!deep || deep.kind !== "branch") throw new Error("missing branch");
+    if (!deep || deep.kind !== "story") throw new Error("missing branch");
     expect(deep.partOf).toBe("epic-billing");
     expect(deep.stackedOn).toBe("phase-1");
   });
 
   it("leaves a root branch without a stackedOn", () => {
     const root = map.get("phase-0");
-    if (!root || root.kind !== "branch") throw new Error("missing branch");
+    if (!root || root.kind !== "story") throw new Error("missing branch");
     expect(root.stackedOn).toBeUndefined();
   });
 
@@ -266,11 +293,11 @@ const epicDoc = {
   epic: {
     id: "epic-a",
     title: "Epic A",
-    branches: [
+    stories: [
       {
         id: "b1",
         title: "Branch one",
-        commits: [{ id: "c1", title: "Commit one" }],
+        tasks: [{ id: "c1", title: "Commit one" }],
         stacked: [{ id: "b1s", title: "Stacked on one" }],
       },
     ],
@@ -282,10 +309,10 @@ const epicDoc = {
 const branchDoc = {
   project: "my-product",
   epic: "epic-a",
-  branch: {
+  story: {
     id: "b1",
     title: "Branch one",
-    commits: [{ id: "c1", title: "Commit one" }],
+    tasks: [{ id: "c1", title: "Commit one" }],
   },
 };
 
@@ -306,7 +333,7 @@ describe("parseApplyDoc — epic form", () => {
       epic: {
         id: "dupe",
         title: "E",
-        branches: [{ id: "dupe", title: "clash" }],
+        stories: [{ id: "dupe", title: "clash" }],
       },
     });
     expect(result.ok).toBe(false);
@@ -322,7 +349,7 @@ describe("parseApplyDoc — branch form", () => {
   it("rejects a stacked key on a branch-rooted branch", () => {
     const result = parseApplyDoc({
       ...branchDoc,
-      branch: { ...branchDoc.branch, stacked: [{ id: "x", title: "X" }] },
+      story: { ...branchDoc.story, stacked: [{ id: "x", title: "X" }] },
     });
     expect(result.ok).toBe(false);
   });
@@ -331,10 +358,10 @@ describe("parseApplyDoc — branch form", () => {
     const result = parseApplyDoc({
       project: "my-product",
       epic: "epic-a",
-      branch: {
+      story: {
         id: "b",
         title: "B",
-        commits: [{ id: "b", title: "collides with branch" }],
+        tasks: [{ id: "b", title: "collides with branch" }],
       },
     });
     expect(result.ok).toBe(false);
@@ -361,7 +388,7 @@ describe("flattenApplyDoc — epic form", () => {
     const branch = map.get("b1");
     const commit = map.get("c1");
     const stacked = map.get("b1s");
-    if (branch?.kind !== "branch" || stacked?.kind !== "branch") {
+    if (branch?.kind !== "story" || stacked?.kind !== "story") {
       throw new Error("missing branch");
     }
     expect(branch.partOf).toBe("epic-a");
@@ -384,7 +411,7 @@ describe("flattenApplyDoc — branch form", () => {
 
   it("roots the branch under the referenced epic without a fork point", () => {
     const branch = map.get("b1");
-    if (branch?.kind !== "branch") throw new Error("missing branch");
+    if (branch?.kind !== "story") throw new Error("missing branch");
     expect(branch.partOf).toBe("epic-a");
     // stackedOn is preserved from disk by apply, never emitted from the doc.
     expect(branch.stackedOn).toBeUndefined();

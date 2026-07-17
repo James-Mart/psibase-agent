@@ -16,7 +16,7 @@ const BACKFILL_FLAG = ".archived-backfilled";
 export type ArchivedCascadePatch = { id: string; archived: boolean };
 
 /**
- * When `archived` is patched on an Epic / Branch / Commit, plan the same value
+ * When `archived` is patched on an Epic / Story / Task, plan the same value
  * for every partOf descendant. Independent child archive (parent stays
  * unarchived) is allowed when the patch is on the child alone.
  */
@@ -59,7 +59,7 @@ export interface ArchivedBackfillResult {
   skipped: boolean;
 }
 
-// One-time: write `archived: false` on every Epic / Branch / Commit whose
+// One-time: write `archived: false` on every Epic / Story / Task whose
 // issue.json lacks the key. Subsequent calls no-op once the marker exists.
 export function ensureArchivedBackfilled(
   persistIssue: (issue: Issue) => void,

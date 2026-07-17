@@ -7,7 +7,7 @@ const AT = "2026-07-10T14:00:00.000Z";
 function commit(assignee?: string): IssueRecord {
   return {
     id: "c1",
-    kind: "commit",
+    kind: "task",
     title: "C1",
     partOf: "a",
     status: "todo",

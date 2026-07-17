@@ -1,4 +1,4 @@
-import { COMMIT_STATUSES, type CommitStatus } from "@server/schemas";
+import { TASK_STATUSES, type TaskStatus } from "@server/schemas";
 import {
   Select,
   SelectContent,
@@ -7,14 +7,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
-import { COMMIT_STATUS_CLASS } from "../lib/derived";
+import { TASK_STATUS_CLASS } from "../lib/derived";
 
-export function CommitStatusSelect({
+export function TaskStatusSelect({
   id,
   status,
 }: {
   id: string;
-  status: CommitStatus;
+  status: TaskStatus;
 }) {
   const updateIssue = useUpdateIssue();
 
@@ -23,16 +23,16 @@ export function CommitStatusSelect({
       <Select
         value={status}
         onValueChange={(value) =>
-          updateIssue.mutate({ id, patch: { status: value as CommitStatus } })
+          updateIssue.mutate({ id, patch: { status: value as TaskStatus } })
         }
       >
         <SelectTrigger
-          className={`h-6 w-28 border-transparent bg-muted px-2 text-xs ${COMMIT_STATUS_CLASS[status]}`}
+          className={`h-6 w-28 border-transparent bg-muted px-2 text-xs ${TASK_STATUS_CLASS[status]}`}
         >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {COMMIT_STATUSES.map((option) => (
+          {TASK_STATUSES.map((option) => (
             <SelectItem key={option} value={option}>
               {option}
             </SelectItem>

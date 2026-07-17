@@ -1,5 +1,5 @@
 import type { IssueRecord } from "@server/schemas";
-import { branchDependencyIds, bySequence } from "@server/order";
+import { storyDependencyIds, bySequence } from "@server/order";
 
 export interface IssueNode {
   issue: IssueRecord;
@@ -73,14 +73,14 @@ export function filterToProject(
   return kept;
 }
 
-function branchDeps(branch: IssueRecord, siblings: Set<string>): string[] {
-  if (branch.kind !== "branch") return [];
-  return branchDependencyIds(branch).filter((id) => siblings.has(id));
+function storyDeps(story: IssueRecord, siblings: Set<string>): string[] {
+  if (story.kind !== "story") return [];
+  return storyDependencyIds(story).filter((id) => siblings.has(id));
 }
 
 function orderSiblings(children: IssueRecord[]): IssueRecord[] {
   const sequenced = [...children].sort(bySequence);
-  if (!sequenced.every((child) => child.kind === "branch")) return sequenced;
+  if (!sequenced.every((child) => child.kind === "story")) return sequenced;
 
   const ids = new Set(sequenced.map((child) => child.id));
   const placed = new Set<string>();
@@ -90,7 +90,7 @@ function orderSiblings(children: IssueRecord[]): IssueRecord[] {
       sequenced.find(
         (child) =>
           !placed.has(child.id) &&
-          branchDeps(child, ids).every((dep) => placed.has(dep)),
+          storyDeps(child, ids).every((dep) => placed.has(dep)),
       ) ?? sequenced.find((child) => !placed.has(child.id));
     if (!next) break;
     ordered.push(next);
@@ -99,15 +99,15 @@ function orderSiblings(children: IssueRecord[]): IssueRecord[] {
   return ordered;
 }
 
-// Commits first (the branch's own work), then the branches stacked on it.
+// Tasks first (the story's own work), then the stories stacked on it.
 function orderChildren(children: IssueRecord[]): IssueRecord[] {
-  const commits = children
-    .filter((child) => child.kind === "commit")
+  const tasks = children
+    .filter((child) => child.kind === "task")
     .sort(bySequence);
-  const branches = orderSiblings(
-    children.filter((child) => child.kind === "branch"),
+  const stories = orderSiblings(
+    children.filter((child) => child.kind === "story"),
   );
-  return [...commits, ...branches];
+  return [...tasks, ...stories];
 }
 
 export function buildTree(issues: IssueRecord[]): IssueNode[] {
@@ -117,9 +117,9 @@ export function buildTree(issues: IssueRecord[]): IssueNode[] {
   // referent is a branch in the same epic and present here; otherwise it falls
   // back to its epic as a root branch.
   const visualParent = (issue: IssueRecord): string | undefined => {
-    if (issue.kind === "branch" && issue.stackedOn) {
+    if (issue.kind === "story" && issue.stackedOn) {
       const base = byId.get(issue.stackedOn);
-      if (base?.kind === "branch" && base.partOf === issue.partOf) {
+      if (base?.kind === "story" && base.partOf === issue.partOf) {
         return base.id;
       }
     }

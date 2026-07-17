@@ -34,10 +34,10 @@ const epic = (
 const branch = (
   id: string,
   partOf: string,
-  extra: Partial<Extract<Issue, { kind: "branch" }>> = {},
+  extra: Partial<Extract<Issue, { kind: "story" }>> = {},
 ): Issue => ({
   id,
-  kind: "branch",
+  kind: "story",
   title: id,
   partOf,
   order: 0,
@@ -51,7 +51,7 @@ const branch = (
 
 const commit = (id: string, partOf: string): Issue => ({
   id,
-  kind: "commit",
+  kind: "task",
   title: id,
   partOf,
   order: 0,

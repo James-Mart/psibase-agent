@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import {
-  COMMIT_STATUSES,
-  type CommitStatus,
+  TASK_STATUSES,
+  type TaskStatus,
   type IssueDetail,
   type IssuePatch,
   type MergePolicy,
@@ -10,9 +10,9 @@ import {
 import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
-  type BranchFormFieldKey,
+  type StoryFormFieldKey,
   type ClearableKey,
-  type CommitFieldKey,
+  type TaskFieldKey,
   type EpicFieldKey,
   type ProjectFieldKey,
 } from "@server/fields";
@@ -42,7 +42,7 @@ interface FormState {
   needsAttention: boolean;
   attentionReason: string;
   partOf: string;
-  status: CommitStatus;
+  status: TaskStatus;
   commitSha: string;
   branchName: string;
   stackedOn: string;
@@ -62,12 +62,12 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     attentionReason:
       "attentionReason" in issue ? issue.attentionReason ?? "" : "",
     partOf: "partOf" in issue ? issue.partOf : "",
-    status: issue.kind === "commit" ? issue.status : "todo",
-    commitSha: issue.kind === "commit" ? issue.commitSha ?? "" : "",
-    branchName: issue.kind === "branch" ? issue.branchName ?? "" : "",
-    stackedOn: issue.kind === "branch" ? issue.stackedOn ?? "" : "",
-    prUrl: issue.kind === "branch" ? issue.prUrl ?? "" : "",
-    merged: issue.kind === "branch" ? issue.merged : false,
+    status: issue.kind === "task" ? issue.status : "todo",
+    commitSha: issue.kind === "task" ? issue.commitSha ?? "" : "",
+    branchName: issue.kind === "story" ? issue.branchName ?? "" : "",
+    stackedOn: issue.kind === "story" ? issue.stackedOn ?? "" : "",
+    prUrl: issue.kind === "story" ? issue.prUrl ?? "" : "",
+    merged: issue.kind === "story" ? issue.merged : false,
     blockedBy: blockedByFormValue(issue),
   };
 }
@@ -141,7 +141,7 @@ export function IssueDetailEdit({
         patch.mergePolicy = form.mergePolicy;
     }
 
-    if (issue.kind === "commit") {
+    if (issue.kind === "task") {
       if (form.status !== issue.status) patch.status = form.status;
       setClearable("commitSha", form.commitSha, issue.commitSha);
     }
@@ -152,7 +152,7 @@ export function IssueDetailEdit({
         patch.blockedBy = nextBlocked;
     }
 
-    if (issue.kind === "branch") {
+    if (issue.kind === "story") {
       setClearable("branchName", form.branchName, issue.branchName);
       setClearable("stackedOn", form.stackedOn, issue.stackedOn);
       setClearable("prUrl", form.prUrl, issue.prUrl);
@@ -172,7 +172,7 @@ export function IssueDetailEdit({
   };
 
   const controls: Record<
-    ProjectFieldKey | EpicFieldKey | BranchFormFieldKey | CommitFieldKey,
+    ProjectFieldKey | EpicFieldKey | StoryFormFieldKey | Exclude<TaskFieldKey, "noDiff">,
     ReactNode
   > = {
     workspace: (
@@ -190,13 +190,13 @@ export function IssueDetailEdit({
     status: (
       <Select
         value={form.status}
-        onValueChange={(v) => set("status", v as CommitStatus)}
+        onValueChange={(v) => set("status", v as TaskStatus)}
       >
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {COMMIT_STATUSES.map((option) => (
+          {TASK_STATUSES.map((option) => (
             <SelectItem key={option} value={option}>
               {option}
             </SelectItem>
@@ -223,7 +223,7 @@ export function IssueDetailEdit({
         value={form.stackedOn}
         onChange={(e) => set("stackedOn", e.target.value)}
         className="font-mono"
-        placeholder="branch id"
+        placeholder="story id"
       />
     ),
     blockedBy: (

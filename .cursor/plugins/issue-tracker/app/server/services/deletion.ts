@@ -68,7 +68,7 @@ export function planDeletion(issues: Issue[], id: string): DeletionPlan {
     while (cursor && !seen.has(cursor)) {
       seen.add(cursor);
       const branch = byId.get(cursor);
-      const next = branch?.kind === "branch" ? branch.stackedOn : undefined;
+      const next = branch?.kind === "story" ? branch.stackedOn : undefined;
       if (!next) return undefined;
       if (!deleteSet.has(next)) return next;
       cursor = next;
@@ -81,7 +81,7 @@ export function planDeletion(issues: Issue[], id: string): DeletionPlan {
   for (const issue of issues) {
     if (deleteSet.has(issue.id)) continue;
     // Branch `stackedOn` splices within its Epic.
-    if (issue.kind === "branch" && issue.stackedOn && deleteSet.has(issue.stackedOn)) {
+    if (issue.kind === "story" && issue.stackedOn && deleteSet.has(issue.stackedOn)) {
       repoint.push({ id: issue.id, to: survivingForkPoint(issue.stackedOn) });
     }
     // Epic `blockedBy` is the only cross-container edge; drop deleted ids.

@@ -12,8 +12,8 @@ describe("supportsAttachments", () => {
   it("hides the panel for Project and shows it for other kinds", () => {
     expect(supportsAttachments("project")).toBe(false);
     expect(supportsAttachments("epic")).toBe(true);
-    expect(supportsAttachments("branch")).toBe(true);
-    expect(supportsAttachments("commit")).toBe(true);
+    expect(supportsAttachments("story")).toBe(true);
+    expect(supportsAttachments("task")).toBe(true);
   });
 });
 

@@ -23,11 +23,11 @@ import { visibleIssues } from "./server/services/archived-visibility.js";
 import { apply } from "./server/services/apply.js";
 import {
   parseApplyDoc,
-  isBranchDoc,
+  isStoryDoc,
   isEpicDoc,
   type ApplyDoc,
 } from "./server/services/apply-schema.js";
-import { bySequence, stackedBranchOrder } from "./server/order.js";
+import { bySequence, stackedStoryOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import {
@@ -46,16 +46,16 @@ import { readCliFileArg } from "./cli-io.js";
 import { registerKindGetSet } from "./cli-kind.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
-type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
-type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
+type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
+type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
 // by kind, and the derived state. Commits are pre-sorted into their execution
-// sequence; Branches are ordered per-Epic via `stackedBranchOrder`.
+// sequence; Branches are ordered per-Epic via `stackedStoryOrder`.
 interface TreeContext {
-  branchesOf: Map<string, BranchRecord[]>;
-  commitsOf: Map<string, CommitRecord[]>;
-  branchById: Map<string, BranchRecord>;
+  storiesOf: Map<string, StoryRecord[]>;
+  tasksOf: Map<string, TaskRecord[]>;
+  storyById: Map<string, StoryRecord>;
   derived: Record<string, DerivedState>;
 }
 
@@ -63,39 +63,39 @@ function buildTreeContext(
   issues: IssueRecord[],
   derived: Record<string, DerivedState>,
 ): TreeContext {
-  const branchesOf = new Map<string, BranchRecord[]>();
-  const commitsOf = new Map<string, CommitRecord[]>();
-  const branchById = new Map<string, BranchRecord>();
+  const storiesOf = new Map<string, StoryRecord[]>();
+  const tasksOf = new Map<string, TaskRecord[]>();
+  const storyById = new Map<string, StoryRecord>();
   for (const issue of issues) {
-    if (issue.kind === "branch") {
-      branchById.set(issue.id, issue);
-      const bucket = branchesOf.get(issue.partOf) ?? [];
+    if (issue.kind === "story") {
+      storyById.set(issue.id, issue);
+      const bucket = storiesOf.get(issue.partOf) ?? [];
       bucket.push(issue);
-      branchesOf.set(issue.partOf, bucket);
-    } else if (issue.kind === "commit") {
-      const bucket = commitsOf.get(issue.partOf) ?? [];
+      storiesOf.set(issue.partOf, bucket);
+    } else if (issue.kind === "task") {
+      const bucket = tasksOf.get(issue.partOf) ?? [];
       bucket.push(issue);
-      commitsOf.set(issue.partOf, bucket);
+      tasksOf.set(issue.partOf, bucket);
     }
   }
-  for (const bucket of commitsOf.values()) bucket.sort(bySequence);
-  return { branchesOf, commitsOf, branchById, derived };
+  for (const bucket of tasksOf.values()) bucket.sort(bySequence);
+  return { storiesOf, tasksOf, storyById, derived };
 }
 
 // The git-stack depth of a Branch within its Epic: how many `stackedOn` hops it
 // takes to reach a root Branch. Drives the extra indentation a stacked Branch
 // gets under the one it forks from.
-function branchDepth(
-  branch: BranchRecord,
+function storyDepth(
+  story: StoryRecord,
   inSet: Set<string>,
-  branchById: Map<string, BranchRecord>,
+  storyById: Map<string, StoryRecord>,
 ): number {
   let depth = 0;
-  let current = branch;
+  let current = story;
   const seen = new Set<string>();
   while (current.stackedOn && inSet.has(current.stackedOn) && !seen.has(current.id)) {
     seen.add(current.id);
-    const parent = branchById.get(current.stackedOn);
+    const parent = storyById.get(current.stackedOn);
     if (!parent) break;
     current = parent;
     depth += 1;
@@ -127,33 +127,33 @@ function epicChips(epic: IssueRecord, derived: Record<string, DerivedState>): st
   return [...chips, ...attentionChip(epic)];
 }
 
-function branchChips(branch: BranchRecord, derived: Record<string, DerivedState>): string[] {
-  const d = derived[branch.id];
+function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): string[] {
+  const d = derived[story.id];
   const chips: string[] = [];
-  if (d?.branchStatus) chips.push(`status=${d.branchStatus}`);
+  if (d?.storyStatus) chips.push(`status=${d.storyStatus}`);
   chips.push(`base=${d?.base ?? CHIP_UNSET}`);
-  chips.push(`branch=${branch.branchName ?? CHIP_UNSET}`);
-  if (branch.prUrl) chips.push(`pr=${branch.prUrl}`);
-  if (branch.merged) chips.push("merged");
+  chips.push(`branch=${story.branchName ?? CHIP_UNSET}`);
+  if (story.prUrl) chips.push(`pr=${story.prUrl}`);
+  if (story.merged) chips.push("merged");
   if (d?.blocked) chips.push("blocked");
-  return [...chips, ...attentionChip(branch)];
+  return [...chips, ...attentionChip(story)];
 }
 
-function commitChips(commit: CommitRecord, derived: Record<string, DerivedState>): string[] {
-  const chips = [`status=${commit.status}`];
-  if (commit.commitSha) chips.push(`sha=${commit.commitSha.slice(0, 7)}`);
-  if (derived[commit.id]?.blocked) chips.push("blocked");
-  return [...chips, ...attentionChip(commit)];
+function taskChips(task: TaskRecord, derived: Record<string, DerivedState>): string[] {
+  const chips = [`status=${task.status}`];
+  if (task.commitSha) chips.push(`sha=${task.commitSha.slice(0, 7)}`);
+  if (derived[task.id]?.blocked) chips.push("blocked");
+  return [...chips, ...attentionChip(task)];
 }
 
 // Render one Branch line plus its Commits (no stacked child Branches).
-function renderBranch(branch: BranchRecord, indent: number, ctx: TreeContext): string[] {
+function renderStory(story: StoryRecord, indent: number, ctx: TreeContext): string[] {
   const lines = [
-    nodeLine(indent, "branch", branch.id, branch.title, branchChips(branch, ctx.derived)),
+    nodeLine(indent, "story", story.id, story.title, storyChips(story, ctx.derived)),
   ];
-  for (const commit of ctx.commitsOf.get(branch.id) ?? []) {
+  for (const task of ctx.tasksOf.get(story.id) ?? []) {
     lines.push(
-      nodeLine(indent + 1, "commit", commit.id, commit.title, commitChips(commit, ctx.derived)),
+      nodeLine(indent + 1, "task", task.id, task.title, taskChips(task, ctx.derived)),
     );
   }
   return lines;
@@ -165,11 +165,11 @@ function renderBranch(branch: BranchRecord, indent: number, ctx: TreeContext): s
 // after, so indentation mirrors the git stack.
 function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string[] {
   const lines = [nodeLine(indent, "epic", epic.id, epic.title, epicChips(epic, ctx.derived))];
-  const branches = stackedBranchOrder(ctx.branchesOf.get(epic.id) ?? []);
-  const inSet = new Set(branches.map((b) => b.id));
-  for (const branch of branches) {
-    const level = indent + 1 + branchDepth(branch, inSet, ctx.branchById);
-    lines.push(...renderBranch(branch, level, ctx));
+  const stories = stackedStoryOrder(ctx.storiesOf.get(epic.id) ?? []);
+  const inSet = new Set(stories.map((s) => s.id));
+  for (const story of stories) {
+    const level = indent + 1 + storyDepth(story, inSet, ctx.storyById);
+    lines.push(...renderStory(story, level, ctx));
   }
   return lines;
 }
@@ -181,7 +181,7 @@ type TreeScope =
   | { kind: "all" }
   | { kind: "project"; projectRef: string }
   | { kind: "epic"; epicId: string }
-  | { kind: "branch"; branch: BranchRecord };
+  | { kind: "story"; story: StoryRecord };
 
 function resolveTreeScope(
   id: string | undefined,
@@ -199,11 +199,11 @@ function resolveTreeScope(
         return { kind: "project", projectRef: issue.id };
       case "epic":
         return { kind: "epic", epicId: issue.id };
-      case "branch":
-        return { kind: "branch", branch: issue };
-      case "commit":
+      case "story":
+        return { kind: "story", story: issue };
+      case "task":
         throw new Error(
-          `cannot scope tree to a commit; pass branch "${issue.partOf}" or its epic instead`,
+          `cannot scope tree to a task; pass story "${issue.partOf}" or its epic instead`,
         );
     }
   }
@@ -248,8 +248,8 @@ function renderTreeScope(
   ctx: TreeContext,
 ): string[] {
   switch (scope.kind) {
-    case "branch":
-      return renderBranch(scope.branch, 0, ctx);
+    case "story":
+      return renderStory(scope.story, 0, ctx);
     case "epic": {
       const epic = issues.find(
         (issue) => issue.id === scope.epicId && issue.kind === "epic",
@@ -267,9 +267,9 @@ function renderTreeScope(
 // Render the subtree an `apply` doc is rooted at (Project, Epic, or Branch), so
 // `apply` can echo the resulting shape the way `tree` would for the same scope.
 function renderApplyRoot(doc: ApplyDoc, issues: IssueRecord[], ctx: TreeContext): string[] {
-  if (isBranchDoc(doc)) {
-    const branch = ctx.branchById.get(doc.branch.id);
-    return branch ? renderBranch(branch, 0, ctx) : [];
+  if (isStoryDoc(doc)) {
+    const story = ctx.storyById.get(doc.story.id);
+    return story ? renderStory(story, 0, ctx) : [];
   }
   if (isEpicDoc(doc)) {
     const epic = issues.find((i) => i.id === doc.epic.id && i.kind === "epic");
@@ -303,7 +303,7 @@ function resolveDescription(opts: {
 const program = new Command();
 program
   .name("issue")
-  .description("File-backed Epic > Branch > Commit tracker")
+  .description("File-backed Epic > Story > Task tracker")
   .showHelpAfterError();
 
 async function run(action: () => unknown): Promise<void> {
@@ -357,17 +357,17 @@ program
   );
 
 program
-  .command("add-branch")
-  .argument("<title>", "branch title")
+  .command("add-story")
+  .argument("<title>", "story title")
   .requiredOption("--part-of <epic>", "parent epic id")
-  .option("--stacked-on <branch>", "fork-point branch id")
+  .option("--stacked-on <branch>", "fork-point story id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
   .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
-        kind: "branch",
+        kind: "story",
         title,
         partOf: opts.partOf,
         stackedOn: opts.stackedOn,
@@ -378,16 +378,16 @@ program
   );
 
 program
-  .command("add-commit")
-  .argument("<title>", "commit title")
-  .requiredOption("--part-of <branch>", "parent branch id")
+  .command("add-task")
+  .argument("<title>", "task title")
+  .requiredOption("--part-of <branch>", "parent story id")
   .option("--assignee <who>", "assignee id")
   .option("--description <text>", "description.md contents")
   .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
   .action((title, opts) =>
     run(() =>
       create({
-        kind: "commit",
+        kind: "task",
         title,
         partOf: opts.partOf,
         assignee: opts.assignee,
@@ -400,7 +400,7 @@ program
   .command("apply")
   .argument("<file>", "path to the nested YAML doc to apply")
   .description(
-    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Branch (one branch + its commits in an existing epic); prunes within the declared root's subtree only",
+    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Story (one story + its tasks in an existing epic); prunes within the declared root's subtree only",
   )
   .action((file) =>
     run(async () => {
@@ -427,7 +427,7 @@ program
 
 program
   .command("attach")
-  .argument("<id>", "issue id (epic, branch, or commit)")
+  .argument("<id>", "issue id (epic, story, or task)")
   .argument("<file>", "path to file to attach")
   .description("upsert an attachment; stored name is the source file basename")
   .action((id, file) =>
@@ -442,7 +442,7 @@ program
 
 program
   .command("attachments")
-  .argument("<id>", "issue id (epic, branch, or commit)")
+  .argument("<id>", "issue id (epic, story, or task)")
   .description("list attachment names and sizes")
   .action((id) =>
     run(() => {
@@ -459,7 +459,7 @@ program
 
 program
   .command("detach")
-  .argument("<id>", "issue id (epic, branch, or commit)")
+  .argument("<id>", "issue id (epic, story, or task)")
   .argument("<name>", "attachment basename to remove")
   .action((id, name) =>
     run(async () => {
@@ -506,9 +506,9 @@ program
 
 program
   .command("summary")
-  .argument("<id>", "issue id (commit, branch, epic, or project)")
+  .argument("<id>", "issue id (task, story, epic, or project)")
   .description(
-    "print the Project → Epic → Branch → Commit chain for agent bootstrap",
+    "print the Project → Epic → Story → Task chain for agent bootstrap",
   )
   .action((id) =>
     run(() => {
@@ -541,7 +541,7 @@ program
       if (detail.kind === "epic" && detail.blockedBy.length > 0) {
         lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
       }
-      if (detail.kind === "branch") {
+      if (detail.kind === "story") {
         if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
         lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
@@ -549,7 +549,7 @@ program
         lines.push(`merged: ${detail.merged}`);
         if (detail.specReview) lines.push(`specReview: ${detail.specReview}`);
       }
-      if (detail.kind === "commit") {
+      if (detail.kind === "task") {
         lines.push(`status: ${detail.status}`);
         if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
         if (detail.noDiff) lines.push(`noDiff: true`);
@@ -607,7 +607,7 @@ program
   .command("list")
   .description("print a project's issues, derived state, and any problems as JSON")
   .requiredOption("--project <id|title>", "project id or title to scope the listing to")
-  .option("--show-archived", "include archived Epic / Branch / Commit issues")
+  .option("--show-archived", "include archived Epic / Story / Task issues")
   .action((opts) =>
     run(() => {
       const full = list();
@@ -632,15 +632,15 @@ program
 program
   .command("tree")
   .description(
-    "print an indented Project > Epic > Branch > Commit outline with derived chips",
+    "print an indented Project > Epic > Story > Task outline with derived chips",
   )
   .argument(
     "[id]",
-    "scope by issue id (project/epic/branch subtree; commits are refused)",
+    "scope by issue id (project/epic/story subtree; tasks are refused)",
   )
   .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
   .option("--epic <id>", "scope the outline to a single epic subtree")
-  .option("--show-archived", "include archived Epic / Branch / Commit issues")
+  .option("--show-archived", "include archived Epic / Story / Task issues")
   .action((id, opts) =>
     run(() => {
       const { issues: allIssues, derived } = list();
@@ -656,9 +656,9 @@ program
             `epic "${scope.epicId}" is archived; pass --show-archived`,
           );
         }
-        if (scope.kind === "branch" && !visibleIds.has(scope.branch.id)) {
+        if (scope.kind === "story" && !visibleIds.has(scope.story.id)) {
           throw new Error(
-            `branch "${scope.branch.id}" is archived; pass --show-archived`,
+            `story "${scope.story.id}" is archived; pass --show-archived`,
           );
         }
       }

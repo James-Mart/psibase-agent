@@ -23,26 +23,28 @@ const nestedIssues: Issue[] = [
     blockedBy: [],
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     order: 0,
     createdAt: AT,
     updatedAt: AT,
   },
   {
     id: "root",
-    kind: "branch",
+    kind: "story",
     title: "Root Branch",
     partOf: "e",
     branchName: "feat/root",
     merged: false,
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     order: 0,
     createdAt: AT,
     updatedAt: AT,
   },
   {
     id: "stacked",
-    kind: "branch",
+    kind: "story",
     title: "Stacked Branch",
     partOf: "e",
     stackedOn: "root",
@@ -50,18 +52,20 @@ const nestedIssues: Issue[] = [
     merged: false,
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     order: 1,
     createdAt: AT,
     updatedAt: AT,
   },
   {
     id: "c1",
-    kind: "commit",
+    kind: "task",
     title: "Do the thing",
     partOf: "stacked",
     status: "todo",
     needsAttention: false,
     attentionReason: null,
+    archived: false,
     order: 0,
     createdAt: AT,
     updatedAt: AT,
@@ -104,8 +108,8 @@ describe("buildSummary", () => {
     expect(result.nodes.map((n) => n.kind)).toEqual([
       "project",
       "epic",
-      "branch",
-      "commit",
+      "story",
+      "task",
     ]);
     // Containment only — stackedOn parent is not in the chain.
     expect(result.nodes.map((n) => n.id)).not.toContain("root");
@@ -132,8 +136,8 @@ describe("formatSummary", () => {
     expect(text).toContain("This is an issue in the Proj Project. Here are the details:");
     expect(text).toContain("Project: p — Proj");
     expect(text).toContain("Epic: e — Epic");
-    expect(text).toContain("Branch: stacked — Stacked Branch");
-    expect(text).toContain("Commit: c1 — Do the thing");
+    expect(text).toContain("Story: stacked — Stacked Branch");
+    expect(text).toContain("Task: c1 — Do the thing");
     expect(text).toContain("Description: Implement the feature.");
     expect(text).toContain("For more details, try `issue show <id>` or `issue tree`.");
     expect(text).not.toContain("Workspace:");
@@ -145,7 +149,7 @@ describe("formatSummary", () => {
     );
     const text = formatSummary(buildSummary("c1", withNoDiff, descriptionOf));
 
-    expect(text).toContain("Commit: c1 — Do the thing");
+    expect(text).toContain("Task: c1 — Do the thing");
     expect(text).toContain("  noDiff: true");
   });
 
@@ -229,7 +233,7 @@ describe("summarize I/O wrapper", () => {
     writeIssue(
       "b",
       {
-        kind: "branch",
+        kind: "story",
         title: "Branch",
         partOf: "e",
         merged: false,
@@ -241,7 +245,7 @@ describe("summarize I/O wrapper", () => {
     writeIssue(
       "c1",
       {
-        kind: "commit",
+        kind: "task",
         title: "Do the thing",
         partOf: "b",
         status: "todo",
