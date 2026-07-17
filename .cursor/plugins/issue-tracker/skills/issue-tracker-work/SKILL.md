@@ -49,14 +49,14 @@ An Epic id. If none is given:
    - If it returns exactly one row, use that project's id.
 3. Run `issue tree --project <projectId>` to list Epics and ask which one.
 
-Never bare `issue list`. This skill works exactly one Epic; to work several at once, start
-several agents. An Epic that is `blockedBy` another Epic cannot start until that
-blocker is **fully merged** (all the blocker's Branches merged) — its Branches
-and Commits stay out of the Ready set until then, so only pick a blocked Epic
-once its blockers have landed. Because blockers clear at a human-paced Epic
-boundary (a merge round-trip), this fits the one-Epic-at-a-time model. Use the
-default `issues/` dir (do not set `ISSUES_DIR`) so the human sees changes live in
-the UI.
+Never bare `issue list`. This skill works exactly one Epic; to work several at
+once, start several agents. There is no pick-up list — work starts only when
+the user chooses an Epic. An Epic that is `blockedBy` another Epic cannot start
+until that blocker is **fully merged** (all the blocker's Branches merged) —
+only start an Epic once `issue epic get <epicId> blocked` prints `false`.
+Because blockers clear at a human-paced Epic boundary (a merge round-trip), this
+fits the one-Epic-at-a-time model. Use the default `issues/` dir (do not set
+`ISSUES_DIR`) so the human sees changes live in the UI.
 
 ## Preflight: confirm before starting
 
@@ -68,7 +68,7 @@ instead of continuing.
 
 ### CLI checks
 
-Run these three commands in order (use `<epicId>` throughout):
+Run these four commands in order (use `<epicId>` throughout):
 
 1. `issue tree --epic <epicId>`. This outline **is** your plan. It prints the
    Epic's Branches in **pure stacked depth-first** order over `stackedOn` alone —
@@ -99,14 +99,13 @@ Run these three commands in order (use `<epicId>` throughout):
      repo-touching subagent would immediately escalate, so **stop and hand back to
      the user** to set it (`issue project set <projectId> workspace <path>`) before
      spawning anything.
-3. `issue list --project <projectId>` — read `problems` and
-   `derived[<epicId>].blocked`.
-   - If `problems` is non-empty, **stop and hand back to the user** — do not
-     reason about or attempt fixes, and do not work a tree with integrity
-     problems.
-   - If `derived[<epicId>].blocked` is `true`, the Epic is `blockedBy` a
-     blocker that has not fully merged, so — per Argument — it **cannot start**.
-     Stop and hand back to the user rather than working any Commit.
+3. `issue list --project <projectId>` — read `problems`. If `problems` is
+   non-empty, **stop and hand back to the user** — do not reason about or
+   attempt fixes, and do not work a tree with integrity problems.
+4. `issue epic get <epicId> blocked` — if stdout is `true`, the Epic is
+   `blockedBy` a blocker that has not fully merged, so — per Argument — it
+   **cannot start**. Stop and hand back to the user rather than working any
+   Commit.
 
 ## Setup
 

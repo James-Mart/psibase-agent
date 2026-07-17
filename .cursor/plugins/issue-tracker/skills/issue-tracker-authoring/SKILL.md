@@ -134,8 +134,8 @@ Branch/Commit only; basename path-safety; 25 MiB cap):
 
 ### Other flags
 
-- **project title in place of id** — `list`/`ready`/`tree` accept `--project`
-  as either a project id **or** a unique project title, so you don't have to run
+- **project title in place of id** — `list`/`tree` accept `--project` as either
+  a project id **or** a unique project title, so you don't have to run
   `projects` first (an ambiguous/unknown title errors nonzero).
 
 ## Commit interface seams

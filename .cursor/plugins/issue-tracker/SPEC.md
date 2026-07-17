@@ -119,9 +119,8 @@ These are computed by `derive()` and never written to disk (see
 - **Stack** — the emergent set of dependent, not-yet-merged Branches under an
   Epic, induced solely by `stackedOn`: a forest of independent stacks (each a
   tree), never a cross-Branch DAG.
-- **ready / blocked** — whether an issue can be picked up right now.
-- **Ready view** — a flat list of the ready issues, for quick pick-up and for a
-  main agent to fan out parallel subagents.
+- **blocked** — whether an issue is waiting on a dependency (per-kind rules in
+  [Derived state](#derived-state)).
 - **Branch status** — `not-started` / `in-progress` / `pr-open` / `merged`.
 - **Epic status** — `todo` / `in-progress` / `done` (rollup of its Branches).
 - **base** — display of a Branch's stored `mergeBase` (tree chip `base=<ref>`,
@@ -160,7 +159,7 @@ remains the bootstrap contract for [Project workspace](#project-workspace)
 resolution.)
 
 Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
-`summary` / `show` / `list` / `tree` / `ready` / `projects`) are unchanged.
+`summary` / `show` / `list` / `tree` / `projects`) are unchanged.
 
 ### `get`
 
@@ -170,7 +169,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   default: an Epic with no blockers prints `[]` (arrays as JSON), not empty
   stdout.
 - Readable surface is **wider than set**: any stored field for that kind plus
-  derived fields (`epicStatus`, `branchStatus`, `ready`, `blocked`, `base`, …).
+  derived fields (`epicStatus`, `branchStatus`, `blocked`, `base`, …).
 - Includes `description` and `attentionReason` as readable fields.
 
 ### `set`
@@ -446,25 +445,25 @@ Branch with no `stackedOn` is a *root* Branch, rendered directly under its Epic.
 Under a Branch, its own Commits render first, then the Branches stacked on it.
 Branch order is therefore **pure stacked depth-first** over `stackedOn` alone;
 `blockedBy` plays no part in it (it is an Epic-level edge, surfaced in the Epic's
-detail panel and used only to gate the Epic's derived `blocked` state — i.e.
-which subtrees the Ready set omits, not sibling order). Within one nesting level,
-siblings are ordered strictly by stored `order` (never `createdAt` or `id`). Root
-Branches under an Epic are traversed depth-first (each root immediately followed
-by what stacks on it); siblings at every level sort by `order`. Epics and Projects
-sort by `order`. Duplicate `order` within a sibling group is an integrity problem.
+detail panel and used only to gate the Epic's derived `blocked` state — not
+sibling order). Within one nesting level, siblings are ordered strictly by
+stored `order` (never `createdAt` or `id`). Root Branches under an Epic are
+traversed depth-first (each root immediately followed by what stacks on it);
+siblings at every level sort by `order`. Epics and Projects sort by `order`.
+Duplicate `order` within a sibling group is an integrity problem.
 
 **Projects scope the view.** A Project is the top-level container: every Epic is
 `partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
-one scopes the tree and the Ready view to that Project's subtree (its Epics and
-their Branches/Commits). Projects themselves are not rendered as nodes inside the
+one scopes the tree to that Project's subtree (its Epics and their
+Branches/Commits). Projects themselves are not rendered as nodes inside the
 tree — they are the selectable root. Projects are ordered by `order`.
 
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
 position (and rejects an explicit `order` key). Imperative `create` appends
 (`max + 1`); reparenting without an explicit `order` patch re-appends in the new
-group. The ready set is emitted in structural DFS order (each level sorted by
-`order`), never by `id` or `createdAt`.
+group. Tree emission is structural DFS (each level sorted by `order`), never by
+`id` or `createdAt`.
 
 ## `chat.jsonl` message shape
 
@@ -492,8 +491,8 @@ no consumer can persist a broken file.
 
 - `list()` — scans `issues/*/`, reads each `issue.json` (plus presence of
   `description.md`/`chat.jsonl`), runs `derive()`, and returns issues + derived
-  state + the ready set + all `problems`. Malformed dirs/files and malformed
-  chat lines are collected into `problems`, never thrown.
+  state + all `problems`. Malformed dirs/files and malformed chat lines are
+  collected into `problems`, never thrown.
 - `read(id)` — returns one issue with its `description` and a content `version`.
 - `create(input)` — generates the id/slug (with collision suffix) and
   timestamps, links `partOf`, and writes the dir + `issue.json` +
@@ -779,34 +778,28 @@ stack (progress, git facts, escalation, chat, attachments) stays on kind
 filesystem) that, given all issues, computes state that is **never stored** and
 so cannot drift:
 
-- **Commit `ready`** — `status === "todo"`, its Branch (`partOf`) exists with a
-  `branchName` and is not merged, and all earlier sibling Commits (by sequence)
-  are `done`. A `todo` Commit that is not ready is `blocked`.
+- **Commit `blocked`** — a `todo` Commit is `blocked` unless its Branch
+  (`partOf`) exists with a `branchName` and is not merged, and all earlier
+  sibling Commits (by sequence) are `done`.
 - **Branch base** — same as [base](#derived-terms) (derived display of stored
   `mergeBase` for the tree/detail chips).
 - **Branch status** — `merged` if `merged`; else `pr-open` if it has Commits,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
-- **Branch `ready`** (to start) — a root Branch (no `stackedOn`) is ready
-  immediately; a stacked Branch is ready once its `stackedOn` parent has a
-  `branchName` (its tip exists to fork) **and** all the parent's Commits are
-  `done` (it forks the parent's tip, so there is no merge gate). A `not-started`
-  Branch that is not ready is `blocked`.
+- **Branch `blocked`** (to start) — a `not-started` Branch is `blocked` when it
+  has a `stackedOn` parent whose tip cannot be forked yet: the parent must have
+  a `branchName` **and** all the parent's Commits must be `done` (it forks the
+  parent's tip, so there is no merge gate). A root Branch (no `stackedOn`) is
+  never blocked by stacking.
 - **Epic status** — `done` when it has Branches and all are `merged`;
   `in-progress` if any Branch has started; else `todo`.
 - **Epic `blocked`** — an Epic is `blocked` while any Epic in its `blockedBy` is
   not yet `done` (a blocker is `done` only when it has Branches and all are
   `merged` — so a blocker Epic with **zero Branches is never `done`**, and
-  pointing `blockedBy` at an empty Epic blocks the dependent indefinitely). A
-  blocked Epic surfaces **nothing** in the Ready set — none of its Branches or
-  Commits appear until every blocker has merged. This is purely a Ready-set
-  filter over the whole subtree; it does **not** set the descendant Branches'/
-  Commits' own `blocked` flags, so `tree`/`list` can still show an
-  individually-ready Branch or Commit under a blocked Epic even though `ready`
-  omits it.
-- **Ready set** — the flat list behind the Ready view: ready Commits, plus ready
-  Branches that are still `not-started`, sorted by sequence, and skipping every
-  Branch/Commit under a blocked Epic.
+  pointing `blockedBy` at an empty Epic blocks the dependent indefinitely).
+  Epic `blocked` does **not** cascade onto descendant Branches'/Commits' own
+  `blocked` flags — `tree`/`list` still show per-node stacking/sibling blocking
+  under a blocked Epic.
 - **problems** — the integrity checks `derive()` runs over the parsed issues:
   dependency cycles over `stackedOn`/`blockedBy`; dangling
   `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn` entry is not a
@@ -820,10 +813,6 @@ so cannot drift:
   raised while loading files (malformed or missing `issue.json`, an id that
   disagrees with its directory name, and malformed `chat.jsonl` lines — see the
   [writer contract](#writer-contract) and [glossary](#derived-terms)).
-
-The Ready set is what lets an agent reconstruct "where to pick up" without any
-external state: it surfaces the next actionable Commits (in active, unmerged
-Branches) and the next startable Branches.
 
 ## Design rationale
 
@@ -860,12 +849,12 @@ in a broken state regardless of who wrote it. Integrity is enforced at the
 source rather than trusted at each call site.
 
 **Derived, not stored.** Anything that can be computed from the whole set —
-Branch/Epic status, ready/blocked, base branch, the ready set — is computed by
-the pure `derive()` and never written to disk. Stored duplicates of derived
-facts are the classic source of drift; by refusing to store them, the tracker
-cannot show a status that disagrees with reality. A Commit's `status` (the one
-genuine human/agent decision) and sibling `order` (authored implicitly via doc
-position or imperative append) are stored.
+Branch/Epic status, `blocked`, base branch — is computed by the pure `derive()`
+and never written to disk. Stored duplicates of derived facts are the classic
+source of drift; by refusing to store them, the tracker cannot show a status
+that disagrees with reality. A Commit's `status` (the one genuine human/agent
+decision) and sibling `order` (authored implicitly via doc position or
+imperative append) are stored.
 
 **Metadata-only with respect to git.** The tracker never shells out to git or
 gh. Agents run git/gh themselves and record the results — `branchName`, `prUrl`,
