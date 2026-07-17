@@ -12,18 +12,11 @@ import {
   read,
   readChat,
   remove,
-  update,
 } from "./server/services/issues.js";
 import {
-  COMMIT_STATUSES,
   KINDS,
-  MERGE_POLICIES,
-  SPEC_REVIEW_STATUSES,
-  type CommitStatus,
   type DerivedState,
   type IssueRecord,
-  type MergePolicy,
-  type SpecReviewStatus,
 } from "./server/schemas.js";
 import { subtreeIds } from "./server/services/subtree.js";
 import { apply } from "./server/services/apply.js";
@@ -42,16 +35,15 @@ import {
   summarize,
 } from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
-import { validateFullCommitSha } from "./server/services/commit-sha.js";
 import {
   attachmentPath,
   listAttachments,
   putAttachment,
   removeAttachment,
 } from "./server/services/attachments.js";
-import { coerceBoolean, coerceEnum } from "./cli-coerce.js";
 import { readCliFileArg } from "./cli-io.js";
-import { kindSet, registerKindGetSet } from "./cli-kind.js";
+import { registerKindGetSet } from "./cli-kind.js";
+import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -476,157 +468,6 @@ program
   );
 
 program
-  .command("set-status")
-  .argument("<id>", "commit id")
-  .argument("<status>", `one of: ${COMMIT_STATUSES.join(", ")}`)
-  .action((id, status) =>
-    run(() => {
-      return update(id, {
-        status: coerceEnum(status, "status", COMMIT_STATUSES) as CommitStatus,
-      });
-    }),
-  );
-
-program
-  .command("set-commit")
-  .argument("<id>", "commit id")
-  .argument("<sha>", "full git commit sha (40 or 64 hex chars)")
-  .action((id, sha) =>
-    run(() => {
-      validateFullCommitSha(sha);
-      const detail = read(id);
-      if (detail.kind !== "commit") {
-        throw new Error(`commitSha is only valid on a commit, not a ${detail.kind}`);
-      }
-      return update(id, { commitSha: sha });
-    }),
-  );
-
-program
-  .command("set-workspace")
-  .argument("<id>", "project id")
-  .argument("[path]", "absolute path to git checkout")
-  .option("--clear", "clear the workspace field")
-  .action((id, path, opts) =>
-    run(() => {
-      if (opts.clear) {
-        return update(id, { workspace: null });
-      }
-      if (!path) {
-        throw new Error("provide an absolute path or --clear");
-      }
-      return update(id, { workspace: path });
-    }),
-  );
-
-program
-  .command("set-merge-policy")
-  .argument("<id>", "project id")
-  .argument("<policy>", `one of: ${MERGE_POLICIES.join(", ")}`)
-  .action((id, policy) =>
-    run(() => update(id, { mergePolicy: policy as MergePolicy })),
-  );
-
-program
-  .command("set-branch-name")
-  .argument("<id>", "branch id")
-  .argument("<name>", "git branch name")
-  .action((id, name) => run(() => update(id, { branchName: name })));
-
-program
-  .command("set-stacked-on")
-  .argument("<id>", "branch id")
-  .argument("<branch>", "fork-point branch id")
-  .action((id, branch) => run(() => update(id, { stackedOn: branch })));
-
-program
-  .command("set-part-of")
-  .argument("<id>", "issue id")
-  .argument("<parent>", "new parent id (commit>branch, branch>epic, epic>project)")
-  .action((id, parent) => run(() => update(id, { partOf: parent })));
-
-program
-  .command("block")
-  .argument("<id>", "epic id")
-  .description("edit an Epic's blockedBy (ids must be same-Project Epics)")
-  .option("--by <epicIds...>", "replace blockedBy with exactly these ids")
-  .option("--add <epicIds...>", "union these ids into the current blockedBy")
-  .option("--remove <epicIds...>", "drop these ids from the current blockedBy")
-  // `--by`/`--add`/`--remove` are mutually exclusive: `--by` is a full replace
-  // while `--add`/`--remove` are incremental, so combining them has no
-  // unsurprising meaning. Require exactly one rather than inventing a precedence.
-  // Mutation goes through kindSet so array coerce stays single-sourced.
-  .action((id, opts) =>
-    run(() => {
-      const modes = (["by", "add", "remove"] as const).filter(
-        (mode) => opts[mode] !== undefined,
-      );
-      if (modes.length === 0) {
-        throw new Error("provide exactly one of --by, --add, or --remove");
-      }
-      if (modes.length > 1) {
-        throw new Error(
-          `--by, --add, and --remove are mutually exclusive (got ${modes
-            .map((mode) => `--${mode}`)
-            .join(", ")})`,
-        );
-      }
-      if (opts.by) {
-        return kindSet("epic", id, "blockedBy", JSON.stringify(opts.by), {});
-      }
-      if (opts.add) {
-        return kindSet("epic", id, "blockedBy", undefined, { add: opts.add });
-      }
-      return kindSet("epic", id, "blockedBy", undefined, { remove: opts.remove });
-    }),
-  );
-
-program
-  .command("open-pr")
-  .argument("<id>", "branch id")
-  .argument("<url>", "pull request url")
-  .action((id, url) => run(() => update(id, { prUrl: url })));
-
-program
-  .command("set-merged")
-  .argument("<id>", "branch id")
-  .action((id) => run(() => update(id, { merged: true })));
-
-program
-  .command("set-spec-review")
-  .argument("<id>", "branch id")
-  .argument("<status>", `one of: ${SPEC_REVIEW_STATUSES.join(", ")}`)
-  .action((id, status) =>
-    run(() => {
-      const specReview = coerceEnum(
-        status,
-        "specReview",
-        SPEC_REVIEW_STATUSES,
-      ) as SpecReviewStatus;
-      const detail = read(id);
-      if (detail.kind !== "branch") {
-        throw new Error(`specReview is only valid on a branch, not a ${detail.kind}`);
-      }
-      return update(id, { specReview });
-    }),
-  );
-
-program
-  .command("set-no-diff")
-  .argument("<id>", "commit id")
-  .argument("<value>", "true or false")
-  .action((id, value) =>
-    run(() => {
-      const noDiff = coerceBoolean(value, "noDiff");
-      const detail = read(id);
-      if (detail.kind !== "commit") {
-        throw new Error(`noDiff is only valid on a commit, not a ${detail.kind}`);
-      }
-      return update(id, { noDiff });
-    }),
-  );
-
-program
   .command("comment")
   .argument("<id>", "issue id")
   .requiredOption("--role <role>", "message author role (e.g. agent, human)")
@@ -640,56 +481,6 @@ program
         body: opts.body,
       });
       console.log(`commented on ${id} as ${message.name ?? message.role}`);
-    }),
-  );
-
-program
-  .command("attention")
-  .argument("<id>", "issue id")
-  .option("--reason <text>", "why the issue needs attention")
-  .option("--clear", "clear the attention flag")
-  .action((id, opts) =>
-    run(() => {
-      if (opts.clear) {
-        return update(id, { needsAttention: false, attentionReason: null });
-      }
-      if (!opts.reason) {
-        throw new Error("provide --reason <text> or --clear");
-      }
-      return update(id, { needsAttention: true, attentionReason: opts.reason });
-    }),
-  );
-
-program
-  .command("assign")
-  .argument("<id>", "issue id")
-  .argument("<who>", "assignee id (human or agent)")
-  .action((id, who) => run(() => update(id, { assignee: who })));
-
-program
-  .command("assignee")
-  .argument("<id>", "issue id")
-  .description("print an issue's assignee (model id) alone on stdout")
-  .action((id) =>
-    run(() => {
-      const detail = read(id);
-      const assignee = assigneeOf(detail);
-      if (assignee) console.log(assignee);
-    }),
-  );
-
-program
-  .command("set-description")
-  .argument("<id>", "issue id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((id, opts) =>
-    run(() => {
-      const description = resolveDescription(opts);
-      if (description === undefined) {
-        throw new Error("provide --description <text> or --description-file <path>");
-      }
-      return update(id, { description });
     }),
   );
 
@@ -877,5 +668,11 @@ program
       console.log(lines.join("\n"));
     }),
   );
+
+for (const verb of DELETED_FIELD_VERBS) {
+  if (program.commands.some((cmd) => cmd.name() === verb)) {
+    throw new Error(`deleted field verb "${verb}" must not be registered`);
+  }
+}
 
 program.parseAsync(process.argv);
