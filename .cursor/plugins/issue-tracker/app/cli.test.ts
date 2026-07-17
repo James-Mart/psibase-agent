@@ -252,6 +252,92 @@ describe("set-workspace", () => {
   });
 });
 
+describe("project get/set", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(join(dir, "p", "description.md"), "# Proj\n\nbody\n");
+  });
+
+  it("gets and sets allowlisted project fields", () => {
+    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Proj\n");
+    expect(runCli(["project", "get", "p", "mergePolicy"]).stdout).toBe("manual\n");
+    expect(runCli(["project", "get", "p", "description"]).stdout).toBe("# Proj\n\nbody\n");
+
+    expect(runCli(["project", "set", "p", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Renamed\n");
+
+    expect(runCli(["project", "set", "p", "mergePolicy", "pull-request"]).status).toBe(0);
+    expect(runCli(["project", "get", "p", "mergePolicy"]).stdout).toBe("pull-request\n");
+  });
+
+  it("sets description from --file and clears workspace with --clear", () => {
+    const descFile = join(dir, "desc.md");
+    writeFileSync(descFile, "from file\n");
+    expect(
+      runCli(["project", "set", "p", "description", "--file", descFile]).status,
+    ).toBe(0);
+    expect(runCli(["project", "get", "p", "description"]).stdout).toBe("from file\n");
+
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["project", "set", "p", "workspace", ws]).status).toBe(0);
+      expect(runCli(["project", "get", "p", "workspace"]).stdout).toBe(`${ws}\n`);
+      expect(runCli(["project", "set", "p", "workspace", "--clear"]).status).toBe(0);
+      const { stdout, status } = runCli(["project", "get", "p", "workspace"]);
+      expect(status).toBe(0);
+      expect(stdout).toBe("");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("prints empty stdout for unset optional get", () => {
+    const { stdout, status } = runCli(["project", "get", "p", "workspace"]);
+    expect(status).toBe(0);
+    expect(stdout).toBe("");
+  });
+
+  it("refuses kind mismatch and unknown fields", () => {
+    const mismatch = runCli(["project", "get", "e", "title"]);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stderr).toContain('"e" is an epic, not a project');
+
+    const setMismatch = runCli(["project", "set", "e", "title", "Nope"]);
+    expect(setMismatch.status).toBe(1);
+    expect(setMismatch.stderr).toContain('"e" is an epic, not a project');
+
+    const unknownGet = runCli(["project", "get", "p", "assignee"]);
+    expect(unknownGet.status).toBe(1);
+    expect(unknownGet.stderr).toContain('unknown field "assignee" for project');
+
+    const unknownSet = runCli(["project", "set", "p", "assignee", "bot"]);
+    expect(unknownSet.status).toBe(1);
+    expect(unknownSet.stderr).toContain(
+      'unknown or unsettable field "assignee" for project',
+    );
+  });
+
+  it("keeps existing field verbs working", () => {
+    expect(runCli(["set-merge-policy", "p", "merge"]).status).toBe(0);
+    expect(runCli(["project", "get", "p", "mergePolicy"]).stdout).toBe("merge\n");
+
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
+      expect(runCli(["project", "get", "p", "workspace"]).stdout).toBe(`${ws}\n`);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("tree", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
