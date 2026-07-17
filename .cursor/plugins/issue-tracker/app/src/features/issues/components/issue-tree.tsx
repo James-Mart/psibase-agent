@@ -42,6 +42,7 @@ import {
   EPIC_STATUS_CLASS,
   EPIC_STATUS_LABEL,
 } from "../lib/derived";
+import { ArchiveIssueButton } from "./archive-issue-button";
 import { CommitStatusSelect } from "./commit-status-select";
 import { IssueBadges } from "./issue-badges";
 
@@ -164,6 +165,7 @@ function RowActions({ issue }: { issue: IssueRecord }) {
           </Button>
         )
       ) : null}
+      <ArchiveIssueButton issue={issue} compact />
       <Button
         variant="ghost"
         size="icon-sm"

@@ -101,7 +101,9 @@ Run these four commands in order (use `<epicId>` throughout):
      spawning anything.
 3. `issue list --project <projectId>` — read `problems`. If `problems` is
    non-empty, **stop and hand back to the user** — do not reason about or
-   attempt fixes, and do not work a tree with integrity problems.
+   attempt fixes, and do not work a tree with integrity problems. (`list` /
+   `tree` hide archived rows by default; pass `--show-archived` when you need
+   them — see [SPEC.md](../../SPEC.md#archived-visibility).)
 4. `issue epic get <epicId> blocked` — if stdout is `true`, the Epic is
    `blockedBy` a blocker that has not fully merged, so — per Argument — it
    **cannot start**. Stop and hand back to the user rather than working any

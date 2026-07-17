@@ -17,6 +17,7 @@ import { EpicDepsPanel } from "./epic-deps-panel";
 import { AttachmentsPanel } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
+import { ArchiveIssueButton } from "./archive-issue-button";
 import { supportsAttachments } from "../lib/attachments";
 
 export function IssueDetailPage() {
@@ -111,6 +112,7 @@ export function IssueDetailPage() {
                   <Pencil className="h-4 w-4" />
                   Edit
                 </Button>
+                <ArchiveIssueButton issue={issue} />
                 <Button
                   variant="ghost"
                   size="sm"

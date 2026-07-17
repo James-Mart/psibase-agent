@@ -42,14 +42,17 @@ Tell the user the UI is available at http://localhost:8060.
 - **Tree view** — collapsible Epic > Branch > Commit outline (scoped to the
   selected Project) with derived status badges, git/stack chips (branch, base,
   PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
-  dimmed.
+  dimmed. Archived Epic / Branch / Commit rows are hidden by default; a "Show
+  archived" toggle (client preference, next to search) reveals them. Row hover
+  offers Archive / Unarchive (same cascade as CLI).
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
   cross-links and relative links to that issue's `attachments/`), an edit form
-  (`assignee`, `needsAttention`, `status`, git facts), attachment
-  list/upload/download, a git/stack panel, `assignee` / `needsAttention` badges
-  (`attentionReason` when set), and (for Branches with `specReview` set) a
-  spec-review chip (`passed` / `failed`; omitted when unset), (for Commits with
-  `noDiff` set) a no-diff chip (omitted when unset), and a per-issue chat.
+  (`assignee`, `needsAttention`, `status`, git facts), Archive / Unarchive in
+  the header (Epic / Branch / Commit), attachment list/upload/download, a
+  git/stack panel, `assignee` / `needsAttention` badges (`attentionReason` when
+  set), and (for Branches with `specReview` set) a spec-review chip (`passed` /
+  `failed`; omitted when unset), (for Commits with `noDiff` set) a no-diff chip
+  (omitted when unset), and a per-issue chat.
 - Changes to `issues/` on disk (from the CLI or by hand) appear live over SSE
   without a refresh.
 

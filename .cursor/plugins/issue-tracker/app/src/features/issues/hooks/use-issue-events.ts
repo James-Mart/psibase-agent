@@ -8,6 +8,9 @@ const RECONNECT_DELAY_MS = 2_000;
 // connection is treated as dead (e.g. a dev-proxy zombie after a backend
 // restart, which never fires an `error`) and forcibly reconnected.
 const HEARTBEAT_TIMEOUT_MS = 25_000;
+// Cascade writes (e.g. archived) emit one SSE event per issue.json. Coalesce
+// list refetches so a deep subtree does not slam the list query N times.
+const LIST_INVALIDATE_DEBOUNCE_MS = 50;
 
 function parseEvent(data: string): IssueEvent | null {
   try {
@@ -38,9 +41,20 @@ export function useIssueEvents(): void {
     let source: EventSource | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let listInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
 
     const resync = () => qc.invalidateQueries({ queryKey: issuesKeys.all });
+
+    const scheduleListInvalidate = () => {
+      if (listInvalidateTimer) clearTimeout(listInvalidateTimer);
+      listInvalidateTimer = setTimeout(() => {
+        listInvalidateTimer = null;
+        if (!disposed) {
+          qc.invalidateQueries({ queryKey: issuesKeys.list() });
+        }
+      }, LIST_INVALIDATE_DEBOUNCE_MS);
+    };
 
     const applyEvent = (event: IssueEvent) => {
       if (event.scope === "chat") {
@@ -48,7 +62,7 @@ export function useIssueEvents(): void {
         // hasChat / chat-health only change when the file appears or vanishes,
         // not on every append — so refresh the tree list only then.
         if (event.type === "add" || event.type === "unlink") {
-          qc.invalidateQueries({ queryKey: issuesKeys.list() });
+          scheduleListInvalidate();
         }
         return;
       }
@@ -56,7 +70,7 @@ export function useIssueEvents(): void {
         qc.invalidateQueries({ queryKey: issuesKeys.attachments(event.id) });
         return;
       }
-      qc.invalidateQueries({ queryKey: issuesKeys.list() });
+      scheduleListInvalidate();
       if (event.type === "unlink-dir") {
         qc.removeQueries({ queryKey: issuesKeys.detail(event.id) });
         qc.removeQueries({ queryKey: issuesKeys.chat(event.id) });
@@ -110,6 +124,7 @@ export function useIssueEvents(): void {
     return () => {
       disposed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (listInvalidateTimer) clearTimeout(listInvalidateTimer);
       closeSource();
     };
   }, [qc]);

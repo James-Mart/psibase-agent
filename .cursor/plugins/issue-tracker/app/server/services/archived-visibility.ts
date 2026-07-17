@@ -9,7 +9,7 @@ export function isArchived(issue: Issue): boolean {
 /**
  * Issues visible in tree/list views. Projects are never archived; Epic /
  * Branch / Commit rows are omitted unless `showArchived` is true.
- * Shared by CLI and (soon) UI so the filter rule cannot fork.
+ * Shared by CLI and UI so the filter rule cannot fork.
  */
 export function visibleIssues<T extends Issue>(
   issues: T[],

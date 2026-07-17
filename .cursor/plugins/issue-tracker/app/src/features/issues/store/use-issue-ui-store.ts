@@ -14,6 +14,7 @@ export interface ProjectDialogTarget {
 }
 
 const EXPANDED_KEY = "issue-tracker.expanded";
+const SHOW_ARCHIVED_KEY = "issue-tracker.showArchived";
 
 function loadExpanded(): Record<string, boolean> {
   if (typeof localStorage === "undefined") return {};
@@ -43,9 +44,25 @@ function saveExpanded(expanded: Record<string, boolean>): void {
   }
 }
 
+function loadShowArchived(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(SHOW_ARCHIVED_KEY) === "true";
+}
+
+function saveShowArchived(value: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  if (value) {
+    localStorage.setItem(SHOW_ARCHIVED_KEY, "true");
+  } else {
+    localStorage.removeItem(SHOW_ARCHIVED_KEY);
+  }
+}
+
 interface IssueUiState {
   search: string;
   setSearch: (value: string) => void;
+  showArchived: boolean;
+  setShowArchived: (value: boolean) => void;
   expanded: Record<string, boolean>;
   toggle: (id: string) => void;
   projectDialog: ProjectDialogTarget | null;
@@ -62,6 +79,11 @@ interface IssueUiState {
 export const useIssueUiStore = create<IssueUiState>((set) => ({
   search: "",
   setSearch: (value) => set({ search: value }),
+  showArchived: loadShowArchived(),
+  setShowArchived: (value) => {
+    saveShowArchived(value);
+    set({ showArchived: value });
+  },
   expanded: loadExpanded(),
   toggle: (id) =>
     set((state) => {
