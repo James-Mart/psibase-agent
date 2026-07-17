@@ -33,9 +33,10 @@ import {
 } from "./server/services/apply-schema.js";
 import { bySequence, stackedBranchOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
-import { EPIC_BASE } from "./server/services/derive.js";
+import { CHIP_UNSET } from "./server/services/merge-base.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
+import { validateFullCommitSha } from "./server/services/commit-sha.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
@@ -132,8 +133,8 @@ function branchChips(branch: BranchRecord, derived: Record<string, DerivedState>
   const d = derived[branch.id];
   const chips: string[] = [];
   if (d?.branchStatus) chips.push(`status=${d.branchStatus}`);
-  chips.push(`base=${d?.base ?? EPIC_BASE}`);
-  chips.push(`branch=${branch.branchName ?? "(unset)"}`);
+  chips.push(`base=${d?.base ?? CHIP_UNSET}`);
+  chips.push(`branch=${branch.branchName ?? CHIP_UNSET}`);
   if (branch.prUrl) chips.push(`pr=${branch.prUrl}`);
   if (branch.merged) chips.push("merged");
   if (d?.blocked) chips.push("blocked");
@@ -344,8 +345,17 @@ program
 program
   .command("set-commit")
   .argument("<id>", "commit id")
-  .argument("<sha>", "git commit sha")
-  .action((id, sha) => run(() => update(id, { commitSha: sha })));
+  .argument("<sha>", "full git commit sha (40 or 64 hex chars)")
+  .action((id, sha) =>
+    run(() => {
+      validateFullCommitSha(sha);
+      const detail = read(id);
+      if (detail.kind !== "commit") {
+        throw new Error(`commitSha is only valid on a commit, not a ${detail.kind}`);
+      }
+      return update(id, { commitSha: sha });
+    }),
+  );
 
 program
   .command("set-workspace")
@@ -598,6 +608,7 @@ program
       }
       if (detail.kind === "branch") {
         if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
+        lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
         if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
         if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
         lines.push(`merged: ${detail.merged}`);

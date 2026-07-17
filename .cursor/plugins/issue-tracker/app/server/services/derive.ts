@@ -8,8 +8,6 @@ import type {
 import { bySequence, stackedBranchOrder } from "../order.js";
 import { checkIntegrity } from "./integrity.js";
 
-export const EPIC_BASE = "main";
-
 export interface DeriveResult {
   byId: Record<string, DerivedState>;
   ready: string[];
@@ -104,12 +102,6 @@ export function derive(issues: Issue[]): DeriveResult {
 
   const state: Record<string, DerivedState> = {};
 
-  const branchName = (id: string | undefined): string | undefined => {
-    if (!id) return undefined;
-    const ref = byId.get(id);
-    return ref?.kind === "branch" ? ref.branchName : undefined;
-  };
-
   // A stacked Branch forks its parent's tip, so it is ready once the parent's
   // tip exists (it has a `branchName`) and the parent's commits are all `done`
   // (no merge gate). A parent with no `branchName` is not-started: there is no
@@ -134,14 +126,15 @@ export function derive(issues: Issue[]): DeriveResult {
   };
 
   for (const branch of issues.filter((i): i is Branch => i.kind === "branch")) {
-    const base = branchName(branch.stackedOn) ?? EPIC_BASE;
+    // `base` is the stored `mergeBase` only — never re-derived from `stackedOn`.
+    // When unset, omit it so the tree chip shows `base=(unset)`.
     const branchStatus = branchStatusOf(branch);
     const ready = parentTipDone(branch);
     state[branch.id] = {
       ready,
       blocked: branchStatus === "not-started" && !ready,
       branchStatus,
-      base,
+      ...(branch.mergeBase !== undefined ? { base: branch.mergeBase } : {}),
     };
   }
 

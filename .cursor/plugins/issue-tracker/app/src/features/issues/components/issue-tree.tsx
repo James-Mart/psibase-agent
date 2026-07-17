@@ -67,8 +67,8 @@ function GitChip({
             {issue.branchName}
           </span>
         ) : null}
-        {derived?.base ? (
-          <span className="text-muted-foreground/70">on {derived.base}</span>
+        {issue.mergeBase ? (
+          <span className="text-muted-foreground/70">on {issue.mergeBase}</span>
         ) : null}
         {issue.prUrl ? (
           <a

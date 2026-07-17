@@ -80,8 +80,9 @@ Run these three commands in order (use `<epicId>` throughout):
    and, once done, `sha=`. **Chip legend (coordinator use):**
    - Walk order and Commit sequence — top-to-bottom from this output; do not
      reorder by hand.
-   - `base=<ref>` — informational; do not copy into git spawn stubs (the git
-     agent resolves checkout base itself).
+   - `base=<ref>` — human display of the Branch's stored `mergeBase` (or
+     `base=(unset)` when empty). Informational only; do not copy into git
+     spawn stubs — the git agent reads `mergeBase` from `issue show`.
    - `branch=<name>` — git branch name once recorded; do not copy into spawn
      stubs.
    - `branch=(unset)` — no git branch recorded yet; spawn start-branch (see
@@ -235,7 +236,8 @@ static behavior via their `agents/*.md` files — do not paste workflow
 instructions here.
 
 Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
-**only** Mode + issue id — no Epic id, `base`, or `branchName`.
+**only** Mode + issue id — no Epic id, tree chips, or git facts (`base`,
+`mergeBase`, `branchName`).
 
 **Start Branch** — `subagent_type: issue-tracker-git`
 

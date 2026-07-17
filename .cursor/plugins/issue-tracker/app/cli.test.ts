@@ -154,6 +154,7 @@ describe("show", () => {
     expect(stdout).toContain("kind: branch");
     expect(stdout).toContain("title: Branch A");
     expect(stdout).toContain("partOf: e");
+    expect(stdout).toContain("mergeBase: main");
     expect(stdout).toContain("branchName: feat/a");
     expect(stdout).toContain("merged: false");
     expect(stdout).toContain("# Branch A");
@@ -310,6 +311,19 @@ describe("tree", () => {
     const byTitle = runCli(["tree", "--project", "Proj"]);
     expect(byTitle.status).toBe(0);
     expect(byTitle.stdout).toBe(byId.stdout);
+  });
+
+  it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
+    // Create via the CLI so post-migration semantics apply: child of an
+    // unnamed parent leaves mergeBase unset until set-branch-name cascades.
+    const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    expect(add.status).toBe(0);
+    const childId = add.stdout.trim();
+    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(
+      new RegExp(`^\\s+branch ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
+    );
   });
 });
 
@@ -571,6 +585,91 @@ describe("set-no-diff", () => {
 
   it("rejects a non-commit id", () => {
     const { stderr, status } = runCli(["set-no-diff", "a", "true"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/only valid on a commit/);
+  });
+});
+
+describe("set-commit", () => {
+  const sha1 = "0123456789abcdef0123456789abcdef01234567";
+  const sha256 =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("a", {
+      kind: "branch",
+      title: "Branch A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("accepts a full 40-character sha1", () => {
+    expect(runCli(["set-commit", "c1", sha1]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw.commitSha).toBe(sha1);
+  });
+
+  it("accepts a full 64-character sha256", () => {
+    expect(runCli(["set-commit", "c1", sha256]).status).toBe(0);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw.commitSha).toBe(sha256);
+  });
+
+  it("rejects an abbreviated sha", () => {
+    const { stderr, status } = runCli(["set-commit", "c1", "4019c25"]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha "4019c25"/);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw).not.toHaveProperty("commitSha");
+  });
+
+  it("rejects a 39-character sha", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "0123456789abcdef0123456789abcdef0123456",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(raw).not.toHaveProperty("commitSha");
+  });
+
+  it("rejects non-hex characters", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "ghijghijghijghijghijghijghijghijghijghij",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+  });
+
+  it("rejects uppercase hex", () => {
+    const { stderr, status } = runCli([
+      "set-commit",
+      "c1",
+      "0123456789ABCDEF0123456789ABCDEF01234567",
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toMatch(/invalid commit sha/);
+  });
+
+  it("rejects a non-commit id", () => {
+    const { stderr, status } = runCli(["set-commit", "a", sha1]);
     expect(status).toBe(1);
     expect(stderr).toMatch(/only valid on a commit/);
   });
