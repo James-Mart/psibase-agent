@@ -41,9 +41,7 @@ tracker context — not a product-workspace checkout. Do not run product-repo
 - **Source Epic id + title** — the implement-run Epic that just completed
   (all Branches `merged`)
 - **Comment role** — pass as `--role <role>` on every `issue comment`
-- Transcript directory via env:
-  `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID`
-  (parent `.jsonl` plus `subagents/*.jsonl`)
+- Transcripts — resolve and mine per **## Transcript resolution**
 - Your **own live** chain of thought / real-time confusion while mining
 
 ## Invariants
@@ -60,23 +58,38 @@ tracker context — not a product-workspace checkout. Do not run product-repo
   present; if thinking is `[REDACTED]`, cite behavioral evidence with
   transcript path + agent id.
 - **Epic description opens** with
-  `Source run: [<title>](issue:<sourceEpicId>)` and the conversation id
-  (`$CURSOR_CONVERSATION_ID`). Organize Branches by token-waste theme.
+  `Source run: [<title>](issue:<sourceEpicId>)` and conversation id
+  `<parentId>` per **## Transcript resolution**. Organize Branches by
+  token-waste theme.
 - **No grill / no coordinator summary:** after `apply` or the clean-run
   comment, return control immediately with no summary payload.
 
-## Preconditions
+## Transcript resolution
 
-Verify `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID` exists and contains the
-expected parent `.jsonl` (and `subagents/` when present). If the directory
-or required transcripts are missing/unreadable, escalate — do **not** treat
-absence as a clean run.
+`$CURSOR_CONVERSATION_ID` may be the parent implement-run id or a Task
+subagent id. Resolve the parent tree before mining:
+
+1. If `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID/` exists and contains
+   `$CURSOR_CONVERSATION_ID.jsonl`, use that directory as `<root>`.
+2. Else if
+   `$AGENT_TRANSCRIPTS/*/subagents/$CURSOR_CONVERSATION_ID.jsonl`
+   exists, use that match’s parent directory (the directory that
+   contains `subagents/`) as `<root>`.
+3. Else escalate — do **not** treat absence as a clean run.
+
+Then set `<parentId> = basename(<root>)`. Verify
+`<root>/<parentId>.jsonl` exists and is readable; if not, escalate the
+same way. That parent `.jsonl` is **required**. `subagents/` (and
+`subagents/*.jsonl`) is **optional** — mine those files when present.
+
+Mine `<root>/<parentId>.jsonl` and, when present,
+`<root>/subagents/*.jsonl`. Use `<parentId>` (not a subagent
+`$CURSOR_CONVERSATION_ID`) as the residual Epic’s conversation id.
 
 ## What you do
 
-1. Confirm **## Preconditions**.
-2. Mine the parent transcript and `subagents/*.jsonl` under the transcript
-   dir (plus live CoT per **## Inputs**).
+1. Confirm **## Transcript resolution**.
+2. Mine the resolved transcripts (plus live CoT per **## Inputs**).
 3. Filter to remaining meta gaps per **## Invariants**.
 4. Follow exactly one section: **## Clean run** or **## Gaps remain**.
 
