@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 // Drive the real CLI as a subprocess against a throwaway ISSUES_DIR. Verb
 // behavior (stdin, exit codes, stdout formatting, service round-trips) only
@@ -124,7 +125,7 @@ describe("summary", () => {
   it("prints Workspace when set on the project", () => {
     const ws = makeGitWorkspace();
     try {
-      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
+      expect(runCli(["project", "set", "p", "workspace", ws]).status).toBe(0);
       const { stdout, status } = runCli(["summary", "c1"]);
       expect(status).toBe(0);
       expect(stdout).toContain(`  Workspace: ${ws}`);
@@ -213,7 +214,7 @@ describe("show", () => {
   it("prints workspace when set on a project", () => {
     const ws = makeGitWorkspace();
     try {
-      const { status: setStatus } = runCli(["set-workspace", "p", ws]);
+      const { status: setStatus } = runCli(["project", "set", "p", "workspace", ws]);
       expect(setStatus).toBe(0);
       const { stdout, status } = runCli(["show", "p"]);
       expect(status).toBe(0);
@@ -228,40 +229,6 @@ describe("show", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("mergePolicy: manual");
     expect(stdout).not.toContain("workspace:");
-  });
-});
-
-describe("set-merge-policy", () => {
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-  });
-
-  it("wires set-merge-policy through to update and show", () => {
-    expect(runCli(["set-merge-policy", "p", "pull-request"]).status).toBe(0);
-    const { stdout, status } = runCli(["show", "p"]);
-    expect(status).toBe(0);
-    expect(stdout).toContain("mergePolicy: pull-request");
-  });
-});
-
-describe("set-workspace", () => {
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-  });
-
-  it("sets and clears workspace via the CLI", () => {
-    const ws = makeGitWorkspace();
-    try {
-      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
-      const raw = JSON.parse(readFileSync(join(dir, "p", "issue.json"), "utf8"));
-      expect(raw.workspace).toBe(ws);
-
-      expect(runCli(["set-workspace", "p", "--clear"]).status).toBe(0);
-      const cleared = JSON.parse(readFileSync(join(dir, "p", "issue.json"), "utf8"));
-      expect(cleared).not.toHaveProperty("workspace");
-    } finally {
-      rmSync(ws, { recursive: true, force: true });
-    }
   });
 });
 
@@ -337,17 +304,11 @@ describe("project get/set", () => {
     );
   });
 
-  it("keeps existing field verbs working", () => {
-    expect(runCli(["set-merge-policy", "p", "merge"]).status).toBe(0);
-    expect(runCli(["project", "get", "p", "mergePolicy"]).stdout).toBe("merge\n");
-
-    const ws = makeGitWorkspace();
-    try {
-      expect(runCli(["set-workspace", "p", ws]).status).toBe(0);
-      expect(runCli(["project", "get", "p", "workspace"]).stdout).toBe(`${ws}\n`);
-    } finally {
-      rmSync(ws, { recursive: true, force: true });
-    }
+  it("wires mergePolicy through to show", () => {
+    expect(runCli(["project", "set", "p", "mergePolicy", "pull-request"]).status).toBe(0);
+    const { stdout, status } = runCli(["show", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("mergePolicy: pull-request");
   });
 });
 
@@ -419,12 +380,54 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "set", "e", "blockedBy", "--add", "other"]).status).toBe(0);
     expect(blockedByOf("e").sort()).toEqual(["blocker", "other"]);
 
+    // --add is idempotent for ids already present.
+    expect(runCli(["epic", "set", "e", "blockedBy", "--add", "blocker", "other"]).status).toBe(
+      0,
+    );
+    expect(blockedByOf("e").sort()).toEqual(["blocker", "other"]);
+
     expect(runCli(["epic", "set", "e", "blockedBy", "--remove", "blocker"]).status).toBe(0);
     expect(blockedByOf("e")).toEqual(["other"]);
 
     expect(runCli(["epic", "set", "e", "blockedBy", "--clear"]).status).toBe(0);
     expect(blockedByOf("e")).toEqual([]);
     expect(runCli(["epic", "get", "e", "blockedBy"]).stdout).toBe("[]\n");
+  });
+
+  it("rejects invalid blockedBy set modes and wrong kind", () => {
+    expect(runCli(["epic", "set", "e", "blockedBy", '["blocker"]']).status).toBe(0);
+
+    const combined = runCli([
+      "epic",
+      "set",
+      "e",
+      "blockedBy",
+      '["other"]',
+      "--add",
+      "blocker",
+    ]);
+    expect(combined.status).toBe(1);
+    expect(combined.stderr).toMatch(/mutually exclusive/);
+    expect(blockedByOf("e")).toEqual(["blocker"]);
+
+    const missing = runCli(["epic", "set", "e", "blockedBy"]);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(
+      /provide a JSON array value, --file, --add, --remove, or --clear for blockedBy/,
+    );
+
+    writeIssue("br", {
+      kind: "branch",
+      title: "Branch",
+      partOf: "e",
+      merged: false,
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const wrongKind = runCli(["epic", "set", "br", "blockedBy", "--add", "blocker"]);
+    expect(wrongKind.status).toBe(1);
+    expect(wrongKind.stderr).toMatch(/"br" is a branch, not an epic/);
   });
 
   it("gets derived epicStatus, ready, and blocked", () => {
@@ -473,17 +476,6 @@ describe("epic get/set", () => {
     expect(unknownSet.stderr).toContain(
       'unknown or unsettable field "workspace" for epic',
     );
-  });
-
-  it("keeps project get/set and old field verbs working", () => {
-    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Proj\n");
-    expect(runCli(["project", "set", "p", "title", "Still Proj"]).status).toBe(0);
-    expect(runCli(["project", "get", "p", "title"]).stdout).toBe("Still Proj\n");
-
-    expect(runCli(["block", "e", "--add", "blocker"]).status).toBe(0);
-    expect(blockedByOf("e")).toEqual(["blocker"]);
-    expect(runCli(["attention", "e", "--reason", "legacy"]).status).toBe(0);
-    expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("legacy\n");
   });
 });
 
@@ -652,22 +644,62 @@ describe("branch get/set", () => {
     expect(unknownSet.stderr).toContain(
       'unknown or unsettable field "mergeBase" for branch',
     );
+
+    writeIssue("c1", {
+      kind: "commit",
+      title: "C1",
+      partOf: "a",
+      status: "todo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const setOnCommit = runCli(["branch", "set", "c1", "specReview", "passed"]);
+    expect(setOnCommit.status).toBe(1);
+    expect(setOnCommit.stderr).toMatch(/"c1" is a commit, not a branch/);
   });
 
-  it("keeps epic get/set and old field verbs working", () => {
-    expect(runCli(["epic", "get", "e", "title"]).stdout).toBe("Epic\n");
-    expect(runCli(["set-branch-name", "a", "feat/legacy"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "branchName"]).stdout).toBe("feat/legacy\n");
-    expect(runCli(["open-pr", "a", "https://pr/legacy"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "prUrl"]).stdout).toBe("https://pr/legacy\n");
-    expect(runCli(["set-merged", "a"]).status).toBe(0);
-    expect(runCli(["branch", "get", "a", "merged"]).stdout).toBe("true\n");
+  it("surfaces specReview in show/list and preserves it across apply", () => {
+    expect(runCli(["show", "a"]).stdout).not.toContain("specReview:");
+
+    expect(runCli(["branch", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["show", "a"]).stdout).toContain("specReview: passed");
+
+    const listed = JSON.parse(runCli(["list", "--project", "p"]).stdout);
+    const branch = listed.issues.find((i: { id: string }) => i.id === "a");
+    expect(branch.specReview).toBe("passed");
+
+    const invalid = runCli(["branch", "set", "a", "specReview", "pending"]);
+    expect(invalid.status).toBe(1);
+    expect(invalid.stderr).toMatch(/invalid specReview "pending"/);
+
+    const applyPath = join(dir, "epic.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  branches:
+    - id: a
+      title: Branch A renamed
+`,
+    );
+    expect(runCli(["branch", "set", "a", "specReview", "failed"]).status).toBe(0);
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8")).specReview).toBe(
+      "failed",
+    );
+    expect(runCli(["show", "a"]).stdout).toContain("specReview: failed");
+    expect(runCli(["show", "a"]).stdout).toContain("title: Branch A renamed");
   });
 });
 
 describe("commit get/set", () => {
   const AT = "2026-07-10T14:00:00.000Z";
   const sha1 = "0123456789abcdef0123456789abcdef01234567";
+  const sha256 =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
@@ -687,6 +719,15 @@ describe("commit get/set", () => {
       branchName: "feat/a",
       merged: false,
       order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("a2", {
+      kind: "branch",
+      title: "Branch A2",
+      partOf: "e",
+      merged: false,
+      order: 1,
       createdAt: AT,
       updatedAt: AT,
     });
@@ -770,7 +811,7 @@ describe("commit get/set", () => {
     expect(runCli(["commit", "get", "c2", "blocked"]).stdout).toBe("false\n");
   });
 
-  it("refuses kind mismatch, unknown fields, and invalid commitSha", () => {
+  it("refuses kind mismatch, unknown fields, and invalid commitSha / noDiff", () => {
     const mismatch = runCli(["commit", "get", "a", "title"]);
     expect(mismatch.status).toBe(1);
     expect(mismatch.stderr).toContain('"a" is a branch, not a commit');
@@ -788,16 +829,97 @@ describe("commit get/set", () => {
     const badSha = runCli(["commit", "set", "c1", "commitSha", "4019c25"]);
     expect(badSha.status).toBe(1);
     expect(badSha.stderr).toMatch(/invalid commit sha "4019c25"/);
+
+    const shortSha = runCli([
+      "commit",
+      "set",
+      "c1",
+      "commitSha",
+      "0123456789abcdef0123456789abcdef0123456",
+    ]);
+    expect(shortSha.status).toBe(1);
+    expect(shortSha.stderr).toMatch(/invalid commit sha/);
+
+    const nonHex = runCli([
+      "commit",
+      "set",
+      "c1",
+      "commitSha",
+      "ghijghijghijghijghijghijghijghijghijghij",
+    ]);
+    expect(nonHex.status).toBe(1);
+    expect(nonHex.stderr).toMatch(/invalid commit sha/);
+
+    const upper = runCli([
+      "commit",
+      "set",
+      "c1",
+      "commitSha",
+      "0123456789ABCDEF0123456789ABCDEF01234567",
+    ]);
+    expect(upper.status).toBe(1);
+    expect(upper.stderr).toMatch(/invalid commit sha/);
+
+    expect(runCli(["commit", "set", "a", "commitSha", sha1]).stderr).toMatch(
+      /"a" is a branch, not a commit/,
+    );
+    expect(runCli(["commit", "set", "a", "noDiff", "true"]).stderr).toMatch(
+      /"a" is a branch, not a commit/,
+    );
+
+    const badNoDiff = runCli(["commit", "set", "c1", "noDiff", "maybe"]);
+    expect(badNoDiff.status).toBe(1);
+    expect(badNoDiff.stderr).toMatch(/invalid noDiff "maybe"/);
   });
 
-  it("keeps branch get/set and old field verbs working", () => {
-    expect(runCli(["branch", "get", "a", "title"]).stdout).toBe("Branch A\n");
-    expect(runCli(["set-status", "c1", "done"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "status"]).stdout).toBe("done\n");
-    expect(runCli(["set-commit", "c1", sha1]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
-    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
-    expect(runCli(["commit", "get", "c1", "noDiff"]).stdout).toBe("true\n");
+  it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {
+    expect(runCli(["commit", "set", "c1", "commitSha", sha256]).status).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).commitSha).toBe(
+      sha256,
+    );
+
+    expect(runCli(["show", "c1"]).stdout).not.toContain("noDiff:");
+    expect(runCli(["commit", "set", "c1", "noDiff", "true"]).status).toBe(0);
+    expect(runCli(["show", "c1"]).stdout).toContain("noDiff: true");
+    expect(runCli(["summary", "c1"]).stdout).toContain("noDiff: true");
+
+    expect(runCli(["commit", "set", "c1", "noDiff", "false"]).status).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"))).not.toHaveProperty(
+      "noDiff",
+    );
+    expect(runCli(["show", "c1"]).stdout).not.toContain("noDiff:");
+  });
+
+  it("gets whitespace assignee as stored and errors on unknown id", () => {
+    writeIssue("c1", {
+      kind: "commit",
+      title: "Commit 1",
+      partOf: "a",
+      status: "todo",
+      assignee: "   ",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    expect(runCli(["commit", "get", "c1", "assignee"]).stdout).toBe("   \n");
+
+    const unknown = runCli(["commit", "get", "ghost", "assignee"]);
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toContain('unknown issue "ghost"');
+  });
+
+  it("reparents via partOf and rejects bad parents", () => {
+    expect(runCli(["commit", "set", "c1", "partOf", "a2"]).status).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).partOf).toBe("a2");
+
+    const wrongKind = runCli(["commit", "set", "c1", "partOf", "e"]);
+    expect(wrongKind.status).toBe(1);
+    expect(wrongKind.stderr).toMatch(/must be a branch, not a epic/);
+    expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).partOf).toBe("a2");
+
+    const unknown = runCli(["commit", "set", "c1", "partOf", "ghost"]);
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toMatch(/references unknown issue "ghost"/);
   });
 });
 
@@ -864,7 +986,7 @@ describe("tree", () => {
 
   it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
     // Create via the CLI so post-migration semantics apply: child of an
-    // unnamed parent leaves mergeBase unset until set-branch-name cascades.
+    // unnamed parent leaves mergeBase unset until branchName cascades.
     const add = runCli(["add-branch", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
@@ -941,449 +1063,17 @@ describe("project-title resolution errors surface through the CLI", () => {
   });
 });
 
-describe("block", () => {
-  const AT = "2026-07-10T14:00:00.000Z";
-  // blockedBy is Epic-level now: the target epic `t` and its blockers a/b/c are
-  // all sibling epics in the same project.
-  function seedEpics(targetBlockedBy: string[]): void {
-    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
-    for (const [index, id] of ["a", "b", "c"].entries()) {
-      writeIssue(id, {
-        kind: "epic",
-        title: id.toUpperCase(),
-        partOf: "p",
-        order: index,
-        blockedBy: [],
-        createdAt: AT,
-        updatedAt: AT,
-      });
+describe("deleted field verbs", () => {
+  it("are unknown commands and absent from top-level --help", () => {
+    const help = runCli(["--help"]);
+    expect(help.status).toBe(0);
+
+    for (const verb of DELETED_FIELD_VERBS) {
+      const { stderr, status } = runCli([verb]);
+      expect(status, verb).not.toBe(0);
+      expect(stderr, verb).toMatch(new RegExp(`unknown command '${verb}'`));
+      expect(help.stdout, verb).not.toMatch(new RegExp(`\\n  ${verb}\\b`));
     }
-    writeIssue("t", {
-      kind: "epic",
-      title: "T",
-      partOf: "p",
-      order: 3,
-      blockedBy: targetBlockedBy,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-  }
-
-  it("--add unions only the named ids into the current blockedBy", () => {
-    seedEpics(["a"]);
-    const { status } = runCli(["block", "t", "--add", "b"]);
-    expect(status).toBe(0);
-    expect(blockedByOf("t").sort()).toEqual(["a", "b"]);
-  });
-
-  it("--add is idempotent and never adds unnamed ids", () => {
-    seedEpics(["a"]);
-    const { status } = runCli(["block", "t", "--add", "a", "b"]);
-    expect(status).toBe(0);
-    // "a" already present (no duplicate) and "c" was never named.
-    expect(blockedByOf("t").sort()).toEqual(["a", "b"]);
-  });
-
-  it("--remove drops only the named ids", () => {
-    seedEpics(["a", "b", "c"]);
-    const { status } = runCli(["block", "t", "--remove", "b"]);
-    expect(status).toBe(0);
-    expect(blockedByOf("t").sort()).toEqual(["a", "c"]);
-  });
-
-  it("--by replaces the entire blockedBy set", () => {
-    seedEpics(["a", "b"]);
-    const { status } = runCli(["block", "t", "--by", "c"]);
-    expect(status).toBe(0);
-    expect(blockedByOf("t")).toEqual(["c"]);
-  });
-
-  it("rejects combining --by with --add", () => {
-    seedEpics(["a"]);
-    const { stderr, status } = runCli(["block", "t", "--by", "b", "--add", "c"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/mutually exclusive/);
-    expect(blockedByOf("t")).toEqual(["a"]);
-  });
-
-  it("requires exactly one of --by/--add/--remove", () => {
-    seedEpics(["a"]);
-    const { stderr, status } = runCli(["block", "t"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/provide exactly one of --by, --add, or --remove/);
-  });
-
-  it("rejects blocking a non-epic", () => {
-    seedEpics(["a"]);
-    // A branch under epic `a`; `block` targets epics only.
-    writeIssue("br", {
-      kind: "branch",
-      title: "BR",
-      partOf: "a",
-      order: 0,
-      merged: false,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    const { stderr, status } = runCli(["block", "br", "--add", "a"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/"br" is a branch, not an epic/);
-  });
-});
-
-describe("set-spec-review", () => {
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("a", {
-      kind: "branch",
-      title: "Branch A",
-      partOf: "e",
-      merged: false,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-  });
-
-  it("sets specReview and prints it in show and list", () => {
-    expect(runCli(["set-spec-review", "a", "passed"]).status).toBe(0);
-    const raw = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
-    expect(raw.specReview).toBe("passed");
-
-    const { stdout: showOut, status: showStatus } = runCli(["show", "a"]);
-    expect(showStatus).toBe(0);
-    expect(showOut).toContain("specReview: passed");
-
-    const { stdout: listOut, status: listStatus } = runCli(["list", "--project", "p"]);
-    expect(listStatus).toBe(0);
-    const listed = JSON.parse(listOut);
-    const branch = listed.issues.find((i: { id: string }) => i.id === "a");
-    expect(branch.specReview).toBe("passed");
-  });
-
-  it("omits specReview from show when unset", () => {
-    const { stdout, status } = runCli(["show", "a"]);
-    expect(status).toBe(0);
-    expect(stdout).not.toContain("specReview:");
-  });
-
-  it("rejects an invalid specReview value", () => {
-    const { stderr, status } = runCli(["set-spec-review", "a", "pending"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid specReview "pending"/);
-  });
-
-  it("rejects a non-branch id", () => {
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      status: "todo",
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    const { stderr, status } = runCli(["set-spec-review", "c1", "passed"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/only valid on a branch/);
-  });
-
-  it("preserves specReview across an epic apply round-trip", () => {
-    const applyPath = join(dir, "epic.yaml");
-    writeFileSync(
-      applyPath,
-      `project: p
-epic:
-  id: e
-  title: Epic
-  branches:
-    - id: a
-      title: Branch A renamed
-`,
-    );
-    expect(runCli(["set-spec-review", "a", "failed"]).status).toBe(0);
-    expect(runCli(["apply", applyPath]).status).toBe(0);
-
-    const raw = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
-    expect(raw.specReview).toBe("failed");
-    expect(raw.title).toBe("Branch A renamed");
-
-    const { stdout, status } = runCli(["show", "a"]);
-    expect(status).toBe(0);
-    expect(stdout).toContain("specReview: failed");
-    expect(stdout).toContain("title: Branch A renamed");
-  });
-});
-
-describe("set-no-diff", () => {
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("a", {
-      kind: "branch",
-      title: "Branch A",
-      partOf: "e",
-      merged: false,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      status: "todo",
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-  });
-
-  it("sets noDiff and prints it in show and summary", () => {
-    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw.noDiff).toBe(true);
-
-    const { stdout: showOut, status: showStatus } = runCli(["show", "c1"]);
-    expect(showStatus).toBe(0);
-    expect(showOut).toContain("noDiff: true");
-
-    const { stdout: summaryOut, status: summaryStatus } = runCli(["summary", "c1"]);
-    expect(summaryStatus).toBe(0);
-    expect(summaryOut).toContain("noDiff: true");
-  });
-
-  it("clears noDiff when set to false", () => {
-    expect(runCli(["set-no-diff", "c1", "true"]).status).toBe(0);
-    expect(runCli(["set-no-diff", "c1", "false"]).status).toBe(0);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw).not.toHaveProperty("noDiff");
-
-    const { stdout, status } = runCli(["show", "c1"]);
-    expect(status).toBe(0);
-    expect(stdout).not.toContain("noDiff:");
-  });
-
-  it("omits noDiff from show when unset", () => {
-    const { stdout, status } = runCli(["show", "c1"]);
-    expect(status).toBe(0);
-    expect(stdout).not.toContain("noDiff:");
-  });
-
-  it("rejects an invalid noDiff value", () => {
-    const { stderr, status } = runCli(["set-no-diff", "c1", "maybe"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid noDiff "maybe"/);
-  });
-
-  it("rejects a non-commit id", () => {
-    const { stderr, status } = runCli(["set-no-diff", "a", "true"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/only valid on a commit/);
-  });
-});
-
-describe("set-commit", () => {
-  const sha1 = "0123456789abcdef0123456789abcdef01234567";
-  const sha256 =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("a", {
-      kind: "branch",
-      title: "Branch A",
-      partOf: "e",
-      merged: false,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      status: "todo",
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-  });
-
-  it("accepts a full 40-character sha1", () => {
-    expect(runCli(["set-commit", "c1", sha1]).status).toBe(0);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw.commitSha).toBe(sha1);
-  });
-
-  it("accepts a full 64-character sha256", () => {
-    expect(runCli(["set-commit", "c1", sha256]).status).toBe(0);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw.commitSha).toBe(sha256);
-  });
-
-  it("rejects an abbreviated sha", () => {
-    const { stderr, status } = runCli(["set-commit", "c1", "4019c25"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid commit sha "4019c25"/);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw).not.toHaveProperty("commitSha");
-  });
-
-  it("rejects a 39-character sha", () => {
-    const { stderr, status } = runCli([
-      "set-commit",
-      "c1",
-      "0123456789abcdef0123456789abcdef0123456",
-    ]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid commit sha/);
-    const raw = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
-    expect(raw).not.toHaveProperty("commitSha");
-  });
-
-  it("rejects non-hex characters", () => {
-    const { stderr, status } = runCli([
-      "set-commit",
-      "c1",
-      "ghijghijghijghijghijghijghijghijghijghij",
-    ]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid commit sha/);
-  });
-
-  it("rejects uppercase hex", () => {
-    const { stderr, status } = runCli([
-      "set-commit",
-      "c1",
-      "0123456789ABCDEF0123456789ABCDEF01234567",
-    ]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/invalid commit sha/);
-  });
-
-  it("rejects a non-commit id", () => {
-    const { stderr, status } = runCli(["set-commit", "a", sha1]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/only valid on a commit/);
-  });
-});
-
-describe("assignee", () => {
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
-    writeIssue("a", {
-      kind: "branch",
-      title: "Branch A",
-      partOf: "e",
-      merged: false,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      status: "todo",
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-  });
-
-  it("prints only the assignee on stdout when set", () => {
-    expect(runCli(["assign", "c1", "composer-2.5"]).status).toBe(0);
-    const { stdout, status } = runCli(["assignee", "c1"]);
-    expect(status).toBe(0);
-    expect(stdout).toBe("composer-2.5\n");
-  });
-
-  it("exits 0 with empty stdout when assignee is unset", () => {
-    const { stdout, status } = runCli(["assignee", "c1"]);
-    expect(status).toBe(0);
-    expect(stdout).toBe("");
-  });
-
-  it("exits 0 with empty stdout for whitespace-only assignee", () => {
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      status: "todo",
-      assignee: "   ",
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    const { stdout, status } = runCli(["assignee", "c1"]);
-    expect(status).toBe(0);
-    expect(stdout).toBe("");
-  });
-
-  it("exits 0 with empty stdout for a project (no assignee field)", () => {
-    const { stdout, status } = runCli(["assignee", "p"]);
-    expect(status).toBe(0);
-    expect(stdout).toBe("");
-  });
-
-  it("errors with a nonzero exit on an unknown id", () => {
-    const { stderr, status } = runCli(["assignee", "ghost"]);
-    expect(status).toBe(1);
-    expect(stderr).toContain('unknown issue "ghost"');
-  });
-});
-
-describe("set-part-of", () => {
-  const AT = "2026-07-10T14:00:00.000Z";
-  beforeEach(() => {
-    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", order: 0, createdAt: AT, updatedAt: AT });
-    writeIssue("a", {
-      kind: "branch",
-      title: "A",
-      partOf: "e",
-      order: 0,
-      merged: false,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    writeIssue("a2", {
-      kind: "branch",
-      title: "A2",
-      partOf: "e",
-      order: 1,
-      merged: false,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    writeIssue("c1", {
-      kind: "commit",
-      title: "C1",
-      partOf: "a",
-      order: 0,
-      status: "todo",
-      createdAt: AT,
-      updatedAt: AT,
-    });
-  });
-
-  function partOfOf(id: string): string {
-    return JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8")).partOf;
-  }
-
-  it("reparents a commit under a new branch", () => {
-    const { status } = runCli(["set-part-of", "c1", "a2"]);
-    expect(status).toBe(0);
-    expect(partOfOf("c1")).toBe("a2");
-  });
-
-  it("rejects a wrong-kind parent", () => {
-    const { stderr, status } = runCli(["set-part-of", "c1", "e"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/must be a branch, not a epic/);
-    expect(partOfOf("c1")).toBe("a");
-  });
-
-  it("rejects an unknown parent", () => {
-    const { stderr, status } = runCli(["set-part-of", "c1", "ghost"]);
-    expect(status).toBe(1);
-    expect(stderr).toMatch(/references unknown issue "ghost"/);
-    expect(partOfOf("c1")).toBe("a");
   });
 });
 

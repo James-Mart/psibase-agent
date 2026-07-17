@@ -14,8 +14,11 @@ Decomposing into the tracker is producing a **plan artifact**, so it is permitte
 in **Plan mode** (the tree is the plan). The tree is the **entire design** — it
 must replace any prior plan doc and stand alone. Companion material belongs
 **with the issue that uses it** (prose in `description.md`, or opaque files as
-attachments). Link/attach rules, `apply`'s attachment seam, and CLI verbs live
-in issue-tracker-authoring (**Attachments**); do not restate them here. Localize
+attachments). Link/attach rules live in issue-tracker-authoring
+(**Attachments**); the declarative/imperative field seam and other CLI verbs
+live in issue-tracker-authoring and
+[SPEC.md](../../SPEC.md#declarativeimperative-field-seam); do not restate them
+here. Localize
 prose to the tier where it belongs — don't dump the whole spec in the Epic and
 leave children title-only, and don't enumerate in a parent the specific work its
 children each cover
@@ -52,12 +55,12 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
 - **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
   deleted, and unchanged nodes are untouched. It is atomic (a doc that would
-  break integrity changes nothing) and never touches runtime/progress state
-  (status, git facts, specReview, noDiff, assignee, attention, chat) or
-  attachment bytes (attach/detach separately — see issue-tracker-authoring
-  **Attachments**), so re-applying an edited doc mid-implementation is safe.
-  Keep the doc as the editable source and re-`apply` rather than patching the
-  tree with one-off imperative verbs.
+  break integrity changes nothing) and preserves runtime/progress fields and
+  attachment bytes, so re-applying an edited doc mid-implementation is safe
+  (see issue-tracker-authoring **Declarative apply** /
+  [SPEC.md § Declarative/imperative field seam](../../SPEC.md#declarativeimperative-field-seam)).
+  Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
+  incrementally with `create`/`add` or kind `set`.
 - **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
   To edit one epic or branch without touching its siblings, root the doc there
   and reference the enclosing parents by id: an **epic form** (`project: <id>`

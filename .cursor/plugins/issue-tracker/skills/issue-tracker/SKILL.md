@@ -42,14 +42,16 @@ Tell the user the UI is available at http://localhost:8060.
   from the sidebar (deleting a Project cascades to all its Epics/Branches/Commits).
 - **Tree view** — collapsible Epic > Branch > Commit outline (scoped to the
   selected Project) with derived status badges, git/stack chips (branch, base,
-  PR, merged, sha), assignee and needs-attention badges, and blocked rows dimmed.
+  PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
+  dimmed.
 - **Ready view** — a flat list of the issues that can be picked up right now.
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
-  cross-links and relative links to that issue's `attachments/`), an edit form,
-  attachment list/upload/download, a git/stack panel, assignee/attention badges,
-  and (for Branches with `specReview` set) a spec-review chip (`passed` /
-  `failed`; omitted when unset), (for Commits with `noDiff` set) a no-diff chip
-  (omitted when unset), and a per-issue chat.
+  cross-links and relative links to that issue's `attachments/`), an edit form
+  (`assignee`, `needsAttention`, `status`, git facts), attachment
+  list/upload/download, a git/stack panel, `assignee` / `needsAttention` badges
+  (`attentionReason` when set), and (for Branches with `specReview` set) a
+  spec-review chip (`passed` / `failed`; omitted when unset), (for Commits with
+  `noDiff` set) a no-diff chip (omitted when unset), and a per-issue chat.
 - Changes to `issues/` on disk (from the CLI or by hand) appear live over SSE
   without a refresh.
 
@@ -72,7 +74,8 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   Epic is `merged` — post-implement confusion retro: mine the work run for
   tracker/work-loop meta confusion and apply a residual Epic under Project
   `issue-tracker` (or comment clean on the source Epic); not invoked directly.
-- **`issue-tracker-authoring`** — create/update/`apply` semantics, the
-  **Attachments** model + verbs (`attach` / `attachments` / `detach`), and
-  inspection (`show`/`summary`/`tree`), pointing at `cli.ts --help` as the
-  authoritative command reference; the shared tool doc the other skills build on.
+- **`issue-tracker-authoring`** — create/update/`apply` semantics, kind-scoped
+  `get`/`set`, the **Attachments** model + verbs (`attach` / `attachments` /
+  `detach`), and inspection (`show`/`summary`/`tree`), pointing at
+  `cli.ts --help` as the authoritative command reference; the shared tool doc
+  the other skills build on.

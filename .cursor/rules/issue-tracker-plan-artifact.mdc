@@ -15,7 +15,9 @@ Therefore, in **Plan mode**, using the issue-tracker CLI to create or update
 that plan is explicitly permitted and encouraged — it is the same kind of write
 as calling the plan tool or editing a plan markdown file. This includes:
 `apply <file>`, `create-project`, `create-epic`, `add-branch`, `add-commit`,
-`set-description`, `set-part-of`, `block`, `assign`, `comment`, `delete`.
+`<kind> get|set` (e.g. `<kind> set <id> description --file <path>`,
+`<kind> set <id> partOf <parent>`, `epic set <id> blockedBy --add <epicId>`,
+`<kind> set <id> assignee <who>`), `comment`, `delete`.
 
 Still NOT allowed in Plan mode (unchanged): editing source code, running builds
 or tests, git writes, or any other system-mutating command. The carve-out is

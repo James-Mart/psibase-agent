@@ -16,9 +16,10 @@ Branch via `specReview`. Do not edit workspace source files.
 
 Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
 
-**Allowed writes:** `set-spec-review`, `add-commit`, `comment`, `attention`.
-Do not run any other mutating `issue` command (`set-status`, `assign`,
-`set-description` on existing issues, `apply`, git-fact verbs, etc.).
+**Allowed writes:** `branch set` (for `specReview` and `needsAttention`),
+`add-commit`, `comment`. Do not run any other mutating `issue` command
+(`commit set`, `assign`, `description` on existing issues, `apply`, git-fact
+verbs, etc.).
 
 ## Bootstrap
 
@@ -39,8 +40,7 @@ the unset escalation, per **SPEC § Project workspace**.
 ## What you do
 
 1. **Preconditions.** Every Commit on the Branch must be `done`. If any is not,
-   raise `issue attention <branchId> --reason "..."` and stop — do not review a
-   partial Branch.
+   escalate per ## Escalation and stop — do not review a partial Branch.
 2. **Verify.** The normative checklist is the Branch's **Commit**
    `description.md` files, plus each Commit's recorded diff / `noDiff` chat
    rationale. The Branch `description.md` is scope/context only, never a second
@@ -48,8 +48,8 @@ the unset escalation, per **SPEC § Project workspace**.
    Commit deliverables. **Ignore orphan claims:** a deliverable claim on the
    Branch `description.md` that no Commit of the Branch covers, or a Commit
    description's reference to sibling work that was pruned or fixed out-of-band,
-   is **not** a gap. Ignore it — do not raise `attention`, escalate to the user,
-   or hunt through git history or prior transcripts.
+   is **not** a gap. Ignore it — do not escalate, and do not hunt through git
+   history or prior transcripts.
 
    For each Commit on the Branch with `status=done`:
    - Read its `description.md`.
@@ -67,7 +67,7 @@ the unset escalation, per **SPEC § Project workspace**.
 
 ### If gaps
 
-1. `issue set-spec-review <branchId> failed`
+1. `issue branch set <branchId> specReview failed`
 2. Create one remediation Commit. Pipe the concrete fix list (multiline
    Markdown) via stdin — do **not** use inline `--description`:
    ```bash
@@ -81,13 +81,12 @@ the unset escalation, per **SPEC § Project workspace**.
    description, not duplicated in the Branch comment body. Use a GFM
    `issue:` link so the UI renders an `IssueLink`:
    `issue comment <branchId> --role <comment-role> --body "Spec review failed; remediation: [issue:<newCommitId>](issue:<newCommitId>)"`
-4. If any step after `set-spec-review failed` fails, raise
-   `issue attention <branchId> --reason "..."` with the error and stop — do not
-   leave `failed` with no remediation Commit/link silently.
+4. If any step after `specReview failed` fails, escalate per ## Escalation with
+   the error — do not leave `failed` with no remediation Commit/link silently.
 
 ### If clean
 
-1. `issue set-spec-review <branchId> passed`
+1. `issue branch set <branchId> specReview passed`
 2. Short Branch comment:
    `issue comment <branchId> --role <comment-role> --body "Spec review passed; implementation matches the Commit specs."`
 
@@ -95,6 +94,6 @@ Do not edit workspace source files. Finish and stop.
 
 ## Escalation
 
-If blocked (cannot read specs, CLI refusal, preconditions unmet, or a gaps-path
-write fails after `failed`), raise `issue attention <branchId> --reason "..."`
-and stop; do not guess.
+Raise attention and stop — do not guess:
+
+`issue branch set <branchId> needsAttention true --reason "..."`

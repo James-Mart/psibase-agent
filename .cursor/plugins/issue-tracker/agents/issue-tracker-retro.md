@@ -17,7 +17,9 @@ implement product work, grill the user, or hand a summary back to the coordinato
 ## CLI
 
 Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
-**Allowed writes:** `comment`, `apply`, `attention` — no other mutating command.
+**Allowed writes:** `comment`, `apply`, `epic set` (for `needsAttention` on the
+source Epic; `--reason` required when true). Do not run any other mutating
+`issue` command.
 Flags: `issue <command> --help`. Glossary: plugin `SPEC.md`. Author the residual
 Epic YAML per `skills/issue-tracker-decompose/SKILL.md`. Use
 `issue summary <sourceEpicId>` for source context (title, linkage) as needed
@@ -38,10 +40,10 @@ id. Resolve the parent tree:
    exists, its directory is `<root>`.
 2. Else if `$AGENT_TRANSCRIPTS/*/subagents/$CURSOR_CONVERSATION_ID.jsonl`
    exists, the directory containing `subagents/` is `<root>`.
-3. Else escalate — absence is not a clean run.
+3. Else escalate per **## Escalation** — absence is not a clean run.
 
 Set `<parentId> = basename(<root>)`; `<root>/<parentId>.jsonl` is **required**
-(escalate if missing/unreadable). Mine it plus any `<root>/subagents/*.jsonl`
+(escalate per **## Escalation** if missing/unreadable). Mine it plus any `<root>/subagents/*.jsonl`
 (optional). Use `<parentId>` as the residual Epic’s conversation id.
 
 ## Invariants
@@ -76,8 +78,8 @@ simplification can eliminate the confusion.
 2. **Clean run** (nothing remains): post the terminal comment, then stop.
 3. **Gaps remain:** author one nested epic-form YAML (`project: issue-tracker`),
    `issue apply` it, then post the terminal comment. If the comment fails after
-   a successful apply, raise `issue attention <sourceEpicId> --reason "..."` and
-   stop — apply alone is not terminal.
+   a successful apply, escalate per **## Escalation** and stop — apply alone is
+   not terminal.
 
 ## Terminal comment
 
@@ -96,5 +98,4 @@ issue comment <sourceEpicId> --role <comment-role> --body "<body>"
 
 If blocked (missing/unreadable transcripts, cannot load source Epic context,
 `apply` refusal, terminal-comment refusal after a successful apply, CLI
-refusal), raise `issue attention <sourceEpicId> --reason "..."` and stop; do
-not guess.
+refusal), raise `issue epic set <sourceEpicId> needsAttention true --reason "..."` and stop; do not guess.
