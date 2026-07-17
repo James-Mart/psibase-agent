@@ -18,8 +18,6 @@ const record = (
     partOf: kind === "project" ? undefined : "p",
     createdAt: AT,
     updatedAt: AT,
-    hasDescription: false,
-    hasChat: false,
   }) as unknown as IssueRecord;
 
 describe("resolveProjectId", () => {

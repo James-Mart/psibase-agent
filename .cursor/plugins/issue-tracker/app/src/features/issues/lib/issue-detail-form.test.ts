@@ -16,8 +16,6 @@ const branch: IssueDetail = {
   order: 0,
   createdAt: "2026-07-09T14:35:00.000Z",
   updatedAt: "2026-07-09T15:00:00.000Z",
-  hasDescription: false,
-  hasChat: false,
   description: "",
   version: "v1",
 };
@@ -35,8 +33,6 @@ const epic: IssueDetail = {
   order: 0,
   createdAt: "2026-07-09T14:00:00.000Z",
   updatedAt: "2026-07-09T14:00:00.000Z",
-  hasDescription: false,
-  hasChat: false,
   description: "",
   version: "v1",
 };
@@ -50,8 +46,6 @@ const project: Extract<IssueDetail, { kind: "project" }> = {
   order: 0,
   createdAt: "2026-07-09T14:00:00.000Z",
   updatedAt: "2026-07-09T14:00:00.000Z",
-  hasDescription: false,
-  hasChat: false,
   description: "",
   version: "v1",
 };

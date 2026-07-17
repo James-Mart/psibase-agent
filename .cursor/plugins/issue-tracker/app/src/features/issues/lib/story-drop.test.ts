@@ -24,8 +24,6 @@ function story(
     attentionReason: null,
     archived: false,
     ...(stackedOn ? { stackedOn } : {}),
-    hasDescription: false,
-    hasChat: false,
   };
 }
 
@@ -41,8 +39,6 @@ function epic(id: string): IssueRecord {
     needsAttention: false,
     attentionReason: null,
     archived: false,
-    hasDescription: false,
-    hasChat: false,
   };
 }
 

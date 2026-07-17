@@ -140,12 +140,7 @@ export type CreateInput = Pick<IssueFields, "title"> &
     description?: string;
   };
 
-export interface FilePresence {
-  hasDescription: boolean;
-  hasChat: boolean;
-}
-
-export type IssueRecord = Issue & FilePresence;
+export type IssueRecord = Issue;
 
 export type IssueDetail = IssueRecord & {
   description: string;

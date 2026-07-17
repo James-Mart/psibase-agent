@@ -139,7 +139,6 @@ describe("apply — create from empty", () => {
     expect(c1.status).toBe("todo");
 
     // Every node got a description.md (author-supplied or the default heading).
-    expect(byId.get("proj")?.hasDescription).toBe(true);
     expect(readFileSync(join(dir, "proj", "description.md"), "utf8")).toBe(
       "Project overview\n",
     );

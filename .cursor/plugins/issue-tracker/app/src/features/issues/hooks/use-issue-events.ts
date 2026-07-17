@@ -59,11 +59,6 @@ export function useIssueEvents(): void {
     const applyEvent = (event: IssueEvent) => {
       if (event.scope === "chat") {
         qc.invalidateQueries({ queryKey: issuesKeys.chat(event.id) });
-        // hasChat / chat-health only change when the file appears or vanishes,
-        // not on every append — so refresh the tree list only then.
-        if (event.type === "add" || event.type === "unlink") {
-          scheduleListInvalidate();
-        }
         return;
       }
       if (event.scope === "attachments") {
