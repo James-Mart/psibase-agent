@@ -325,6 +325,52 @@ describe("tree", () => {
       new RegExp(`^\\s+branch ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
     );
   });
+
+  it("scopes by a positional project id like --project", () => {
+    const byFlag = runCli(["tree", "--project", "p"]);
+    const byId = runCli(["tree", "p"]);
+    expect(byId.status).toBe(0);
+    expect(byId.stdout).toBe(byFlag.stdout);
+  });
+
+  it("scopes by a positional epic id like --epic", () => {
+    const byFlag = runCli(["tree", "--epic", "e"]);
+    const byId = runCli(["tree", "e"]);
+    expect(byId.status).toBe(0);
+    expect(byId.stdout).toBe(byFlag.stdout);
+  });
+
+  it("scopes by a positional branch id to that branch and its commits only", () => {
+    const { stdout, status } = runCli(["tree", "a"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^branch a {2}Branch A\b/m);
+    expect(stdout).toMatch(/^ {2}commit c1 {2}C1\b/m);
+    expect(stdout).not.toContain("branch b");
+    expect(stdout).not.toContain("epic e");
+  });
+
+  it("refuses a positional commit id and names the parent branch", () => {
+    const { stderr, status } = runCli(["tree", "c1"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain('cannot scope tree to a commit');
+    expect(stderr).toContain('branch "a"');
+  });
+
+  it("refuses an unknown positional id", () => {
+    const { stderr, status } = runCli(["tree", "ghost"]);
+    expect(status).toBe(1);
+    expect(stderr).toContain('unknown issue "ghost"');
+  });
+
+  it("refuses combining a positional id with --project or --epic", () => {
+    const withProject = runCli(["tree", "e", "--project", "p"]);
+    expect(withProject.status).toBe(1);
+    expect(withProject.stderr).toContain("cannot combine tree [id] with --project or --epic");
+
+    const withEpic = runCli(["tree", "a", "--epic", "e"]);
+    expect(withEpic.status).toBe(1);
+    expect(withEpic.stderr).toContain("cannot combine tree [id] with --project or --epic");
+  });
 });
 
 describe("project-title resolution errors surface through the CLI", () => {
