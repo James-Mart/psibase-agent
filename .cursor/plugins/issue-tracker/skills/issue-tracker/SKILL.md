@@ -68,7 +68,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
   delegating each commit to fresh subagents (implement/validate/revise) and
   recording git progress through the CLI; inspect the stack with `tree`/`show`.
+  Completion spawns **`issue-tracker-retro`** once when every Branch in the
+  Epic is `merged` — post-implement confusion retro: mine the work run for
+  tracker/work-loop meta confusion and apply a residual Epic under Project
+  `issue-tracker` (or comment clean on the source Epic); not invoked directly.
 - **`issue-tracker-authoring`** — create/update/`apply` semantics, the
   **Attachments** model + verbs (`attach` / `attachments` / `detach`), and
   inspection (`show`/`summary`/`tree`), pointing at `cli.ts --help` as the
-  authoritative command reference; the shared tool doc the other two build on.
+  authoritative command reference; the shared tool doc the other skills build on.
