@@ -17,7 +17,9 @@ must replace any prior plan doc and stand alone. Companion material belongs
 attachments). Link/attach rules, `apply`'s attachment seam, and CLI verbs live
 in issue-tracker-authoring (**Attachments**); do not restate them here. Localize
 prose to the tier where it belongs — don't dump the whole spec in the Epic and
-leave children title-only.
+leave children title-only, and don't enumerate in a parent the specific work its
+children each cover
+([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)).
 
 ## Author declaratively: one YAML doc, then `apply`
 
@@ -120,10 +122,16 @@ each Commit stands alone as above). Split only a genuinely oversized phase. One
 todo → one Branch (a stack of one-commit PRs with an empty Commit tier) means you
 split at the wrong tier.
 
-Completeness pass before done: every part of the source design is represented;
-companion material follows issue-tracker-authoring **Attachments** (no external
-workspace paths); no Branch/Commit is title-only; no Branch holds just one
-commit and the Branch count isn't merely the bullet count; the Epic holds no
-phase- or commit-level detail that belongs in children; every Commit that
-introduces or wires an interface spells out API shape and field names (see
-[Interface seams](#interface-seams)).
+Completeness pass before done:
+
+- Every part of the source design is represented.
+- Companion material follows issue-tracker-authoring **Attachments** (no
+  external workspace paths).
+- No Branch/Commit is title-only; no Branch holds just one commit and the
+  Branch count isn't merely the bullet count.
+- **Parent/child prose boundaries** — follow the localize guidance above
+  ([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)):
+  Epic holds no phase- or commit-level detail that belongs in children; no
+  Project/Epic/Branch restates its children's per-unit list.
+- Every Commit that introduces or wires an interface spells out API shape and
+  field names (see [Interface seams](#interface-seams)).
