@@ -1,9 +1,24 @@
-import mime from "mime";
+const IMAGE_EXTENSIONS = new Set([
+  "apng",
+  "avif",
+  "bmp",
+  "gif",
+  "heic",
+  "heif",
+  "ico",
+  "jpeg",
+  "jpg",
+  "png",
+  "svg",
+  "tif",
+  "tiff",
+  "webp",
+]);
 
-/** Markdown link for an uploaded attachment basename (`mime.lookup` for image vs file). */
+/** Markdown link for an uploaded attachment basename (image extension → embed). */
 export function attachmentMarkdownLink(name: string): string {
-  const type = mime.lookup(name);
-  const isImage = typeof type === "string" && type.startsWith("image/");
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = IMAGE_EXTENSIONS.has(ext);
   return isImage ? `![${name}](${name})` : `[${name}](${name})`;
 }
 
