@@ -140,3 +140,14 @@ or middleware homes — those are implementor choices, not authoring seams.
   `getAttachment`, multer, and multipart field `"file"`).
 - **Good:** "Add `GET /attachments/:id` returning the raw bytes; upload is
   `POST /attachments` multipart field `attachment`."
+
+## Commit Change paths
+
+When a Commit Change **does** name a file path, that path MUST be relative to
+the Project `workspace` root. Do not use plugin-root shorthand (`agents/...`,
+`skills/...`, `app/...`) — Read/Glob resolve those paths as
+`<workspace>/agents/...` and miss the plugin tree.
+
+- **Bad:** `In agents/issue-tracker-spec-conformance-validator.md`
+- **Good:** `In
+  .cursor/plugins/issue-tracker/agents/issue-tracker-spec-conformance-validator.md`
