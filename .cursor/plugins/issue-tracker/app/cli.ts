@@ -16,6 +16,7 @@ import {
 } from "./server/services/issues.js";
 import {
   COMMIT_STATUSES,
+  KINDS,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type CommitStatus,
@@ -48,19 +49,12 @@ import {
   putAttachment,
   removeAttachment,
 } from "./server/services/attachments.js";
+import { coerceBoolean, coerceEnum } from "./cli-coerce.js";
+import { readCliFileArg } from "./cli-io.js";
+import { kindSet, registerKindGetSet } from "./cli-kind.js";
 
 type BranchRecord = Extract<IssueRecord, { kind: "branch" }>;
 type CommitRecord = Extract<IssueRecord, { kind: "commit" }>;
-
-function assertEnumArg(
-  values: readonly string[],
-  value: string,
-  label: string,
-): void {
-  if (!values.includes(value)) {
-    throw new Error(`invalid ${label} "${value}" (expected: ${values.join(", ")})`);
-  }
-}
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
 // by kind, and the derived state. Commits are pre-sorted into their execution
@@ -308,10 +302,7 @@ function resolveDescription(opts: {
   descriptionFile?: string;
 }): string | undefined {
   if (opts.descriptionFile) {
-    // `-` means read the description from stdin (pipe/heredoc), matching the
-    // common CLI convention, rather than a file literally named "-".
-    const source = opts.descriptionFile === "-" ? 0 : opts.descriptionFile;
-    return readFileSync(source, "utf8");
+    return readCliFileArg(opts.descriptionFile);
   }
   return opts.description;
 }
@@ -332,6 +323,10 @@ async function run(action: () => unknown): Promise<void> {
     console.error(err instanceof Error ? err.message : String(err));
     process.exitCode = 1;
   }
+}
+
+for (const kind of KINDS) {
+  registerKindGetSet(program, kind, run);
 }
 
 program
@@ -486,8 +481,9 @@ program
   .argument("<status>", `one of: ${COMMIT_STATUSES.join(", ")}`)
   .action((id, status) =>
     run(() => {
-      assertEnumArg(COMMIT_STATUSES, status, "status");
-      return update(id, { status: status as CommitStatus });
+      return update(id, {
+        status: coerceEnum(status, "status", COMMIT_STATUSES) as CommitStatus,
+      });
     }),
   );
 
@@ -559,6 +555,7 @@ program
   // `--by`/`--add`/`--remove` are mutually exclusive: `--by` is a full replace
   // while `--add`/`--remove` are incremental, so combining them has no
   // unsurprising meaning. Require exactly one rather than inventing a precedence.
+  // Mutation goes through kindSet so array coerce stays single-sourced.
   .action((id, opts) =>
     run(() => {
       const modes = (["by", "add", "remove"] as const).filter(
@@ -574,17 +571,13 @@ program
             .join(", ")})`,
         );
       }
-      const detail = read(id);
-      if (detail.kind !== "epic") {
-        throw new Error(`blockedBy is only valid on an epic, not a ${detail.kind}`);
+      if (opts.by) {
+        return kindSet("epic", id, "blockedBy", JSON.stringify(opts.by), {});
       }
-      if (opts.by) return update(id, { blockedBy: opts.by });
-
-      const current = detail.blockedBy;
-      const blockedBy = opts.add
-        ? [...current, ...opts.add.filter((bid: string) => !current.includes(bid))]
-        : current.filter((bid) => !opts.remove.includes(bid));
-      return update(id, { blockedBy });
+      if (opts.add) {
+        return kindSet("epic", id, "blockedBy", undefined, { add: opts.add });
+      }
+      return kindSet("epic", id, "blockedBy", undefined, { remove: opts.remove });
     }),
   );
 
@@ -605,12 +598,16 @@ program
   .argument("<status>", `one of: ${SPEC_REVIEW_STATUSES.join(", ")}`)
   .action((id, status) =>
     run(() => {
-      assertEnumArg(SPEC_REVIEW_STATUSES, status, "specReview");
+      const specReview = coerceEnum(
+        status,
+        "specReview",
+        SPEC_REVIEW_STATUSES,
+      ) as SpecReviewStatus;
       const detail = read(id);
       if (detail.kind !== "branch") {
         throw new Error(`specReview is only valid on a branch, not a ${detail.kind}`);
       }
-      return update(id, { specReview: status as SpecReviewStatus });
+      return update(id, { specReview });
     }),
   );
 
@@ -620,10 +617,7 @@ program
   .argument("<value>", "true or false")
   .action((id, value) =>
     run(() => {
-      if (value !== "true" && value !== "false") {
-        throw new Error(`invalid noDiff "${value}" (expected: true, false)`);
-      }
-      const noDiff = value === "true";
+      const noDiff = coerceBoolean(value, "noDiff");
       const detail = read(id);
       if (detail.kind !== "commit") {
         throw new Error(`noDiff is only valid on a commit, not a ${detail.kind}`);
