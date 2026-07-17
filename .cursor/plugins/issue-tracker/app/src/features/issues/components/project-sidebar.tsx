@@ -21,16 +21,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useIssuesQuery } from "../api/queries";
-import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { listProjects } from "../lib/build-tree";
-import { issuePath } from "../lib/links";
+import { issuePath, projectPath } from "../lib/links";
 
 export function ProjectSidebar() {
   const navigate = useNavigate();
   const { projectId: selectedProjectId } = useParams();
   const { data } = useIssuesQuery();
-  const { go: goToProjectTree } = useGoToProjectTree();
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
 
@@ -71,7 +69,7 @@ export function ProjectSidebar() {
                     <SidebarMenuButton
                       isActive={project.id === selectedProjectId}
                       tooltip={project.title}
-                      onClick={() => goToProjectTree(project.id)}
+                      onClick={() => navigate(projectPath(project.id))}
                     >
                       <FolderKanban />
                       <span>{project.title}</span>

@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
-import { useGoToProjectTree } from "../hooks/use-go-to-project-tree";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
+import { projectPath } from "../lib/links";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
@@ -62,9 +62,8 @@ function CopyIssueIdButton({ id }: { id: string }) {
 }
 
 export function IssueDetailPage() {
+  const navigate = useNavigate();
   const { projectId = "", id = "" } = useParams();
-  const { go: goToProjectTree, hrefFor: projectTreeHref } =
-    useGoToProjectTree();
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
   const [editing, setEditing] = useState(false);
 
@@ -88,17 +87,13 @@ export function IssueDetailPage() {
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-      <a
-        href={projectTreeHref(projectId)}
+      <Link
+        to={projectPath(projectId)}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        onClick={(e) => {
-          e.preventDefault();
-          goToProjectTree(projectId);
-        }}
       >
         <ArrowLeft className="h-4 w-4" />
         Back to tree
-      </a>
+      </Link>
 
       {error && !missing ? (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
@@ -162,7 +157,7 @@ export function IssueDetailPage() {
                   size="sm"
                   onClick={() => {
                     requestDelete(issue.id);
-                    goToProjectTree(projectId);
+                    navigate(projectPath(projectId));
                   }}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
