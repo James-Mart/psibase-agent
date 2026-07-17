@@ -41,9 +41,7 @@ tracker context — not a product-workspace checkout. Do not run product-repo
 - **Source Epic id + title** — the implement-run Epic that just completed
   (all Branches `merged`)
 - **Comment role** — pass as `--role <role>` on every `issue comment`
-- Transcript directory via env:
-  `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID`
-  (parent `.jsonl` plus `subagents/*.jsonl`)
+- Transcripts — resolve and mine per **## Transcript resolution**
 - Your **own live** chain of thought / real-time confusion while mining
 
 ## Invariants
@@ -60,44 +58,81 @@ tracker context — not a product-workspace checkout. Do not run product-repo
   present; if thinking is `[REDACTED]`, cite behavioral evidence with
   transcript path + agent id.
 - **Epic description opens** with
-  `Source run: [<title>](issue:<sourceEpicId>)` and the conversation id
-  (`$CURSOR_CONVERSATION_ID`). Organize Branches by token-waste theme.
-- **No grill / no coordinator summary:** after `apply` or the clean-run
-  comment, return control immediately with no summary payload.
+  `Source run: [<title>](issue:<sourceEpicId>)` and conversation id
+  `<parentId>` per **## Transcript resolution**. Organize Branches by
+  token-waste theme.
+- **No grill / no coordinator summary:** after the terminal retro comment
+  (per **## Terminal retro comment**), return control immediately with no
+  summary payload.
 
-## Preconditions
+## Transcript resolution
 
-Verify `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID` exists and contains the
-expected parent `.jsonl` (and `subagents/` when present). If the directory
-or required transcripts are missing/unreadable, escalate — do **not** treat
-absence as a clean run.
+`$CURSOR_CONVERSATION_ID` may be the parent implement-run id or a Task
+subagent id. Resolve the parent tree before mining:
+
+1. If `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID/` exists and contains
+   `$CURSOR_CONVERSATION_ID.jsonl`, use that directory as `<root>`.
+2. Else if
+   `$AGENT_TRANSCRIPTS/*/subagents/$CURSOR_CONVERSATION_ID.jsonl`
+   exists, use that match’s parent directory (the directory that
+   contains `subagents/`) as `<root>`.
+3. Else escalate — do **not** treat absence as a clean run.
+
+Then set `<parentId> = basename(<root>)`. Verify
+`<root>/<parentId>.jsonl` exists and is readable; if not, escalate the
+same way. That parent `.jsonl` is **required**. `subagents/` (and
+`subagents/*.jsonl`) is **optional** — mine those files when present.
+
+Mine `<root>/<parentId>.jsonl` and, when present,
+`<root>/subagents/*.jsonl`. Use `<parentId>` (not a subagent
+`$CURSOR_CONVERSATION_ID`) as the residual Epic’s conversation id.
 
 ## What you do
 
-1. Confirm **## Preconditions**.
-2. Mine the parent transcript and `subagents/*.jsonl` under the transcript
-   dir (plus live CoT per **## Inputs**).
+1. Confirm **## Transcript resolution**.
+2. Mine the resolved transcripts (plus live CoT per **## Inputs**).
 3. Filter to remaining meta gaps per **## Invariants**.
 4. Follow exactly one section: **## Clean run** or **## Gaps remain**.
 
-## Clean run
+## Terminal retro comment
 
-If nothing remains:
+Both **## Clean run** and **## Gaps remain** end by posting a `retro`-role
+comment on the source Epic. This arms the work-skill Phase 2 idempotency guard.
 
 ```bash
-issue comment <sourceEpicId> --role <comment-role> --body "retro: no remaining confusion gaps"
+issue comment <sourceEpicId> --role <comment-role> --body "<body>"
 ```
 
-Then stop.
+| Path | `<body>` |
+|------|----------|
+| Clean run | `retro: no remaining confusion gaps` |
+| Gaps remain | `retro: residual epic applied (issue:<residualEpicId>)` |
+
+For Gaps remain, use the Epic `id` from the authored YAML as
+`<residualEpicId>`.
+
+## Clean run
+
+If nothing remains, post the terminal retro comment (Clean run body per
+**## Terminal retro comment**). Then stop.
 
 ## Gaps remain
 
-Author one nested epic-form YAML with `project: issue-tracker` per
-**## Invariants** and `issue-tracker-decompose`, then `issue apply` it.
+1. Author one nested epic-form YAML with `project: issue-tracker` per
+   **## Invariants** and `issue-tracker-decompose`.
+2. `issue apply` it.
+3. Post the terminal retro comment (Gaps remain body per
+   **## Terminal retro comment**) with `<residualEpicId>` from the authored
+   YAML Epic `id`.
+4. If step 3 fails after a successful step 2, raise
+   `issue attention <sourceEpicId> --reason "..."` and stop — do not treat
+   apply alone as terminal.
+
 Then stop.
 
 ## Escalation
 
 If blocked (missing/unreadable transcripts, cannot load source Epic
-context, `issue apply` refusal, CLI refusal), raise
+context, `issue apply` refusal, terminal retro comment refusal after a
+successful apply, CLI refusal), raise
 `issue attention <sourceEpicId> --reason "..."` and stop; do not guess.

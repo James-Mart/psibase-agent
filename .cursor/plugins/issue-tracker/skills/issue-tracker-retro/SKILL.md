@@ -11,11 +11,13 @@ description: >-
 # Issue Tracker — Post-Implement Confusion Retro
 
 Spawned once by `issue-tracker-work` Completion when **every Branch in the
-source Epic is `merged`**. Pass source Epic id (+ title) and comment role; the
-transcript directory is `$AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID`. Do not
-expect a confusion summary return value.
+source Epic is `merged`**. Pass source Epic id (+ title) and comment role;
+transcript resolution is in `agents/issue-tracker-retro.md`
+**## Transcript resolution**. Do not expect a confusion summary return
+value.
 
-Static behavior (CLI allowlist, invariants, preconditions, clean-run comment,
-epic-form `apply` with `project: issue-tracker`, escalation) lives only in
+Static behavior (CLI allowlist, invariants, transcript resolution, clean-run
+comment, epic-form `apply` with `project: issue-tracker`, escalation) lives
+only in
 [`agents/issue-tracker-retro.md`](../../agents/issue-tracker-retro.md). Do not
 paste or restate that contract here.
