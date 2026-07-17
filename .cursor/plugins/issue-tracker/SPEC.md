@@ -5,15 +5,22 @@ skills. It defines every term the code, docs, and UI use, and explains the
 design decisions that make the model correct-by-construction. Read it before
 authoring issues or changing tracker code.
 
-The tracker models work as a tree of **Project > Epic > Branch > Commit** nodes
-that maps directly onto git stacked PRs. A directory per issue on disk is the
-sole source of truth; a validated service layer
-(`issues.ts` + sibling writers such as `attachments.ts`) is the only sanctioned
-writer; all state that could drift is derived, never stored.
+The tracker models work as a tree of **Project > Epic > Story > Task** nodes
+that maps onto git stacked PRs. A directory per issue on disk is the sole
+source of truth; a validated service layer (`issues.ts` + sibling writers such
+as `attachments.ts`) is the only sanctioned writer; all state that could drift
+is derived, never stored.
 
 ## Glossary
 
 ### Kinds
+
+#### Kinds vs git vocabulary
+
+Kind names are **Story** and **Task**. A Story is planned as one git branch +
+PR; a Task as one git commit. Git fact field names (`branchName`, `commitSha`,
+`mergeBase`, …) and git-subagent modes (`start-branch`, `finish-commit`,
+`finish-branch`) stay **git-shaped** — they are not renamed to match kinds.
 
 Every issue has a `kind`, one of four tiers:
 
@@ -23,16 +30,16 @@ Every issue has a `kind`, one of four tiers:
   an optional `workspace` (the absolute path to the local git checkout this
   Project covers; repo-touching agents run there — see [workspace](#project-workspace)).
   Has no `partOf`.
-- **Epic** — a body of work (replaces a giant plan/spec). Contains Branches; its
+- **Epic** — a body of work (replaces a giant plan/spec). Contains Stories; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
   in the same Project that must finish first). Has **no stored status** — its
   status is fully derived from descendants. Is `partOf` a Project (required).
-- **Branch** — a unit that becomes one git branch and one PR. Contains Commits.
-  Carries `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`,
-  `specReview`. Status is derived, never stored.
-- **Commit** — an atomic, story-point-sized unit implemented as one git commit.
-  Each Commit is a **small but standalone cross-section** of the work: after it
-  lands on the Branch tip, the package must still **build** and tests must remain
+- **Story** — a unit of work under an Epic. Contains Tasks. Carries
+  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, and `specReview`.
+  Status is derived, never stored.
+- **Task** — an atomic, story-point-sized unit under a Story. Each Task is a
+  **small but standalone cross-section** of the work: after it lands on the
+  Story tip, the package must still **build** and tests must remain
   **meaningful** (vertical slices, not horizontal layers such as types-only,
   wire-up-later, or half-migrations that do not compile). The only kind with a
   **stored** `status` (`todo` / `in-progress` / `done`), an optional `commitSha`
@@ -44,29 +51,29 @@ Every issue has a `kind`, one of four tiers:
 
 Three relationships, each with a distinct, non-overlapping role:
 
-- **partOf** — *containment*: the node this one belongs to. A Commit is `partOf`
-  a Branch; a Branch is `partOf` an Epic; an Epic is `partOf` a Project. It points
+- **partOf** — *containment*: the node this one belongs to. A Task is `partOf`
+  a Story; a Story is `partOf` an Epic; an Epic is `partOf` a Project. It points
   exactly one tier up and builds the tree. Projects have none.
-- **stackedOn** — *the single git fork point* of a Branch: which one Branch it
-  forks from. Branch-only, always singular, and strictly within one Epic. Absent
-  means it forks off the Epic's base (`main`). It is the **sole** inter-Branch
-  edge, so within an Epic the Branches form a forest of independent stacks — a
+- **stackedOn** — *the single git fork point* of a Story: which one Story it
+  forks from. Story-only, always singular, and strictly within one Epic. Absent
+  means it forks off the Epic's base (`main`). It is the **sole** inter-Story
+  edge, so within an Epic the Stories form a forest of independent stacks — a
   tree, never a DAG, with no internal merge gate.
 - **blockedBy** — *cross-Epic ordering*: a list of other Epic ids **in the same
-  Project** that must finish (all their Branches merged) before this Epic can
+  Project** that must finish (all their Stories merged) before this Epic can
   start. Epic-only, and the only edge that crosses an Epic boundary. This is what
   makes the Epic-level dependency graph a DAG.
 
 #### The diamond (why a multi-parent dependency becomes a new Epic)
 
 The one thing a single `stackedOn` fork point cannot express is a unit that needs
-code from **two** parallel Branches at once (the classic diamond: Branches A and
+code from **two** parallel Stories at once (the classic diamond: Stories A and
 B both fork `main`, worked in parallel, and C needs both). Rather than
-reintroduce a Branch-level multi-parent edge — which would force a merge gate
+reintroduce a Story-level multi-parent edge — which would force a merge gate
 *inside* an Epic and break the "one Epic run = one clean, bottom-up-mergeable
 stack of PRs" property — we resolve it at the Epic boundary: split the dependent
 unit into a **new Epic that is `blockedBy` the Epic holding the parallel
-Branches** (A and B). The tradeoff is
+Stories** (A and B). The tradeoff is
 deliberate: keeping A and B in one Epic preserves their parallelism (two
 independent stacks, no gate between them), while moving C into a second Epic makes
 it wait for the whole blocking Epic to *merge* first — coarser, but landing
@@ -75,7 +82,7 @@ of stalling a stack mid-flight.
 
 #### The stacked-PR merge model
 
-Every Branch has a stored **`mergeBase`**: the git ref that `start-branch`
+Every Story has a stored **`mergeBase`**: the git ref that `start-branch`
 checks out from and that `finish-branch` targets for PR/merge. It is **not**
 re-derived from `stackedOn` at git time.
 
@@ -89,26 +96,26 @@ re-derived from `stackedOn` at git time.
   retargets after the parent lands — typically onto `main`. Open GitHub PRs
   are retargeted by GitHub itself; the tracker does not run PR-base CLI — see
   [Project merge policy](#project-merge-policy).
-- **Rename guard**: once a Branch has a `branchName` and any child is
+- **Rename guard**: once a Story has a `branchName` and any child is
   stacked on it, a real `branchName` rename is refused (same-value no-op still
   allowed). Empty-only cascade on first name is enough because children cannot
   be left pointing at a stale parent name.
 
 A stack still lands bottom-up: finish the parent first, then each child.
-Consequently **each Branch must be independently mergeable** into its
+Consequently **each Story must be independently mergeable** into its
 `mergeBase` — merging it must leave that base building and self-consistent.
-Only Branches merge; Commits are internal steps that ship together as their
-Branch's single PR, so an individual Commit need not be *shippable* alone but
-the Branch as a whole must be. A Commit *must* still leave the Branch tip
-**buildable and testable** — see [Commit](#kinds). Never split one cohesive
-change across separate Branches such that merging one would leave the base
-broken (for example a schema change in one Branch and the code that consumes
-it in another): keep it in one Branch as multiple Commits.
+Only Stories merge; Tasks are internal steps that ship together as their
+Story's single PR, so an individual Task need not be *shippable* alone but
+the Story as a whole must be. A Task *must* still leave the Story tip
+**buildable and testable** — see [Task](#kinds). Never split one cohesive
+change across separate Stories such that merging one would leave the base
+broken (for example a schema change in one Story and the code that consumes
+it in another): keep it in one Story as multiple Tasks.
 
 Under `pull-request` / `manual` [merge policies](#project-merge-policy), each
-finished Branch is planned as a PR against its stored `mergeBase` (after
+finished Story is planned as a PR against its stored `mergeBase` (after
 parent merge, usually `main`). The local `merge` policy integrates each
-finished Branch directly into that same stored `mergeBase` with no PR, so a
+finished Story directly into that same stored `mergeBase` with no PR, so a
 stack still lands bottom-up but never touches a remote PR.
 
 ### Derived terms
@@ -116,28 +123,28 @@ stack still lands bottom-up but never touches a remote PR.
 These are computed by `derive()` and never written to disk (see
 [Derived state](#derived-state)):
 
-- **Stack** — the emergent set of dependent, not-yet-merged Branches under an
+- **Stack** — the emergent set of dependent, not-yet-merged Stories under an
   Epic, induced solely by `stackedOn`: a forest of independent stacks (each a
-  tree), never a cross-Branch DAG.
+  tree), never a cross-Story DAG.
 - **blocked** — whether an issue is waiting on a dependency (per-kind rules in
   [Derived state](#derived-state)).
-- **Branch status** — `not-started` / `in-progress` / `pr-open` / `merged`.
-- **Epic status** — `todo` / `in-progress` / `done` (rollup of its Branches).
-- **base** — display of a Branch's stored `mergeBase` (tree chip `base=<ref>`,
+- **Story status** — `not-started` / `in-progress` / `pr-open` / `merged`.
+- **Epic status** — `todo` / `in-progress` / `done` (rollup of its Stories).
+- **base** — display of a Story's stored `mergeBase` (tree chip `base=<ref>`,
   or `base=(unset)` when `mergeBase` is absent). Never re-derived from
   `stackedOn`.
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
-- **specReview** — a Branch-only machine-readable spec-review gate (`passed` /
+- **specReview** — a Story-only machine-readable spec-review gate (`passed` /
   `failed`; absent until set via kind [`set`](#kind-scoped-get--set)). Surfaced
   in the detail panel when set; omitted from the tree outline.
-- **noDiff** — a Commit-only signal that the implementor intentionally landed no
+- **noDiff** — a Task-only signal that the implementor intentionally landed no
   file changes (`true`; absent until set via kind [`set`](#kind-scoped-get--set)).
   Surfaced in the detail panel when set; omitted from the tree outline. An empty
   working tree alone is **not** a completion signal — see
   [Finish commit](#finish-commit).
-- **archived** — stored visibility flag on Epic / Branch / Commit (never
+- **archived** — stored visibility flag on Epic / Story / Task (never
   Project). Explicit; **not** auto-derived from Done. Cascade and CLI/UI
   filtering — see [Archived visibility](#archived-visibility).
 - **problems** — integrity issues that are surfaced, never silently ignored:
@@ -151,7 +158,7 @@ Field read/write on the CLI is kind-scoped:
 - `issue <kind> get <id> <field>`
 - `issue <kind> set <id> <field> [value] [--clear] [--add <ids...>] [--remove <ids...>] [--file <path|->] [--reason <text>]`
 
-`<kind>` is one of `project` | `epic` | `branch` | `commit`. The verb kind must
+`<kind>` is one of `project` | `epic` | `story` | `task`. The verb kind must
 equal the issue's stored `kind` (hard error otherwise). Field names are
 camelCase, identical to schema / `issue.json` keys. There is no cross-kind
 `get`/`set`; shared fields are repeated on each kind that owns them.
@@ -172,7 +179,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   default: an Epic with no blockers prints `[]` (arrays as JSON), not empty
   stdout.
 - Readable surface is **wider than set**: any stored field for that kind plus
-  derived fields (`epicStatus`, `branchStatus`, `blocked`, `base`, …).
+  derived fields (`epicStatus`, `storyStatus`, `blocked`, `base`, …).
 - Includes `description` and `attentionReason` as readable fields.
 
 ### `set`
@@ -193,8 +200,8 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
 | --- | --- |
 | project | `title`, `workspace`, `mergePolicy`, `description` |
 | epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `description` |
-| branch | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
-| commit | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
+| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
+| task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
 
 #### Value parsing
 
@@ -232,14 +239,14 @@ issues/<id>/
   issue.json        # metadata + relationships (machine-readable)
   description.md    # the spec/description (for an Epic, the plan). GFM; may contain issue: links
   chat.jsonl        # append-only per-issue chat, one message object per line
-  attachments/      # optional; opaque files (Canvas .tsx, images, fixtures) for Epic/Branch/Commit
+  attachments/      # optional; opaque files (Canvas .tsx, images, fixtures) for Epic/Story/Task
 ```
 
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
   (there are no path fields, so there can be no dangling file refs). Both are
   optional; absent means empty.
 - `attachments/` is likewise by convention: no manifest; scan the directory.
-  Allowed on Epic, Branch, and Commit only (not Project). See
+  Allowed on Epic, Story, and Task only (not Project). See
   [Attachments](#attachments).
 - `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
   edits, and globally unique across all kinds. Its *origin* depends on the
@@ -265,13 +272,13 @@ Common to every kind:
 | field | type | notes |
 | --- | --- | --- |
 | `id` | string | = directory name; stable |
-| `kind` | `"project"` \| `"epic"` \| `"branch"` \| `"commit"` | discriminator |
+| `kind` | `"project"` \| `"epic"` \| `"story"` \| `"task"` | discriminator |
 | `title` | string | non-empty |
 | `order` | int | sibling position within its parent group; defaults `0` |
 | `createdAt` | ISO string | set at create |
 | `updatedAt` | ISO string | bumped on every write |
 
-Common to **Epic / Branch / Commit** (but **not** Project):
+Common to **Epic / Story / Task** (but **not** Project):
 
 | field | type | notes |
 | --- | --- | --- |
@@ -284,7 +291,7 @@ Project — the common-to-every-kind fields plus:
 | field | type | notes |
 | --- | --- | --- |
 | `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
-| `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Branch's last Commit is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
+| `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Story's last Task is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
 
 No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
 short overview of the Project.
@@ -348,12 +355,12 @@ across the tree) is not capped when needed to score accurately.
 
 ### Project merge policy
 
-A Project's `mergePolicy` decides what happens to a Branch once its last Commit
+A Project's `mergePolicy` decides what happens to a Story once its last Task
 is `done`. It is set with `issue project set <projectId> mergePolicy <policy>`
 and read with `issue project get <projectId> mergePolicy`. It defaults to
 **`manual`**, matching today's posture where a human opens and merges PRs.
 
-The work loop **always** finishes a Branch by spawning the git subagent in
+The work loop **always** finishes a Story by spawning the git subagent in
 `finish-branch` mode; the coordinator never reads or branches on `mergePolicy`.
 Only the git subagent interprets it, from
 `issue project get <projectId> mergePolicy`, so there is exactly one reader and
@@ -362,12 +369,12 @@ workspace (same cwd rules as above) and applies:
 
 - **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
   the PR later. (Default.)
-- **`pull-request`** — push the Branch and open a **draft** PR against its
-  stored `mergeBase`, then record the url via
-  `issue branch set <branchId> prUrl <url>`. It does **not** wait for merge or
-  set `merged`, so the Branch derives to `pr-open`.
-- **`merge`** — merge the Branch into its stored `mergeBase`, push that ref,
-  and set `merged` via `issue branch set <branchId> merged true` (Branch
+- **`pull-request`** — push the Story's git branch and open a **draft** PR
+  against its stored `mergeBase`, then record the url via
+  `issue story set <storyId> prUrl <url>`. It does **not** wait for merge or
+  set `merged`, so the Story derives to `pr-open`.
+- **`merge`** — merge the Story's git branch into its stored `mergeBase`, push
+  that ref, and set `merged` via `issue story set <storyId> merged true` (Story
   derives to `merged`). This is the local, no-PR integration path. Setting
   `merged` cascades `child.mergeBase = parent.mergeBase` for stacked children
   (see [stacked-PR merge model](#the-stacked-pr-merge-model)). When a parent
@@ -376,43 +383,43 @@ workspace (same cwd rules as above) and applies:
   retarget CLI).
 
 **Resumable / idempotent.** The work loop is resumable, so finish-branch may run
-twice for the same Branch. Before acting, the git subagent reads the Branch's
-`prUrl` / `merged` (via `issue branch get <branchId> prUrl` /
-`issue branch get <branchId> merged`) and no-ops when the policy's end state
+twice for the same Story. Before acting, the git subagent reads the Story's
+`prUrl` / `merged` (via `issue story get <storyId> prUrl` /
+`issue story get <storyId> merged`) and no-ops when the policy's end state
 already holds — `merged` set for `merge`, `prUrl` set for `pull-request` — so a
 re-run never opens a duplicate PR or re-merges.
 
 **Failure and recovery.** On failure the git subagent raises attention on the
-Branch (`issue branch set <branchId> needsAttention true --reason "…"`) and
+Story (`issue story set <storyId> needsAttention true --reason "…"`) and
 stops. A `merge` conflict is aborted (`git merge --abort`) so the `mergeBase`
 ref is never left half-merged; but a *completed* local merge whose `push`
 failed is left in place — with `merged` still unset it is exactly the resumable
 state above, so the retry just re-pushes.
 
-Epic — the Epic/Branch/Commit common fields plus:
+Epic — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
 | `partOf` | string | the Project id (required) |
 | `blockedBy` | string[] | other Epic ids in the same Project that must finish first; defaults `[]`; the only cross-Epic edge |
 
-Branch — the Epic/Branch/Commit common fields plus:
+Story — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
 | `partOf` | string | the Epic id (required) |
 | `branchName` | string? | set once the git branch is created; rename refused while stacked children exist |
-| `stackedOn` | string? | single fork-point Branch id (must be in the same Epic); absent => root |
+| `stackedOn` | string? | single fork-point Story id (must be in the same Epic); absent => root |
 | `mergeBase` | string? | stored git ref for start-branch / finish-branch; root defaults `main`; see [stacked-PR merge model](#the-stacked-pr-merge-model) |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
 
-Commit — the Epic/Branch/Commit common fields plus:
+Task — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
-| `partOf` | string | the Branch id (required) |
+| `partOf` | string | the Story id (required) |
 | `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
 | `commitSha` | string? | set when done |
 | `noDiff` | boolean? | absent until set; signals an intentional empty implementor diff |
@@ -424,56 +431,44 @@ authored as a separate priority field), `label`, inline
 ### Finish commit
 
 When the work loop spawns the git subagent in `finish-commit` mode, it finalizes
-one Commit. The coordinator never inspects the working tree or the `noDiff` flag —
-only the git subagent does. The subagent reads the Commit's `noDiff` (via
-`issue commit get <commitId> noDiff`) and the working-tree state (`git status`),
+one Task. The coordinator never inspects the working tree or the `noDiff` flag —
+only the git subagent does. The subagent reads the Task's `noDiff` (via
+`issue task get <taskId> noDiff`) and the working-tree state (`git status`),
 then applies:
 
 | `noDiff` | Tree | Action |
 | --- | --- | --- |
-| `true` | clean (empty) | `issue commit set <commitId> status done` only — no `git commit`, no `commitSha`; leave `noDiff` set. |
-| `true` | dirty | Escalate: `issue commit set <commitId> needsAttention true --reason "…"` — the flag contradicts a non-empty tree. |
-| absent / `false` | clean (empty) | Escalate: `issue commit set <commitId> needsAttention true --reason "…"` — an empty tree without `noDiff` is not a completion signal. |
-| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Commit title>"`, `issue commit set <commitId> status done`, `issue commit set <commitId> commitSha $(git rev-parse HEAD)`. |
+| `true` | clean (empty) | `issue task set <taskId> status done` only — no `git commit`, no `commitSha`; leave `noDiff` set. |
+| `true` | dirty | Escalate: `issue task set <taskId> needsAttention true --reason "…"` — the flag contradicts a non-empty tree. |
+| absent / `false` | clean (empty) | Escalate: `issue task set <taskId> needsAttention true --reason "…"` — an empty tree without `noDiff` is not a completion signal. |
+| absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Task title>"`, `issue task set <taskId> status done`, `issue task set <taskId> commitSha $(git rev-parse HEAD)`. |
 
 The implementor sets `noDiff` via kind [`set`](#kind-scoped-get--set) (and
 explains why in chat) when the correct outcome is no file changes; validators and
 the git subagent honor the flag. Clearing it (`noDiff false`) is required if a
 revision later lands file changes.
 
-**Tree nesting and sibling order.** The tree nests a Branch under the Branch it
-forks from: a Branch renders as a child of its `stackedOn` Branch (which must be
-in the same Epic — see below), so indentation mirrors the git stack depth. A
-Branch with no `stackedOn` is a *root* Branch, rendered directly under its Epic.
-Under a Branch, its own Commits render first, then the Branches stacked on it.
-Branch order is therefore **pure stacked depth-first** over `stackedOn` alone;
-`blockedBy` plays no part in it (it is an Epic-level edge, surfaced in the Epic's
-detail panel and used only to gate the Epic's derived `blocked` state — not
-sibling order). Within one nesting level, siblings are ordered strictly by
-stored `order` (never `createdAt` or `id`). Root Branches under an Epic are
-traversed depth-first (each root immediately followed by what stacks on it);
-siblings at every level sort by `order`. Epics and Projects sort by `order`.
-Duplicate `order` within a sibling group is an integrity problem.
+### Tree nesting and order
+
+The tree nests a Story under the Story it forks from: a Story renders as a
+child of its `stackedOn` Story (which must be in the same Epic — see below), so
+indentation mirrors the git stack depth. A Story with no `stackedOn` is a
+*root* Story, rendered directly under its Epic. Under a Story, its own Tasks
+render first, then the Stories stacked on it. Story order is therefore **pure
+stacked depth-first** over `stackedOn` alone; `blockedBy` plays no part in it
+(it is an Epic-level edge, surfaced in the Epic's detail panel and used only to
+gate the Epic's derived `blocked` state — not sibling order). Within one
+nesting level, siblings are ordered strictly by stored `order` (never
+`createdAt` or `id`). Root Stories under an Epic are traversed depth-first
+(each root immediately followed by what stacks on it); siblings at every level
+sort by `order`. Epics and Projects sort by `order`. Duplicate `order` within a
+sibling group is an integrity problem.
 
 **Projects scope the view.** A Project is the top-level container: every Epic is
 `partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
 one scopes the tree to that Project's subtree (its Epics and their
-Branches/Commits). Projects themselves are not rendered as nodes inside the
+Stories/Tasks). Projects themselves are not rendered as nodes inside the
 tree — they are the selectable root. Projects are ordered by `order`.
-
-<a id="archived-visibility"></a>
-
-**Archived visibility.** Epic / Branch / Commit carry a stored boolean
-`archived` (default / absent = `false`). Projects are never archived. Setting
-`archived` true or false on a node applies the same value to all descendants
-(cascade). Creating a child under any archived ancestor starts the child
-`archived: true`. Archiving a child while its parent stays unarchived remains
-allowed. `issue tree` and `issue list` omit archived rows by default; pass
-`--show-archived` to include them. The web UI tree uses the same filter rule:
-archived rows are hidden unless the client "Show archived" preference is on
-(default off; fills the former Ready view-control slot next to search). Detail
-header and tree-row hover expose Archive / Unarchive actions that PATCH
-`archived` through the same cascade path as CLI `set`.
 
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
@@ -481,6 +476,22 @@ position (and rejects an explicit `order` key). Imperative `create` appends
 (`max + 1`); reparenting without an explicit `order` patch re-appends in the new
 group. Tree emission is structural DFS (each level sorted by `order`), never by
 `id` or `createdAt`.
+
+<a id="archived-visibility"></a>
+
+### Archived visibility
+
+Epic / Story / Task carry a stored boolean `archived` (default / absent =
+`false`). Projects are never archived. Setting `archived` true or false on a
+node applies the same value to all descendants (cascade). Creating a child
+under any archived ancestor starts the child `archived: true`. Archiving a
+child while its parent stays unarchived remains allowed. `issue tree` and
+`issue list` omit archived rows by default; pass `--show-archived` to include
+them. The web UI tree uses the same filter rule: archived rows are hidden
+unless the client "Show archived" preference is on (default off; fills the
+former Ready view-control slot next to search). Detail header and tree-row
+hover expose Archive / Unarchive actions that PATCH `archived` through the same
+cascade path as CLI `set`.
 
 ## `chat.jsonl` message shape
 
@@ -516,11 +527,11 @@ no consumer can persist a broken file.
   `description.md`.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
-  `attentionReason`, `archived` (Epic / Branch / Commit; cascades to
+  `attentionReason`, `archived` (Epic / Story / Task; cascades to
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
   kind-specific fields (`blockedBy` for an Epic; `status`/`commitSha`/`noDiff`
-  for a Commit; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
-  `specReview` for a Branch), and `description` (written to `description.md`).
+  for a Task; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
+  `specReview` for a Story), and `description` (written to `description.md`).
   Clearable fields are removed when patched to `null`. A patch that names a
   field not valid for the issue's kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
@@ -539,8 +550,8 @@ no consumer can persist a broken file.
 - **Validate-at-write.** `create`/`update` run the integrity checks against the
   *prospective* state and refuse any write that would introduce a `problem` — a
   bad or missing `partOf`/`stackedOn`/`blockedBy` referent, a referent of the
-  wrong kind (a Commit's `partOf` must be a Branch, a Branch's an Epic, an Epic's
-  a Project; a `stackedOn` must be a Branch, a `blockedBy` entry an Epic), a
+  wrong kind (a Task's `partOf` must be a Story, a Story's an Epic, an Epic's
+  a Project; a `stackedOn` must be a Story, a `blockedBy` entry an Epic), a
   `stackedOn` in a different Epic, a `blockedBy` Epic in a different Project, or a
   cycle-inducing `stackedOn`/`blockedBy`. On failure the CLI exits nonzero
   with a clear message and HTTP returns 4xx with detail.
@@ -567,12 +578,12 @@ not leave the graph valid is refused without side effects.
 **Cascade by deleted kind (the `partOf` containment closure — the "delete
 set"):**
 
-- **Commit** — removes only that Commit (Commits have no children).
-- **Branch** — removes the Branch and every Commit `partOf` it.
-- **Epic** — removes the Epic, every Branch `partOf` it, and every Commit
-  `partOf` those Branches (transitive).
+- **Task** — removes only that Task (Tasks have no children).
+- **Story** — removes the Story and every Task `partOf` it.
+- **Epic** — removes the Epic, every Story `partOf` it, and every Task
+  `partOf` those Stories (transitive).
 - **Project** — removes the Project and its entire subtree: every Epic `partOf`
-  it, every Branch `partOf` those Epics, and every Commit `partOf` those Branches
+  it, every Story `partOf` those Epics, and every Task `partOf` those Stories
   (transitive). Deleting a Project therefore discards all of its work; the UI
   gates this behind a confirmation dialog that names the contained-issue count.
 
@@ -583,9 +594,9 @@ into it, and each edge type resolves deterministically:
 | edge into delete set | resolution |
 | --- | --- |
 | `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
-| `stackedOn` (a deleted Branch; always same-Epic) | **Splice**: repoint the surviving Branch to the deleted branch's own `stackedOn`, walking up until a surviving Branch, or absent (forks `main`) if none. Preserves the stack minus the removed node. |
+| `stackedOn` (a deleted Story; always same-Epic) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Preserves the stack minus the removed node. |
 | `blockedBy` (a deleted Epic; cross-Epic, same Project) | **Drop**: remove the deleted Epic id from the blocked Epic's list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge that crosses an Epic boundary. |
-| `stackedOn` → a deleted Commit/Epic, or `blockedBy` → a deleted Branch/Commit | Impossible — `stackedOn` only ever references a Branch, and `blockedBy` only ever references an Epic. |
+| `stackedOn` → a deleted Task/Epic, or `blockedBy` → a deleted Story/Task | Impossible — `stackedOn` only ever references a Story, and `blockedBy` only ever references an Epic. |
 
 `issue:` cross-links inside `description.md` are freeform Markdown, not
 validated relationships, so they are left untouched.
@@ -600,12 +611,12 @@ dangling-reference, wrong-kind, or cycle problem — guaranteed by construction 
 
 ## Attachments
 
-Opaque files that travel with an Epic, Branch, or Commit (e.g. Cursor Canvases
+Opaque files that travel with an Epic, Story, or Task (e.g. Cursor Canvases
 as `.tsx`, images, small fixtures). Owned by `app/server/services/attachments.ts`,
 a sibling writer whose per-file get/put/remove share the same `serialize` chain
 as `issues.ts` writes; `listAttachments` is unsynchronized.
 
-**Kinds.** Attach / list / download / detach only on Epic, Branch, and Commit.
+**Kinds.** Attach / list / download / detach only on Epic, Story, and Task.
 Project (and unknown ids) are refused.
 
 **On-disk.** `issues/<id>/attachments/<basename>` — no manifest; metadata is
@@ -643,8 +654,8 @@ untouched; only deleting the issue (or apply-pruning it) removes them.
 `apply` (`app/server/services/apply.ts`, schema in `apply-schema.ts`) is the
 **declarative writer**: it reconciles a subtree from one nested YAML doc,
 complementing the imperative one-shot verbs. The doc may be rooted at a Project,
-an Epic, or a Branch, so a single `apply` can own a whole project, one epic, or
-one branch's commit list. Authoring guidance lives in
+an Epic, or a Story, so a single `apply` can own a whole project, one epic, or
+one story's task list. Authoring guidance lives in
 [issue-tracker-decompose](skills/issue-tracker-decompose/SKILL.md); this section
 is the format + semantics reference.
 
@@ -665,32 +676,36 @@ project:
       description: |
         Cross-cutting invariants.
       blockedBy: [other-epic]  # other Epics (same Project) that must finish first
-      branches:
-        - id: base-branch      # a root Branch (no `stacked` parent) -> forks main
-          title: Base Branch
+      stories:
+        - id: base-story       # a root Story (no `stacked` parent) -> forks main
+          title: Base Story
           description: |
             This unit's full prose.
-          commits:
-            - id: first-commit
-              title: First commit
+          tasks:
+            - id: first-task
+              title: First task
               description: |
                 Implementor-resolution detail + how to verify.
-          stacked:             # Branches that fork off `base-branch`
+          stacked:             # Stories that fork off `base-story`
             - id: follow-up
               title: Follow-up
-              commits:
-                - id: follow-up-commit
-                  title: Follow-up commit
+              tasks:
+                - id: follow-up-task
+                  title: Follow-up task
 ```
 
-- **Kind by nesting.** `project` → its `epics` are Epics → their `branches` are
-  Branches → their `commits` are Commits; a Branch's `stacked` entries are
-  Branches that fork off it.
+- **Kind by nesting.** `project` → its `epics` are Epics → their `stories` are
+  Stories → their `tasks` are Tasks; a Story's `stacked` entries are
+  Stories that fork off it.
+- **No dual-key / legacy keys.** Nested `branches` / `commits` and a rooted
+  `branch:` are **not** accepted — there is no alias period. Migrate apply docs
+  to `stories` / `tasks` and `story:`; rooted `branch:` is refused with an
+  explicit error (`"branch:" is no longer accepted; use "story:"`).
 - **Inferred `partOf`.** Each node's containment is its enclosing container (a
-  Commit's Branch, a Branch's Epic, an Epic's Project). Never written in the
+  Task's Story, a Story's Epic, an Epic's Project). Never written in the
   doc.
-- **Inferred `stackedOn`.** A Branch nested under another Branch's `stacked`
-  forks from it; a Branch directly under `branches` is a root Branch (forks the
+- **Inferred `stackedOn`.** A Story nested under another Story's `stacked`
+  forks from it; a Story directly under `stories` is a root Story (forks the
   Epic's base, `main`). Never written in the doc.
 - **Explicit `blockedBy`.** The one cross-reference authored by hand: on an
   **Epic** node, a list of other Epic ids (same Project) this Epic depends on.
@@ -702,10 +717,10 @@ project:
 - **Author-chosen ids** on every node (see the [id model](#on-disk-layout)):
   required, kebab, unique across the doc, slug-safe, title-independent.
 
-### Rooted forms: epic and branch scope
+### Rooted forms: epic and story scope
 
 A project doc reconciles the whole project, so it prunes every epic the doc
-omits. To edit a single epic or branch without disturbing its siblings, root the
+omits. To edit a single epic or story without disturbing its siblings, root the
 doc at that node and name the enclosing parents by **id** (a reference — never
 upserted, never pruned):
 
@@ -716,31 +731,31 @@ epic:
   id: my-epic
   title: My Epic
   blockedBy: [ ... ]       # other Epic ids (same Project) that must finish first
-  branches: [ ... ]        # same branch/commit/stacked shape as above
+  stories: [ ... ]         # same story/task/stacked shape as above
 ```
 
 ```yaml
-# Branch form: reconciles just my-branch + its commits within an existing epic.
+# Story form: reconciles just my-story + its tasks within an existing epic.
 project: my-product        # existing project id (reference)
 epic: my-epic              # existing epic id (reference)
-branch:
-  id: my-branch
-  title: My Branch
-  commits: [ ... ]
+story:
+  id: my-story
+  title: My Story
+  tasks: [ ... ]
 ```
 
 - **Form by root key.** An object `project` is the project form; a string
   `project` + object `epic` is the epic form; string `project` + string `epic` +
-  object `branch` is the branch form.
+  object `story` is the story form.
 - **Parents must exist.** The referenced parent(s) must already be on disk with
   the right kind and containment (the epic must be in the project; a pre-existing
   root node must already sit under the declared parent), else the doc is refused.
-- **Branch scope is branch + commits only.** A branch's `stacked` children are
-  `partOf` the *Epic*, not the branch, so they fall outside a branch's subtree; a
-  branch doc has no `stacked` key and only owns its own commit list.
+- **Story scope is story + tasks only.** A story's `stacked` children are
+  `partOf` the *Epic*, not the story, so they fall outside a story's subtree; a
+  story doc has no `stacked` key and only owns its own task list.
 - **Fork point preserved.** `stackedOn` is normally inferred from nesting, but a
-  branch-rooted doc has no parent nesting, so it **preserves the on-disk
-  `stackedOn`** rather than clearing it — a branch doc never moves the fork point.
+  story-rooted doc has no parent nesting, so it **preserves the on-disk
+  `stackedOn`** rather than clearing it — a story doc never moves the fork point.
 
 ### Semantics
 
@@ -760,7 +775,7 @@ branch:
 - **Idempotent.** Re-applying an unchanged doc rewrites nothing (unchanged nodes
   keep their `updatedAt`), so it is safe to re-`apply` an evolving plan. The one
   exception is **stale-key reconciliation:** if an on-disk `issue.json` carries a
-  key the current schema no longer recognizes (e.g. a pre-migration branch-level
+  key the current schema no longer recognizes (e.g. a pre-migration story-level
   `blockedBy`, which `parseIssue` strips on read), a re-apply rewrites that file to
   tidy the stale key and counts it as `updated`. Since this is not a semantic
   change, the node keeps its existing `updatedAt`.
@@ -778,10 +793,10 @@ preserves everything else from the existing same-kind issue.
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a branch-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
+| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
-| `status`, `commitSha`, `noDiff` (Commit) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Branch) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
+| `status`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
@@ -796,35 +811,35 @@ stack (progress, git facts, escalation, chat, attachments) stays on kind
 filesystem) that, given all issues, computes state that is **never stored** and
 so cannot drift:
 
-- **Commit `blocked`** — a `todo` Commit is `blocked` unless its Branch
+- **Task `blocked`** — a `todo` Task is `blocked` unless its Story
   (`partOf`) exists with a `branchName` and is not merged, and all earlier
-  sibling Commits (by sequence) are `done`.
-- **Branch base** — same as [base](#derived-terms) (derived display of stored
+  sibling Tasks (by sequence) are `done`.
+- **Story base** — same as [base](#derived-terms) (derived display of stored
   `mergeBase` for the tree/detail chips).
-- **Branch status** — `merged` if `merged`; else `pr-open` if it has Commits,
+- **Story status** — `merged` if `merged`; else `pr-open` if it has Tasks,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
-- **Branch `blocked`** (to start) — a `not-started` Branch is `blocked` when it
+- **Story `blocked`** (to start) — a `not-started` Story is `blocked` when it
   has a `stackedOn` parent whose tip cannot be forked yet: the parent must have
-  a `branchName` **and** all the parent's Commits must be `done` (it forks the
-  parent's tip, so there is no merge gate). A root Branch (no `stackedOn`) is
+  a `branchName` **and** all the parent's Tasks must be `done` (it forks the
+  parent's tip, so there is no merge gate). A root Story (no `stackedOn`) is
   never blocked by stacking.
-- **Epic status** — `done` when it has Branches and all are `merged`;
-  `in-progress` if any Branch has started; else `todo`.
+- **Epic status** — `done` when it has Stories and all are `merged`;
+  `in-progress` if any Story has started; else `todo`.
 - **Epic `blocked`** — an Epic is `blocked` while any Epic in its `blockedBy` is
-  not yet `done` (a blocker is `done` only when it has Branches and all are
-  `merged` — so a blocker Epic with **zero Branches is never `done`**, and
+  not yet `done` (a blocker is `done` only when it has Stories and all are
+  `merged` — so a blocker Epic with **zero Stories is never `done`**, and
   pointing `blockedBy` at an empty Epic blocks the dependent indefinitely).
-  Epic `blocked` does **not** cascade onto descendant Branches'/Commits' own
+  Epic `blocked` does **not** cascade onto descendant Stories'/Tasks' own
   `blocked` flags — `tree`/`list` still show per-node stacking/sibling blocking
   under a blocked Epic.
 - **problems** — the integrity checks `derive()` runs over the parsed issues:
   dependency cycles over `stackedOn`/`blockedBy`; dangling
-  `partOf`/`stackedOn`/`blockedBy` ids; a Branch whose `stackedOn` entry is not a
-  Branch, or an Epic whose `blockedBy` entry is not an Epic; a Branch whose
+  `partOf`/`stackedOn`/`blockedBy` ids; a Story whose `stackedOn` entry is not a
+  Story, or an Epic whose `blockedBy` entry is not an Epic; a Story whose
   `stackedOn` is in a different Epic, or an Epic whose `blockedBy` names an Epic
   in a different Project (`stackedOn` stays within one Epic; `blockedBy` stays
-  within one Project); a Commit whose `partOf` is not a Branch; a Branch whose
+  within one Project); a Task whose `partOf` is not a Story; a Story whose
   `partOf` is not an Epic; and an Epic whose `partOf` is not a Project. These are
   only the *derive-time* problems; the
   `problems` array returned by `list()` also includes the *read-time* problems
@@ -846,8 +861,8 @@ may dangle — see [Attachments](#attachments).
 
 **The complete design lives distributed across tiers.** The Epic replaces a
 giant plan/spec only when the whole design is captured in the tree: overview and
-cross-cutting invariants in the Epic, standalone unit prose in each Branch,
-implementor-resolution detail in each Commit. Companion material belongs **with
+cross-cutting invariants in the Epic, standalone unit prose in each Story,
+implementor-resolution detail in each Task. Companion material belongs **with
 the issue that uses it** — inlined in `description.md` or attached beside it
 (link rules in [Attachments](#attachments)). Verbatim copy into the Epic with
 empty children is not sufficient — distribution and a completeness pass are
@@ -855,7 +870,7 @@ what make the tracker a standalone basis for a future implementor. A parent's
 `description.md` MUST NOT enumerate or restate the specific work its children
 individually cover. Parent prose carries scope, approach, cross-cutting
 invariants, and context; the *enumeration of units* is the child list itself
-(Project → its Epics, Epic → its Branches, Branch → its Commits) — not a
+(Project → its Epics, Epic → its Stories, Story → its Tasks) — not a
 mirrored per-child checklist in the parent. Children get pruned or reshaped
 during plan cleanup, so a parent that mirrors them drifts into orphan claims.
 
@@ -867,10 +882,10 @@ in a broken state regardless of who wrote it. Integrity is enforced at the
 source rather than trusted at each call site.
 
 **Derived, not stored.** Anything that can be computed from the whole set —
-Branch/Epic status, `blocked`, base branch — is computed by the pure `derive()`
+Story/Epic status, `blocked`, base — is computed by the pure `derive()`
 and never written to disk. Stored duplicates of derived facts are the classic
 source of drift; by refusing to store them, the tracker cannot show a status
-that disagrees with reality. A Commit's `status` (the one genuine human/agent
+that disagrees with reality. A Task's `status` (the one genuine human/agent
 decision) and sibling `order` (authored implicitly via doc position or
 imperative append) are stored.
 
