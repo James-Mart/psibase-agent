@@ -268,7 +268,18 @@ when all Commits are already `done`, from Completion Phase 2 above).
 
 Pass these as the Task `prompt`. Inline the fields each stub lists. Children own
 static behavior via their `agents/*.md` files — do not paste workflow
-instructions here.
+instructions here. Exception: append the **Plugin redeploy clause** (below) to
+Implement and Revise prompts — that temporary injection is intentional.
+
+**Plugin redeploy clause** — append to Implement and Revise prompts:
+
+> If this Commit changes files under
+> `<workspace>/.cursor/plugins/<plugin-name>/`, redeploy that plugin before
+> finish/stop: `rm -rf /root/.cursor/plugins/local/<plugin-name> && cp -r <workspace>/.cursor/plugins/<plugin-name> /root/.cursor/plugins/local/<plugin-name>` (full directory replace — no symlink, no partial file copy). Resolve `<workspace>` from `issue summary` on the Commit.
+>
+> *(Temporary: once [visual-coordinator-loop](issue:visual-coordinator-loop)
+> lands, move this redeploy instruction to a placement node instead of
+> hard-coding it here.)*
 
 Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 **only** Mode + issue id — no Epic id, tree chips, or git facts (`base`,
@@ -294,6 +305,8 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 
 > Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: implement. Comment role:
 > `implementor`.
+>
+> *(Append the Plugin redeploy clause.)*
 
 **Code-quality validator** — `subagent_type: issue-tracker-code-quality-validator`
 (read-only)
@@ -310,6 +323,8 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 
 > Epic: `<epicId>`. Commit: `<id>` (`<title>`). Mode: revise. Comment role:
 > `implementor`.
+>
+> *(Append the Plugin redeploy clause.)*
 
 **Retro** — `subagent_type: issue-tracker-retro`
 
