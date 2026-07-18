@@ -66,6 +66,7 @@ Instead:
     * non-idiomatic or outdated patterns
     * spaghetti code
     * succinctness/legibility issues
+    * leftover patterns / dead code
 3. Rethink how to structure / implement the changes to meaningfully improve 
    code quality without impacting behavior. Be **ambitious** here about code
    structure. Do not merely identify local cleanup opportunities. Actively
