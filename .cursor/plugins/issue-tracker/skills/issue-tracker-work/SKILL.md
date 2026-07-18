@@ -274,10 +274,16 @@ when all Tasks are already `done`, from Completion Phase 2 above).
 ## Spawn stubs
 
 Pass these as the Cursor Task `prompt`. Inline the fields each stub lists.
-Children own static behavior via their `agents/*.md` files — do not paste
-workflow instructions here. Exception: append the **Plugin redeploy clause**
-(below) to Implement and Revise prompts — that temporary injection is
-intentional.
+Id labels in spawn prompts must be `Issue:` (or `Epic:` where noted) — never
+kind nouns (`Task:`, `Story:`, `Commit:`, `Branch:`). Children own static
+behavior via their `agents/*.md` files — do not paste workflow instructions
+here. Exception: append the **Plugin redeploy clause** (below) to Implement
+and Revise prompts — that temporary injection is intentional.
+
+**Issue context line** — shared prefix for discriminator, implement,
+code-quality, spec-conformance, and revise stubs:
+
+> Epic: `<epicId>`. Issue: `<id>` (`<title>`).
 
 **Plugin redeploy clause** — append to Implement and Revise prompts:
 
@@ -293,25 +299,25 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 **only** Mode + issue id — no Epic id, tree chips, or git facts (`base`,
 `mergeBase`, `branchName`).
 
-**Start Story** — `subagent_type: issue-tracker-git`
+**Start branch** — `subagent_type: issue-tracker-git`
 
 > Mode: start-branch. Issue: `<storyId>`.
 
-**Finish Task** — `subagent_type: issue-tracker-git`
+**Finish commit** — `subagent_type: issue-tracker-git`
 
 > Mode: finish-commit. Issue: `<taskId>`.
 
-**Finish Story** — `subagent_type: issue-tracker-git`
+**Finish branch** — `subagent_type: issue-tracker-git`
 
 > Mode: finish-branch. Issue: `<storyId>`.
 
 **Model discriminator** — `subagent_type: issue-tracker-model-discriminator`
 
-> Epic: `<epicId>`. Task: `<id>` (`<title>`).
+> *(Issue context line.)*
 
 **Implement** — `subagent_type: issue-tracker-implementor`
 
-> Epic: `<epicId>`. Task: `<id>` (`<title>`). Mode: implement. Comment role:
+> *(Issue context line.)* Mode: implement. Comment role:
 > `implementor`.
 >
 > *(Append the Plugin redeploy clause.)*
@@ -319,17 +325,17 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 **Code-quality validator** — `subagent_type: issue-tracker-code-quality-validator`
 (read-only)
 
-> Epic: `<epicId>`. Task: `<id>` (`<title>`). Comment role:
+> *(Issue context line.)* Comment role:
 > `code-quality-validator`.
 
 **Spec-conformance validator** — `subagent_type: issue-tracker-spec-conformance-validator`
 
-> Epic: `<epicId>`. Story: `<id>` (`<title>`). Comment role:
+> *(Issue context line.)* Comment role:
 > `spec-conformance-validator`.
 
 **Revise** — resume implementor (per-task only)
 
-> Epic: `<epicId>`. Task: `<id>` (`<title>`). Mode: revise. Comment role:
+> *(Issue context line.)* Mode: revise. Comment role:
 > `implementor`.
 >
 > *(Append the Plugin redeploy clause.)*
