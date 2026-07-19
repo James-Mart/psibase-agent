@@ -11,7 +11,7 @@ import { basename, join } from "path";
 import mime from "mime";
 import { issuesDir } from "../config.js";
 import { IssueError } from "./errors.js";
-import { readIssueOrThrow, serialize } from "./issues.js";
+import { requireKindCapability, serialize } from "./issues.js";
 import { firstFreeSuffixedName } from "./slug.js";
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -56,13 +56,7 @@ function assertSafeBasename(name: string): void {
 }
 
 function requireAttachable(id: string): void {
-  const issue = readIssueOrThrow(id);
-  if (issue.kind === "project") {
-    throw new IssueError(
-      "validation",
-      `attachments are not allowed on a project`,
-    );
-  }
+  requireKindCapability(id, "attachments");
 }
 
 function toAttachment(dir: string, name: string): Attachment {

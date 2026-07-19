@@ -1258,7 +1258,7 @@ describe("attach / attachments / detach", () => {
     writeFileSync(source, "x");
     const { stderr, status } = runCli(["attach", "p", source]);
     expect(status).toBe(1);
-    expect(stderr).toContain("attachments are not allowed on a project");
+    expect(stderr).toContain("attachments are not allowed on a Project");
   });
 
   it("prints attachments in show when present and omits them when empty", () => {

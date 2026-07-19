@@ -12,6 +12,11 @@ import { createHash } from "crypto";
 import { join } from "path";
 import { issuesDir } from "../config.js";
 import {
+  kindCapabilityRefusal,
+  kindHas,
+  type RefuseableCapability,
+} from "../kind.js";
+import {
   parseChatMessage,
   parseChatMessageInput,
   parseIssue,
@@ -244,6 +249,20 @@ export function readIssueOrThrow(id: string): Issue {
   return issue;
 }
 
+export function requireKindCapability(
+  id: string,
+  capability: RefuseableCapability,
+): Issue {
+  const issue = readIssueOrThrow(id);
+  if (!kindHas(issue.kind, capability)) {
+    throw new IssueError(
+      "validation",
+      kindCapabilityRefusal(issue.kind, capability),
+    );
+  }
+  return issue;
+}
+
 function serializeIssue(issue: Issue): string {
   return `${JSON.stringify(issue, null, 2)}\n`;
 }
@@ -317,12 +336,16 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       createdAt: now,
       updatedAt: now,
     };
-    // A Project carries none of the common status/assignee/attention fields.
-    if (input.kind !== "project") {
+    // Kind-gated defaults via KIND_CAPABILITIES (not project/idea special-cases).
+    if (kindHas(input.kind, "attention")) {
       draft.needsAttention = false;
       draft.attentionReason = null;
+    }
+    if (kindHas(input.kind, "assignee") && input.assignee) {
+      draft.assignee = input.assignee;
+    }
+    if (kindHas(input.kind, "archived")) {
       draft.archived = ancestorIsArchived(input.partOf, issues);
-      if (input.assignee) draft.assignee = input.assignee;
     }
     if (PARENT_KIND[input.kind]) {
       if (!input.partOf) {
@@ -555,7 +578,7 @@ export function appendMessage(
   input: ChatMessageInput,
 ): Promise<ChatMessage> {
   return serialize(() => {
-    readIssueOrThrow(id);
+    requireKindCapability(id, "chat");
     const parsed = parseChatMessageInput(input);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
     const message: ChatMessage = { ...parsed.input, at: new Date().toISOString() };

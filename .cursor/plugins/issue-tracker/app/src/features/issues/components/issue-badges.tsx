@@ -1,6 +1,7 @@
 import { AlertTriangle, CircleSlash, ClipboardCheck, User } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { assigneeOf } from "@server/assignee";
+import { hasAttention } from "@server/kind";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -8,7 +9,6 @@ import {
   SPEC_REVIEW_LABEL,
 } from "../lib/derived";
 
-// A Project carries none of the attention/assignee fields, so read them defensively.
 export function IssueBadges({
   issue,
   compact = false,
@@ -19,9 +19,8 @@ export function IssueBadges({
   className?: string;
 }) {
   const assignee = assigneeOf(issue);
-  const needsAttention = "needsAttention" in issue ? issue.needsAttention : false;
-  const attentionReason =
-    "attentionReason" in issue ? issue.attentionReason : null;
+  const needsAttention = hasAttention(issue) ? issue.needsAttention : false;
+  const attentionReason = hasAttention(issue) ? issue.attentionReason : null;
   const specReview =
     !compact && issue.kind === "story" ? issue.specReview : undefined;
   const noDiff =

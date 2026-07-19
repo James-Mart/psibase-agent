@@ -9,9 +9,10 @@ export function bySequence(a: Sequenced, b: Sequenced): number {
 // The sibling group an issue's `order` is unique within: same parent, and for
 // Branches also the same fork point, so root Branches (no `stackedOn`) share one
 // bucket and each stack shares another — matching the DFS traversal below and
-// the readiness walk in derive.ts. Projects share a single global group. This is
-// the one definition of "siblings"; both the integrity duplicate-order check and
-// the append math in the writers key off it so they can never disagree.
+// the readiness walk in derive.ts. Projects share a single global group. Epic
+// and Idea share one Project-keyed group (interleaved under the Project). This
+// is the one definition of "siblings"; both the integrity duplicate-order check
+// and the append math in the writers key off it so they can never disagree.
 function groupKeyFor(
   kind: IssueKind,
   partOf: string | undefined,
@@ -21,7 +22,8 @@ function groupKeyFor(
     case "project":
       return "project";
     case "epic":
-      return `epic:${partOf}`;
+    case "idea":
+      return `project:${partOf}`;
     case "task":
       return `task:${partOf}`;
     case "story":

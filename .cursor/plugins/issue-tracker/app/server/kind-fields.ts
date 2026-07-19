@@ -35,6 +35,13 @@ export const EPIC_SET_FIELDS = {
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
+export const IDEA_SET_FIELDS = {
+  title: { type: "string" },
+  archived: { type: "boolean" },
+  partOf: { type: "string" },
+  description: { type: "description" },
+} as const satisfies Record<string, SetFieldSpec>;
+
 export const STORY_SET_FIELDS = {
   title: { type: "string" },
   assignee: { type: "string" },
@@ -64,6 +71,7 @@ export const TASK_SET_FIELDS = {
 export const KIND_SET_FIELDS = {
   project: PROJECT_SET_FIELDS,
   epic: EPIC_SET_FIELDS,
+  idea: IDEA_SET_FIELDS,
   story: STORY_SET_FIELDS,
   task: TASK_SET_FIELDS,
 } as const satisfies Record<IssueKind, Record<string, SetFieldSpec>>;
@@ -106,6 +114,18 @@ export const EPIC_GET_FIELDS = {
   description: DESCRIPTION,
   epicStatus: DERIVED,
   blocked: DERIVED,
+} as const satisfies Record<string, GetFieldSpec>;
+
+export const IDEA_GET_FIELDS = {
+  id: STORED,
+  kind: STORED,
+  title: STORED,
+  partOf: STORED,
+  archived: STORED,
+  order: STORED,
+  createdAt: STORED,
+  updatedAt: STORED,
+  description: DESCRIPTION,
 } as const satisfies Record<string, GetFieldSpec>;
 
 export const STORY_GET_FIELDS = {
@@ -154,6 +174,7 @@ export const TASK_GET_FIELDS = {
 export const KIND_GET_FIELDS = {
   project: PROJECT_GET_FIELDS,
   epic: EPIC_GET_FIELDS,
+  idea: IDEA_GET_FIELDS,
   story: STORY_GET_FIELDS,
   task: TASK_GET_FIELDS,
 } as const satisfies Record<IssueKind, Record<string, GetFieldSpec>>;

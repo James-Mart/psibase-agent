@@ -1,9 +1,10 @@
+import { hasArchived } from "../kind.js";
 import type { Issue } from "../schemas.js";
 import { ancestorChain } from "./subtree.js";
 
-/** True when the issue is an archived Epic / Story / Task. */
+/** True when the issue is an archived Epic / Idea / Story / Task. */
 export function isArchived(issue: Issue): boolean {
-  return issue.kind !== "project" && issue.archived;
+  return hasArchived(issue) && issue.archived;
 }
 
 /**

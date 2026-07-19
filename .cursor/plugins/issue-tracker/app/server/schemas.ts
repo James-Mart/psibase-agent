@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ClearableKey } from "./fields.js";
 
-export const KINDS = ["project", "epic", "story", "task"] as const;
+export const KINDS = ["project", "epic", "idea", "story", "task"] as const;
 export const TASK_STATUSES = ["todo", "in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
@@ -62,6 +62,18 @@ export const epicSchema = z.object({
   ...timestamps,
 });
 
+// An Idea is a Project-level capture item: title/description/archive only —
+// no assignee, needs-attention, or work-status fields.
+export const ideaSchema = z.object({
+  id: nonEmpty,
+  kind: z.literal("idea"),
+  partOf: nonEmpty,
+  title: nonEmpty,
+  archived: z.boolean().default(false),
+  ...orderField,
+  ...timestamps,
+});
+
 export const storySchema = z.object({
   id: nonEmpty,
   kind: z.literal("story"),
@@ -96,6 +108,7 @@ export const taskSchema = z.object({
 export const issueSchema = z.discriminatedUnion("kind", [
   projectSchema,
   epicSchema,
+  ideaSchema,
   storySchema,
   taskSchema,
 ]);
@@ -109,6 +122,7 @@ export type SpecReviewStatus = (typeof SPEC_REVIEW_STATUSES)[number];
 export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
   project: null,
   epic: "project",
+  idea: "project",
   story: "epic",
   task: "story",
 };
@@ -116,12 +130,14 @@ export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
 export const CHILD_KIND: Record<IssueKind, IssueKind | null> = {
   project: "epic",
   epic: "story",
+  idea: null,
   story: "task",
   task: null,
 };
 
 type IssueFields = Omit<z.infer<typeof projectSchema>, "kind"> &
   Omit<z.infer<typeof epicSchema>, "kind"> &
+  Omit<z.infer<typeof ideaSchema>, "kind"> &
   Omit<z.infer<typeof storySchema>, "kind"> &
   Omit<z.infer<typeof taskSchema>, "kind">;
 

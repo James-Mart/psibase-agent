@@ -75,9 +75,12 @@ export type StoryFieldKey = (typeof STORY_FIELD_KEYS)[number];
 export type StoryRuntimeOptionalKey = (typeof STORY_RUNTIME_OPTIONAL_KEYS)[number];
 export type TaskFieldKey = (typeof TASK_FIELD_KEYS)[number];
 
+export const IDEA_FIELD_KEYS = [] as const;
+
 export const KIND_FIELD_KEYS = {
   project: PROJECT_FIELD_KEYS,
   epic: EPIC_FIELD_KEYS,
+  idea: IDEA_FIELD_KEYS,
   story: STORY_FORM_FIELD_KEYS,
   task: TASK_FORM_FIELD_KEYS,
 } as const satisfies Record<IssueKind, readonly string[]>;

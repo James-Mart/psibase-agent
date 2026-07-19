@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   epicDependencyIds,
   epicsBlockedBy,
+  nextSiblingOrder,
+  siblingGroupKey,
   stackedStoryOrder,
   stackedOnSubtree,
 } from "./order";
@@ -117,5 +119,36 @@ describe("epic dependency edges", () => {
     const notAnEpic = branch("br", 0);
     const blocked = epicsBlockedBy("a", [a, t, u, unrelated, notAnEpic]);
     expect(blocked.map((e) => e.id).sort()).toEqual(["t", "u"]);
+  });
+});
+
+describe("epic + idea shared sibling group", () => {
+  const ideaIssue = (
+    id: string,
+    order: number,
+    partOf = "p",
+  ): Extract<Issue, { kind: "idea" }> => ({
+    id,
+    kind: "idea",
+    title: id,
+    partOf,
+    order,
+    archived: false,
+    createdAt: "2026-07-10T14:00:00.000Z",
+    updatedAt: "2026-07-10T14:00:00.000Z",
+  });
+
+  it("puts epic and idea under the same project-keyed group", () => {
+    const e = epic("e");
+    const i = ideaIssue("i", 1);
+    expect(siblingGroupKey(e)).toBe(siblingGroupKey(i));
+    expect(siblingGroupKey(e)).toBe("project:p");
+  });
+
+  it("appends nextSiblingOrder across epic and idea in the same project", () => {
+    const e = epic("e");
+    const i = ideaIssue("i", 1);
+    expect(nextSiblingOrder([e, i], "idea", "p", undefined)).toBe(2);
+    expect(nextSiblingOrder([e, i], "epic", "p", undefined)).toBe(2);
   });
 });

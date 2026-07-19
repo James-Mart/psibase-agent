@@ -7,6 +7,7 @@ import {
   GitCommitHorizontal,
   GitPullRequest,
   Layers,
+  Lightbulb,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -47,6 +48,7 @@ import { IssueBadges } from "./issue-badges";
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
   project: FolderKanban,
   epic: Layers,
+  idea: Lightbulb,
   story: GitBranch,
   task: GitCommitHorizontal,
 };

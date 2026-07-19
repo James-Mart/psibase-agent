@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { KINDS, PARENT_KIND, type IssueKind } from "@server/schemas";
 
-// Projects are created from the sidebar, not this dialog.
-const SELECTABLE_KINDS = KINDS.filter((kind) => kind !== "project");
+// Projects: sidebar. Ideas: idea-ui-create-and-detail (not this dialog yet).
+const SELECTABLE_KINDS = KINDS.filter(
+  (kind) => kind !== "project" && kind !== "idea",
+);
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
