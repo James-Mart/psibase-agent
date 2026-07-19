@@ -29,7 +29,7 @@ import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
-import { AttachmentsPanel } from "./attachments-panel";
+import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
@@ -164,9 +164,7 @@ function IssueDetailBody({
           {issue.kind === "story" || issue.kind === "task" ? (
             <GitStackPanel issue={issue} />
           ) : null}
-          {attach && upload ? (
-            <AttachmentsPanel issue={issue} upload={upload} />
-          ) : null}
+          <IssueAttachmentsSection issue={issue} upload={upload} />
           <div className="rounded-lg border bg-card p-6">
             {issue.description.trim() ? (
               <Markdown issueId={attach ? issue.id : undefined}>

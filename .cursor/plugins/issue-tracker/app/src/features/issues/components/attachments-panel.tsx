@@ -8,7 +8,19 @@ import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-up
 import {
   attachmentsApiPath,
   formatAttachmentSize,
+  supportsAttachments,
 } from "../lib/attachments";
+
+export function IssueAttachmentsSection({
+  issue,
+  upload,
+}: {
+  issue: IssueDetail;
+  upload?: UploadAttachmentMutation;
+}) {
+  if (!supportsAttachments(issue.kind) || !upload) return null;
+  return <AttachmentsPanel issue={issue} upload={upload} />;
+}
 
 export function AttachmentsPanel({
   issue,
