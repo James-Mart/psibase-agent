@@ -542,8 +542,8 @@ no consumer can persist a broken file.
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
   `problems`.
 - Attachment bytes (`attachments.ts`): `listAttachments` / `getAttachment` /
-  `putAttachment` (upsert) / `removeAttachment` — see [Attachments](#attachments).
-  Not part of `read(id)` payloads.
+  `putAttachment` (unique name on collision) / `removeAttachment` — see
+  [Attachments](#attachments). Not part of `read(id)` payloads.
 
 ### Cross-cutting guarantees
 
@@ -627,8 +627,12 @@ filename + size + mtime, with MIME inferred from the extension
 bytes, and any name that is not a plain basename. No extension allowlist.
 **25 MiB** max per file (`MAX_ATTACHMENT_BYTES`).
 
-**Upsert.** Putting a name that already exists replaces the bytes. There is no
-rename verb — re-attach under the new basename and detach the old.
+**Unique names.** `putAttachment` stores under a collision-free basename: the
+requested basename when free, otherwise `{stem}-{n}{ext}` with the smallest
+`n ≥ 2` not already taken (stem + last extension). Existing files are never
+overwritten. Removal is explicit (`removeAttachment` / CLI `detach` /
+`DELETE`). There is no rename verb — attach under the desired basename and
+detach the old name.
 
 **HTTP** (thin adapter over the service; payloads are not embedded in
 `GET /api/issues/:id`):
@@ -636,7 +640,7 @@ rename verb — re-attach under the new basename and detach the old.
 | method | path | behavior |
 | --- | --- | --- |
 | `GET` | `/api/issues/:id/attachments` | list metadata |
-| `POST` | `/api/issues/:id/attachments` | multipart `file` upload; stored name = basename of uploaded filename; upsert |
+| `POST` | `/api/issues/:id/attachments` | multipart `file` upload; requested name = basename of uploaded filename; on collision store under a unique name; response returns the stored name |
 | `GET` | `/api/issues/:id/attachments/:name` | download bytes + `Content-Type` |
 | `DELETE` | `/api/issues/:id/attachments/:name` | remove one file |
 

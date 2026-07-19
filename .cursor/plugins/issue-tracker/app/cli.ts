@@ -429,7 +429,9 @@ program
   .command("attach")
   .argument("<id>", "issue id (epic, story, or task)")
   .argument("<file>", "path to file to attach")
-  .description("upsert an attachment; stored name is the source file basename")
+  .description(
+    "attach a file; on basename collision keeps the existing file and stores under a unique name; prints the stored basename",
+  )
   .action((id, file) =>
     run(async () => {
       const bytes = readFileSync(file);
