@@ -33,11 +33,12 @@ build it up with imperative `create`/`add` calls and hand-threaded ids.
 cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
 ```
 
-- **Nesting is the structure.** Kind comes from where a node sits
-  (`project` → `epics` → `stories` → `tasks`, and `stacked` for a Story that
-  forks off another Story); `partOf` and `stackedOn` are inferred from the
-  nesting, never written by hand. The full doc shape is in
-  [SPEC.md](../../SPEC.md#apply-doc-format).
+- **Structure at Project vs below Epic.** Under a Project, each `children:`
+  entry declares `kind: epic | idea` so Epics and Ideas can interleave (shared
+  sibling order). Below an Epic, kind comes from child keys (`stories` →
+  `tasks`, and `stacked` for a Story that forks off another Story). `partOf`
+  and `stackedOn` are inferred from the nesting, never written by hand. The
+  full doc shape is in [SPEC.md](../../SPEC.md#apply-doc-format).
 - **Ids are author-chosen and stable.** Every node carries a required kebab `id`
   you pick (unique, slug-safe, title-independent). Because you choose them up
   front you can author `issue:<id>` cross-links and Epic-level `blockedBy` ids
@@ -66,9 +67,10 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   and reference the enclosing parents by id: an **epic form** (`project: <id>`
   string + `epic:` object) reconciles just that epic within the project, and a
   **story form** (`project: <id>` + `epic: <id>` strings + `story:` object)
-  reconciles just that story and its task list within the epic. A story doc
-  owns only its own tasks (stacked children belong to the epic) and preserves
-  the story's fork point. Full shapes in [SPEC.md](../../SPEC.md#apply-doc-format).
+  reconciles just that story and its task list within the epic. Epic/story forms
+  leave Ideas untouched (Ideas are Project children only). A story doc owns only
+  its own tasks (stacked children belong to the epic) and preserves the story's
+  fork point. Full shapes in [SPEC.md](../../SPEC.md#apply-doc-format).
 
 ## Grain: Story vs Task
 

@@ -480,14 +480,16 @@ gate the Epic's derived `blocked` state — not sibling order). Within one
 nesting level, siblings are ordered strictly by stored `order` (never
 `createdAt` or `id`). Root Stories under an Epic are traversed depth-first
 (each root immediately followed by what stacks on it); siblings at every level
-sort by `order`. Epics and Projects sort by `order`. Duplicate `order` within a
-sibling group is an integrity problem.
+sort by `order`. Epics, Ideas, and Projects sort by `order` (Epics and Ideas
+share one Project-child sibling group). Duplicate `order` within a sibling group
+is an integrity problem.
 
-**Projects scope the view.** A Project is the top-level container: every Epic is
-`partOf` exactly one Project. The web UI lists Projects in a sidebar; selecting
-one scopes the tree to that Project's subtree (its Epics and their
-Stories/Tasks). Projects themselves are not rendered as nodes inside the
-tree — they are the selectable root. Projects are ordered by `order`.
+**Projects scope the view.** A Project is the top-level container: every Epic
+and Idea is `partOf` exactly one Project. The web UI lists Projects in a
+sidebar; selecting one scopes the tree to that Project's subtree (its Epics and
+Ideas, and each Epic's Stories/Tasks). Projects themselves are not rendered as
+nodes inside the tree — they are the selectable root. Projects are ordered by
+`order`.
 
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
@@ -689,8 +691,10 @@ is the format + semantics reference.
 
 ### Shape
 
-The most common doc describes one Project subtree. Kind is implied by **which
-child key** a node sits under, never written:
+The most common doc describes one Project subtree. Under a Project, each
+`children:` entry declares `kind: epic | idea` explicitly so Epics and Ideas can
+interleave in one shared sibling `order` space (array index). Below an Epic,
+kind is implied by **which child key** a node sits under, never written:
 
 ```yaml
 project:
@@ -698,8 +702,14 @@ project:
   title: My Product
   description: |              # optional inline block scalar -> description.md
     Overview prose.
-  epics:
-    - id: my-epic
+  children:
+    - kind: idea
+      id: future-work
+      title: Future work
+      description: |
+        Capture item — mined later into an Epic or Story.
+    - kind: epic
+      id: my-epic
       title: My Epic
       description: |
         Cross-cutting invariants.
@@ -722,16 +732,20 @@ project:
                   title: Follow-up task
 ```
 
-- **Kind by nesting.** `project` → its `epics` are Epics → their `stories` are
-  Stories → their `tasks` are Tasks; a Story's `stacked` entries are
-  Stories that fork off it.
-- **No dual-key / legacy keys.** Nested `branches` / `commits` and a rooted
-  `branch:` are **not** accepted — there is no alias period. Migrate apply docs
-  to `stories` / `tasks` and `story:`; rooted `branch:` is refused with an
-  explicit error (`"branch:" is no longer accepted; use "story:"`).
+- **Kind at Project vs below Epic.** Under a Project, each `children:` entry
+  carries `kind: epic | idea` (Ideas are leaves — no child keys). Below an Epic,
+  `stories` are Stories → their `tasks` are Tasks; a Story's `stacked` entries
+  are Stories that fork off it.
+- **No dual-key / legacy keys.** Project `epics:` is **not** accepted — use
+  `children:` with `kind: epic | idea` (refused with
+  `project "epics:" is no longer accepted; use "children:" with kind: epic | idea`).
+  Nested `branches` / `commits` and a rooted `branch:` are also **not**
+  accepted — there is no alias period. Migrate apply docs to `stories` /
+  `tasks` and `story:`; rooted `branch:` is refused with an explicit error
+  (`"branch:" is no longer accepted; use "story:"`).
 - **Inferred `partOf`.** Each node's containment is its enclosing container (a
-  Task's Story, a Story's Epic, an Epic's Project). Never written in the
-  doc.
+  Task's Story, a Story's Epic, an Epic or Idea's Project). Never written in
+  the doc.
 - **Inferred `stackedOn`.** A Story nested under another Story's `stacked`
   forks from it; a Story directly under `stories` is a root Story (forks the
   Epic's base, `main`). Never written in the doc.
@@ -747,10 +761,12 @@ project:
 
 ### Rooted forms: epic and story scope
 
-A project doc reconciles the whole project, so it prunes every epic the doc
-omits. To edit a single epic or story without disturbing its siblings, root the
-doc at that node and name the enclosing parents by **id** (a reference — never
-upserted, never pruned):
+A project doc reconciles the whole project, so it prunes every epic and idea the
+doc omits. To edit a single epic or story without disturbing its siblings, root
+the doc at that node and name the enclosing parents by **id** (a reference —
+never upserted, never pruned). Epic- and story-rooted docs never include Ideas
+in scope (Ideas are Project children only), so those forms leave Ideas
+untouched:
 
 ```yaml
 # Epic form: reconciles just my-epic within an existing project.
@@ -821,7 +837,8 @@ preserves everything else from the existing same-kind issue.
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `kind`, `partOf`, `stackedOn` | `apply`, but **inferred from nesting**, not authored directly (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
+| `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |
+| `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
@@ -898,7 +915,7 @@ what make the tracker a standalone basis for a future implementor. A parent's
 `description.md` MUST NOT enumerate or restate the specific work its children
 individually cover. Parent prose carries scope, approach, cross-cutting
 invariants, and context; the *enumeration of units* is the child list itself
-(Project → its Epics, Epic → its Stories, Story → its Tasks) — not a
+(Project → its Epics and Ideas, Epic → its Stories, Story → its Tasks) — not a
 mirrored per-child checklist in the parent. Children get pruned or reshaped
 during plan cleanup, so a parent that mirrors them drifts into orphan claims.
 

@@ -79,22 +79,17 @@ Field read/write: `issue <kind> get|set …` (`project` | `epic` | `story` |
 
 ### Declarative apply
 
-- **`apply <file>`** — the declarative authoring path: upsert a nested
-  Project > Epic > Story > Task tree from one YAML doc. It is
-  **idempotent** (re-applying an unchanged doc is a no-op), **atomic** (the whole
-  prospective set is integrity-checked before any write; a bad doc changes
-  nothing), and **prune-by-default** (a node the doc omits within its root's
-  subtree is deleted). The doc can be rooted at a **Project** (whole tree), an
-  **Epic** (one epic in an existing project), or a **Story** (one story + its
-  tasks in an existing epic), so prune stays bounded to that root — edit one
-  epic/story without disturbing siblings. It writes only plan shape + prose and
-  preserves all runtime/progress fields, so it is safe to re-apply mid-run.
-  Prints `created`/`updated`/`deleted` counts, then echoes the resulting subtree
-  the doc is rooted at (the same outline `tree` prints), so no follow-up `tree`
-  is needed. `blockedBy` is authored as a field on the **Epic** node (a list of
-  same-Project Epic ids); Stories carry no `blockedBy`. Doc format and field
-  seam: [SPEC.md](../../SPEC.md). Use it via issue-tracker-decompose.
-  When Task descriptions introduce or wire an interface, see
+- **`apply <file>`** — declarative authoring path for plan shape + prose. Doc
+  format and field seam: [SPEC.md](../../SPEC.md#apply-doc-format). Use via
+  issue-tracker-decompose.
+- **Roots.** Project (whole tree, including Ideas), Epic (one epic in an
+  existing project), or Story (one story + its tasks). Epic/story forms leave
+  Ideas untouched — Ideas are Project children only.
+- **Semantics.** Idempotent upsert; atomic (integrity-checked before any write);
+  prune-by-default within the doc's root subtree.
+- **Output.** Prints `created`/`updated`/`deleted` counts, then echoes the
+  resulting subtree (same outline as `tree`). `blockedBy` is authored on the
+  **Epic** node only. When Task descriptions introduce or wire an interface, see
   [Task interface seams](#task-interface-seams).
 
 ### Attachments

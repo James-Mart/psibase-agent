@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ApplyDoc, ProjectApplyDoc } from "./apply-schema.js";
+import type { ApplyDoc, EpicChildNode, ProjectApplyDoc } from "./apply-schema.js";
 
 const AT = "2026-07-09T14:00:00.000Z";
 let dir: string;
@@ -61,6 +61,13 @@ async function loadService() {
   return { apply, ...issues };
 }
 
+
+function epicChildren(doc: ProjectApplyDoc): EpicChildNode[] {
+  return (doc.project.children ?? []).filter(
+    (child): child is EpicChildNode => child.kind === "epic",
+  );
+}
+
 // A representative tree: project > two epics. `epic-a` has two root branches,
 // one carrying a commit and a stacked child; the stacked edge (b1s -> b1) lives
 // inside the epic. Epic-level `blockedBy` covers the forward-reference case:
@@ -72,8 +79,9 @@ function baseDoc(): ProjectApplyDoc {
       id: "proj",
       title: "Project",
       description: "Project overview\n",
-      epics: [
+      children: [
         {
+          kind: "epic",
           id: "epic-a",
           title: "Epic A",
           blockedBy: ["epic-b"],
@@ -87,7 +95,11 @@ function baseDoc(): ProjectApplyDoc {
             { id: "b2", title: "Branch two" },
           ],
         },
-        { id: "epic-b", title: "Epic B" },
+        {
+          kind: "epic",
+          id: "epic-b",
+          title: "Epic B",
+        },
       ],
     },
   };
@@ -150,7 +162,7 @@ describe("apply — create from empty", () => {
     await update("b1", { branchName: "feat/b1" });
 
     const doc = baseDoc();
-    doc.project.epics![0].stories![0].stacked!.push({
+    epicChildren(doc)[0].stories![0].stacked!.push({
       id: "b1s2",
       title: "Second stacked child",
     });
@@ -171,9 +183,14 @@ describe("apply — create from empty", () => {
       project: {
         id: "fp",
         title: "FP",
-        epics: [
-          { id: "early", title: "Early", blockedBy: ["late"] },
-          { id: "late", title: "Late" },
+        children: [
+          {
+            kind: "epic",
+            id: "early",
+            title: "Early",
+            blockedBy: ["late"],
+          },
+          { kind: "epic", id: "late", title: "Late" },
         ],
       },
     };
@@ -275,8 +292,8 @@ describe("apply — update preserves imperative progress state", () => {
 
     // Re-apply with changed titles so b2 and c1 actually go through the update path.
     const doc = baseDoc();
-    doc.project.epics![0].stories![1].title = "Branch two renamed";
-    doc.project.epics![0].stories![0].tasks![0].title = "Commit one renamed";
+    epicChildren(doc)[0].stories![1].title = "Branch two renamed";
+    epicChildren(doc)[0].stories![0].tasks![0].title = "Commit one renamed";
     const summary = await apply(doc);
     expect(summary.updated.sort()).toEqual(["b2", "c1"]);
     expect(summary.deleted).toEqual([]);
@@ -399,8 +416,13 @@ describe("apply — prune by default", () => {
       project: {
         id: "p1",
         title: "P1",
-        epics: [
-          { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
+        children: [
+          {
+            kind: "epic",
+            id: "e1",
+            title: "E1",
+            stories: [{ id: "b1", title: "B1" }],
+          },
         ],
       },
     };
@@ -431,7 +453,7 @@ describe("apply — prune by default", () => {
     );
   });
 
-  it("leaves undeclared Ideas on disk during project-root apply", async () => {
+  it("prunes an Idea omitted from project-root children:", async () => {
     writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
     writeIssue("capture", {
       kind: "idea",
@@ -456,15 +478,69 @@ describe("apply — prune by default", () => {
       project: {
         id: "p1",
         title: "P1",
-        epics: [{ id: "e1", title: "E1 renamed" }],
+        children: [{ kind: "epic", id: "e1", title: "E1 renamed" }],
       },
     });
-    expect(summary.deleted).toEqual([]);
-    expect(list().issues.map((issue) => issue.id).sort()).toEqual(
-      ["capture", "e1", "p1"],
-    );
-    expect(readIssue("capture").title).toBe("Capture");
+    expect(summary.deleted).toEqual(["capture"]);
+    expect(list().issues.map((issue) => issue.id).sort()).toEqual(["e1", "p1"]);
+    expect(existsSync(join(dir, "capture"))).toBe(false);
     expect(readIssue("e1").title).toBe("E1 renamed");
+  });
+});
+
+describe("apply — interleaved project children", () => {
+  it("creates interleaved Epics and Ideas with shared order from children index", async () => {
+    const { apply, list } = await loadService();
+    const summary = await apply({
+      project: {
+        id: "p1",
+        title: "P1",
+        children: [
+          { kind: "idea", id: "i1", title: "First idea", description: "Capture\n" },
+          {
+            kind: "epic",
+            id: "e1",
+            title: "Epic",
+            stories: [{ id: "b1", title: "B1" }],
+          },
+          { kind: "idea", id: "i2", title: "Second idea" },
+        ],
+      },
+    });
+    expect(summary.created.sort()).toEqual(["b1", "e1", "i1", "i2", "p1"].sort());
+    expect(summary.deleted).toEqual([]);
+
+    const result = list();
+    expect(result.problems).toEqual([]);
+    expect(readIssue("i1")).toMatchObject({
+      kind: "idea",
+      partOf: "p1",
+      order: 0,
+      title: "First idea",
+    });
+    expect(readFileSync(join(dir, "i1", "description.md"), "utf8")).toBe("Capture\n");
+    expect(readIssue("e1")).toMatchObject({ kind: "epic", partOf: "p1", order: 1 });
+    expect(readIssue("i2")).toMatchObject({ kind: "idea", partOf: "p1", order: 2 });
+    expect(readIssue("b1")).toMatchObject({ kind: "story", partOf: "e1", order: 0 });
+  });
+
+  it("is idempotent for an interleaved children: doc", async () => {
+    const { apply } = await loadService();
+    const doc: ApplyDoc = {
+      project: {
+        id: "p1",
+        title: "P1",
+        children: [
+          { kind: "epic", id: "e1", title: "E1" },
+          { kind: "idea", id: "i1", title: "I1" },
+        ],
+      },
+    };
+    await apply(doc);
+    const before = snapshot();
+    const summary = await apply(doc);
+    expect(summary).toEqual({ created: [], updated: [], deleted: [] });
+    expect(snapshot()).toBe(before);
   });
 });
 
@@ -478,7 +554,8 @@ describe("apply — atomic rejection", () => {
     // A new epic that blocks on a non-existent epic. Valid shape, but the whole
     // prospective set fails integrity, so nothing may be written.
     const doc = baseDoc();
-    doc.project.epics!.push({
+    doc.project.children!.push({
+      kind: "epic",
       id: "epic-c",
       title: "Epic C",
       blockedBy: ["ghost"],
@@ -515,8 +592,9 @@ describe("apply — atomic rejection", () => {
       project: {
         id: "p1",
         title: "P1",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e1",
             title: "E1",
             stories: [{ id: "shared", title: "Collision" }],
@@ -563,6 +641,31 @@ describe("apply — epic-scoped doc", () => {
     expect(list().issues.map((i) => i.id).sort()).toEqual(
       ["b1", "b2", "e1", "e2", "p1"].sort(),
     );
+  });
+
+  it("does not delete Ideas under the project", async () => {
+    seedTwoEpicProject();
+    writeIssue("capture", {
+      kind: "idea",
+      title: "Capture",
+      partOf: "p1",
+      order: 2,
+      archived: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { apply, list } = await loadService();
+
+    const summary = await apply({
+      project: "p1",
+      epic: { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
+    } as ApplyDoc);
+
+    expect(summary.deleted).toEqual(["b-old"]);
+    expect(list().issues.map((i) => i.id).sort()).toEqual(
+      ["b1", "b2", "capture", "e1", "e2", "p1"].sort(),
+    );
+    expect(readIssue("capture").title).toBe("Capture");
   });
 
   it("appends a brand-new epic after existing siblings instead of colliding at 0", async () => {
@@ -704,8 +807,9 @@ describe("apply — sibling order", () => {
       project: {
         id: "ord",
         title: "Order",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -726,7 +830,7 @@ describe("apply — sibling order", () => {
     expect(readIssue("first").order).toBe(0);
     expect(readIssue("second").order).toBe(1);
 
-    doc.project.epics![0].stories![0].tasks = [
+    epicChildren(doc)[0].stories![0].tasks = [
       { id: "second", title: "Second" },
       { id: "first", title: "First" },
     ];
@@ -745,8 +849,9 @@ describe("apply — sibling order", () => {
 project:
   id: bad
   title: Bad
-  epics:
-    - id: e
+  children:
+    - kind: epic
+      id: e
       title: E
       stories:
         - id: b
@@ -809,8 +914,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -846,8 +952,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -879,8 +986,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -921,8 +1029,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: relocate
@@ -956,8 +1065,9 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
