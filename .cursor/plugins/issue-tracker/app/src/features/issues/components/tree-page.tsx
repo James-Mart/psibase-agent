@@ -115,15 +115,27 @@ export function TreePage() {
           </div>
         </div>
         {hasProject ? (
-          <Button
-            size="sm"
-            onClick={() =>
-              openNew({ presetKind: "epic", presetParent: projectId })
-            }
-          >
-            <Plus className="h-4 w-4" />
-            New epic
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                openNew({ presetKind: "idea", presetParent: projectId })
+              }
+            >
+              <Lightbulb className="h-4 w-4" />
+              New idea
+            </Button>
+            <Button
+              size="sm"
+              onClick={() =>
+                openNew({ presetKind: "epic", presetParent: projectId })
+              }
+            >
+              <Plus className="h-4 w-4" />
+              New epic
+            </Button>
+          </div>
         ) : (
           <Button size="sm" onClick={() => openProjectDialog()}>
             <Plus className="h-4 w-4" />

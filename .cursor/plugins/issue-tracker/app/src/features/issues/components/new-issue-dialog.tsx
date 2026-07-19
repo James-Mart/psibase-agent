@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { KINDS, PARENT_KIND, type IssueKind } from "@server/schemas";
-
-// Projects: sidebar. Ideas: idea-ui-create-and-detail (not this dialog yet).
-const SELECTABLE_KINDS = KINDS.filter(
-  (kind) => kind !== "project" && kind !== "idea",
-);
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +22,9 @@ import { useCreateIssue } from "../api/mutations";
 import { useIssuesQuery } from "../api/queries";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
+
+// Projects are created from the sidebar, not this dialog.
+const SELECTABLE_KINDS = KINDS.filter((kind) => kind !== "project");
 
 export function NewIssueDialog() {
   const target = useIssueUiStore((s) => s.newIssue);
@@ -81,7 +79,9 @@ export function NewIssueDialog() {
         <DialogHeader>
           <DialogTitle>New {KIND_LABEL[kind].toLowerCase()}</DialogTitle>
           <DialogDescription>
-            Create an issue in the Epic &rsaquo; Story &rsaquo; Task tree.
+            {kind === "idea"
+              ? "Capture an idea under this project."
+              : "Create an issue in the Epic / Idea \u203a Story \u203a Task tree."}
           </DialogDescription>
         </DialogHeader>
 

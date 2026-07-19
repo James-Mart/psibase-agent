@@ -1,4 +1,5 @@
 import { FIELD_LABELS, KIND_FIELD_KEYS } from "@server/fields";
+import { kindHas } from "@server/kind";
 import type { IssueDetail } from "@server/schemas";
 import { projectMetaValue } from "../lib/issue-detail-form";
 import { IssueLink } from "./issue-link";
@@ -29,7 +30,7 @@ export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
             />
           );
         })
-      : "partOf" in issue
+      : kindHas(issue.kind, "detailPartOf") && "partOf" in issue
         ? [
             <MetaRow
               key="partOf"
