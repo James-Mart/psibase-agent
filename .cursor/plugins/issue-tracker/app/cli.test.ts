@@ -320,6 +320,278 @@ describe("project get/set", () => {
   });
 });
 
+describe("idea add / get / set", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("p2", {
+      kind: "project",
+      title: "Proj Two",
+      order: 1,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("shows --project on idea add --help", () => {
+    const { stdout, status } = runCli(["idea", "add", "--help"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/--project/);
+  });
+
+  it("adds an idea without a description and prints its id", () => {
+    const { stdout, status } = runCli(["idea", "add", "--project", "p", "Capture me"]);
+    expect(status).toBe(0);
+    const id = stdout.trim();
+    expect(id).toBe("capture-me");
+    expect(issueJsonField("capture-me", "kind")).toBe("idea");
+    expect(issueJsonField("capture-me", "partOf")).toBe("p");
+    expect(issueJsonField("capture-me", "title")).toBe("Capture me");
+    expect(readFileSync(join(dir, id, "description.md"), "utf8")).toBe("# Capture me\n");
+  });
+
+  it("adds an idea with --description", () => {
+    const { stdout, status } = runCli([
+      "idea",
+      "add",
+      "--project",
+      "p",
+      "With body",
+      "--description",
+      "# Idea\n\nnotes\n",
+    ]);
+    expect(status).toBe(0);
+    const id = stdout.trim();
+    expect(id).toBe("with-body");
+    expect(readFileSync(join(dir, id, "description.md"), "utf8")).toBe("# Idea\n\nnotes\n");
+  });
+
+  it("adds an idea with --description-file", () => {
+    const descFile = join(dir, "idea-desc.md");
+    writeFileSync(descFile, "# From file\n\nseeded\n");
+    const { stdout, status } = runCli([
+      "idea",
+      "add",
+      "--project",
+      "p",
+      "From file",
+      "--description-file",
+      descFile,
+    ]);
+    expect(status).toBe(0);
+    const id = stdout.trim();
+    expect(id).toBe("from-file");
+    expect(readFileSync(join(dir, id, "description.md"), "utf8")).toBe(
+      "# From file\n\nseeded\n",
+    );
+  });
+
+  it("gets and sets title, archived, partOf, and description", () => {
+    expect(runCli(["idea", "add", "--project", "p", "Mine later"]).status).toBe(0);
+    writeFileSync(join(dir, "mine-later", "description.md"), "# Idea\n\nbody\n");
+
+    expect(runCli(["idea", "get", "mine-later", "title"]).stdout).toBe("Mine later\n");
+    expect(runCli(["idea", "get", "mine-later", "partOf"]).stdout).toBe("p\n");
+    expect(runCli(["idea", "get", "mine-later", "archived"]).stdout).toBe("false\n");
+    expect(runCli(["idea", "get", "mine-later", "description"]).stdout).toBe("# Idea\n\nbody\n");
+
+    expect(runCli(["idea", "set", "mine-later", "title", "Renamed"]).status).toBe(0);
+    expect(runCli(["idea", "get", "mine-later", "title"]).stdout).toBe("Renamed\n");
+
+    expect(runCli(["idea", "set", "mine-later", "archived", "true"]).status).toBe(0);
+    expect(runCli(["idea", "get", "mine-later", "archived"]).stdout).toBe("true\n");
+
+    expect(runCli(["idea", "set", "mine-later", "partOf", "p2"]).status).toBe(0);
+    expect(runCli(["idea", "get", "mine-later", "partOf"]).stdout).toBe("p2\n");
+
+    expect(runCli(["idea", "set", "mine-later", "description", "updated\n"]).status).toBe(0);
+    expect(runCli(["idea", "get", "mine-later", "description"]).stdout).toBe("updated\n");
+  });
+
+  it("rejects add and set when the parent is not a project", () => {
+    const badAdd = runCli(["idea", "add", "--project", "e", "Bad parent"]);
+    expect(badAdd.status).toBe(1);
+    expect(badAdd.stderr).toMatch(/must be a project/);
+
+    expect(runCli(["idea", "add", "--project", "p", "Ok"]).status).toBe(0);
+    const badSet = runCli(["idea", "set", "ok", "partOf", "e"]);
+    expect(badSet.status).toBe(1);
+    expect(badSet.stderr).toMatch(/must be a project/);
+  });
+
+  it("refuses kind mismatch and unknown fields", () => {
+    expect(runCli(["idea", "add", "--project", "p", "Mine"]).status).toBe(0);
+
+    const mismatch = runCli(["idea", "get", "e", "title"]);
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.stderr).toContain('"e" is an epic, not an idea');
+
+    const setMismatch = runCli(["idea", "set", "e", "title", "Nope"]);
+    expect(setMismatch.status).toBe(1);
+    expect(setMismatch.stderr).toContain('"e" is an epic, not an idea');
+
+    const unknownGet = runCli(["idea", "get", "mine", "assignee"]);
+    expect(unknownGet.status).toBe(1);
+    expect(unknownGet.stderr).toContain('unknown field "assignee" for idea');
+
+    const unknownSet = runCli(["idea", "set", "mine", "assignee", "bot"]);
+    expect(unknownSet.status).toBe(1);
+    expect(unknownSet.stderr).toContain(
+      'unknown or unsettable field "assignee" for idea',
+    );
+  });
+});
+
+describe("tree / list / summary include Ideas", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("idea-a", {
+      kind: "idea",
+      title: "Capture first",
+      partOf: "p",
+      order: 0,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 1,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 2,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(join(dir, "idea-a", "description.md"), "# Idea\n\nfirst capture\n");
+  });
+
+  it("interleaves Ideas and Epics by order in tree with title-only Idea rows", () => {
+    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^project p {2}Proj$/m);
+    expect(stdout).toMatch(/^ {2}idea idea-a {2}Capture first$/m);
+    expect(stdout).toMatch(/^ {2}epic e {2}Epic\b/m);
+    expect(stdout).toMatch(/^ {2}idea idea-b {2}Capture last$/m);
+    expect(stdout).not.toMatch(/^ {2}idea idea-a .+\[/m);
+    const ideaA = stdout.indexOf("idea idea-a");
+    const epic = stdout.indexOf("epic e");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(ideaA).toBeLessThan(epic);
+    expect(epic).toBeLessThan(ideaB);
+  });
+
+  it("includes Ideas in list JSON for the project", () => {
+    const { stdout, status } = runCli(["list", "--project", "p"]);
+    expect(status).toBe(0);
+    const listed = JSON.parse(stdout);
+    const ids = listed.issues.map((i: { id: string }) => i.id).sort();
+    expect(ids).toEqual(["e", "idea-a", "idea-b", "p"]);
+    const idea = listed.issues.find((i: { id: string }) => i.id === "idea-a");
+    expect(idea.kind).toBe("idea");
+  });
+
+  it("summarizes an Idea as Project then Idea", () => {
+    const { stdout, status } = runCli(["summary", "idea-a"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("Project: p — Proj");
+    expect(stdout).toContain("Idea: idea-a — Capture first");
+    expect(stdout).toContain("Description: first capture");
+    expect(stdout).not.toContain("Epic:");
+  });
+
+  it("hides archived Ideas from tree/list unless --show-archived", () => {
+    expect(runCli(["idea", "set", "idea-a", "archived", "true"]).status).toBe(0);
+
+    const treeHidden = runCli(["tree", "--project", "p"]);
+    expect(treeHidden.status).toBe(0);
+    expect(treeHidden.stdout).toContain("idea idea-b");
+    expect(treeHidden.stdout).not.toContain("idea idea-a");
+
+    const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
+    expect(treeShown.status).toBe(0);
+    expect(treeShown.stdout).toContain("idea idea-a");
+
+    const listHidden = JSON.parse(runCli(["list", "--project", "p"]).stdout);
+    expect(listHidden.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["e", "idea-b", "p"],
+    );
+
+    const listShown = JSON.parse(
+      runCli(["list", "--project", "p", "--show-archived"]).stdout,
+    );
+    expect(listShown.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["e", "idea-a", "idea-b", "p"],
+    );
+  });
+
+  it("echoes mixed Idea/Epic order from apply-root", () => {
+    // apply assigns declared epic array index as order; keep ideas off index 0.
+    writeIssue("idea-a", {
+      kind: "idea",
+      title: "Capture first",
+      partOf: "p",
+      order: 1,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 2,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const applyPath = join(dir, "board.yaml");
+    writeFileSync(
+      applyPath,
+      `project:
+  id: p
+  title: Proj
+  epics:
+    - id: e
+      title: Epic
+`,
+    );
+    const { stdout, status } = runCli(["apply", applyPath]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^project p {2}Proj$/m);
+    expect(stdout).toMatch(/^ {2}epic e {2}Epic\b/m);
+    expect(stdout).toMatch(/^ {2}idea idea-a {2}Capture first$/m);
+    expect(stdout).toMatch(/^ {2}idea idea-b {2}Capture last$/m);
+    const epic = stdout.indexOf("epic e");
+    const ideaA = stdout.indexOf("idea idea-a");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(epic).toBeLessThan(ideaA);
+    expect(ideaA).toBeLessThan(ideaB);
+  });
+});
+
 describe("epic get/set", () => {
   const AT = "2026-07-10T14:00:00.000Z";
 

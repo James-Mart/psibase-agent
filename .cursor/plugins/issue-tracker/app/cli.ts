@@ -27,7 +27,7 @@ import {
   isEpicDoc,
   type ApplyDoc,
 } from "./server/services/apply-schema.js";
-import { bySequence, stackedStoryOrder } from "./server/order.js";
+import { bySequence, buildProjectBoardOf, stackedStoryOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import {
@@ -43,12 +43,16 @@ import {
   putAttachment,
   removeAttachment,
 } from "./server/services/attachments.js";
-import { readCliFileArg } from "./cli-io.js";
+import {
+  resolveDescription,
+  withCreateDescriptionOptions,
+} from "./cli-io.js";
 import { registerKindGetSet } from "./cli-kind.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
 type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
+type ProjectBoardChild = Extract<IssueRecord, { kind: "epic" | "idea" }>;
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
 // by kind, and the derived state. Commits are pre-sorted into their execution
@@ -160,6 +164,30 @@ function renderStory(story: StoryRecord, indent: number, ctx: TreeContext): stri
   return lines;
 }
 
+function renderBoardChild(
+  child: ProjectBoardChild,
+  indent: number,
+  ctx: TreeContext,
+): string[] {
+  if (child.kind === "idea") {
+    return [nodeLine(indent, "idea", child.id, child.title, [])];
+  }
+  return renderEpic(child, indent, ctx);
+}
+
+function renderProjectBoard(
+  project: Extract<IssueRecord, { kind: "project" }>,
+  boardChildren: ProjectBoardChild[],
+  ctx: TreeContext,
+  indent: number,
+): string[] {
+  const lines = [nodeLine(indent, "project", project.id, project.title, [])];
+  for (const child of boardChildren) {
+    lines.push(...renderBoardChild(child, indent + 1, ctx));
+  }
+  return lines;
+}
+
 // Render one Epic subtree starting at `indent`. Branches print in stacked
 // depth-first order (roots first, each followed by what forks from it); within
 // a Branch its Commits print first (in sequence) and its stacked children
@@ -222,14 +250,7 @@ function renderProjects(
   ctx: TreeContext,
   projectRef?: string,
 ): string[] {
-  const epicsOf = new Map<string, IssueRecord[]>();
-  for (const issue of issues) {
-    if (issue.kind !== "epic") continue;
-    const bucket = epicsOf.get(issue.partOf) ?? [];
-    bucket.push(issue);
-    epicsOf.set(issue.partOf, bucket);
-  }
-
+  const boardOf = buildProjectBoardOf(issues);
   const projectId = projectRef ? resolveProjectId(issues, projectRef) : undefined;
   const projects = issues
     .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
@@ -239,10 +260,7 @@ function renderProjects(
 
   const lines: string[] = [];
   for (const project of projects) {
-    lines.push(nodeLine(0, "project", project.id, project.title, []));
-    for (const epic of (epicsOf.get(project.id) ?? []).sort(bySequence)) {
-      lines.push(...renderEpic(epic, 1, ctx));
-    }
+    lines.push(...renderProjectBoard(project, boardOf.get(project.id) ?? [], ctx, 0));
   }
   return lines;
 }
@@ -283,26 +301,8 @@ function renderApplyRoot(doc: ApplyDoc, issues: IssueRecord[], ctx: TreeContext)
   const projectId = doc.project.id;
   const project = issues.find((i) => i.id === projectId && i.kind === "project");
   if (!project) return [];
-  const lines = [nodeLine(0, "project", project.id, project.title, [])];
-  for (const epic of issues
-    .filter((i) => i.kind === "epic" && i.partOf === projectId)
-    .sort(bySequence)) {
-    lines.push(...renderEpic(epic, 1, ctx));
-  }
-  return lines;
-}
-
-// Resolve a description from either inline text or a file path. `--description-file`
-// wins when both are given; returns undefined when neither is provided so callers
-// can fall back to the default `# <title>` seed.
-function resolveDescription(opts: {
-  description?: string;
-  descriptionFile?: string;
-}): string | undefined {
-  if (opts.descriptionFile) {
-    return readCliFileArg(opts.descriptionFile);
-  }
-  return opts.description;
+  const boardOf = buildProjectBoardOf(issues);
+  return renderProjectBoard(project, boardOf.get(projectId) ?? [], ctx, 0);
 }
 
 const program = new Command();
@@ -327,79 +327,73 @@ for (const kind of KINDS) {
   registerKindGetSet(program, kind, run);
 }
 
-program
-  .command("create-project")
-  .argument("<title>", "project title")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "project",
-        title,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program.command("create-project").argument("<title>", "project title"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "project",
+      title,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("create-epic")
-  .argument("<title>", "epic title")
-  .requiredOption("--part-of <project>", "parent project id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "epic",
-        title,
-        partOf: opts.partOf,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("create-epic")
+    .argument("<title>", "epic title")
+    .requiredOption("--part-of <project>", "parent project id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "epic",
+      title,
+      partOf: opts.partOf,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("add-story")
-  .argument("<title>", "story title")
-  .requiredOption("--part-of <epic>", "parent epic id")
-  .option("--stacked-on <branch>", "fork-point story id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "story",
-        title,
-        partOf: opts.partOf,
-        stackedOn: opts.stackedOn,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("add-story")
+    .argument("<title>", "story title")
+    .requiredOption("--part-of <epic>", "parent epic id")
+    .option("--stacked-on <branch>", "fork-point story id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "story",
+      title,
+      partOf: opts.partOf,
+      stackedOn: opts.stackedOn,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("add-task")
-  .argument("<title>", "task title")
-  .requiredOption("--part-of <branch>", "parent story id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "task",
-        title,
-        partOf: opts.partOf,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("add-task")
+    .argument("<title>", "task title")
+    .requiredOption("--part-of <branch>", "parent story id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "task",
+      title,
+      partOf: opts.partOf,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
 program
   .command("apply")
@@ -513,9 +507,9 @@ program
 
 program
   .command("summary")
-  .argument("<id>", "issue id (task, story, epic, or project)")
+  .argument("<id>", "issue id (task, story, epic, idea, or project)")
   .description(
-    "print the Project → Epic → Story → Task chain for agent bootstrap",
+    "print the Project → … → target chain for agent bootstrap (e.g. Project → Idea, or Project → Epic → Story → Task)",
   )
   .action((id) =>
     run(() => {
@@ -616,7 +610,7 @@ program
   .command("list")
   .description("print a project's issues, derived state, and any problems as JSON")
   .requiredOption("--project <id|title>", "project id or title to scope the listing to")
-  .option("--show-archived", "include archived Epic / Story / Task issues")
+  .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
   .action((opts) =>
     run(() => {
       const full = list();
@@ -641,7 +635,7 @@ program
 program
   .command("tree")
   .description(
-    "print an indented Project > Epic > Story > Task outline with derived chips",
+    "print an indented Project outline (Ideas and Epics interleaved by order; Epics show Story > Task subtrees with derived chips)",
   )
   .argument(
     "[id]",
@@ -649,7 +643,7 @@ program
   )
   .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
   .option("--epic <id>", "scope the outline to a single epic subtree")
-  .option("--show-archived", "include archived Epic / Story / Task issues")
+  .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
   .action((id, opts) =>
     run(() => {
       const { issues: allIssues, derived } = list();

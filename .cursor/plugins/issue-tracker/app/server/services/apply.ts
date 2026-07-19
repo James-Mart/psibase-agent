@@ -308,9 +308,16 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
     // stacked branches; here every in-scope reference has already been rebuilt
     // from the doc's nesting, so re-inheriting fork points would fight the doc.
     // The only edge that can still dangle is an out-of-scope Epic's `blockedBy`
-    // into the prune set, repaired below (see `repairSurvivor`).
+    // into the prune set, repaired below (see `repairSurvivor`). Undeclared Ideas
+    // are left on disk until project-root apply gains a `children:` list that can
+    // declare them (idea-apply-children).
     const deleteSet = new Set(
-      [...scope].filter((id) => !desiredIds.has(id)),
+      [...scope].filter((id) => {
+        if (desiredIds.has(id)) return false;
+        const issue = onDiskById.get(id);
+        if (rootKind === "project" && issue?.kind === "idea") return false;
+        return true;
+      }),
     );
 
     // Fold surviving out-of-scope issues (with blockedBy repair) into the set.

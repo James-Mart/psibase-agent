@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildProjectBoardOf,
   epicDependencyIds,
   epicsBlockedBy,
   nextSiblingOrder,
@@ -150,5 +151,19 @@ describe("epic + idea shared sibling group", () => {
     const i = ideaIssue("i", 1);
     expect(nextSiblingOrder([e, i], "idea", "p", undefined)).toBe(2);
     expect(nextSiblingOrder([e, i], "epic", "p", undefined)).toBe(2);
+  });
+
+  it("buildProjectBoardOf interleaves epics and ideas by order per project", () => {
+    const e = epic("e", [], { order: 1 });
+    const first = ideaIssue("first", 0);
+    const last = ideaIssue("last", 2);
+    const otherProject = ideaIssue("other", 0, "p2");
+    const boardOf = buildProjectBoardOf([last, e, first, otherProject]);
+    expect(boardOf.get("p")?.map((issue) => issue.id)).toEqual([
+      "first",
+      "e",
+      "last",
+    ]);
+    expect(boardOf.get("p2")?.map((issue) => issue.id)).toEqual(["other"]);
   });
 });
