@@ -15,11 +15,21 @@ export function slugify(title: string): string {
   return slug.length > 0 ? slug : "issue";
 }
 
+/** Prefer `base+suffix`; on collision use `{base}-{n}{suffix}` (smallest n ≥ 2). */
+export function firstFreeSuffixedName(
+  base: string,
+  suffix: string,
+  taken: Iterable<string>,
+): string {
+  const existing = taken instanceof Set ? taken : new Set(taken);
+  const preferred = `${base}${suffix}`;
+  if (!existing.has(preferred)) return preferred;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}${suffix}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+}
+
 export function uniqueSlug(title: string, taken: Iterable<string>): string {
-  const existing = new Set(taken);
-  const base = slugify(title);
-  if (!existing.has(base)) return base;
-  let n = 2;
-  while (existing.has(`${base}-${n}`)) n += 1;
-  return `${base}-${n}`;
+  return firstFreeSuffixedName(slugify(title), "", taken);
 }

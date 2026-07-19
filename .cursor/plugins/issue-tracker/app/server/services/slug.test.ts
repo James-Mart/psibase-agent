@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { slugify, uniqueSlug } from "./slug";
+import { firstFreeSuffixedName, slugify, uniqueSlug } from "./slug";
 
 describe("slugify", () => {
   it("lowercases and hyphenates words", () => {
@@ -19,22 +19,46 @@ describe("slugify", () => {
   });
 });
 
-describe("uniqueSlug", () => {
-  it("returns the base slug when free", () => {
-    expect(uniqueSlug("Add auth", [])).toBe("add-auth");
+describe("firstFreeSuffixedName", () => {
+  it("returns preferred when free", () => {
+    expect(firstFreeSuffixedName("add-auth", "", [])).toBe("add-auth");
+    expect(firstFreeSuffixedName("foo", ".tsx", [])).toBe("foo.tsx");
   });
 
   it("suffixes numerically on collision", () => {
-    expect(uniqueSlug("Add auth", ["add-auth"])).toBe("add-auth-2");
+    expect(firstFreeSuffixedName("add-auth", "", ["add-auth"])).toBe(
+      "add-auth-2",
+    );
+    expect(firstFreeSuffixedName("foo", ".tsx", ["foo.tsx"])).toBe("foo-2.tsx");
   });
 
   it("increments past consecutive collisions", () => {
-    expect(uniqueSlug("Add auth", ["add-auth", "add-auth-2"])).toBe(
-      "add-auth-3",
-    );
+    expect(
+      firstFreeSuffixedName("add-auth", "", ["add-auth", "add-auth-2"]),
+    ).toBe("add-auth-3");
+    expect(
+      firstFreeSuffixedName("foo", ".tsx", ["foo.tsx", "foo-2.tsx"]),
+    ).toBe("foo-3.tsx");
   });
 
   it("skips gaps to the first free suffix", () => {
+    expect(
+      firstFreeSuffixedName("add-auth", "", ["add-auth", "add-auth-3"]),
+    ).toBe("add-auth-2");
+    expect(
+      firstFreeSuffixedName("foo", ".tsx", [
+        "foo.tsx",
+        "foo-2.tsx",
+        "foo-4.tsx",
+      ]),
+    ).toBe("foo-3.tsx");
+  });
+});
+
+describe("uniqueSlug", () => {
+  it("slugifies then applies firstFreeSuffixedName", () => {
+    expect(uniqueSlug("Add auth", [])).toBe("add-auth");
+    expect(uniqueSlug("Add auth", ["add-auth"])).toBe("add-auth-2");
     expect(uniqueSlug("Add auth", ["add-auth", "add-auth-3"])).toBe(
       "add-auth-2",
     );

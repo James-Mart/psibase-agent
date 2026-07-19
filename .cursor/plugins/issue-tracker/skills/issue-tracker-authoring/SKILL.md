@@ -47,6 +47,8 @@ the global bin away from the authoritative workspace `issues/` store.
 - **Create verbs print the new id** (`create-project`/`create-epic`/`add-story`/
   `add-task`) on stdout — capture it to link children. `apply` (below) makes
   this unnecessary for whole-tree authoring, since ids are author-chosen.
+- **`attach` collision may rename** — the stored basename can differ from the
+  source file; stdout prints the stored name (and path).
 - **Updates are partial merges** — only the named field changes; the rest is
   untouched. Field writes: kind-scoped `set` below.
 - **Nonzero exit = the write was refused** with no on-disk change; read the
@@ -106,10 +108,12 @@ Story/Task only; basename path-safety; 25 MiB cap):
 - **Links.** Issue-local relative Markdown only: `[foo](foo.tsx)` means that
   issue's `attachments/foo.tsx`. No `attachment:` prefix and no `attachments/`
   segment in the link. Arbitrary external workspace paths remain forbidden.
-- **`attach <id> <file>`** — upsert; stored name is the source file's basename;
-  re-attaching the same name replaces bytes. Project ids are refused.
+- **`attach <id> <file>`** — basename when free; unique suffix on collision
+  (keeps existing file) — see [SPEC.md](../../SPEC.md#attachments). Project
+  ids are refused.
 - **`attachments <id>`** — list names and sizes, or `(no attachments)`.
-- **`detach <id> <name>`** — remove one attachment by basename.
+- **`detach <id> <name>`** — remove one attachment by basename (explicit
+  delete).
 - **`apply` seam.** `apply` never creates, updates, or deletes attachment
   bytes (same as `chat.jsonl`). After the tree is applied, use `attach` /
   `detach` for bytes.

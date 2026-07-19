@@ -1207,7 +1207,7 @@ describe("attach / attachments / detach", () => {
     });
   });
 
-  it("attaches, lists, upserts, and detaches on a commit", () => {
+  it("attaches, lists, unique-names on collision, and detaches on a commit", () => {
     const source = join(dir, "fixture.tsx");
     writeFileSync(source, "export const x = 1;\n");
 
@@ -1223,14 +1223,23 @@ describe("attach / attachments / detach", () => {
     writeFileSync(source, "export const x = 2;\n");
     const attach2 = runCli(["attach", "c1", source]);
     expect(attach2.status).toBe(0);
-    expect(attach2.stdout).toContain("attached fixture.tsx (20 bytes)");
-    expect(readFileSync(join(dir, "c1", "attachments", "fixture.tsx"), "utf8")).toBe(
-      "export const x = 2;\n",
+    expect(attach2.stdout).toContain("attached fixture-2.tsx (20 bytes)");
+    expect(attach2.stdout).toContain(
+      join(dir, "c1", "attachments", "fixture-2.tsx"),
     );
+    expect(
+      readFileSync(join(dir, "c1", "attachments", "fixture.tsx"), "utf8"),
+    ).toBe("export const x = 1;\n");
+    expect(
+      readFileSync(join(dir, "c1", "attachments", "fixture-2.tsx"), "utf8"),
+    ).toBe("export const x = 2;\n");
 
     const detach = runCli(["detach", "c1", "fixture.tsx"]);
     expect(detach.status).toBe(0);
     expect(detach.stdout).toBe("detached fixture.tsx from c1\n");
+    expect(runCli(["attachments", "c1"]).stdout).toBe("fixture-2.tsx\t20\n");
+
+    expect(runCli(["detach", "c1", "fixture-2.tsx"]).status).toBe(0);
     expect(runCli(["attachments", "c1"]).stdout).toBe("(no attachments)\n");
   });
 

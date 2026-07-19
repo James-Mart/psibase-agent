@@ -10,7 +10,10 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApplyDoc } from "./apply-schema.js";
-import { MAX_ATTACHMENT_BYTES } from "./attachments.js";
+import {
+  MAX_ATTACHMENT_BYTES,
+  uniqueAttachmentBasename,
+} from "./attachments.js";
 
 const AT = "2026-07-09T14:00:00.000Z";
 let dir: string;
@@ -76,7 +79,7 @@ async function loadApply() {
 }
 
 describe("listAttachments / putAttachment / getAttachment / removeAttachment", () => {
-  it("upserts, lists metadata, reads bytes, and removes", async () => {
+  it("stores, lists metadata, reads bytes, and removes", async () => {
     const { listAttachments, putAttachment, getAttachment, removeAttachment } =
       await loadAttachments();
 
@@ -100,14 +103,6 @@ describe("listAttachments / putAttachment / getAttachment / removeAttachment", (
     expect(listed).toHaveLength(1);
     expect(listed[0]?.name).toBe("mock.tsx");
 
-    const v2 = Buffer.from("export const x = 2;\n");
-    const replaced = await putAttachment("c", "mock.tsx", v2);
-    expect(replaced.size).toBe(v2.byteLength);
-    expect(readFileSync(join(dir, "c", "attachments", "mock.tsx"), "utf8")).toBe(
-      "export const x = 2;\n",
-    );
-    expect(listAttachments("c")).toHaveLength(1);
-
     await putAttachment("c", "shot.png", Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     const two = listAttachments("c").map((a) => a.name);
     expect(two).toEqual(["mock.tsx", "shot.png"]);
@@ -120,6 +115,61 @@ describe("listAttachments / putAttachment / getAttachment / removeAttachment", (
     expect(existsSync(join(dir, "c", "attachments", "mock.tsx"))).toBe(false);
   });
 
+  it("keeps the first file and stores a collision under a unique name", async () => {
+    const { listAttachments, putAttachment } = await loadAttachments();
+
+    const first = await putAttachment("c", "foo.tsx", Buffer.from("v1"));
+    expect(first.name).toBe("foo.tsx");
+
+    const second = await putAttachment("c", "foo.tsx", Buffer.from("v2"));
+    expect(second.name).toBe("foo-2.tsx");
+    expect(readFileSync(join(dir, "c", "attachments", "foo.tsx"), "utf8")).toBe(
+      "v1",
+    );
+    expect(
+      readFileSync(join(dir, "c", "attachments", "foo-2.tsx"), "utf8"),
+    ).toBe("v2");
+    expect(listAttachments("c").map((a) => a.name)).toEqual([
+      "foo-2.tsx",
+      "foo.tsx",
+    ]);
+  });
+});
+
+describe("uniqueAttachmentBasename", () => {
+  it("keeps the requested name when free", () => {
+    expect(uniqueAttachmentBasename("foo.tsx", [])).toBe("foo.tsx");
+  });
+
+  it("uses stem + last ext for collisions", () => {
+    expect(uniqueAttachmentBasename("foo.tsx", ["foo.tsx"])).toBe("foo-2.tsx");
+    expect(
+      uniqueAttachmentBasename("foo.bar.tsx", ["foo.bar.tsx"]),
+    ).toBe("foo.bar-2.tsx");
+  });
+
+  it("handles names with no extension", () => {
+    expect(uniqueAttachmentBasename("README", ["README"])).toBe("README-2");
+  });
+
+  it("treats a trailing -N in the request as literal stem", () => {
+    expect(uniqueAttachmentBasename("foo-2.tsx", ["foo-2.tsx"])).toBe(
+      "foo-2-2.tsx",
+    );
+  });
+
+  it("fills gaps with the smallest free n ≥ 2", () => {
+    expect(
+      uniqueAttachmentBasename("foo.tsx", [
+        "foo.tsx",
+        "foo-2.tsx",
+        "foo-4.tsx",
+      ]),
+    ).toBe("foo-3.tsx");
+  });
+});
+
+describe("listAttachments / putAttachment / getAttachment / removeAttachment (guards)", () => {
   it("allows attachments on epic and branch", async () => {
     const { putAttachment, listAttachments } = await loadAttachments();
     await putAttachment("e", "a.txt", Buffer.from("epic"));
