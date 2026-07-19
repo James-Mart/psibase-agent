@@ -94,11 +94,20 @@ Every Story has a stored **`mergeBase`**: the git ref that `start-branch`
 checks out from and that `finish-branch` targets for PR/merge. It is **not**
 re-derived from `stackedOn` at git time.
 
-- **Root** (no `stackedOn`): `mergeBase = main` at create / `apply`.
-- **Stacked child**: set to the parent's `branchName` when the parent is
-  already named at child create / `apply`; otherwise left unset until the
-  parent's first `branchName` [`set`](#kind-scoped-get--set), which fills empty
-  child `mergeBase`s in the same command.
+- **Shared resolver** — canonical algorithm for a Story's `mergeBase` from its
+  fork point:
+  - **Triggers**: any write that sets or clears `stackedOn` — create, `apply`
+    (when the doc changes it), kind [`set`](#kind-scoped-get--set), and delete
+    splice ([foreign-reference resolution](#foreign-reference-resolution)).
+  - **Algorithm**: no `stackedOn` (root or unstack) → `main`; stacked on a
+    merged parent → `parent.mergeBase`; else parent's `branchName` when set;
+    else unset (key absent).
+  - **`apply` preservation**: re-`apply` with unchanged `stackedOn` keeps the
+    on-disk `mergeBase`.
+- **First `branchName` cascade**: when a parent gets its first `branchName`
+  via [`set`](#kind-scoped-get--set), children whose `mergeBase` key is absent
+  get that name in the same command (children that already have a `mergeBase`
+  are left alone).
 - **On `merged` → `true`**: every child with `stackedOn = parent` gets
   `child.mergeBase = parent.mergeBase` (idempotent). That is how a stack
   retargets after the parent lands — typically onto `main`. Open GitHub PRs
@@ -196,7 +205,8 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   `apply` / create.
 - Per-kind **set** allowlists (not a flat shared allowlist). Shared machinery is
   only coerce/dispatch (bool/enum/JSON/array/`--clear`/`--file`/`--reason`).
-- `order` is not settable. `mergeBase` is not settable (create/`apply`/cascades).
+- `order` is not settable. `mergeBase` is not settable (see
+  [stacked-PR merge model](#the-stacked-pr-merge-model)).
 - `attentionReason` is not directly settable (see
   [`needsAttention`](#needsattention)).
 - **CLI/UI parity:** `set` can do anything the UI edit form can, including
@@ -429,7 +439,7 @@ Story — the Epic/Story/Task common fields plus:
 | `partOf` | string | the Epic id (required) |
 | `branchName` | string? | set once the git branch is created; rename refused while stacked children exist |
 | `stackedOn` | string? | single fork-point Story id (must be in the same Epic); absent => root |
-| `mergeBase` | string? | stored git ref for start-branch / finish-branch; root defaults `main`; see [stacked-PR merge model](#the-stacked-pr-merge-model) |
+| `mergeBase` | string? | stored git ref for start-branch / finish-branch; [shared resolver](#the-stacked-pr-merge-model) on `stackedOn` change, plus first-`branchName` and `merged` cascades |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
@@ -619,7 +629,7 @@ into it, and each edge type resolves deterministically:
 | edge into delete set | resolution |
 | --- | --- |
 | `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
-| `stackedOn` (a deleted Story; always same-Epic) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Preserves the stack minus the removed node. |
+| `stackedOn` (a deleted Story; always same-Epic) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Recomputes `mergeBase` via the [shared resolver](#the-stacked-pr-merge-model). Preserves the stack minus the removed node. |
 | `blockedBy` (a deleted Epic; cross-Epic, same Project) | **Drop**: remove the deleted Epic id from the blocked Epic's list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge that crosses an Epic boundary. |
 | `stackedOn` → a deleted Task/Epic, or `blockedBy` → a deleted Story/Task | Impossible — `stackedOn` only ever references a Story, and `blockedBy` only ever references an Epic. |
 
@@ -841,7 +851,7 @@ preserves everything else from the existing same-kind issue.
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` is written by create/`apply` defaults and those cascades — not a public setter); `apply` preserves an existing `mergeBase` |
+| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
