@@ -16,6 +16,7 @@ import {
   type EpicFieldKey,
   type ProjectFieldKey,
 } from "@server/fields";
+import { hasAssignee, hasAttention, hasPartOf } from "@server/kind";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,10 +62,9 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     description: issue.description,
     workspace: issue.kind === "project" ? issue.workspace ?? "" : "",
     mergePolicy: issue.kind === "project" ? issue.mergePolicy : "manual",
-    assignee: "assignee" in issue ? issue.assignee ?? "" : "",
-    needsAttention: "needsAttention" in issue ? issue.needsAttention : false,
-    attentionReason:
-      "attentionReason" in issue ? issue.attentionReason ?? "" : "",
+    assignee: hasAssignee(issue) ? issue.assignee ?? "" : "",
+    needsAttention: hasAttention(issue) ? issue.needsAttention : false,
+    attentionReason: hasAttention(issue) ? issue.attentionReason ?? "" : "",
     partOf: "partOf" in issue ? issue.partOf : "",
     status: issue.kind === "task" ? issue.status : "todo",
     commitSha: issue.kind === "task" ? issue.commitSha ?? "" : "",
@@ -129,8 +129,7 @@ export function IssueDetailEdit({
     if (form.description !== issue.description)
       patch.description = form.description;
 
-    // A Project carries none of the assignee/attention fields.
-    if (issue.kind !== "project") {
+    if (hasAttention(issue)) {
       setClearable("assignee", form.assignee, issue.assignee);
 
       if (form.needsAttention !== issue.needsAttention)
@@ -142,7 +141,7 @@ export function IssueDetailEdit({
         patch.attentionReason = reason;
     }
 
-    if ("partOf" in issue) {
+    if (hasPartOf(issue)) {
       const nextParent = form.partOf.trim();
       if (nextParent && nextParent !== issue.partOf) patch.partOf = nextParent;
     }
@@ -302,7 +301,7 @@ export function IssueDetailEdit({
         />
       </Field>
 
-      {issue.kind !== "project" ? (
+      {hasPartOf(issue) ? (
         <div className="grid grid-cols-2 gap-4">
           <Field label={FIELD_LABELS.partOf}>
             <Input
@@ -310,13 +309,15 @@ export function IssueDetailEdit({
               onChange={(e) => set("partOf", e.target.value)}
             />
           </Field>
-          <Field label={FIELD_LABELS.assignee}>
-            <Input
-              value={form.assignee}
-              onChange={(e) => set("assignee", e.target.value)}
-              placeholder="unassigned"
-            />
-          </Field>
+          {hasAssignee(issue) ? (
+            <Field label={FIELD_LABELS.assignee}>
+              <Input
+                value={form.assignee}
+                onChange={(e) => set("assignee", e.target.value)}
+                placeholder="unassigned"
+              />
+            </Field>
+          ) : null}
         </div>
       ) : null}
 
@@ -330,7 +331,7 @@ export function IssueDetailEdit({
         </div>
       ) : null}
 
-      {issue.kind !== "project" ? (
+      {hasAttention(issue) ? (
         <div className="flex flex-col gap-2 rounded-md border p-3">
           <label className="flex items-center gap-2 text-sm">
             <input

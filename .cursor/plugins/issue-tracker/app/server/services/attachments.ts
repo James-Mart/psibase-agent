@@ -10,6 +10,7 @@ import {
 import { basename, join } from "path";
 import mime from "mime";
 import { issuesDir } from "../config.js";
+import { kindHas } from "../kind.js";
 import { IssueError } from "./errors.js";
 import { readIssueOrThrow, serialize } from "./issues.js";
 import { firstFreeSuffixedName } from "./slug.js";
@@ -57,10 +58,10 @@ function assertSafeBasename(name: string): void {
 
 function requireAttachable(id: string): void {
   const issue = readIssueOrThrow(id);
-  if (issue.kind === "project") {
+  if (!kindHas(issue.kind, "attachments")) {
     throw new IssueError(
       "validation",
-      `attachments are not allowed on a project`,
+      `attachments are not allowed on a ${issue.kind}`,
     );
   }
 }

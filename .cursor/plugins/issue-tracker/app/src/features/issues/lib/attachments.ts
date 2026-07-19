@@ -1,9 +1,10 @@
 import type { IssueKind } from "@server/schemas";
+import { kindHas } from "@server/kind";
 import { ISSUE_LINK_PREFIX } from "./links";
 
-/** Attachments are allowed on Epic, Branch, and Commit — not Project. */
+/** Attachments are allowed on Epic, Idea, Story, and Task — not Project. */
 export function supportsAttachments(kind: IssueKind): boolean {
-  return kind !== "project";
+  return kindHas(kind, "attachments");
 }
 
 export function formatAttachmentSize(bytes: number): string {

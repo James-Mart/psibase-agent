@@ -36,6 +36,7 @@ import {
   summarize,
 } from "./server/services/summary.js";
 import { assigneeOf } from "./server/assignee.js";
+import { hasAttention, hasPartOf, kindHas } from "./server/kind.js";
 import {
   attachmentPath,
   listAttachments,
@@ -116,7 +117,7 @@ function nodeLine(
 }
 
 function attentionChip(issue: IssueRecord): string[] {
-  if (issue.kind === "project" || !issue.needsAttention) return [];
+  if (!hasAttention(issue) || !issue.needsAttention) return [];
   return [`attention=${issue.attentionReason ?? "(no reason)"}`];
 }
 
@@ -201,6 +202,10 @@ function resolveTreeScope(
         return { kind: "epic", epicId: issue.id };
       case "story":
         return { kind: "story", story: issue };
+      case "idea":
+        throw new Error(
+          `cannot scope tree to an idea; pass project "${issue.partOf}" instead`,
+        );
       case "task":
         throw new Error(
           `cannot scope tree to a task; pass story "${issue.partOf}" or its epic instead`,
@@ -539,7 +544,7 @@ program
           lines.push(`workspace: ${detail.workspace}`);
         }
       }
-      if (detail.kind !== "project") lines.push(`partOf: ${detail.partOf}`);
+      if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);
       if (detail.kind === "epic" && detail.blockedBy.length > 0) {
         lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
       }
@@ -556,13 +561,15 @@ program
         if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
         if (detail.noDiff) lines.push(`noDiff: true`);
       }
-      if (detail.kind !== "project") {
+      if (hasPartOf(detail)) {
         const assignee = assigneeOf(detail);
         if (assignee) lines.push(`assignee: ${assignee}`);
-        if (detail.needsAttention) {
+        if (hasAttention(detail) && detail.needsAttention) {
           lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
         }
-        lines.push(...formatAttachmentsSection(id, listAttachments(id)));
+        if (kindHas(detail.kind, "attachments")) {
+          lines.push(...formatAttachmentsSection(id, listAttachments(id)));
+        }
       }
       console.log(lines.join("\n"));
       console.log();

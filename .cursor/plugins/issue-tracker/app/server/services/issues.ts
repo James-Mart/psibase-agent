@@ -11,6 +11,7 @@ import {
 import { createHash } from "crypto";
 import { join } from "path";
 import { issuesDir } from "../config.js";
+import { kindHas } from "../kind.js";
 import {
   parseChatMessage,
   parseChatMessageInput,
@@ -317,12 +318,16 @@ export function create(input: CreateInput): Promise<IssueRecord> {
       createdAt: now,
       updatedAt: now,
     };
-    // A Project carries none of the common status/assignee/attention fields.
-    if (input.kind !== "project") {
+    // Kind-gated defaults via KIND_CAPABILITIES (not project/idea special-cases).
+    if (kindHas(input.kind, "attention")) {
       draft.needsAttention = false;
       draft.attentionReason = null;
+    }
+    if (kindHas(input.kind, "assignee") && input.assignee) {
+      draft.assignee = input.assignee;
+    }
+    if (kindHas(input.kind, "archived")) {
       draft.archived = ancestorIsArchived(input.partOf, issues);
-      if (input.assignee) draft.assignee = input.assignee;
     }
     if (PARENT_KIND[input.kind]) {
       if (!input.partOf) {

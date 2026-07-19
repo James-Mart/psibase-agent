@@ -1,3 +1,4 @@
+import { kindHas } from "../kind.js";
 import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../schemas.js";
 import {
   PROJECT_FIELD_KEYS,
@@ -80,7 +81,9 @@ function buildIssue(
     draft.order = nextSiblingOrder(onDisk, desired.kind, partOf, stackedOn);
   }
 
-  // A Project carries none of the common status/assignee/attention fields.
+  // Project-only runtime fields vs partOf children. DesiredIssue includes `idea`
+  // via the Issue union even though flattenApplyDoc does not emit ideas yet
+  // (apply-children-schema-and-engine); the idea arm keeps buildIssue exhaustive.
   if (desired.kind === "project") {
     const prior = existing?.kind === "project" ? existing : undefined;
     if (prior) {
@@ -89,15 +92,27 @@ function buildIssue(
       }
     }
   } else {
-    const prior = existing && existing.kind === desired.kind ? existing : undefined;
     draft.partOf = desired.partOf;
-    if (prior) {
+    const prior =
+      existing && existing.kind === desired.kind ? existing : undefined;
+    if (kindHas(desired.kind, "attention") && prior && kindHas(prior.kind, "attention")) {
       draft.needsAttention = prior.needsAttention;
       draft.attentionReason = prior.attentionReason;
-      draft.archived = prior.archived;
-      if (prior.assignee !== undefined) draft.assignee = prior.assignee;
-    } else if (ancestorIsArchived(desired.partOf, onDisk)) {
-      draft.archived = true;
+    }
+    if (
+      kindHas(desired.kind, "assignee") &&
+      prior &&
+      kindHas(prior.kind, "assignee") &&
+      prior.assignee !== undefined
+    ) {
+      draft.assignee = prior.assignee;
+    }
+    if (kindHas(desired.kind, "archived")) {
+      if (prior && kindHas(prior.kind, "archived")) {
+        draft.archived = prior.archived;
+      } else if (ancestorIsArchived(desired.partOf, onDisk)) {
+        draft.archived = true;
+      }
     }
   }
 

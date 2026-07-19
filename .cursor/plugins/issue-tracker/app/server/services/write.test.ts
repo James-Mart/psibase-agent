@@ -338,6 +338,85 @@ describe("sibling order — restack / unstack / reparent", () => {
   });
 });
 
+describe("idea create / reparent / shared order", () => {
+  it("creates an idea under a project without assignee or attention fields", async () => {
+    const { create } = await loadService();
+    const record = await create({
+      kind: "idea",
+      title: "Capture me",
+      partOf: "p",
+    });
+    expect(record.kind).toBe("idea");
+    if (record.kind === "idea") {
+      expect(record.partOf).toBe("p");
+      expect(record.archived).toBe(false);
+      expect("assignee" in record).toBe(false);
+      expect("needsAttention" in record).toBe(false);
+      expect("attentionReason" in record).toBe(false);
+    }
+  });
+
+  it("shares order with an epic in the same project on create", async () => {
+    // Seed epic "e" already holds order 0 under project "p".
+    const { create } = await loadService();
+    const idea = await create({
+      kind: "idea",
+      title: "Next slot",
+      partOf: "p",
+    });
+    expect(idea.kind === "idea" && idea.order).toBe(1);
+  });
+
+  it("re-appends order when an idea is reparented to another project", async () => {
+    writeIssue("p2", {
+      kind: "project",
+      title: "P2",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("e2", {
+      kind: "epic",
+      title: "E2",
+      partOf: "p2",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { create, update, list } = await loadService();
+    const idea = await create({
+      kind: "idea",
+      title: "Move me",
+      partOf: "p",
+    });
+    // Under p: epic e at 0, so idea appended at 1. Move to p2 where e2 holds 0.
+    expect(idea.kind === "idea" && idea.order).toBe(1);
+    const moved = await update(idea.id, { partOf: "p2" });
+    expect(moved.kind === "idea" && moved.partOf).toBe("p2");
+    expect(moved.kind === "idea" && moved.order).toBe(1);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("rejects an idea whose partOf is not a project", async () => {
+    const { create } = await loadService();
+    await expect(
+      create({ kind: "idea", title: "Bad parent", partOf: "e" }),
+    ).rejects.toThrow(/must be a project/);
+  });
+
+  it("removes an idea without touching sibling epics", async () => {
+    const { create, remove, list } = await loadService();
+    const idea = await create({
+      kind: "idea",
+      title: "Disposable",
+      partOf: "p",
+    });
+    const result = await remove(idea.id);
+    expect(result.deleted).toEqual([idea.id]);
+    expect(list().issues.map((i) => i.id).sort()).toEqual(["a", "b", "e", "p"]);
+  });
+});
+
 describe("cascade delete + reference repair on remove", () => {
   it("deletes a branch, its commits, and leaves the graph valid", async () => {
     writeIssue("c1", {

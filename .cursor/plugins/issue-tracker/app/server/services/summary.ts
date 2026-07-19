@@ -1,5 +1,5 @@
 import type { Issue, IssueKind } from "../schemas.js";
-import { KIND_LABEL } from "../kind.js";
+import { KIND_LABEL, kindHas } from "../kind.js";
 import { attachmentPath, listAttachments } from "./attachments.js";
 import { IssueError } from "./errors.js";
 import { readAll, readDescription } from "./issues.js";
@@ -108,7 +108,7 @@ function loadAttachments(
   id: string,
   kind: IssueKind,
 ): SummaryAttachment[] | undefined {
-  if (kind === "project") return undefined;
+  if (!kindHas(kind, "attachments")) return undefined;
   const listed = listAttachments(id);
   if (listed.length === 0) return undefined;
   return listed.map(({ name, size }) => ({ name, size }));

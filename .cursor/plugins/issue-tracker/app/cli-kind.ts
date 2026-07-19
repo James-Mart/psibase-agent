@@ -20,7 +20,7 @@ export type KindSetOptions = {
 };
 
 function articleFor(kind: IssueKind): "a" | "an" {
-  return kind === "epic" ? "an" : "a";
+  return kind === "epic" || kind === "idea" ? "an" : "a";
 }
 
 function assertKind(expected: IssueKind, id: string): IssueDetail {

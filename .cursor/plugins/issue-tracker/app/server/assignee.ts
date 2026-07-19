@@ -1,8 +1,9 @@
+import { hasAssignee } from "./kind.js";
 import type { IssueRecord } from "./schemas.js";
 
 /** Normalized assignee for read paths (CLI `show`/`assignee`, UI badges). */
 export function assigneeOf(issue: IssueRecord): string | undefined {
-  if (issue.kind === "project") return undefined;
+  if (!hasAssignee(issue)) return undefined;
   const raw = issue.assignee;
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();

@@ -31,6 +31,22 @@ const epic = (
   ...extra,
 });
 
+const idea = (
+  id: string,
+  partOf = "root",
+  extra: Partial<Extract<Issue, { kind: "idea" }>> = {},
+): Issue => ({
+  id,
+  kind: "idea",
+  title: id,
+  partOf,
+  order: 0,
+  archived: false,
+  createdAt: AT,
+  updatedAt: AT,
+  ...extra,
+});
+
 const branch = (
   id: string,
   partOf: string,
@@ -196,6 +212,30 @@ describe("checkIntegrity", () => {
     ]);
     expect(
       problems.some((p) => p.id === "e2" && p.message.includes("duplicate order")),
+    ).toBe(true);
+  });
+
+  it("flags duplicate order between an epic and an idea in the same project", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("e1"),
+      idea("i1", "root", { order: 0 }),
+    ]);
+    expect(
+      problems.some((p) => p.message.includes("duplicate order")),
+    ).toBe(true);
+  });
+
+  it("flags an idea whose partOf is not a project", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("e1"),
+      idea("i1", "e1"),
+    ]);
+    expect(
+      problems.some(
+        (p) => p.id === "i1" && p.message.includes("must be a project"),
+      ),
     ).toBe(true);
   });
 });

@@ -18,6 +18,15 @@ const epic = {
   updatedAt: "2026-07-09T14:00:00.000Z",
 };
 
+const idea = {
+  id: "capture-flow",
+  kind: "idea",
+  title: "Capture flow",
+  partOf: "platform",
+  createdAt: "2026-07-09T14:00:00.000Z",
+  updatedAt: "2026-07-09T14:00:00.000Z",
+};
+
 const branch = {
   id: "auth-endpoints",
   kind: "story",
@@ -155,26 +164,42 @@ describe("parseIssue - valid per kind", () => {
 
   it("defaults needsAttention/attentionReason", () => {
     const result = parseIssue(epic);
-    if (result.ok && result.issue.kind !== "project") {
+    if (result.ok && result.issue.kind === "epic") {
       expect(result.issue.needsAttention).toBe(false);
       expect(result.issue.attentionReason).toBeNull();
     }
   });
 
-  it("defaults archived to false when absent on epic/branch/commit", () => {
-    for (const raw of [epic, branch, commit]) {
+  it("defaults archived to false when absent on epic/idea/branch/commit", () => {
+    for (const raw of [epic, idea, branch, commit]) {
       const result = parseIssue(raw);
       expect(result.ok).toBe(true);
-      if (result.ok && result.issue.kind !== "project") {
+      if (result.ok && "archived" in result.issue) {
         expect(result.issue.archived).toBe(false);
       }
     }
   });
 
-  it("strips archived on a project (field is epic/branch/commit only)", () => {
+  it("strips archived on a project (field is epic/idea/branch/commit only)", () => {
     const result = parseIssue({ ...project, archived: true });
     expect(result.ok).toBe(true);
     if (result.ok) expect("archived" in result.issue).toBe(false);
+  });
+
+  it("parses an idea with partOf and no assignee/attention fields", () => {
+    const result = parseIssue(idea);
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "idea") {
+      expect(result.issue.partOf).toBe("platform");
+      expect("assignee" in result.issue).toBe(false);
+      expect("needsAttention" in result.issue).toBe(false);
+      expect("attentionReason" in result.issue).toBe(false);
+    }
+  });
+
+  it("rejects an idea missing its partOf project", () => {
+    const { partOf: _partOf, ...rest } = idea;
+    expect(parseIssue(rest).ok).toBe(false);
   });
 });
 
