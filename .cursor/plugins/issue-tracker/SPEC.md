@@ -6,7 +6,8 @@ design decisions that make the model correct-by-construction. Read it before
 authoring issues or changing tracker code.
 
 The tracker models work as a tree of **Project > Epic > Story > Task** nodes
-that maps onto git stacked PRs. A directory per issue on disk is the sole
+that maps onto git stacked PRs, plus **Idea** nodes that sit beside Epics under
+a Project (capture items, not work). A directory per issue on disk is the sole
 source of truth; a validated service layer (`issues.ts` + sibling writers such
 as `attachments.ts`) is the only sanctioned writer; all state that could drift
 is derived, never stored.
@@ -22,18 +23,25 @@ PR; a Task as one git commit. Git fact field names (`branchName`, `commitSha`,
 `mergeBase`, …) and git-subagent modes (`start-branch`, `finish-commit`,
 `finish-branch`) stay **git-shaped** — they are not renamed to match kinds.
 
-Every issue has a `kind`, one of four tiers:
+Every issue has a `kind`, one of:
 
-- **Project** — the top-level container that groups related Epics. Purely
-  organizational: it carries **no status** (derived or stored) and none of the
-  assignee/needs-attention fields — a `title`, a `description.md` overview, and
-  an optional `workspace` (the absolute path to the local git checkout this
-  Project covers; repo-touching agents run there — see [workspace](#project-workspace)).
-  Has no `partOf`.
+- **Project** — the top-level container that groups related Epics and Ideas.
+  Purely organizational: it carries **no status** (derived or stored) and none
+  of the assignee/needs-attention fields — a `title`, a `description.md`
+  overview, and an optional `workspace` (the absolute path to the local git
+  checkout this Project covers; repo-touching agents run there — see
+  [workspace](#project-workspace)). Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Stories; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
   in the same Project that must finish first). Has **no stored status** — its
   status is fully derived from descendants. Is `partOf` a Project (required).
+- **Idea** — a Project-level capture item (title, description, attachments,
+  archive) that agents and humans mine later into real work. Leaf kind: no
+  children, no assignee/needs-attention, no status or git fields, and **no
+  chat** (`appendMessage` / CLI `comment` / chat HTTP refuse Ideas). Is
+  `partOf` a Project (required). Epics and Ideas share one Project-child
+  sibling `order` space. There is no separate Idea Board kind — the "board" is
+  the Project's Ideas in the tree/CLI/UI.
 - **Story** — a unit of work under an Epic. Contains Tasks. Carries
   `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, and `specReview`.
   Status is derived, never stored.
@@ -52,8 +60,8 @@ Every issue has a `kind`, one of four tiers:
 Three relationships, each with a distinct, non-overlapping role:
 
 - **partOf** — *containment*: the node this one belongs to. A Task is `partOf`
-  a Story; a Story is `partOf` an Epic; an Epic is `partOf` a Project. It points
-  exactly one tier up and builds the tree. Projects have none.
+  a Story; a Story is `partOf` an Epic; an Epic or Idea is `partOf` a Project.
+  It points exactly one tier up and builds the tree. Projects have none.
 - **stackedOn** — *the single git fork point* of a Story: which one Story it
   forks from. Story-only, always singular, and strictly within one Epic. Absent
   means it forks off the Epic's base (`main`). It is the **sole** inter-Story
@@ -144,7 +152,7 @@ These are computed by `derive()` and never written to disk (see
   Surfaced in the detail panel when set; omitted from the tree outline. An empty
   working tree alone is **not** a completion signal — see
   [Finish commit](#finish-commit).
-- **archived** — stored visibility flag on Epic / Story / Task (never
+- **archived** — stored visibility flag on Epic / Idea / Story / Task (never
   Project). Explicit; **not** auto-derived from Done. Cascade and CLI/UI
   filtering — see [Archived visibility](#archived-visibility).
 - **problems** — integrity issues that are surfaced, never silently ignored:
@@ -238,15 +246,16 @@ truth (no database).
 issues/<id>/
   issue.json        # metadata + relationships (machine-readable)
   description.md    # the spec/description (for an Epic, the plan). GFM; may contain issue: links
-  chat.jsonl        # append-only per-issue chat, one message object per line
-  attachments/      # optional; opaque files (Canvas .tsx, images, fixtures) for Epic/Story/Task
+  chat.jsonl        # append-only per-issue chat (not Ideas), one message object per line
+  attachments/      # optional; opaque files for Epic/Idea/Story/Task (not Project)
 ```
 
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
   (there are no path fields, so there can be no dangling file refs). Both are
-  optional; absent means empty.
+  optional; absent means empty. Ideas refuse chat writes — see
+  [`appendMessage`](#service-layer).
 - `attachments/` is likewise by convention: no manifest; scan the directory.
-  Allowed on Epic, Story, and Task only (not Project). See
+  Allowed on Epic, Idea, Story, and Task only (not Project). See
   [Attachments](#attachments).
 - `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
   edits, and globally unique across all kinds. Its *origin* depends on the
@@ -272,13 +281,13 @@ Common to every kind:
 | field | type | notes |
 | --- | --- | --- |
 | `id` | string | = directory name; stable |
-| `kind` | `"project"` \| `"epic"` \| `"story"` \| `"task"` | discriminator |
+| `kind` | `"project"` \| `"epic"` \| `"idea"` \| `"story"` \| `"task"` | discriminator |
 | `title` | string | non-empty |
 | `order` | int | sibling position within its parent group; defaults `0` |
 | `createdAt` | ISO string | set at create |
 | `updatedAt` | ISO string | bumped on every write |
 
-Common to **Epic / Story / Task** (but **not** Project):
+Common to **Epic / Story / Task** (but **not** Project or Idea):
 
 | field | type | notes |
 | --- | --- | --- |
@@ -403,6 +412,16 @@ Epic — the Epic/Story/Task common fields plus:
 | `partOf` | string | the Project id (required) |
 | `blockedBy` | string[] | other Epic ids in the same Project that must finish first; defaults `[]`; the only cross-Epic edge |
 
+Idea — the common-to-every-kind fields plus:
+
+| field | type | notes |
+| --- | --- | --- |
+| `partOf` | string | the Project id (required) |
+| `archived` | boolean | defaults `false`; see [Archived visibility](#archived-visibility) |
+
+No assignee, needs-attention, status, git fields, or chat. Leaf under a Project;
+shares the Project-child `order` space with Epics.
+
 Story — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
@@ -481,11 +500,12 @@ group. Tree emission is structural DFS (each level sorted by `order`), never by
 
 ### Archived visibility
 
-Epic / Story / Task carry a stored boolean `archived` (default / absent =
+Epic / Idea / Story / Task carry a stored boolean `archived` (default / absent =
 `false`). Projects are never archived. Setting `archived` true or false on a
 node applies the same value to all descendants (cascade). Creating a child
 under any archived ancestor starts the child `archived: true`. Archiving a
-child while its parent stays unarchived remains allowed. `issue tree` and
+child while its parent stays unarchived remains allowed. Ideas are leaves, so
+archiving an Idea has no descendants to cascade to. `issue tree` and
 `issue list` omit archived rows by default; pass `--show-archived` to include
 them. The web UI tree uses the same filter rule: archived rows are hidden
 unless the client "Show archived" preference is on (default off; fills the
@@ -527,7 +547,7 @@ no consumer can persist a broken file.
   `description.md`.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
-  `attentionReason`, `archived` (Epic / Story / Task; cascades to
+  `attentionReason`, `archived` (Epic / Idea / Story / Task; cascades to
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
   kind-specific fields (`blockedBy` for an Epic; `status`/`commitSha`/`noDiff`
   for a Task; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
@@ -538,9 +558,12 @@ no consumer can persist a broken file.
   surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
   over HTTP as `DELETE /api/issues/:id` and via the CLI `delete` command.
 - `appendMessage(id, {role, name?, body})` — appends one JSONL line to
-  `chat.jsonl` with a server-stamped `at`.
+  `chat.jsonl` with a server-stamped `at`. Refused with a validation error for
+  Ideas (CLI `comment` and chat HTTP share this path); does not create
+  `chat.jsonl`.
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
-  `problems`.
+  `problems`. An Idea with no chat file returns empty messages (same as any
+  other kind without `chat.jsonl`).
 - Attachment bytes (`attachments.ts`): `listAttachments` / `getAttachment` /
   `putAttachment` (unique name on collision) / `removeAttachment` — see
   [Attachments](#attachments). Not part of `read(id)` payloads.
@@ -611,13 +634,14 @@ dangling-reference, wrong-kind, or cycle problem — guaranteed by construction 
 
 ## Attachments
 
-Opaque files that travel with an Epic, Story, or Task (e.g. Cursor Canvases
-as `.tsx`, images, small fixtures). Owned by `app/server/services/attachments.ts`,
-a sibling writer whose per-file get/put/remove share the same `serialize` chain
-as `issues.ts` writes; `listAttachments` is unsynchronized.
+Opaque files that travel with an Epic, Idea, Story, or Task (e.g. Cursor
+Canvases as `.tsx`, images, small fixtures). Owned by
+`app/server/services/attachments.ts`, a sibling writer whose per-file
+get/put/remove share the same `serialize` chain as `issues.ts` writes;
+`listAttachments` is unsynchronized.
 
-**Kinds.** Attach / list / download / detach only on Epic, Story, and Task.
-Project (and unknown ids) are refused.
+**Kinds.** Attach / list / download / detach only on Epic, Idea, Story, and
+Task. Project (and unknown ids) are refused.
 
 **On-disk.** `issues/<id>/attachments/<basename>` — no manifest; metadata is
 filename + size + mtime, with MIME inferred from the extension

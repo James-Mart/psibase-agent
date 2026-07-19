@@ -170,12 +170,23 @@ describe("uniqueAttachmentBasename", () => {
 });
 
 describe("listAttachments / putAttachment / getAttachment / removeAttachment (guards)", () => {
-  it("allows attachments on epic and branch", async () => {
+  it("allows attachments on epic, story, and idea", async () => {
+    writeIssue("idea-1", {
+      kind: "idea",
+      title: "Capture",
+      partOf: "p",
+      order: 1,
+      archived: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
     const { putAttachment, listAttachments } = await loadAttachments();
     await putAttachment("e", "a.txt", Buffer.from("epic"));
     await putAttachment("b", "b.txt", Buffer.from("branch"));
+    await putAttachment("idea-1", "note.txt", Buffer.from("idea"));
     expect(listAttachments("e").map((a) => a.name)).toEqual(["a.txt"]);
     expect(listAttachments("b").map((a) => a.name)).toEqual(["b.txt"]);
+    expect(listAttachments("idea-1").map((a) => a.name)).toEqual(["note.txt"]);
   });
 
   it("refuses project and unknown ids", async () => {

@@ -16,6 +16,7 @@ export const KIND_CAPABILITIES = {
     assignee: false,
     attention: false,
     attachments: false,
+    chat: true,
   },
   idea: {
     partOf: true,
@@ -23,6 +24,7 @@ export const KIND_CAPABILITIES = {
     assignee: false,
     attention: false,
     attachments: true,
+    chat: false,
   },
   epic: {
     partOf: true,
@@ -30,6 +32,7 @@ export const KIND_CAPABILITIES = {
     assignee: true,
     attention: true,
     attachments: true,
+    chat: true,
   },
   story: {
     partOf: true,
@@ -37,6 +40,7 @@ export const KIND_CAPABILITIES = {
     assignee: true,
     attention: true,
     attachments: true,
+    chat: true,
   },
   task: {
     partOf: true,
@@ -44,6 +48,7 @@ export const KIND_CAPABILITIES = {
     assignee: true,
     attention: true,
     attachments: true,
+    chat: true,
   },
 } as const satisfies Record<
   IssueKind,
@@ -53,6 +58,7 @@ export const KIND_CAPABILITIES = {
     assignee: boolean;
     attention: boolean;
     attachments: boolean;
+    chat: boolean;
   }
 >;
 
@@ -66,11 +72,25 @@ export type ArchivableIssue = Extract<
 >;
 export type AssigneeIssue = AttentionIssue;
 
-export function kindHas(
-  kind: IssueKind,
-  capability: keyof (typeof KIND_CAPABILITIES)[IssueKind],
-): boolean {
+export type KindCapability = keyof (typeof KIND_CAPABILITIES)[IssueKind];
+
+/** Capabilities that refuse with a user-facing validation error. */
+export type RefuseableCapability = "attachments" | "chat";
+
+export function kindHas(kind: IssueKind, capability: KindCapability): boolean {
   return KIND_CAPABILITIES[kind][capability];
+}
+
+export function articleForKind(kind: IssueKind): "a" | "an" {
+  return kind === "epic" || kind === "idea" ? "an" : "a";
+}
+
+export function kindCapabilityRefusal(
+  kind: IssueKind,
+  capability: RefuseableCapability,
+): string {
+  const subject = capability === "attachments" ? "attachments are" : "chat is";
+  return `${subject} not allowed on ${articleForKind(kind)} ${KIND_LABEL[kind]}`;
 }
 
 export function hasAttention(issue: Issue): issue is AttentionIssue {

@@ -11,7 +11,11 @@ import {
 import { createHash } from "crypto";
 import { join } from "path";
 import { issuesDir } from "../config.js";
-import { kindHas } from "../kind.js";
+import {
+  kindCapabilityRefusal,
+  kindHas,
+  type RefuseableCapability,
+} from "../kind.js";
 import {
   parseChatMessage,
   parseChatMessageInput,
@@ -241,6 +245,20 @@ export function readIssueOrThrow(id: string): Issue {
   const { issue, problem } = readRaw(id);
   if (!issue) {
     throw new IssueError("validation", problem?.message ?? `invalid issue "${id}"`);
+  }
+  return issue;
+}
+
+export function requireKindCapability(
+  id: string,
+  capability: RefuseableCapability,
+): Issue {
+  const issue = readIssueOrThrow(id);
+  if (!kindHas(issue.kind, capability)) {
+    throw new IssueError(
+      "validation",
+      kindCapabilityRefusal(issue.kind, capability),
+    );
   }
   return issue;
 }
@@ -560,7 +578,7 @@ export function appendMessage(
   input: ChatMessageInput,
 ): Promise<ChatMessage> {
   return serialize(() => {
-    readIssueOrThrow(id);
+    requireKindCapability(id, "chat");
     const parsed = parseChatMessageInput(input);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
     const message: ChatMessage = { ...parsed.input, at: new Date().toISOString() };

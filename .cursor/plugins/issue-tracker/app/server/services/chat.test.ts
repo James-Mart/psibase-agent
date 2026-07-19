@@ -1,4 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -71,6 +78,24 @@ describe("appendMessage", () => {
     await expect(
       appendMessage("ghost", { role: "agent", body: "x" }),
     ).rejects.toThrow(/unknown issue/);
+  });
+
+  it("refuses Ideas and does not create chat.jsonl", async () => {
+    writeIssue("idea-1", {
+      kind: "idea",
+      title: "Capture",
+      partOf: "e",
+      order: 0,
+      archived: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { appendMessage, readChat } = await loadService();
+    await expect(
+      appendMessage("idea-1", { role: "agent", body: "nope" }),
+    ).rejects.toThrow(/chat is not allowed on an Idea/);
+    expect(existsSync(join(dir, "idea-1", "chat.jsonl"))).toBe(false);
+    expect(readChat("idea-1")).toEqual({ messages: [], problems: [] });
   });
 
   it("does not interleave concurrent appends", async () => {

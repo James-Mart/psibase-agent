@@ -149,7 +149,7 @@ describe("attachments HTTP API", () => {
     const res = await upload("p", "nope.bin", "x");
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
-      error: "attachments are not allowed on a project",
+      error: "attachments are not allowed on a Project",
     });
   });
 
