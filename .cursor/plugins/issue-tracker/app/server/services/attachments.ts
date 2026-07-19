@@ -12,6 +12,7 @@ import mime from "mime";
 import { issuesDir } from "../config.js";
 import { IssueError } from "./errors.js";
 import { readIssueOrThrow, serialize } from "./issues.js";
+import { firstFreeSuffixedName } from "./slug.js";
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
@@ -74,15 +75,37 @@ function toAttachment(dir: string, name: string): Attachment {
   };
 }
 
-function withAttachmentFile<T>(
+function splitBasename(name: string): { stem: string; ext: string } {
+  const lastDot = name.lastIndexOf(".");
+  if (lastDot <= 0) return { stem: name, ext: "" };
+  return { stem: name.slice(0, lastDot), ext: name.slice(lastDot) };
+}
+
+function attachmentFilenames(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => statSync(join(dir, name)).isFile())
+    .sort();
+}
+
+/** Collision-free basename among `taken` (stem + last extension). */
+export function uniqueAttachmentBasename(
+  requested: string,
+  taken: Iterable<string>,
+): string {
+  const { stem, ext } = splitBasename(requested);
+  return firstFreeSuffixedName(stem, ext, taken);
+}
+
+function withAttachmentOp<T>(
   id: string,
   name: string,
-  fn: (path: string) => T,
+  fn: (dir: string) => T,
 ): Promise<T> {
   return serialize(() => {
     requireAttachable(id);
     assertSafeBasename(name);
-    return fn(attachmentPath(id, name));
+    return fn(attachmentsDir(id));
   });
 }
 
@@ -90,11 +113,7 @@ function withAttachmentFile<T>(
 export function listAttachments(id: string): Attachment[] {
   requireAttachable(id);
   const dir = attachmentsDir(id);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => statSync(join(dir, name)).isFile())
-    .sort()
-    .map((name) => toAttachment(dir, name));
+  return attachmentFilenames(dir).map((name) => toAttachment(dir, name));
 }
 
 /** Read one attachment's metadata and bytes. */
@@ -102,7 +121,8 @@ export function getAttachment(
   id: string,
   name: string,
 ): Promise<AttachmentBytes> {
-  return withAttachmentFile(id, name, (path) => {
+  return withAttachmentOp(id, name, (dir) => {
+    const path = join(dir, name);
     if (!existsSync(path) || !statSync(path).isFile()) {
       throw new IssueError(
         "not_found",
@@ -110,34 +130,36 @@ export function getAttachment(
       );
     }
     return {
-      meta: toAttachment(attachmentsDir(id), name),
+      meta: toAttachment(dir, name),
       bytes: readFileSync(path),
     };
   });
 }
 
-/** Upsert an attachment; creates the attachments directory when needed. */
+/** Store an attachment under a unique basename; creates the directory when needed. */
 export function putAttachment(
   id: string,
   name: string,
   bytes: Uint8Array,
 ): Promise<Attachment> {
-  return withAttachmentFile(id, name, (path) => {
+  return withAttachmentOp(id, name, (dir) => {
     if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
       throw new IssueError(
         "validation",
         `attachment exceeds ${MAX_ATTACHMENT_BYTES} byte limit`,
       );
     }
-    mkdirSync(attachmentsDir(id), { recursive: true });
-    writeFileSync(path, bytes);
-    return toAttachment(attachmentsDir(id), name);
+    mkdirSync(dir, { recursive: true });
+    const stored = uniqueAttachmentBasename(name, attachmentFilenames(dir));
+    writeFileSync(join(dir, stored), bytes);
+    return toAttachment(dir, stored);
   });
 }
 
 /** Delete one attachment file. */
 export function removeAttachment(id: string, name: string): Promise<void> {
-  return withAttachmentFile(id, name, (path) => {
+  return withAttachmentOp(id, name, (dir) => {
+    const path = join(dir, name);
     if (!existsSync(path) || !statSync(path).isFile()) {
       throw new IssueError(
         "not_found",

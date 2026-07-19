@@ -85,6 +85,9 @@ describe("attachments HTTP API", () => {
     const payload = "export const x = 1;\n";
     const created = await upload("c", "mock.tsx", payload);
     expect(created.status).toBe(201);
+    expect(await created.json()).toEqual(
+      expect.objectContaining({ name: "mock.tsx", size: payload.length }),
+    );
 
     const listed = await fetch(`${baseUrl}/api/issues/c/attachments`);
     expect(listed.status).toBe(200);
@@ -111,6 +114,35 @@ describe("attachments HTTP API", () => {
       { method: "DELETE" },
     );
     expect(deleted.status).toBe(204);
+  });
+
+  it("returns the stored unique name on basename collision", async () => {
+    const first = await upload("c", "foo.tsx", "v1");
+    expect(first.status).toBe(201);
+    expect(await first.json()).toEqual(
+      expect.objectContaining({ name: "foo.tsx" }),
+    );
+
+    const second = await upload("c", "foo.tsx", "v2");
+    expect(second.status).toBe(201);
+    expect(await second.json()).toEqual(
+      expect.objectContaining({ name: "foo-2.tsx", size: 2 }),
+    );
+
+    const listed = await fetch(`${baseUrl}/api/issues/c/attachments`);
+    expect(await listed.json()).toEqual([
+      expect.objectContaining({ name: "foo-2.tsx" }),
+      expect.objectContaining({ name: "foo.tsx" }),
+    ]);
+
+    expect(
+      await (await fetch(`${baseUrl}/api/issues/c/attachments/foo.tsx`)).text(),
+    ).toBe("v1");
+    expect(
+      await (
+        await fetch(`${baseUrl}/api/issues/c/attachments/foo-2.tsx`)
+      ).text(),
+    ).toBe("v2");
   });
 
   it("rejects attachments on a project with 4xx", async () => {
