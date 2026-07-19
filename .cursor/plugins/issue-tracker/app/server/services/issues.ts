@@ -38,9 +38,9 @@ import { derive } from "./derive.js";
 import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import {
+  assignResolvedMergeBase,
   branchNameRenameError,
   ensureMergeBaseBackfilled,
-  initialMergeBase,
   planMergeBaseCascades,
   type MergeBaseCascadePatch,
 } from "./merge-base.js";
@@ -360,8 +360,6 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (input.kind === "story") {
       draft.merged = false;
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
-      const mergeBase = initialMergeBase(input.stackedOn, issues);
-      if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
     if (input.kind === "task") draft.status = "todo";
     if (input.kind === "project") {
@@ -374,6 +372,9 @@ export function create(input: CreateInput): Promise<IssueRecord> {
 
     const parsed = parseIssue(draft);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
+    if (parsed.issue.kind === "story") {
+      assignResolvedMergeBase(parsed.issue, issues);
+    }
 
     assertWritable(parsed.issue, issues);
     persist(parsed.issue, serializeIssue(parsed.issue));
@@ -475,6 +476,15 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       const partOf = "partOf" in next ? next.partOf : undefined;
       const stackedOn = next.kind === "story" ? next.stackedOn : undefined;
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
+    }
+
+    if (
+      existing.kind === "story" &&
+      next.kind === "story" &&
+      "stackedOn" in jsonPatch &&
+      existing.stackedOn !== next.stackedOn
+    ) {
+      assignResolvedMergeBase(next, issues);
     }
 
     const mergeBaseCascadePatches = planMergeBaseCascades(
@@ -627,6 +637,13 @@ export function remove(id: string): Promise<DeletionResult> {
       }
       const parsed = parseIssue(mergeIssue(issue, patch));
       if (!parsed.ok) throw new IssueError("validation", parsed.message);
+      if (
+        issue.kind === "story" &&
+        parsed.issue.kind === "story" &&
+        "stackedOn" in patch
+      ) {
+        assignResolvedMergeBase(parsed.issue, issues);
+      }
       parsed.issue.updatedAt = now;
       survivors.push(parsed.issue);
       toPersist.push(parsed.issue);

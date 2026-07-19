@@ -174,6 +174,114 @@ describe("apply — create from empty", () => {
     expect(readIssue("b1s").mergeBase).toBe("feat/b1");
   });
 
+  it("sets mergeBase from a merged parent's mergeBase when applying a stacked child", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", {
+      branchName: "feat/b1",
+      mergeBase: "main",
+      merged: true,
+    });
+
+    const doc = baseDoc();
+    epicChildren(doc)[0].stories![0].stacked!.push({
+      id: "b1s2",
+      title: "Child of merged parent",
+    });
+    const summary = await apply(doc);
+    expect(summary.created).toEqual(["b1s2"]);
+    expect(readIssue("b1s2").mergeBase).toBe("main");
+  });
+
+  it("recomputes mergeBase when apply restacks a story onto a different parent", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", { branchName: "feat/b1" });
+    await update("b2", { branchName: "feat/b2" });
+    await update("b1s", { mergeBase: "feat/b1" });
+
+    const doc = (stackOnB2: boolean): ApplyDoc => {
+      const d = baseDoc();
+      const stories = epicChildren(d)[0].stories!;
+      const b1 = stories[0];
+      const b2 = stories[1];
+      if (stackOnB2) {
+        b1.stacked = [];
+        b2.stacked = [{ id: "b1s", title: "Stacked child" }];
+      } else {
+        b1.stacked = [{ id: "b1s", title: "Stacked child" }];
+        b2.stacked = [];
+      }
+      return d;
+    };
+
+    await apply(doc(false));
+    expect(readIssue("b1s").stackedOn).toBe("b1");
+    expect(readIssue("b1s").mergeBase).toBe("feat/b1");
+
+    await apply(doc(true));
+    expect(readIssue("b1s").stackedOn).toBe("b2");
+    expect(readIssue("b1s").mergeBase).toBe("feat/b2");
+  });
+
+  it("recomputes mergeBase when apply restacks onto a merged parent", async () => {
+    const { apply, update } = await loadService();
+    const initial = baseDoc();
+    epicChildren(initial)[0].stories![0].stacked = [];
+    epicChildren(initial)[0].stories![1].stacked = [
+      { id: "b1s", title: "Stacked child" },
+    ];
+    await apply(initial);
+    await update("b1", {
+      branchName: "feat/b1",
+      mergeBase: "main",
+      merged: true,
+    });
+    await update("b2", { branchName: "feat/b2" });
+    expect(readIssue("b1s").mergeBase).toBe("feat/b2");
+
+    const restacked = baseDoc();
+    epicChildren(restacked)[0].stories![0].stacked = [
+      { id: "b1s", title: "Stacked child" },
+    ];
+    epicChildren(restacked)[0].stories![1].stacked = [];
+
+    await apply(restacked);
+    expect(readIssue("b1s").stackedOn).toBe("b1");
+    expect(readIssue("b1s").mergeBase).toBe("main");
+  });
+
+  it("clears mergeBase when apply restacks onto an unnamed parent", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", { branchName: "feat/b1" });
+    await update("b1s", { mergeBase: "feat/b1" });
+
+    const doc = baseDoc();
+    epicChildren(doc)[0].stories![0].stacked = [];
+    epicChildren(doc)[0].stories![1].stacked = [
+      { id: "b1s", title: "Stacked child" },
+    ];
+
+    await apply(doc);
+    expect(readIssue("b1s").stackedOn).toBe("b2");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+  });
+
+  it("preserves a custom mergeBase on re-apply when stackedOn is unchanged", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", { branchName: "feat/b1" });
+    await update("b1s", { mergeBase: "custom-stale" });
+
+    const doc = baseDoc();
+    epicChildren(doc)[0].stories![0].title = "Branch one renamed";
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("b1");
+    expect(readIssue("b1s").stackedOn).toBe("b1");
+    expect(readIssue("b1s").mergeBase).toBe("custom-stale");
+  });
+
   it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
     const { apply, list } = await loadService();
     // Sole focus: epic `early` blocks on epic `late`, which the doc declares
