@@ -22,10 +22,9 @@ function storyById(issues: Issue[]): Map<string, Story> {
 }
 
 /**
- * Shared parent resolver for initial `mergeBase` on create / apply of a new
- * Story (and for backfill). Root → `main`. Merged parent → `parent.mergeBase`.
- * Otherwise parent's `branchName` when set; else leave unset until the parent's
- * first `set-branch-name` cascade.
+ * Shared parent resolver for Story `mergeBase` on create / apply-new, restack
+ * (`stackedOn` change), and backfill. Root → `main`. Merged parent →
+ * `parent.mergeBase`. Otherwise parent's `branchName` when set; else unset.
  */
 export function resolveMergeBase(
   stackedOn: string | undefined,
@@ -37,6 +36,20 @@ export function resolveMergeBase(
   if (!parent) return undefined;
   if (parent.merged) return parent.mergeBase;
   return parent.branchName;
+}
+
+/** Persist resolver result on a Story (overwrite or clear). */
+export function assignResolvedMergeBase(
+  story: Story,
+  issues: Issue[],
+  storiesById?: Map<string, Story>,
+): void {
+  const mergeBase = resolveMergeBase(story.stackedOn, issues, storiesById);
+  if (mergeBase === undefined) {
+    delete story.mergeBase;
+  } else {
+    story.mergeBase = mergeBase;
+  }
 }
 
 /** Branches whose `stackedOn` is `parentId` (direct children only). */

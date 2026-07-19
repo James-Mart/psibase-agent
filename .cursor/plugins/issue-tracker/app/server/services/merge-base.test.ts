@@ -3,6 +3,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  assignResolvedMergeBase,
   resolveMergeBase,
   EPIC_BASE,
   branchNameRenameError,
@@ -79,6 +80,18 @@ describe("resolveMergeBase", () => {
       }),
     ];
     expect(resolveMergeBase("parent", issues)).toBeUndefined();
+  });
+});
+
+describe("assignResolvedMergeBase", () => {
+  it("clears mergeBase when the resolver returns unset", () => {
+    const issues = [branch("parent")];
+    const story = branch("child", {
+      stackedOn: "parent",
+      mergeBase: "stale",
+    }) as Extract<Issue, { kind: "story" }>;
+    assignResolvedMergeBase(story, issues);
+    expect(story.mergeBase).toBeUndefined();
   });
 });
 

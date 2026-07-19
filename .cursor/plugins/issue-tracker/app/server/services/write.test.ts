@@ -138,6 +138,115 @@ describe("validate-at-write on the service layer", () => {
     expect(child.kind === "story" && child.mergeBase).toBe("main");
   });
 
+  it("recomputes mergeBase when stackedOn retargets to a merged parent", async () => {
+    writeIssue("merged-parent", {
+      kind: "story",
+      title: "Merged",
+      partOf: "e",
+      order: 1,
+      branchName: "feat/merged",
+      mergeBase: "main",
+      merged: true,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    const moved = await update("b", { stackedOn: "merged-parent" });
+    expect(moved.kind === "story" && moved.mergeBase).toBe("main");
+  });
+
+  it("recomputes mergeBase to branchName when stackedOn retargets to a named unmerged parent", async () => {
+    writeIssue("named", {
+      kind: "story",
+      title: "Named",
+      partOf: "e",
+      order: 1,
+      branchName: "feat/named",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "stale-base",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    const moved = await update("b", { stackedOn: "named" });
+    expect(moved.kind === "story" && moved.mergeBase).toBe("feat/named");
+  });
+
+  it("clears mergeBase when stackedOn retargets to an unnamed parent", async () => {
+    writeIssue("unnamed", {
+      kind: "story",
+      title: "Unnamed",
+      partOf: "e",
+      order: 1,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    const moved = await update("b", { stackedOn: "unnamed" });
+    expect(moved.kind === "story" && moved.mergeBase).toBeUndefined();
+  });
+
+  it("sets mergeBase to main when unstacked (stackedOn cleared)", async () => {
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    const moved = await update("b", { stackedOn: null });
+    expect(moved.kind === "story" && moved.stackedOn).toBeUndefined();
+    expect(moved.kind === "story" && moved.mergeBase).toBe("main");
+  });
+
+  it("does not churn mergeBase on a same-value stackedOn no-op", async () => {
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "custom-stale",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    const again = await update("b", { stackedOn: "a" });
+    expect(again.kind === "story" && again.mergeBase).toBe("custom-stale");
+  });
+
   it("cascades mergeBase to empty stacked children on first set-branch-name", async () => {
     const { update } = await loadService();
     // Seed child "b" has no mergeBase; naming "a" should fill it.
@@ -453,6 +562,16 @@ describe("cascade delete + reference repair on remove", () => {
   });
 
   it("splices a dependent branch when its fork point is deleted", async () => {
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      mergeBase: "feat/a",
+      createdAt: AT,
+      updatedAt: AT,
+    });
     const { remove, list } = await loadService();
     // b.stackedOn === "a"; deleting "a" must repoint b to main (stackedOn cleared).
     const result = await remove("a");
@@ -463,6 +582,56 @@ describe("cascade delete + reference repair on remove", () => {
     expect(after.problems).toEqual([]);
     const b = after.issues.find((i) => i.id === "b");
     expect(b && b.kind === "story" ? b.stackedOn : "missing").toBeUndefined();
+    expect(b && b.kind === "story" ? b.mergeBase : "missing").toBe("main");
+  });
+
+  it("recomputes mergeBase when delete-repoint splices onto a surviving parent", async () => {
+    // a (named root) <- b <- child. Deleting b splices child onto a.
+    writeIssue("a", {
+      kind: "story",
+      title: "A",
+      partOf: "e",
+      order: 0,
+      branchName: "feat/a",
+      mergeBase: "main",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("b", {
+      kind: "story",
+      title: "B",
+      partOf: "e",
+      order: 0,
+      stackedOn: "a",
+      branchName: "feat/b",
+      mergeBase: "feat/a",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("child", {
+      kind: "story",
+      title: "Child",
+      partOf: "e",
+      order: 0,
+      stackedOn: "b",
+      mergeBase: "feat/b",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { remove, list } = await loadService();
+    const result = await remove("b");
+    expect(result.deleted).toEqual(["b"]);
+    expect(result.repointed).toEqual([{ id: "child", to: "a" }]);
+
+    const after = list();
+    expect(after.problems).toEqual([]);
+    const child = after.issues.find((i) => i.id === "child");
+    expect(child && child.kind === "story" ? child.stackedOn : "missing").toBe(
+      "a",
+    );
+    expect(child && child.kind === "story" ? child.mergeBase : "missing").toBe(
+      "feat/a",
+    );
   });
 
   it("drops a deleted epic from another epic's blockedBy", async () => {
