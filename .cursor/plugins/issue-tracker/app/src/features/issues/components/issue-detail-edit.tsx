@@ -33,6 +33,7 @@ import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
 import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
+import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
 
@@ -287,6 +288,8 @@ export function IssueDetailEdit({
       <Field label={FIELD_LABELS.title}>
         <Input value={form.title} onChange={(e) => set("title", e.target.value)} />
       </Field>
+
+      <IssueAttachmentsSection issue={issue} upload={upload} />
 
       <Field label="Description (Markdown)">
         <Textarea
