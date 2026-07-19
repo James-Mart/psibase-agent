@@ -16,7 +16,7 @@ import {
   type EpicFieldKey,
   type ProjectFieldKey,
 } from "@server/fields";
-import { hasAssignee, hasAttention, hasPartOf } from "@server/kind";
+import { hasAssignee, hasAttention, hasPartOf, kindHas } from "@server/kind";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -301,24 +301,23 @@ export function IssueDetailEdit({
         />
       </Field>
 
-      {hasPartOf(issue) ? (
-        <div className="grid grid-cols-2 gap-4">
-          <Field label={FIELD_LABELS.partOf}>
-            <Input
-              value={form.partOf}
-              onChange={(e) => set("partOf", e.target.value)}
-            />
-          </Field>
-          {hasAssignee(issue) ? (
-            <Field label={FIELD_LABELS.assignee}>
-              <Input
-                value={form.assignee}
-                onChange={(e) => set("assignee", e.target.value)}
-                placeholder="unassigned"
-              />
-            </Field>
-          ) : null}
-        </div>
+      {kindHas(issue.kind, "detailPartOf") ? (
+        <Field label={FIELD_LABELS.partOf}>
+          <Input
+            value={form.partOf}
+            onChange={(e) => set("partOf", e.target.value)}
+          />
+        </Field>
+      ) : null}
+
+      {hasAssignee(issue) ? (
+        <Field label={FIELD_LABELS.assignee}>
+          <Input
+            value={form.assignee}
+            onChange={(e) => set("assignee", e.target.value)}
+            placeholder="unassigned"
+          />
+        </Field>
       ) : null}
 
       {KIND_FIELD_KEYS[issue.kind].length > 0 ? (

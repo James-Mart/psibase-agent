@@ -21,7 +21,7 @@ import {
   type UploadAttachmentMutation,
 } from "../hooks/use-issue-detail-file-upload";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
-import { KIND_LABEL } from "../lib/kind";
+import { KIND_LABEL, kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
 import { Markdown } from "./markdown";
@@ -174,10 +174,12 @@ function IssueDetailBody({
               <p className="text-sm text-muted-foreground">No description.</p>
             )}
           </div>
-          <ChatPanel
-            id={issue.id}
-            attachmentsIssueId={attach ? issue.id : undefined}
-          />
+          {kindHas(issue.kind, "chat") ? (
+            <ChatPanel
+              id={issue.id}
+              attachmentsIssueId={attach ? issue.id : undefined}
+            />
+          ) : null}
         </>
       )}
     </>

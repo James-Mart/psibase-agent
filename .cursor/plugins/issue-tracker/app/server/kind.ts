@@ -12,6 +12,8 @@ export const KIND_LABEL: Record<IssueKind, string> = {
 export const KIND_CAPABILITIES = {
   project: {
     partOf: false,
+    /** Detail/edit UI shows the partOf field (distinct from storing partOf). */
+    detailPartOf: false,
     archived: false,
     assignee: false,
     attention: false,
@@ -20,6 +22,8 @@ export const KIND_CAPABILITIES = {
   },
   idea: {
     partOf: true,
+    // Ideas keep partOf on disk (project parent) but omit it from detail/edit chrome.
+    detailPartOf: false,
     archived: true,
     assignee: false,
     attention: false,
@@ -28,6 +32,7 @@ export const KIND_CAPABILITIES = {
   },
   epic: {
     partOf: true,
+    detailPartOf: true,
     archived: true,
     assignee: true,
     attention: true,
@@ -36,6 +41,7 @@ export const KIND_CAPABILITIES = {
   },
   story: {
     partOf: true,
+    detailPartOf: true,
     archived: true,
     assignee: true,
     attention: true,
@@ -44,6 +50,7 @@ export const KIND_CAPABILITIES = {
   },
   task: {
     partOf: true,
+    detailPartOf: true,
     archived: true,
     assignee: true,
     attention: true,
@@ -54,6 +61,7 @@ export const KIND_CAPABILITIES = {
   IssueKind,
   {
     partOf: boolean;
+    detailPartOf: boolean;
     archived: boolean;
     assignee: boolean;
     attention: boolean;
