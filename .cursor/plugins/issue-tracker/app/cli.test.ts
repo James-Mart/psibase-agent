@@ -450,6 +450,148 @@ describe("idea add / get / set", () => {
   });
 });
 
+describe("tree / list / summary include Ideas", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", order: 0, createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("idea-a", {
+      kind: "idea",
+      title: "Capture first",
+      partOf: "p",
+      order: 0,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 1,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 2,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(join(dir, "idea-a", "description.md"), "# Idea\n\nfirst capture\n");
+  });
+
+  it("interleaves Ideas and Epics by order in tree with title-only Idea rows", () => {
+    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^project p {2}Proj$/m);
+    expect(stdout).toMatch(/^ {2}idea idea-a {2}Capture first$/m);
+    expect(stdout).toMatch(/^ {2}epic e {2}Epic\b/m);
+    expect(stdout).toMatch(/^ {2}idea idea-b {2}Capture last$/m);
+    expect(stdout).not.toMatch(/^ {2}idea idea-a .+\[/m);
+    const ideaA = stdout.indexOf("idea idea-a");
+    const epic = stdout.indexOf("epic e");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(ideaA).toBeLessThan(epic);
+    expect(epic).toBeLessThan(ideaB);
+  });
+
+  it("includes Ideas in list JSON for the project", () => {
+    const { stdout, status } = runCli(["list", "--project", "p"]);
+    expect(status).toBe(0);
+    const listed = JSON.parse(stdout);
+    const ids = listed.issues.map((i: { id: string }) => i.id).sort();
+    expect(ids).toEqual(["e", "idea-a", "idea-b", "p"]);
+    const idea = listed.issues.find((i: { id: string }) => i.id === "idea-a");
+    expect(idea.kind).toBe("idea");
+  });
+
+  it("summarizes an Idea as Project then Idea", () => {
+    const { stdout, status } = runCli(["summary", "idea-a"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("Project: p — Proj");
+    expect(stdout).toContain("Idea: idea-a — Capture first");
+    expect(stdout).toContain("Description: first capture");
+    expect(stdout).not.toContain("Epic:");
+  });
+
+  it("hides archived Ideas from tree/list unless --show-archived", () => {
+    expect(runCli(["idea", "set", "idea-a", "archived", "true"]).status).toBe(0);
+
+    const treeHidden = runCli(["tree", "--project", "p"]);
+    expect(treeHidden.status).toBe(0);
+    expect(treeHidden.stdout).toContain("idea idea-b");
+    expect(treeHidden.stdout).not.toContain("idea idea-a");
+
+    const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
+    expect(treeShown.status).toBe(0);
+    expect(treeShown.stdout).toContain("idea idea-a");
+
+    const listHidden = JSON.parse(runCli(["list", "--project", "p"]).stdout);
+    expect(listHidden.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["e", "idea-b", "p"],
+    );
+
+    const listShown = JSON.parse(
+      runCli(["list", "--project", "p", "--show-archived"]).stdout,
+    );
+    expect(listShown.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["e", "idea-a", "idea-b", "p"],
+    );
+  });
+
+  it("echoes mixed Idea/Epic order from apply-root", () => {
+    // apply assigns declared epic array index as order; keep ideas off index 0.
+    writeIssue("idea-a", {
+      kind: "idea",
+      title: "Capture first",
+      partOf: "p",
+      order: 1,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 0,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 2,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const applyPath = join(dir, "board.yaml");
+    writeFileSync(
+      applyPath,
+      `project:
+  id: p
+  title: Proj
+  epics:
+    - id: e
+      title: Epic
+`,
+    );
+    const { stdout, status } = runCli(["apply", applyPath]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^project p {2}Proj$/m);
+    expect(stdout).toMatch(/^ {2}epic e {2}Epic\b/m);
+    expect(stdout).toMatch(/^ {2}idea idea-a {2}Capture first$/m);
+    expect(stdout).toMatch(/^ {2}idea idea-b {2}Capture last$/m);
+    const epic = stdout.indexOf("epic e");
+    const ideaA = stdout.indexOf("idea idea-a");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(epic).toBeLessThan(ideaA);
+    expect(ideaA).toBeLessThan(ideaB);
+  });
+});
+
 describe("epic get/set", () => {
   const AT = "2026-07-10T14:00:00.000Z";
 

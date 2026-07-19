@@ -430,6 +430,42 @@ describe("apply — prune by default", () => {
       [],
     );
   });
+
+  it("leaves undeclared Ideas on disk during project-root apply", async () => {
+    writeIssue("p1", { kind: "project", title: "P1", order: 0, createdAt: AT, updatedAt: AT });
+    writeIssue("capture", {
+      kind: "idea",
+      title: "Capture",
+      partOf: "p1",
+      order: 1,
+      archived: false,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("e1", {
+      kind: "epic",
+      title: "E1",
+      partOf: "p1",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+
+    const { apply, list } = await loadService();
+    const summary = await apply({
+      project: {
+        id: "p1",
+        title: "P1",
+        epics: [{ id: "e1", title: "E1 renamed" }],
+      },
+    });
+    expect(summary.deleted).toEqual([]);
+    expect(list().issues.map((issue) => issue.id).sort()).toEqual(
+      ["capture", "e1", "p1"],
+    );
+    expect(readIssue("capture").title).toBe("Capture");
+    expect(readIssue("e1").title).toBe("E1 renamed");
+  });
 });
 
 describe("apply — atomic rejection", () => {

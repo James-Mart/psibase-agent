@@ -39,6 +39,35 @@ export function siblingGroupKey(issue: Issue): string {
   );
 }
 
+export type ProjectBoardChild = Extract<Issue, { kind: "epic" | "idea" }>;
+
+export function projectBoardGroupKey(projectId: string): string {
+  return `project:${projectId}`;
+}
+
+/** Epic and Idea rows that share one Project-keyed sibling `order` group. */
+export function isProjectBoardChild(issue: Issue): issue is ProjectBoardChild {
+  return (
+    (issue.kind === "epic" || issue.kind === "idea") &&
+    siblingGroupKey(issue) === projectBoardGroupKey(issue.partOf)
+  );
+}
+
+/** One pass over `issues` → each Project's interleaved Epic/Idea board children. */
+export function buildProjectBoardOf(
+  issues: Issue[],
+): Map<string, ProjectBoardChild[]> {
+  const boardOf = new Map<string, ProjectBoardChild[]>();
+  for (const issue of issues) {
+    if (!isProjectBoardChild(issue)) continue;
+    const bucket = boardOf.get(issue.partOf) ?? [];
+    bucket.push(issue);
+    boardOf.set(issue.partOf, bucket);
+  }
+  for (const bucket of boardOf.values()) bucket.sort(bySequence);
+  return boardOf;
+}
+
 // The next free `order` for a new node in a sibling group: one past the current
 // max (append), or 0 when the group is empty. `excludeId` drops the node itself
 // when recomputing on a move. Shared by imperative `create`/reparent and by
