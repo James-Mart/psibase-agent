@@ -174,6 +174,25 @@ describe("apply — create from empty", () => {
     expect(readIssue("b1s").mergeBase).toBe("feat/b1");
   });
 
+  it("sets mergeBase from a merged parent's mergeBase when applying a stacked child", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+    await update("b1", {
+      branchName: "feat/b1",
+      mergeBase: "main",
+      merged: true,
+    });
+
+    const doc = baseDoc();
+    epicChildren(doc)[0].stories![0].stacked!.push({
+      id: "b1s2",
+      title: "Child of merged parent",
+    });
+    const summary = await apply(doc);
+    expect(summary.created).toEqual(["b1s2"]);
+    expect(readIssue("b1s2").mergeBase).toBe("main");
+  });
+
   it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
     const { apply, list } = await loadService();
     // Sole focus: epic `early` blocks on epic `late`, which the doc declares

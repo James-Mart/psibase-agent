@@ -20,7 +20,7 @@ import { checkIntegrity } from "./integrity.js";
 import { nextSiblingOrder } from "../order.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
-import { initialMergeBase } from "./merge-base.js";
+import { resolveMergeBase } from "./merge-base.js";
 import { ancestorIsArchived } from "./archived-visibility.js";
 import { subtreeIds } from "./subtree.js";
 
@@ -127,7 +127,7 @@ function buildIssue(
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
     } else {
-      const mergeBase = initialMergeBase(stackedOn, onDisk);
+      const mergeBase = resolveMergeBase(stackedOn, onDisk);
       if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
   }

@@ -122,6 +122,22 @@ describe("validate-at-write on the service layer", () => {
     expect(child.kind === "story" && child.mergeBase).toBeUndefined();
   });
 
+  it("sets mergeBase from a merged parent's mergeBase (not branchName) on stacked create", async () => {
+    const { create, update } = await loadService();
+    await update("a", {
+      branchName: "feat/a",
+      mergeBase: "main",
+      merged: true,
+    });
+    const child = await create({
+      kind: "story",
+      title: "Child",
+      partOf: "e",
+      stackedOn: "a",
+    });
+    expect(child.kind === "story" && child.mergeBase).toBe("main");
+  });
+
   it("cascades mergeBase to empty stacked children on first set-branch-name", async () => {
     const { update } = await loadService();
     // Seed child "b" has no mergeBase; naming "a" should fill it.

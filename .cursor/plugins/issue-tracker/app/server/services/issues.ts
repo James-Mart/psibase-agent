@@ -40,7 +40,7 @@ import { mergeIssue } from "./merge.js";
 import {
   branchNameRenameError,
   ensureMergeBaseBackfilled,
-  initialMergeBase,
+  resolveMergeBase,
   planMergeBaseCascades,
   type MergeBaseCascadePatch,
 } from "./merge-base.js";
@@ -360,7 +360,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (input.kind === "story") {
       draft.merged = false;
       if (input.stackedOn) draft.stackedOn = input.stackedOn;
-      const mergeBase = initialMergeBase(input.stackedOn, issues);
+      const mergeBase = resolveMergeBase(input.stackedOn, issues);
       if (mergeBase !== undefined) draft.mergeBase = mergeBase;
     }
     if (input.kind === "task") draft.status = "todo";

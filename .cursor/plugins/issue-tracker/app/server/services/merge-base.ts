@@ -21,16 +21,22 @@ function storyById(issues: Issue[]): Map<string, Story> {
   return map;
 }
 
-// Initial `mergeBase` for create / apply of a new Story.
-// Root → `main`. Stacked child → parent's `branchName` when set; otherwise
-// leave unset until the parent's first `set-branch-name` cascade.
-export function initialMergeBase(
+/**
+ * Shared parent resolver for initial `mergeBase` on create / apply of a new
+ * Story (and for backfill). Root → `main`. Merged parent → `parent.mergeBase`.
+ * Otherwise parent's `branchName` when set; else leave unset until the parent's
+ * first `set-branch-name` cascade.
+ */
+export function resolveMergeBase(
   stackedOn: string | undefined,
   issues: Issue[],
+  storiesById?: Map<string, Story>,
 ): string | undefined {
   if (!stackedOn) return EPIC_BASE;
-  const parent = storyById(issues).get(stackedOn);
-  return parent?.branchName;
+  const parent = (storiesById ?? storyById(issues)).get(stackedOn);
+  if (!parent) return undefined;
+  if (parent.merged) return parent.mergeBase;
+  return parent.branchName;
 }
 
 /** Branches whose `stackedOn` is `parentId` (direct children only). */
@@ -170,7 +176,7 @@ export function readStoriesMissingMergeBaseKey(): {
 }
 
 // One-time: for every on-disk Story whose issue.json lacks `mergeBase`, set
-// `initialMergeBase(...) ?? main` and persist. Subsequent calls are no-ops
+// `resolveMergeBase(...) ?? main` and persist. Subsequent calls are no-ops
 // once the marker file exists (so create's intentional unset survives).
 export function ensureMergeBaseBackfilled(
   persistStory: (issue: Story) => void,
@@ -179,11 +185,13 @@ export function ensureMergeBaseBackfilled(
 
   const { issues, rawMissingMergeBase } = readStoriesMissingMergeBaseKey();
   const missing = new Set(rawMissingMergeBase);
+  const storiesById = storyById(issues);
   const updated: string[] = [];
 
   for (const issue of issues) {
     if (issue.kind !== "story" || !missing.has(issue.id)) continue;
-    const mergeBase = initialMergeBase(issue.stackedOn, issues) ?? EPIC_BASE;
+    const mergeBase =
+      resolveMergeBase(issue.stackedOn, issues, storiesById) ?? EPIC_BASE;
     const next: Story = { ...issue, mergeBase };
     persistStory(next);
     updated.push(issue.id);
