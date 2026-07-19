@@ -6,15 +6,17 @@ import {
 } from "./apply-schema";
 
 // A representative doc covering every kind and every inferred relationship:
-// two epics, root and stacked branches (nested to depth 2), commits, and an
-// explicit epic-level blockedBy reference (epic-empty blocks on epic-billing).
+// interleaved epic/idea project children, root and stacked branches (nested to
+// depth 2), commits, and an explicit epic-level blockedBy reference
+// (epic-empty blocks on epic-billing).
 const doc = {
   project: {
     id: "my-project",
     title: "My Project",
     description: "Overview...",
-    epics: [
+    children: [
       {
+        kind: "epic" as const,
         id: "epic-billing",
         title: "Billing rework",
         description: "Cross-cutting invariants...",
@@ -50,6 +52,13 @@ const doc = {
         ],
       },
       {
+        kind: "idea" as const,
+        id: "capture-cache",
+        title: "Cache idea",
+        description: "Maybe later.",
+      },
+      {
+        kind: "epic" as const,
         id: "epic-empty",
         title: "Empty epic",
         blockedBy: ["epic-billing"],
@@ -86,13 +95,29 @@ describe("parseApplyDoc", () => {
     if (!result.ok) expect(result.message).toContain('"story:"');
   });
 
+  it("rejects project-rooted epics: (replaced by children:)", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        epics: [{ id: "e", title: "E" }],
+      },
+    });
+    expect(result).toEqual({
+      ok: false,
+      message:
+        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea',
+    });
+  });
+
   it("rejects branches/commits child keys (old YAML keys)", () => {
     const result = parseApplyDoc({
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             branches: [{ id: "b", title: "B", commits: [{ id: "c", title: "C" }] }],
@@ -139,8 +164,9 @@ describe("parseApplyDoc", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -160,12 +186,41 @@ describe("parseApplyDoc", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects an idea child with epic-only keys", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "idea",
+            id: "i",
+            title: "I",
+            stories: [{ id: "b", title: "B" }],
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a children entry missing kind", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [{ id: "e", title: "E" }],
+      },
+    });
+    expect(result.ok).toBe(false);
+  });
+
   it("rejects duplicate ids across the doc", () => {
     const result = parseApplyDoc({
       project: {
         id: "dupe",
         title: "Root",
-        epics: [{ id: "dupe", title: "Clash" }],
+        children: [{ kind: "epic", id: "dupe", title: "Clash" }],
       },
     });
     expect(result.ok).toBe(false);
@@ -177,8 +232,9 @@ describe("parseApplyDoc", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [
@@ -208,6 +264,7 @@ describe("flattenApplyDoc", () => {
       [
         "my-project",
         "epic-billing",
+        "capture-cache",
         "epic-empty",
         "phase-0",
         "phase-0b",
@@ -218,9 +275,10 @@ describe("flattenApplyDoc", () => {
     );
   });
 
-  it("infers kind from the child key", () => {
+  it("infers kind from children kind / nesting keys", () => {
     expect(map.get("my-project")?.kind).toBe("project");
     expect(map.get("epic-billing")?.kind).toBe("epic");
+    expect(map.get("capture-cache")?.kind).toBe("idea");
     expect(map.get("phase-0")?.kind).toBe("story");
     expect(map.get("p0-extract-module")?.kind).toBe("task");
   });
@@ -232,9 +290,11 @@ describe("flattenApplyDoc", () => {
 
   it("infers partOf from the enclosing container", () => {
     const epic = map.get("epic-billing");
+    const idea = map.get("capture-cache");
     const branch = map.get("phase-0");
     const commit = map.get("p0-extract-module");
     expect(epic && "partOf" in epic && epic.partOf).toBe("my-project");
+    expect(idea && "partOf" in idea && idea.partOf).toBe("my-project");
     expect(branch && "partOf" in branch && branch.partOf).toBe("epic-billing");
     expect(commit && "partOf" in commit && commit.partOf).toBe("phase-0");
   });
@@ -271,12 +331,14 @@ describe("flattenApplyDoc", () => {
 
   it("carries descriptions and omits them when absent", () => {
     expect(map.get("my-project")?.description).toBe("Overview...");
+    expect(map.get("capture-cache")?.description).toBe("Maybe later.");
     expect(map.get("phase-0b")?.description).toBeUndefined();
   });
 
   it("infers order from array position for every child level", () => {
     expect(map.get("epic-billing")?.order).toBe(0);
-    expect(map.get("epic-empty")?.order).toBe(1);
+    expect(map.get("capture-cache")?.order).toBe(1);
+    expect(map.get("epic-empty")?.order).toBe(2);
     expect(map.get("phase-0")?.order).toBe(0);
     expect(map.get("phase-0b")?.order).toBe(1);
     expect(map.get("phase-1")?.order).toBe(0);

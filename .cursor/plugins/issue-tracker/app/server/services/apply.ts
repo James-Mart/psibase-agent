@@ -81,9 +81,7 @@ function buildIssue(
     draft.order = nextSiblingOrder(onDisk, desired.kind, partOf, stackedOn);
   }
 
-  // Project-only runtime fields vs partOf children. DesiredIssue includes `idea`
-  // via the Issue union even though flattenApplyDoc does not emit ideas yet
-  // (apply-children-schema-and-engine); the idea arm keeps buildIssue exhaustive.
+  // Project-only runtime fields vs partOf children (Epic / Idea / Story / Task).
   if (desired.kind === "project") {
     const prior = existing?.kind === "project" ? existing : undefined;
     if (prior) {
@@ -308,16 +306,12 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
     // stacked branches; here every in-scope reference has already been rebuilt
     // from the doc's nesting, so re-inheriting fork points would fight the doc.
     // The only edge that can still dangle is an out-of-scope Epic's `blockedBy`
-    // into the prune set, repaired below (see `repairSurvivor`). Undeclared Ideas
-    // are left on disk until project-root apply gains a `children:` list that can
-    // declare them (idea-apply-children).
+    // into the prune set, repaired below (see `repairSurvivor`). Project-root
+    // docs declare Epics and Ideas under `children:`; omitted ones are pruned.
+    // Epic-/story-rooted docs never include Ideas in scope (Ideas are Project
+    // children), so those forms leave Ideas untouched.
     const deleteSet = new Set(
-      [...scope].filter((id) => {
-        if (desiredIds.has(id)) return false;
-        const issue = onDiskById.get(id);
-        if (rootKind === "project" && issue?.kind === "idea") return false;
-        return true;
-      }),
+      [...scope].filter((id) => !desiredIds.has(id)),
     );
 
     // Fold surviving out-of-scope issues (with blockedBy repair) into the set.

@@ -541,41 +541,23 @@ describe("tree / list / summary include Ideas", () => {
   });
 
   it("echoes mixed Idea/Epic order from apply-root", () => {
-    // apply assigns declared epic array index as order; keep ideas off index 0.
-    writeIssue("idea-a", {
-      kind: "idea",
-      title: "Capture first",
-      partOf: "p",
-      order: 1,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    writeIssue("e", {
-      kind: "epic",
-      title: "Epic",
-      partOf: "p",
-      order: 0,
-      blockedBy: [],
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
-    writeIssue("idea-b", {
-      kind: "idea",
-      title: "Capture last",
-      partOf: "p",
-      order: 2,
-      createdAt: nextAt(),
-      updatedAt: nextAt(),
-    });
+    // Project-root children: order is the interleaved array index.
     const applyPath = join(dir, "board.yaml");
     writeFileSync(
       applyPath,
       `project:
   id: p
   title: Proj
-  epics:
-    - id: e
+  children:
+    - kind: epic
+      id: e
       title: Epic
+    - kind: idea
+      id: idea-a
+      title: Capture first
+    - kind: idea
+      id: idea-b
+      title: Capture last
 `,
     );
     const { stdout, status } = runCli(["apply", applyPath]);

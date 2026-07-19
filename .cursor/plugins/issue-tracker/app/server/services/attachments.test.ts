@@ -264,8 +264,9 @@ describe("apply leaves attachment bytes untouched", () => {
       project: {
         id: "p",
         title: "P",
-        epics: [
+        children: [
           {
+            kind: "epic",
             id: "e",
             title: "E",
             stories: [

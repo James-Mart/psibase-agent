@@ -3,13 +3,14 @@ import type { Issue } from "../schemas.js";
 import { formatZodError } from "../schemas.js";
 import { SLUG_RE } from "./slug.js";
 
-// The declarative `apply` doc describes a whole Project > Epic > Story > Task
-// tree in one nested document. Kind is implied by the child key (`epics` /
-// `stories` / `tasks` / `stacked`) and is never written. `partOf` is inferred
-// from the enclosing container and `stackedOn` from being nested under another
-// story; only `blockedBy` (an Epic-level cross-Epic dep list) uses explicit id
-// references. Every node carries a mandatory author-chosen kebab `id` so
-// re-apply is stable across retitles.
+// The declarative `apply` doc describes a whole Project > Epic|Idea > Story >
+// Task tree in one nested document. Under a Project, kind is explicit on each
+// `children:` entry (`kind: epic | idea`). Below an Epic, kind is implied by the
+// child key (`stories` / `tasks` / `stacked`) and is never written. `partOf` is
+// inferred from the enclosing container and `stackedOn` from being nested under
+// another story; only `blockedBy` (an Epic-level cross-Epic dep list) uses
+// explicit id references. Every node carries a mandatory author-chosen kebab
+// `id` so re-apply is stable across retitles.
 
 // Ids must be slug-safe: the same shape `slugify()` produces (see `SLUG_RE` in
 // slug.ts), so auto-slugs and author-chosen ids stay aligned.
@@ -54,18 +55,41 @@ const storyNode: z.ZodType<StoryNode> = z.lazy(() =>
     .strict(),
 );
 
-const epicNode = z
+const epicFields = {
+  id: idField,
+  title: titleField,
+  description: descriptionField,
+  // `blockedBy` references other Epic ids, so hold it to the same kebab rule.
+  blockedBy: z.array(idField).optional(),
+  stories: z.array(storyNode).optional(),
+};
+
+// Epic-rooted docs nest under `epic:`; kind is implied by that root key.
+const epicNode = z.object(epicFields).strict();
+
+export type EpicNode = z.infer<typeof epicNode>;
+
+// Project `children:` entries declare kind explicitly so Epics and Ideas can
+// interleave in one shared Project-child order group. Derive from `epicNode`
+// so the two epic shapes cannot drift.
+const epicChildNode = epicNode.extend({ kind: z.literal("epic") });
+
+const ideaChildNode = z
   .object({
+    kind: z.literal("idea"),
     id: idField,
     title: titleField,
     description: descriptionField,
-    // `blockedBy` references other Epic ids, so hold it to the same kebab rule.
-    blockedBy: z.array(idField).optional(),
-    stories: z.array(storyNode).optional(),
   })
   .strict();
 
-export type EpicNode = z.infer<typeof epicNode>;
+type IdeaChildNode = z.infer<typeof ideaChildNode>;
+export type EpicChildNode = z.infer<typeof epicChildNode>;
+
+const projectChildNode = z.discriminatedUnion("kind", [
+  epicChildNode,
+  ideaChildNode,
+]);
 
 // A story-rooted doc reconciles only the story's own subtree (the story plus
 // its tasks). Stacked children live under the *Epic* (`partOf` the Epic, not
@@ -87,7 +111,7 @@ const projectNode = z
     id: idField,
     title: titleField,
     description: descriptionField,
-    epics: z.array(epicNode).optional(),
+    children: z.array(projectChildNode).optional(),
   })
   .strict();
 
@@ -138,7 +162,7 @@ function collectIds(doc: ApplyDoc): string[] {
       [])
       visitStory(stacked);
   };
-  const visitEpic = (epic: EpicNode): void => {
+  const visitEpic = (epic: EpicNode | EpicChildNode): void => {
     ids.push(epic.id);
     for (const story of epic.stories ?? []) visitStory(story);
   };
@@ -151,7 +175,10 @@ function collectIds(doc: ApplyDoc): string[] {
     return ids;
   }
   ids.push(doc.project.id);
-  for (const epic of doc.project.epics ?? []) visitEpic(epic);
+  for (const child of doc.project.children ?? []) {
+    if (child.kind === "idea") ids.push(child.id);
+    else visitEpic(child);
+  }
   return ids;
 }
 
@@ -167,7 +194,7 @@ function firstDuplicate(ids: string[]): string | undefined {
 // Parse + validate an already-decoded (e.g. from YAML) doc value: shape, kebab
 // ids, and cross-doc id uniqueness. Returns a clear message instead of throwing
 // so callers can surface it verbatim. Old YAML keys (`branches`/`commits`/
-// rooted `branch:`) are rejected — no dual-key accept.
+// rooted `branch:` / project `epics:`) are rejected — no dual-key accept.
 export function parseApplyDoc(raw: unknown): ApplyParseResult {
   // Route to the specific form by root-key shape before parsing so validation
   // errors point at the intended form rather than a noisy union aggregate.
@@ -176,6 +203,19 @@ export function parseApplyDoc(raw: unknown): ApplyParseResult {
     return {
       ok: false,
       message: 'rooted "branch:" is no longer accepted; use "story:"',
+    };
+  }
+  const projectVal = keyed.project;
+  if (
+    projectVal &&
+    typeof projectVal === "object" &&
+    !Array.isArray(projectVal) &&
+    "epics" in projectVal
+  ) {
+    return {
+      ok: false,
+      message:
+        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea',
     };
   }
   const schema =
@@ -192,9 +232,9 @@ export function parseApplyDoc(raw: unknown): ApplyParseResult {
 }
 
 // Flatten the nested doc into the desired `Issue[]`, inferring `kind` from the
-// child key, `partOf` from the enclosing container, and `stackedOn` from being
-// nested under another story. `blockedBy` is an Epic-level dep list, carried
-// through verbatim on the Epic node.
+// child key (or explicit `kind` on Project `children:`), `partOf` from the
+// enclosing container, and `stackedOn` from being nested under another story.
+// `blockedBy` is an Epic-level dep list, carried through verbatim on the Epic.
 export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
   const desired: DesiredIssue[] = [];
 
@@ -237,7 +277,11 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
     );
   };
 
-  const emitEpic = (epic: EpicNode, projectId: string, order?: number): void => {
+  const emitEpic = (
+    epic: EpicNode | EpicChildNode,
+    projectId: string,
+    order?: number,
+  ): void => {
     desired.push({
       id: epic.id,
       kind: "epic",
@@ -251,6 +295,23 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
     });
     (epic.stories ?? []).forEach((story, index) => {
       emitStory(story, epic.id, undefined, index);
+    });
+  };
+
+  const emitIdea = (
+    idea: IdeaChildNode,
+    projectId: string,
+    order: number,
+  ): void => {
+    desired.push({
+      id: idea.id,
+      kind: "idea",
+      title: idea.title,
+      partOf: projectId,
+      order,
+      ...(idea.description !== undefined
+        ? { description: idea.description }
+        : {}),
     });
   };
 
@@ -276,7 +337,10 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       ? { description: project.description }
       : {}),
   });
-  (project.epics ?? []).forEach((epic, index) => emitEpic(epic, project.id, index));
+  (project.children ?? []).forEach((child, index) => {
+    if (child.kind === "idea") emitIdea(child, project.id, index);
+    else emitEpic(child, project.id, index);
+  });
 
   return desired;
 }
