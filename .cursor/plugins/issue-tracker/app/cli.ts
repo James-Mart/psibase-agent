@@ -43,7 +43,10 @@ import {
   putAttachment,
   removeAttachment,
 } from "./server/services/attachments.js";
-import { readCliFileArg } from "./cli-io.js";
+import {
+  resolveDescription,
+  withCreateDescriptionOptions,
+} from "./cli-io.js";
 import { registerKindGetSet } from "./cli-kind.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
@@ -292,19 +295,6 @@ function renderApplyRoot(doc: ApplyDoc, issues: IssueRecord[], ctx: TreeContext)
   return lines;
 }
 
-// Resolve a description from either inline text or a file path. `--description-file`
-// wins when both are given; returns undefined when neither is provided so callers
-// can fall back to the default `# <title>` seed.
-function resolveDescription(opts: {
-  description?: string;
-  descriptionFile?: string;
-}): string | undefined {
-  if (opts.descriptionFile) {
-    return readCliFileArg(opts.descriptionFile);
-  }
-  return opts.description;
-}
-
 const program = new Command();
 program
   .name("issue")
@@ -327,79 +317,73 @@ for (const kind of KINDS) {
   registerKindGetSet(program, kind, run);
 }
 
-program
-  .command("create-project")
-  .argument("<title>", "project title")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "project",
-        title,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program.command("create-project").argument("<title>", "project title"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "project",
+      title,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("create-epic")
-  .argument("<title>", "epic title")
-  .requiredOption("--part-of <project>", "parent project id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "epic",
-        title,
-        partOf: opts.partOf,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("create-epic")
+    .argument("<title>", "epic title")
+    .requiredOption("--part-of <project>", "parent project id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "epic",
+      title,
+      partOf: opts.partOf,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("add-story")
-  .argument("<title>", "story title")
-  .requiredOption("--part-of <epic>", "parent epic id")
-  .option("--stacked-on <branch>", "fork-point story id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "story",
-        title,
-        partOf: opts.partOf,
-        stackedOn: opts.stackedOn,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("add-story")
+    .argument("<title>", "story title")
+    .requiredOption("--part-of <epic>", "parent epic id")
+    .option("--stacked-on <branch>", "fork-point story id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "story",
+      title,
+      partOf: opts.partOf,
+      stackedOn: opts.stackedOn,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
-program
-  .command("add-task")
-  .argument("<title>", "task title")
-  .requiredOption("--part-of <branch>", "parent story id")
-  .option("--assignee <who>", "assignee id")
-  .option("--description <text>", "description.md contents")
-  .option("--description-file <path>", "read description.md contents from a file (use - for stdin)")
-  .action((title, opts) =>
-    run(() =>
-      create({
-        kind: "task",
-        title,
-        partOf: opts.partOf,
-        assignee: opts.assignee,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
+withCreateDescriptionOptions(
+  program
+    .command("add-task")
+    .argument("<title>", "task title")
+    .requiredOption("--part-of <branch>", "parent story id")
+    .option("--assignee <who>", "assignee id"),
+).action((title, opts) =>
+  run(() =>
+    create({
+      kind: "task",
+      title,
+      partOf: opts.partOf,
+      assignee: opts.assignee,
+      description: resolveDescription(opts),
+    }),
+  ),
+);
 
 program
   .command("apply")

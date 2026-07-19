@@ -1,13 +1,18 @@
 import type { Command } from "commander";
 import { coerceBoolean, coerceEnum, coerceJson } from "./cli-coerce.js";
-import { readCliFileArg } from "./cli-io.js";
+import {
+  readCliFileArg,
+  resolveDescription,
+  withCreateDescriptionOptions,
+  type CreateDescriptionOpts,
+} from "./cli-io.js";
 import {
   isClearableSetField,
   KIND_GET_FIELDS,
   KIND_SET_FIELDS,
   type SetFieldSpec,
 } from "./server/kind-fields.js";
-import { list, read, update } from "./server/services/issues.js";
+import { create, list, read, update } from "./server/services/issues.js";
 import { validateFullCommitSha } from "./server/services/commit-sha.js";
 import type { IssueDetail, IssueKind, IssuePatch } from "./server/schemas.js";
 
@@ -261,6 +266,27 @@ export function kindSet(
   return update(id, patch);
 }
 
+function registerIdeaAdd(
+  kindCmd: Command,
+  run: (action: () => unknown) => Promise<void>,
+): void {
+  withCreateDescriptionOptions(
+    kindCmd
+      .command("add")
+      .argument("<title>", "idea title")
+      .requiredOption("--project <project>", "parent project id"),
+  ).action((title: string, opts: CreateDescriptionOpts & { project: string }) =>
+    run(() =>
+      create({
+        kind: "idea",
+        title,
+        partOf: opts.project,
+        description: resolveDescription(opts),
+      }),
+    ),
+  );
+}
+
 export function registerKindGetSet(
   program: Command,
   kind: IssueKind,
@@ -294,4 +320,8 @@ export function registerKindGetSet(
       (id: string, field: string, value: string | undefined, opts: KindSetOptions) =>
         run(() => kindSet(kind, id, field, value, opts)),
     );
+
+  if (kind === "idea") {
+    registerIdeaAdd(cmd, run);
+  }
 }
