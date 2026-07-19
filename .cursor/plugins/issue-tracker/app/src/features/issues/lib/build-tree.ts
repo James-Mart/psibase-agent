@@ -1,5 +1,5 @@
 import type { IssueRecord } from "@server/schemas";
-import { storyDependencyIds, bySequence } from "@server/order";
+import { storyDependencyIds, bySequence, isProjectBoardChild } from "@server/order";
 
 export interface IssueNode {
   issue: IssueRecord;
@@ -110,7 +110,10 @@ function orderChildren(children: IssueRecord[]): IssueRecord[] {
   return [...tasks, ...stories];
 }
 
-export function buildTree(issues: IssueRecord[]): IssueNode[] {
+export function buildTree(
+  issues: IssueRecord[],
+  roots?: IssueRecord[],
+): IssueNode[] {
   const byId = new Map(issues.map((issue) => [issue.id, issue]));
 
   // A branch nests under the branch it forks from (its stackedOn) when that
@@ -140,8 +143,7 @@ export function buildTree(issues: IssueRecord[]): IssueNode[] {
     children: orderChildren(childrenOf.get(issue.id) ?? []).map(toNode),
   });
 
-  return issues
-    .filter((issue) => issue.kind === "epic")
-    .sort(bySequence)
-    .map(toNode);
+  const rootIssues =
+    roots ?? issues.filter(isProjectBoardChild).sort(bySequence);
+  return rootIssues.map(toNode);
 }

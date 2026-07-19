@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Archive, Plus, Search } from "lucide-react";
+import { AlertTriangle, Archive, Layers, Lightbulb, Plus, Search } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { visibleIssues } from "@server/services/archived-visibility";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,20 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useIssuesQuery } from "../api/queries";
 import { IssueTree } from "./issue-tree";
 import { buildTree, filterToProject, parentOf } from "../lib/build-tree";
+import type { BoardKindFilter } from "../lib/board-kind-filter";
+import { projectBoardRoots } from "../lib/project-board-roots";
 import { issueMatchesSearch } from "../lib/search";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
+
+const BOARD_FILTER_OPTIONS: {
+  value: BoardKindFilter;
+  label: string;
+  icon: typeof Layers;
+}[] = [
+  { value: "both", label: "Both", icon: Layers },
+  { value: "epic", label: "Epics", icon: Layers },
+  { value: "idea", label: "Ideas", icon: Lightbulb },
+];
 
 function filterWithAncestors(
   issues: IssueRecord[],
@@ -49,6 +61,8 @@ export function TreePage() {
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
+  const boardKindFilter = useIssueUiStore((s) => s.boardKindFilter);
+  const setBoardKindFilter = useIssueUiStore((s) => s.setBoardKindFilter);
   const showArchived = useIssueUiStore((s) => s.showArchived);
   const setShowArchived = useIssueUiStore((s) => s.setShowArchived);
 
@@ -72,7 +86,10 @@ export function TreePage() {
     () => filterWithAncestors(scoped, search),
     [scoped, search],
   );
-  const nodes = useMemo(() => buildTree(filtered), [filtered]);
+  const nodes = useMemo(() => {
+    const roots = projectBoardRoots(filtered, boardKindFilter);
+    return buildTree(filtered, roots);
+  }, [filtered, boardKindFilter]);
   const problems = data?.problems ?? [];
   const derived = data?.derived ?? {};
 
@@ -90,7 +107,7 @@ export function TreePage() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {hasProject
-                ? "Epic \u203a Branch \u203a Commit"
+                ? "Epic / Idea \u203a Branch \u203a Commit"
                 : unknownProject
                   ? "Project not found"
                   : "Select or create a project"}
@@ -121,8 +138,8 @@ export function TreePage() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[12rem] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -130,6 +147,26 @@ export function TreePage() {
                 placeholder="Search by title or id"
                 className="pl-9"
               />
+            </div>
+            <div
+              className="flex shrink-0 items-center rounded-md border p-0.5"
+              role="group"
+              aria-label="Filter by kind"
+            >
+              {BOARD_FILTER_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={boardKindFilter === value ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-7 px-2"
+                  aria-pressed={boardKindFilter === value}
+                  onClick={() => setBoardKindFilter(value)}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </Button>
+              ))}
             </div>
             <Button
               type="button"
