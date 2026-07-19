@@ -39,9 +39,11 @@ export interface ApplySummary {
 // preserved from a same-kind existing issue; for a brand-new issue they are left off the
 // draft entirely so `parseIssue` fills them from the schema `.default()`s — except
 // `archived`, which is seeded true when any ancestor is archived (matching `create`).
-// `apply` never reads or writes runtime state beyond preserving it, and never
-// touches chat.jsonl. `updatedAt` is set to `now`; callers revert it when
-// nothing actually changed so re-apply does not churn timestamps.
+// Story `mergeBase` is also resolved (not preserved) on create and when `stackedOn`
+// changes; unchanged `stackedOn` keeps the on-disk value. `apply` never reads or writes
+// runtime state beyond preserving it, and never touches chat.jsonl. `updatedAt` is set
+// to `now`; callers revert it when nothing actually changed so re-apply does not churn
+// timestamps.
 function buildIssue(
   desired: DesiredIssue,
   existing: Issue | undefined,
@@ -120,15 +122,22 @@ function buildIssue(
 
   if (desired.kind === "story") {
     const prior = existing && existing.kind === "story" ? existing : undefined;
+    const restacked = prior !== undefined && prior.stackedOn !== stackedOn;
     if (stackedOn !== undefined) draft.stackedOn = stackedOn;
     if (prior) {
       draft.merged = prior.merged;
       for (const key of STORY_RUNTIME_OPTIONAL_KEYS) {
+        if (restacked && key === "mergeBase") continue;
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
-    } else {
+    }
+    if (!prior || restacked) {
       const mergeBase = resolveMergeBase(stackedOn, onDisk);
-      if (mergeBase !== undefined) draft.mergeBase = mergeBase;
+      if (mergeBase !== undefined) {
+        draft.mergeBase = mergeBase;
+      } else if (restacked) {
+        delete draft.mergeBase;
+      }
     }
   }
 
