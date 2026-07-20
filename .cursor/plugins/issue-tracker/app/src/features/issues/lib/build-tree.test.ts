@@ -43,7 +43,12 @@ function idea(id: string, order: number, partOf = "p"): IssueRecord {
   };
 }
 
-function story(id: string, partOf: string, order = 0): IssueRecord {
+function story(
+  id: string,
+  partOf: string,
+  order = 0,
+  extra: Partial<IssueRecord & { kind: "story" }> = {},
+): IssueRecord {
   return {
     id,
     kind: "story",
@@ -57,6 +62,23 @@ function story(id: string, partOf: string, order = 0): IssueRecord {
     needsAttention: false,
     attentionReason: null,
     archived: false,
+    ...extra,
+  };
+}
+
+function task(id: string, partOf: string, order = 0): IssueRecord {
+  return {
+    id,
+    kind: "task",
+    title: id,
+    partOf,
+    order,
+    createdAt: "2020-01-01T00:00:00.000Z",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    status: "pending",
+    needsAttention: false,
+    attentionReason: null,
+    archived: false,
   };
 }
 
@@ -64,14 +86,15 @@ const boardIssues = [
   project(),
   idea("first", 0),
   epic("middle", 1),
-  idea("last", 2),
+  story("solo", "p", 2),
+  idea("last", 3),
   story("s1", "middle"),
 ];
 
 describe("projectBoardRoots", () => {
-  it("interleaves epics and ideas by order", () => {
+  it("interleaves epics, ideas, and project-level stories by order", () => {
     expect(projectBoardRoots(boardIssues, "both").map((issue) => issue.id)).toEqual(
-      ["first", "middle", "last"],
+      ["first", "middle", "solo", "last"],
     );
   });
 
@@ -87,10 +110,16 @@ describe("projectBoardRoots", () => {
     );
   });
 
+  it("shows only project-level stories when filtered", () => {
+    expect(projectBoardRoots(boardIssues, "story").map((issue) => issue.id)).toEqual(
+      ["solo"],
+    );
+  });
+
   it("only considers issues in the input set (project-scoped upstream)", () => {
     const scoped = boardIssues.filter((issue) => issue.id !== "last");
     expect(projectBoardRoots(scoped, "both").map((issue) => issue.id)).toEqual(
-      ["first", "middle"],
+      ["first", "middle", "solo"],
     );
   });
 });
@@ -108,5 +137,47 @@ describe("buildTree", () => {
     const nodes = buildTree(boardIssues, roots);
     expect(nodes.map((node) => node.issue.id)).toEqual(["first", "last"]);
     expect(nodes.every((node) => node.children.length === 0)).toBe(true);
+  });
+
+  it("nests tasks and stacked stories under a project-level story", () => {
+    const issues = [
+      project(),
+      story("root", "p", 0),
+      task("t1", "root", 0),
+      task("t2", "root", 1),
+      story("stacked", "p", 0, { stackedOn: "root" }),
+    ];
+    const roots = projectBoardRoots(issues, "both");
+    const nodes = buildTree(issues, roots);
+    expect(nodes.map((node) => node.issue.id)).toEqual(["root"]);
+    expect(nodes[0]?.children.map((child) => child.issue.id)).toEqual([
+      "t1",
+      "t2",
+      "stacked",
+    ]);
+  });
+
+  it("isolates project-level stories when filtered", () => {
+    const roots = projectBoardRoots(boardIssues, "story");
+    const nodes = buildTree(boardIssues, roots);
+    expect(nodes.map((node) => node.issue.id)).toEqual(["solo"]);
+    expect(nodes.every((node) => node.children.length === 0)).toBe(true);
+  });
+
+  it("keeps tasks and stacked stories visible under story-filtered roots", () => {
+    const issues = [
+      project(),
+      epic("e", 0),
+      story("root", "p", 1),
+      task("t1", "root", 0),
+      story("stacked", "p", 0, { stackedOn: "root" }),
+    ];
+    const roots = projectBoardRoots(issues, "story");
+    const nodes = buildTree(issues, roots);
+    expect(nodes.map((node) => node.issue.id)).toEqual(["root"]);
+    expect(nodes[0]?.children.map((child) => child.issue.id)).toEqual([
+      "t1",
+      "stacked",
+    ]);
   });
 });

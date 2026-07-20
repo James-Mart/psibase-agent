@@ -41,6 +41,18 @@ export function canDropStoryOntoEpic(
   return epic?.kind === "epic";
 }
 
+/** True when dropping `sourceId` onto project `projectId` is a legal reparent/unstack. */
+export function canDropStoryOntoProject(
+  issues: IssueRecord[],
+  sourceId: string,
+  projectId: string,
+): boolean {
+  const stack = storyDragStack(issues, sourceId);
+  if (stack.length === 0) return false;
+  const project = issues.find((i) => i.id === projectId);
+  return project?.kind === "project";
+}
+
 export function readStoryDragId(dataTransfer: DataTransfer): string | null {
   const id =
     dataTransfer.getData(STORY_DRAG_MIME) ||

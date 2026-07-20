@@ -100,6 +100,7 @@ describe("moveStory", () => {
       title: "Peer",
       partOf: "e1",
       order: 1,
+      branchName: "peer",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -110,6 +111,7 @@ describe("moveStory", () => {
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").stackedOn).toBe("peer");
+    expect(readJson("b").mergeBase).toBe("peer");
     expect(readJson("b").partOf).toBe("e1");
     expect(readJson("c").stackedOn).toBe("b");
     expect(readJson("c").partOf).toBe("e1");
@@ -158,6 +160,7 @@ describe("moveStory", () => {
 
     expect(readJson("b").partOf).toBe("e1");
     expect(readJson("b").stackedOn).toBeUndefined();
+    expect(readJson("b").mergeBase).toBe("main");
     expect(readJson("c").stackedOn).toBe("b");
     expect(readJson("c").partOf).toBe("e1");
     // Appends among e1 roots (a at order 0)
@@ -183,7 +186,7 @@ describe("moveStory", () => {
     await expect(moveStory("e1", "e2")).rejects.toThrow(/must be a story/);
   });
 
-  it("rejects a commit or project target", async () => {
+  it("rejects a commit target", async () => {
     writeIssue("c1", {
       kind: "task",
       title: "C1",
@@ -194,8 +197,89 @@ describe("moveStory", () => {
       updatedAt: AT,
     });
     const { moveStory } = await load();
-    await expect(moveStory("b", "c1")).rejects.toThrow(/story or epic/);
-    await expect(moveStory("b", "p")).rejects.toThrow(/story or epic/);
+    await expect(moveStory("b", "c1")).rejects.toThrow(
+      /story, epic, or project/,
+    );
+  });
+
+  it("reparents a whole stack onto the project as a project-level stack", async () => {
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("b", "p");
+    expect(result.moved).toEqual(["b", "c"]);
+
+    expect(readJson("b").partOf).toBe("p");
+    expect(readJson("b").stackedOn).toBeUndefined();
+    expect(readJson("b").mergeBase).toBe("main");
+    expect(readJson("c").partOf).toBe("p");
+    expect(readJson("c").stackedOn).toBe("b");
+    // Appends among project board roots (e1=0, e2=1)
+    expect(readJson("b").order).toBe(2);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("stacks project-level stories and updates mergeBase", async () => {
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo",
+      partOf: "p",
+      order: 2,
+      branchName: "solo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("other", {
+      kind: "story",
+      title: "Other",
+      partOf: "p",
+      order: 3,
+      branchName: "other",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("other", "solo");
+    expect(result.moved).toEqual(["other"]);
+    expect(readJson("other").partOf).toBe("p");
+    expect(readJson("other").stackedOn).toBe("solo");
+    expect(readJson("other").mergeBase).toBe("solo");
+    expect(list().problems).toEqual([]);
+  });
+
+  it("reparents a project-level stack onto an epic", async () => {
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo",
+      partOf: "p",
+      order: 2,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("child", {
+      kind: "story",
+      title: "Child",
+      partOf: "p",
+      stackedOn: "solo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("solo", "e2");
+    expect(result.moved).toEqual(["solo", "child"]);
+
+    expect(readJson("solo").partOf).toBe("e2");
+    expect(readJson("solo").stackedOn).toBeUndefined();
+    expect(readJson("child").partOf).toBe("e2");
+    expect(readJson("child").stackedOn).toBe("solo");
+    // Appends among e2 roots (x at order 0)
+    expect(readJson("solo").order).toBe(1);
+    expect(list().problems).toEqual([]);
   });
 
   it("rejects an unknown source or target", async () => {

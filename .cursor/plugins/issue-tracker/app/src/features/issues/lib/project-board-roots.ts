@@ -11,10 +11,8 @@ export function projectBoardRoots(
   let roots = issues
     .filter((issue) => isProjectBoardChild(issue, byId))
     .sort(bySequence);
-  if (filter === "epic") {
-    roots = roots.filter((issue) => issue.kind === "epic");
-  } else if (filter === "idea") {
-    roots = roots.filter((issue) => issue.kind === "idea");
+  if (filter !== "both") {
+    roots = roots.filter((issue) => issue.kind === filter);
   }
   return roots;
 }

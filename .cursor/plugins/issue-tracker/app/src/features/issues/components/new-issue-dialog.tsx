@@ -22,6 +22,7 @@ import { useCreateIssue } from "../api/mutations";
 import { useIssuesQuery } from "../api/queries";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL } from "../lib/kind";
+import { PartOfTargetSelect } from "./part-of-target-select";
 
 // Projects are created from the sidebar, not this dialog.
 const SELECTABLE_KINDS = KINDS.filter((kind) => kind !== "project");
@@ -85,7 +86,9 @@ export function NewIssueDialog() {
           <DialogDescription>
             {kind === "idea"
               ? "Capture an idea under this project."
-              : "Create an issue in the Epic / Idea \u203a Story \u203a Task tree."}
+              : kind === "story"
+                ? "Create a Story under a Project or an Epic."
+                : "Create an issue in the Epic / Idea \u203a Story \u203a Task tree."}
           </DialogDescription>
         </DialogHeader>
 
@@ -129,18 +132,12 @@ export function NewIssueDialog() {
           {needsParent && !parentLocked ? (
             <div className="grid gap-1.5">
               <Label>Part of ({parentKindLabel})</Label>
-              <Select value={parent} onValueChange={setParent}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Select a ${parentKindLabel}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {parentOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <PartOfTargetSelect
+                value={parent}
+                onValueChange={setParent}
+                options={parentOptions}
+                placeholder={`Select a ${parentKindLabel}`}
+              />
             </div>
           ) : null}
 

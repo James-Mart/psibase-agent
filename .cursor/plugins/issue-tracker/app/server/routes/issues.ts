@@ -18,6 +18,7 @@ import {
   update,
 } from "../services/issues.js";
 import { moveStory } from "../services/move-story.js";
+import { reorderBoardChild } from "../services/reorder-board.js";
 import type {
   ChatMessageInput,
   CreateInput,
@@ -115,6 +116,19 @@ issuesRouter.post(
       return;
     }
     const result = await moveStory(req.params.id, target);
+    res.json(result);
+  }),
+);
+
+issuesRouter.post(
+  "/:id/reorder",
+  asyncRoute(async (req, res) => {
+    const before = (req.body as { before?: unknown })?.before;
+    if (typeof before !== "string" || !before) {
+      res.status(400).json({ error: "before is required" });
+      return;
+    }
+    const result = await reorderBoardChild(req.params.id, before);
     res.json(result);
   }),
 );

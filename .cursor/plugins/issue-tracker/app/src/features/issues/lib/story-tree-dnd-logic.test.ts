@@ -5,10 +5,25 @@ import {
   canRestackStoryOntoStory,
 } from "./story-drop";
 import {
+  isRowDraggable,
   isStoryTreeDraggable,
-  isStoryTreeDropTarget,
   processStoryDrop,
+  resolveDropAction,
 } from "./story-tree-dnd-logic";
+
+function project(id = "p"): IssueRecord {
+  return {
+    id,
+    kind: "project",
+    title: id,
+    order: 0,
+    createdAt: "2020-01-01T00:00:00.000Z",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    needsAttention: false,
+    attentionReason: null,
+    archived: false,
+  };
+}
 
 function story(id: string, partOf: string, stackedOn?: string): IssueRecord {
   return {
@@ -28,17 +43,31 @@ function story(id: string, partOf: string, stackedOn?: string): IssueRecord {
   };
 }
 
-function epic(id: string): IssueRecord {
+function epic(id: string, order = 0): IssueRecord {
   return {
     id,
     kind: "epic",
     title: id,
     partOf: "p",
-    order: 0,
+    order,
     createdAt: "2020-01-01T00:00:00.000Z",
     updatedAt: "2020-01-01T00:00:00.000Z",
     needsAttention: false,
     attentionReason: null,
+    archived: false,
+    blockedBy: [],
+  };
+}
+
+function idea(id: string, order = 0): IssueRecord {
+  return {
+    id,
+    kind: "idea",
+    title: id,
+    partOf: "p",
+    order,
+    createdAt: "2020-01-01T00:00:00.000Z",
+    updatedAt: "2020-01-01T00:00:00.000Z",
     archived: false,
   };
 }
@@ -60,8 +89,11 @@ function task(id: string, partOf: string): IssueRecord {
 }
 
 const issues: IssueRecord[] = [
-  epic("e1"),
-  epic("e2"),
+  project(),
+  epic("e1", 0),
+  epic("e2", 1),
+  idea("i1", 2),
+  story("solo", "p"),
   story("a", "e1"),
   story("b", "e1", "a"),
   story("peer", "e1"),
@@ -77,27 +109,48 @@ describe("isStoryTreeDraggable", () => {
   });
 });
 
-describe("isStoryTreeDropTarget", () => {
-  it("allows branches and epics", () => {
-    expect(isStoryTreeDropTarget(story("a", "e1"))).toBe(true);
-    expect(isStoryTreeDropTarget(epic("e1"))).toBe(true);
+describe("isRowDraggable", () => {
+  it("allows stories and board-root epics/ideas", () => {
+    expect(isRowDraggable(story("a", "e1"), issues)).toBe(true);
+    expect(isRowDraggable(story("solo", "p"), issues)).toBe(true);
+    expect(isRowDraggable(epic("e1"), issues)).toBe(true);
+    expect(isRowDraggable(idea("i1", 2), issues)).toBe(true);
   });
 
-  it("refuses commits and other kinds", () => {
-    expect(isStoryTreeDropTarget(task("c1", "b"))).toBe(false);
-    expect(
-      isStoryTreeDropTarget({
-        id: "p",
-        kind: "project",
-        title: "p",
-        order: 0,
-        createdAt: "2020-01-01T00:00:00.000Z",
-        updatedAt: "2020-01-01T00:00:00.000Z",
-        needsAttention: false,
-        attentionReason: null,
-    archived: false,
-      }),
-    ).toBe(false);
+  it("refuses tasks", () => {
+    expect(isRowDraggable(task("c1", "b"), issues)).toBe(false);
+  });
+});
+
+describe("resolveDropAction", () => {
+  it("restacks story→story", () => {
+    expect(resolveDropAction(issues, "b", "peer")).toBe("restack");
+    expect(resolveDropAction(issues, "solo", "x")).toBe("restack");
+  });
+
+  it("reorders a board-root story onto epic/idea", () => {
+    expect(resolveDropAction(issues, "solo", "e1")).toBe("reorder");
+    expect(resolveDropAction(issues, "solo", "i1")).toBe("reorder");
+  });
+
+  it("reparents an epic-child story onto an epic", () => {
+    expect(resolveDropAction(issues, "b", "e2")).toBe("reparent");
+    expect(resolveDropAction(issues, "b", "e1")).toBe("reparent");
+  });
+
+  it("prefers epic reorder over reparent for board-root sources", () => {
+    expect(resolveDropAction(issues, "e2", "e1")).toBe("reorder");
+    expect(canDropStoryOntoEpic(issues, "e2", "e1")).toBe(false);
+  });
+
+  it("reparents onto the project", () => {
+    expect(resolveDropAction(issues, "b", "p")).toBe("reparent");
+  });
+
+  it("refuses illegal targets", () => {
+    expect(resolveDropAction(issues, "b", "b")).toBeNull();
+    expect(resolveDropAction(issues, "a", "b")).toBeNull();
+    expect(resolveDropAction(issues, "b", "c1")).toBeNull();
   });
 });
 
@@ -144,7 +197,7 @@ describe("processStoryDrop", () => {
     processStoryDrop({
       sourceId: "b",
       targetId: "c1",
-      canDrop: () => isStoryTreeDropTarget(task("c1", "b")),
+      canDrop: (sourceId) => resolveDropAction(issues, sourceId, "c1") !== null,
       onMove,
     });
     expect(onMove).not.toHaveBeenCalled();

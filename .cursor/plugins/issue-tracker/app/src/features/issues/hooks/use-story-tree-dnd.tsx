@@ -9,17 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import type { IssueRecord } from "@server/schemas";
-import { useMoveStory } from "../api/mutations";
+import { useMoveStory, useReorderBoardChild } from "../api/mutations";
+import { canDropStoryOntoProject, readStoryDragId, STORY_DRAG_MIME } from "../lib/story-drop";
 import {
-  STORY_DRAG_MIME,
-  canDropStoryOntoEpic,
-  canRestackStoryOntoStory,
-  readStoryDragId,
-} from "../lib/story-drop";
-import {
-  isStoryTreeDraggable,
-  isStoryTreeDropTarget,
+  isRowDraggable,
   processStoryDrop,
+  resolveDropAction,
 } from "../lib/story-tree-dnd-logic";
 
 export type RowDnDProps = Pick<
@@ -37,6 +32,9 @@ export type RowDnDProps = Pick<
 
 export interface StoryTreeDnD {
   getRowDnDProps: (issue: IssueRecord) => RowDnDProps;
+  getProjectDnDProps: (projectId: string) => RowDnDProps;
+  /** Id of the row currently being dragged, if any. */
+  draggingId: string | null;
   /** True once if the last gesture was a drag (clears the flag). */
   consumeDragGesture: () => boolean;
 }
@@ -50,6 +48,7 @@ const INERT_ROW_DND: RowDnDProps = {
 
 export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
   const moveStory = useMoveStory();
+  const reorderBoard = useReorderBoardChild();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -60,6 +59,20 @@ export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
     setDraggingId(null);
     setDropTargetId(null);
   }, []);
+
+  const runDrop = useCallback(
+    (sourceId: string, targetId: string) => {
+      const action = resolveDropAction(issues, sourceId, targetId);
+      if (action === "restack" || action === "reparent") {
+        moveStory.mutate({ id: sourceId, target: targetId });
+        return;
+      }
+      if (action === "reorder") {
+        reorderBoard.mutate({ id: sourceId, before: targetId });
+      }
+    },
+    [issues, moveStory, reorderBoard],
+  );
 
   const dropTargetHandlers = useCallback(
     (
@@ -92,11 +105,31 @@ export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
           sourceId,
           targetId,
           canDrop,
-          onMove: (id, target) => moveStory.mutate({ id, target }),
+          onMove: runDrop,
         });
       },
     }),
-    [clearDrag, moveStory],
+    [clearDrag, runDrop],
+  );
+
+  const dragSourceHandlers = useCallback(
+    (id: string): Pick<
+      HTMLAttributes<HTMLDivElement>,
+      "draggable" | "onDragStart" | "onDragEnd"
+    > => ({
+      draggable: true,
+      onDragStart: (event: DragEvent) => {
+        event.dataTransfer.setData(STORY_DRAG_MIME, id);
+        event.dataTransfer.setData("text/plain", id);
+        event.dataTransfer.effectAllowed = "move";
+        draggedDuringGestureRef.current = true;
+        draggingIdRef.current = id;
+        setDraggingId(id);
+        setDropTargetId(null);
+      },
+      onDragEnd: clearDrag,
+    }),
+    [clearDrag],
   );
 
   const getRowDnDProps = useCallback(
@@ -104,40 +137,40 @@ export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
       const id = issue.id;
       const isDropTarget = dropTargetId === id;
 
-      if (isStoryTreeDraggable(issue)) {
-        return {
-          ...dropTargetHandlers(id, (sourceId) =>
-            canRestackStoryOntoStory(issues, sourceId, id),
-          ),
-          draggable: true,
-          isDragging: draggingId === id,
-          isDropTarget,
-          onDragStart: (event: DragEvent) => {
-            event.dataTransfer.setData(STORY_DRAG_MIME, id);
-            event.dataTransfer.setData("text/plain", id);
-            event.dataTransfer.effectAllowed = "move";
-            draggedDuringGestureRef.current = true;
-            draggingIdRef.current = id;
-            setDraggingId(id);
-            setDropTargetId(null);
-          },
-          onDragEnd: clearDrag,
-        };
+      if (!isRowDraggable(issue, issues)) {
+        return INERT_ROW_DND;
       }
 
-      if (isStoryTreeDropTarget(issue) && issue.kind === "epic") {
-        return {
-          ...dropTargetHandlers(id, (sourceId) =>
-            canDropStoryOntoEpic(issues, sourceId, id),
-          ),
-          isDragging: false,
-          isDropTarget,
-        };
-      }
-
-      return INERT_ROW_DND;
+      const canDrop = (sourceId: string) =>
+        resolveDropAction(issues, sourceId, id) !== null;
+      return {
+        ...dropTargetHandlers(id, canDrop),
+        ...dragSourceHandlers(id),
+        isDragging: draggingId === id,
+        isDropTarget,
+      };
     },
-    [clearDrag, draggingId, dropTargetId, dropTargetHandlers, issues],
+    [
+      dragSourceHandlers,
+      draggingId,
+      dropTargetHandlers,
+      dropTargetId,
+      issues,
+    ],
+  );
+
+  const getProjectDnDProps = useCallback(
+    (projectId: string): RowDnDProps => {
+      const isDropTarget = dropTargetId === projectId;
+      return {
+        ...dropTargetHandlers(projectId, (sourceId) =>
+          canDropStoryOntoProject(issues, sourceId, projectId),
+        ),
+        isDragging: false,
+        isDropTarget,
+      };
+    },
+    [dropTargetHandlers, dropTargetId, issues],
   );
 
   const consumeDragGesture = useCallback(() => {
@@ -146,7 +179,12 @@ export function useStoryTreeDnD(issues: IssueRecord[]): StoryTreeDnD {
     return true;
   }, []);
 
-  return { getRowDnDProps, consumeDragGesture };
+  return {
+    getRowDnDProps,
+    getProjectDnDProps,
+    draggingId,
+    consumeDragGesture,
+  };
 }
 
 export function StoryTreeDnDProvider({

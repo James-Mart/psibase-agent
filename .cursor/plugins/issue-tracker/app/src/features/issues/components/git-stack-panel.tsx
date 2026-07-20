@@ -34,13 +34,14 @@ function BranchPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Git / stack
       </div>
-      {storyAxesVisible(state?.storyStatus, issue.specReview) ? (
+      {storyAxesVisible(state?.storyStatus, issue.specReview, issue.retro) ? (
         <Row
           label="Status"
           value={
             <StoryAxisChips
               storyStatus={state?.storyStatus}
               specReview={issue.specReview}
+              retro={issue.retro}
             />
           }
         />

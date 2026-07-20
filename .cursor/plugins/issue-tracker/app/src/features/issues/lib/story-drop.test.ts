@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { IssueRecord } from "@server/schemas";
 import {
   canDropStoryOntoEpic,
+  canDropStoryOntoProject,
   canRestackStoryOntoStory,
 } from "./story-drop";
 
@@ -42,7 +43,22 @@ function epic(id: string): IssueRecord {
   };
 }
 
+function project(id = "p"): IssueRecord {
+  return {
+    id,
+    kind: "project",
+    title: id,
+    order: 0,
+    createdAt: "2020-01-01T00:00:00.000Z",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    needsAttention: false,
+    attentionReason: null,
+    archived: false,
+  };
+}
+
 const issues: IssueRecord[] = [
+  project(),
   epic("e1"),
   epic("e2"),
   story("a", "e1"),
@@ -50,6 +66,8 @@ const issues: IssueRecord[] = [
   story("c", "e1", "b"),
   story("peer", "e1"),
   story("x", "e2"),
+  story("solo", "p"),
+  story("stacked", "p", "solo"),
 ];
 
 describe("canRestackStoryOntoStory", () => {
@@ -90,5 +108,28 @@ describe("canDropStoryOntoEpic", () => {
 
   it("refuses non-epic targets", () => {
     expect(canDropStoryOntoEpic(issues, "b", "a")).toBe(false);
+  });
+});
+
+describe("canDropStoryOntoProject", () => {
+  it("allows reparent/unstack onto the project", () => {
+    expect(canDropStoryOntoProject(issues, "stacked", "p")).toBe(true);
+    expect(canDropStoryOntoProject(issues, "b", "p")).toBe(true);
+  });
+
+  it("refuses unknown source and non-project targets", () => {
+    expect(canDropStoryOntoProject(issues, "ghost", "p")).toBe(false);
+    expect(canDropStoryOntoProject(issues, "b", "e1")).toBe(false);
+  });
+});
+
+describe("canRestackStoryOntoStory — project-level", () => {
+  it("allows stacking among project-level stories", () => {
+    expect(canRestackStoryOntoStory(issues, "solo", "x")).toBe(true);
+    expect(canRestackStoryOntoStory(issues, "stacked", "solo")).toBe(true);
+  });
+
+  it("refuses stacking a root onto its stacked descendant", () => {
+    expect(canRestackStoryOntoStory(issues, "solo", "stacked")).toBe(false);
   });
 });

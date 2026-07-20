@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   AlertTriangle,
   Archive,
+  GitBranch,
   Layers,
   Lightbulb,
   Plus,
@@ -43,9 +44,10 @@ const BOARD_FILTER_OPTIONS: {
   label: string;
   icon: typeof Layers;
 }[] = [
-  { value: "both", label: "Both", icon: Layers },
+  { value: "both", label: "All", icon: Layers },
   { value: "epic", label: "Epics", icon: Layers },
   { value: "idea", label: "Ideas", icon: Lightbulb },
+  { value: "story", label: "Stories", icon: GitBranch },
 ];
 
 function LabelFilterControl({
@@ -202,6 +204,16 @@ export function TreePage() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              onClick={() =>
+                openNew({ presetKind: "story", presetParent: projectId })
+              }
+            >
+              <GitBranch className="h-4 w-4" />
+              New story
+            </Button>
+            <Button
+              size="sm"
               onClick={() =>
                 openNew({ presetKind: "epic", presetParent: projectId })
               }
@@ -312,6 +324,7 @@ export function TreePage() {
                 derived={derived}
                 issues={scoped}
                 catalog={catalog}
+                projectId={projectId}
               />
             )}
           </div>
