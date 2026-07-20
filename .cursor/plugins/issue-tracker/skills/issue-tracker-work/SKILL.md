@@ -19,10 +19,11 @@ The coordinator does no real reasoning — it reads tracker state, runs a thin s
 of CLI commands, and spawns subagents in a fixed order — so it should itself run
 on the cheap model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The
 model discriminator assigns an implementor model onto each Task; the
-implementor writes code; the code-quality validator is advisory (read-only
-comments); the spec-conformance validator records the Story gate (`specReview`,
-optional remediation Task) without editing workspace source; the git subagent
-owns branch create, Task finalize, and Story finish.
+implementor writes code; the code-quality validator owns Task `qa` (writes the
+gate, resumes across rounds, three-strike escalate); the spec-conformance
+validator records the Story gate (`specReview`, optional remediation Task)
+without editing workspace source; the git subagent owns branch create, Task
+finalize, and Story finish.
 
 **You do not write code, run the app, or verify the work yourself.** You read the
 plan with `issue tree` and spawn subagents. Do **essentially no reasoning**:
@@ -147,7 +148,7 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 | Git | `issue-tracker-git` | Start a Story; finish a Task after revise; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | Before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
 | Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
-| Code-quality validator | `issue-tracker-code-quality-validator` | After a Task's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
+| Code-quality validator | `issue-tracker-code-quality-validator` | After implementor finishes: **spawn** when `qa` unset; **resume** when `qa` is `changes-requested` or stuck `reviewing` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `comment`) |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `add-task` / `comment`) |
 | Retro | `issue-tracker-retro` | Completion when every Story in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue <kind> set … needsAttention`) |
 
@@ -160,14 +161,19 @@ Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
 | Task `status` `in-progress` | Implementor | on first implement entry |
 | Task `status` `fixing` | Implementor | on every revise entry |
 | Task `status` `done` | Git (finish-commit) | Task finalize |
-| Task `qa` | Code-quality | owned by that agent (not the coordinator) |
+| Task `qa` | Code-quality | on each entry `reviewing`, then terminal `passed` / `changes-requested` (three-strike → `needsAttention`); never the coordinator |
 | Epic `retro` | Retro | owned by that agent (not the coordinator) |
 
-Implement and revise are the **same** implementor agent. Code-quality is
-advisory (read-only `issue comment`) — it surfaces issues but is **not** in
-charge. Spec-conformance is the Story gate recorder: it sets `specReview` and
-may append a remediation Task (tracker writes only; never workspace source).
-Both keep findings out of your context via comments / machine-readable fields.
+Implement and revise are the **same** implementor agent. Code-quality is a
+**writer** of Task `qa`: fresh **spawn** when `qa` is unset; **resume** the
+same Cursor Task when re-entering with `qa=changes-requested` or stuck
+`qa=reviewing` (prior entry never reached a terminal qa). Remember the
+code-quality Cursor Task agent id for that resume. Code-quality counts its own
+`changes-requested` rounds from the resumed session (no stored counter; you do
+**not** count). On the 3rd `changes-requested` it sets `needsAttention` itself.
+Spec-conformance is the Story gate recorder: it sets `specReview` and may
+append a remediation Task (tracker writes only; never workspace source). Both
+keep findings out of your context via comments / machine-readable fields.
 
 ## The loop
 
@@ -203,12 +209,27 @@ ownership**. Do not set Task `status` yourself.
    the implement spawn stub. Remember the Cursor Task agent id for resume. Wait
    for finished or blocked (needsAttention on `<id>`). Do not read its diff or
    ingest a report.
-3. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
-   (read-only) with the code-quality spawn stub.
-4. **Revise (one pass).** **Resume** the implementor Cursor Task from step 2
-   (same session; same model). Use the revise spawn stub. Always one resume
-   pass, even if the validator posted "nothing actionable". Do not re-run the
-   validator or loop.
+3. **Validate (code quality).** Read `issue task get <task> qa`. Branch on
+   the value (do not count QA rounds yourself):
+   - unset → **spawn** `issue-tracker-code-quality-validator` with the
+     code-quality spawn stub; remember its Cursor Task agent id.
+   - `changes-requested` or `reviewing` → **resume** that same code-quality
+     Cursor Task with the code-quality resume stub (`reviewing` means a prior
+     entry did not reach a terminal qa — resume, do not spawn a second agent).
+   - `passed` → skip to step 5 (Finalize); do not spawn or resume
+     code-quality again.
+   Wait until a spawn/resume finishes (or raises needsAttention) before
+   step 4.
+4. **Gate after code-quality.** Read both
+   `issue task get <task> needsAttention` and `issue task get <task> qa`
+   (in that order). Branch:
+   - `needsAttention` is `true` → stop (Escalation). Check this **before**
+     `qa`, because three-strike leaves terminal `qa=changes-requested` **and**
+     `needsAttention` — do not resume the implementor in that case.
+   - `qa` is `passed` → step 5.
+   - `qa` is `changes-requested` and `needsAttention` is `false` →
+     **resume** the implementor from step 2 with the revise stub, then
+     return to step 3.
 5. **Finalize.** Spawn `issue-tracker-git` with the finish-commit stub.
 6. **Advance** to the next Task.
 
@@ -339,10 +360,18 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 > *(Append the Plugin redeploy clause.)*
 
 **Code-quality validator** — `subagent_type: issue-tracker-code-quality-validator`
-(read-only)
+(spawn when `qa` unset; remember Cursor Task agent id for resume)
 
-> *(Issue context line.)* Comment role:
+> *(Issue context line.)* Mode: review. Comment role:
 > `code-quality-validator`.
+
+**Code-quality validator (resume)** — resume code-quality when
+`qa` is `changes-requested` or stuck `reviewing` (same Cursor Task agent id
+from the spawn above)
+
+> *(Issue context line.)* Mode: resume. Comment role:
+> `code-quality-validator`. Verify that previously requested changes were
+> fixed.
 
 **Spec-conformance validator** — `subagent_type: issue-tracker-spec-conformance-validator`
 
@@ -387,11 +416,16 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
   **no** git commit and no sha. Either way the coordinator just spawns
   finish-commit — it never inspects the tree or the `noDiff` flag, and an empty
   tree alone is never a completion signal.
-- Exactly one revision pass after the code-quality validator (via **resume**);
-  never loop reviews. Spec-conformance remediation is Close-Story's job (see
-  that section) — no story-level revise. The implementor may decline findings
-  with reasoning.
+- Code-quality loop: spawn when `qa` unset; resume code-quality when
+  `qa` is `changes-requested` or stuck `reviewing`; after code-quality,
+  read `needsAttention` before `qa` and stop if true (three-strike leaves
+  both). Resume implementor only when `qa=changes-requested` and
+  `needsAttention` is false. You never count QA rounds — code-quality owns
+  the three-strike escalate. Spec-conformance remediation is Close-Story's
+  job (see that section) — no story-level revise. The implementor may decline
+  findings with reasoning.
 - Never let a validator edit workspace source (write scopes: Models table).
+  Code-quality may write Task `qa` / `needsAttention` and comments only.
 - Never set status on a Story or Epic. Do not decide whether to open or merge a
   PR — that is the Project's `mergePolicy`, applied by `issue-tracker-git` on
   finish-branch. Always spawn finish-branch; never read or branch on the policy.
