@@ -147,7 +147,7 @@ export function formatSummary(summary: IssueSummary): string {
   }
   lines.push("");
   lines.push(
-    "For more details, try `issue show <id>` or `issue tree`.",
+    "For more details, try `issue <kind> view <id>` or `issue tree`.",
   );
   return lines.join("\n");
 }

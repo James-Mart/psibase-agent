@@ -84,7 +84,7 @@ describe("removed commands", () => {
 describe("--file - reads stdin on create", () => {
   it("seeds description.md from piped stdin through the create service", () => {
     const { stdout, status } = runCli(
-      ["create-project", "Stdin Project", "--file", "-"],
+      ["project", "add", "Stdin Project", "--file", "-"],
       "# Piped description\n\nfrom stdin\n",
     );
     expect(status).toBe(0);
@@ -121,7 +121,7 @@ describe("summary", () => {
     const { stdout, status } = runCli(["summary", "c1"]);
     expect(status).toBe(0);
     expect(stdout).toContain("Task: c1 — Do the thing");
-    expect(stdout).toContain("For more details, try `issue show <id>` or `issue tree`.");
+    expect(stdout).toContain("For more details, try `issue <kind> view <id>` or `issue tree`.");
   });
 
   it("errors with a nonzero exit on an unknown id", () => {
@@ -149,7 +149,7 @@ describe("summary", () => {
   });
 });
 
-describe("show", () => {
+describe("view", () => {
   beforeEach(() => {
     writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
     writeIssue("e", { kind: "epic", title: "Epic", partOf: "p", createdAt: nextAt(), updatedAt: nextAt() });
@@ -170,7 +170,7 @@ describe("show", () => {
   });
 
   it("prints metadata and description but not the chat by default", () => {
-    const { stdout, status } = runCli(["show", "a"]);
+    const { stdout, status } = runCli(["story", "view", "a"]);
     expect(status).toBe(0);
     expect(stdout).toContain("id: a");
     expect(stdout).toContain("kind: story");
@@ -185,14 +185,14 @@ describe("show", () => {
   });
 
   it("appends the chat log with --chat", () => {
-    const { stdout, status } = runCli(["show", "a", "--chat"]);
+    const { stdout, status } = runCli(["story", "view", "a", "--chat"]);
     expect(status).toBe(0);
     expect(stdout).toContain("--- chat ---");
     expect(stdout).toContain("bot: first note");
   });
 
   it("errors with a nonzero exit on an unknown id", () => {
-    const { stderr, status } = runCli(["show", "ghost"]);
+    const { stderr, status } = runCli(["story", "view", "ghost"]);
     expect(status).toBe(1);
     expect(stderr).toContain('unknown issue "ghost"');
   });
@@ -206,14 +206,14 @@ describe("show", () => {
       createdAt: nextAt(),
       updatedAt: nextAt(),
     });
-    const { stdout, status } = runCli(["show", "e2"]);
+    const { stdout, status } = runCli(["epic", "view", "e2"]);
     expect(status).toBe(0);
     expect(stdout).toContain("kind: epic");
     expect(stdout).toContain("blockedBy: e");
   });
 
   it("omits the blockedBy line for an epic with no blockers", () => {
-    const { stdout, status } = runCli(["show", "e"]);
+    const { stdout, status } = runCli(["epic", "view", "e"]);
     expect(status).toBe(0);
     expect(stdout).toContain("kind: epic");
     expect(stdout).not.toContain("blockedBy:");
@@ -224,7 +224,7 @@ describe("show", () => {
     try {
       const { status: setStatus } = runCli(["project", "set", "p", "workspace", ws]);
       expect(setStatus).toBe(0);
-      const { stdout, status } = runCli(["show", "p"]);
+      const { stdout, status } = runCli(["project", "view", "p"]);
       expect(status).toBe(0);
       expect(stdout).toContain(`workspace: ${ws}`);
     } finally {
@@ -233,7 +233,7 @@ describe("show", () => {
   });
 
   it("omits workspace when unset on a project", () => {
-    const { stdout, status } = runCli(["show", "p"]);
+    const { stdout, status } = runCli(["project", "view", "p"]);
     expect(status).toBe(0);
     expect(stdout).toContain("mergePolicy: manual");
     expect(stdout).not.toContain("workspace:");
@@ -312,9 +312,9 @@ describe("project get/set", () => {
     );
   });
 
-  it("wires mergePolicy through to show", () => {
+  it("wires mergePolicy through to view", () => {
     expect(runCli(["project", "set", "p", "mergePolicy", "pull-request"]).status).toBe(0);
-    const { stdout, status } = runCli(["show", "p"]);
+    const { stdout, status } = runCli(["project", "view", "p"]);
     expect(status).toBe(0);
     expect(stdout).toContain("mergePolicy: pull-request");
   });
@@ -511,7 +511,7 @@ describe("kind-scoped add", () => {
     expect(issueJsonField(id, "assignee")).toBe(assignee);
   });
 
-  it("seeds description from --description and --file", () => {
+  it("seeds description from --description and --file without --description-file", () => {
     const inline = runCli([
       "project",
       "add",
@@ -539,6 +539,11 @@ describe("kind-scoped add", () => {
     expect(readFileSync(join(dir, "file-desc", "description.md"), "utf8")).toBe(
       "# From file\n",
     );
+
+    const help = runCli(["project", "add", "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toMatch(/--file <path>/);
+    expect(help.stdout).not.toMatch(/--description[_-]file/);
   });
 
   it("stacks a story with --stacked-on", () => {
@@ -586,23 +591,6 @@ describe("kind-scoped add", () => {
     const result = runCli(args);
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(error);
-  });
-
-  it("keeps legacy create verbs on the shared --file flag", () => {
-    const help = runCli(["create-project", "--help"]);
-    expect(help.status).toBe(0);
-    expect(help.stdout).toMatch(/--file <path>/);
-    expect(help.stdout).not.toMatch(/--description[_-]file/);
-
-    const { stdout, status } = runCli(
-      ["create-project", "Legacy File", "--file", "-"],
-      "# Legacy\n",
-    );
-    expect(status).toBe(0);
-    expect(stdout.trim()).toBe("legacy-file");
-    expect(readFileSync(join(dir, "legacy-file", "description.md"), "utf8")).toBe(
-      "# Legacy\n",
-    );
   });
 });
 
@@ -1014,7 +1002,15 @@ describe("story get/set", () => {
     expect(runCli(["story", "get", "b", "blocked"]).stdout).toBe("true\n");
     expect(runCli(["story", "get", "b", "base"]).stdout).toBe("main\n");
 
-    const add = runCli(["add-story", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    const add = runCli([
+      "story",
+      "add",
+      "Unset child",
+      "--part-of",
+      "e",
+      "--stacked-on",
+      "a",
+    ]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
     expect(runCli(["story", "get", childId, "base"]).stdout).toBe("");
@@ -1111,11 +1107,11 @@ describe("story get/set", () => {
     expect(setOnCommit.stderr).toMatch(/"c1" is a task, not a story/);
   });
 
-  it("surfaces specReview in show/list and preserves it across apply", () => {
-    expect(runCli(["show", "a"]).stdout).not.toContain("specReview:");
+  it("surfaces specReview in view/list and preserves it across apply", () => {
+    expect(runCli(["story", "view", "a"]).stdout).not.toContain("specReview:");
 
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
-    expect(runCli(["show", "a"]).stdout).toContain("specReview: passed");
+    expect(runCli(["story", "view", "a"]).stdout).toContain("specReview: passed");
 
     const listed = JSON.parse(runCli(["list", "p"]).stdout);
     const branch = listed.issues.find((i: { id: string }) => i.id === "a");
@@ -1142,8 +1138,8 @@ epic:
     expect(JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8")).specReview).toBe(
       "failed",
     );
-    expect(runCli(["show", "a"]).stdout).toContain("specReview: failed");
-    expect(runCli(["show", "a"]).stdout).toContain("title: Branch A renamed");
+    expect(runCli(["story", "view", "a"]).stdout).toContain("specReview: failed");
+    expect(runCli(["story", "view", "a"]).stdout).toContain("title: Branch A renamed");
   });
 });
 
@@ -1336,13 +1332,13 @@ describe("task get/set", () => {
     expect(badNoDiff.stderr).toMatch(/invalid noDiff "maybe"/);
   });
 
-  it("surfaces qa in show/tree and preserves it across apply", () => {
-    expect(runCli(["show", "c1"]).stdout).not.toContain("qa:");
+  it("surfaces qa in view/tree and preserves it across apply", () => {
+    expect(runCli(["task", "view", "c1"]).stdout).not.toContain("qa:");
 
     expect(runCli(["task", "set", "c1", "status", "fixing"]).status).toBe(0);
     expect(runCli(["task", "set", "c1", "qa", "passed"]).status).toBe(0);
-    expect(runCli(["show", "c1"]).stdout).toContain("status: fixing");
-    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["task", "view", "c1"]).stdout).toContain("status: fixing");
+    expect(runCli(["task", "view", "c1"]).stdout).toContain("qa: passed");
     expect(runCli(["tree", "p"]).stdout).toMatch(/^ {6}task c1\b.*\bqa=passed/m);
 
     const applyPath = join(dir, "task-apply.yaml");
@@ -1364,29 +1360,29 @@ epic:
     const onDisk = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
     expect(onDisk.status).toBe("fixing");
     expect(onDisk.qa).toBe("passed");
-    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
-    expect(runCli(["show", "c1"]).stdout).toContain("title: Commit 1 renamed");
+    expect(runCli(["task", "view", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["task", "view", "c1"]).stdout).toContain("title: Commit 1 renamed");
 
     expect(runCli(["task", "set", "c1", "qa", "--clear"]).status).toBe(0);
     expect(runCli(["tree", "p"]).stdout).not.toMatch(/^ {6}task c1\b.*\bqa=/m);
   });
 
-  it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {
+  it("accepts sha256 commitSha and surfaces noDiff in view/summary", () => {
     expect(runCli(["task", "set", "c1", "commitSha", sha256]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8")).commitSha).toBe(
       sha256,
     );
 
-    expect(runCli(["show", "c1"]).stdout).not.toContain("noDiff:");
+    expect(runCli(["task", "view", "c1"]).stdout).not.toContain("noDiff:");
     expect(runCli(["task", "set", "c1", "noDiff", "true"]).status).toBe(0);
-    expect(runCli(["show", "c1"]).stdout).toContain("noDiff: true");
+    expect(runCli(["task", "view", "c1"]).stdout).toContain("noDiff: true");
     expect(runCli(["summary", "c1"]).stdout).toContain("noDiff: true");
 
     expect(runCli(["task", "set", "c1", "noDiff", "false"]).status).toBe(0);
     expect(JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"))).not.toHaveProperty(
       "noDiff",
     );
-    expect(runCli(["show", "c1"]).stdout).not.toContain("noDiff:");
+    expect(runCli(["task", "view", "c1"]).stdout).not.toContain("noDiff:");
   });
 
   it("gets whitespace assignee as stored and errors on unknown id", () => {
@@ -1479,7 +1475,15 @@ describe("tree", () => {
   it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
     // Create via the CLI so post-migration semantics apply: child of an
     // unnamed parent leaves mergeBase unset until branchName cascades.
-    const add = runCli(["add-story", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
+    const add = runCli([
+      "story",
+      "add",
+      "Unset child",
+      "--part-of",
+      "e",
+      "--stacked-on",
+      "a",
+    ]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
     const { stdout, status } = runCli(["tree", "p"]);
@@ -1661,7 +1665,7 @@ describe("archived field, cascade, and CLI filtering", () => {
 
   it("creates a child under an archived parent as archived", () => {
     expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
-    const add = runCli(["add-story", "Child", "--part-of", "e"]);
+    const add = runCli(["story", "add", "Child", "--part-of", "e"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
     expect(runCli(["story", "get", childId, "archived"]).stdout).toBe("true\n");
@@ -1688,15 +1692,31 @@ describe("deleted field verbs", () => {
   });
 });
 
-describe("projects command removed", () => {
-  it("is an unknown command and absent from top-level --help", () => {
+describe("legacy CLI removed", () => {
+  const LEGACY_COMMANDS = [
+    "create-project",
+    "create-epic",
+    "add-story",
+    "add-task",
+    "show",
+    "delete",
+    "comment",
+    "attach",
+    "attachments",
+    "detach",
+    "projects",
+  ];
+
+  it("are unknown commands and absent from top-level --help", () => {
     const help = runCli(["--help"]);
     expect(help.status).toBe(0);
-    expect(help.stdout).not.toMatch(/\n  projects\b/);
 
-    const { stderr, status } = runCli(["projects"]);
-    expect(status).not.toBe(0);
-    expect(stderr).toMatch(/unknown command 'projects'/);
+    for (const verb of LEGACY_COMMANDS) {
+      const { stderr, status } = runCli([verb]);
+      expect(status, verb).not.toBe(0);
+      expect(stderr, verb).toMatch(new RegExp(`unknown command '${verb}'`));
+      expect(help.stdout, verb).not.toMatch(new RegExp(`\\n  ${verb}\\b`));
+    }
   });
 });
 
@@ -1737,17 +1757,17 @@ describe("attach / attachments / detach", () => {
     const source = join(dir, "fixture.tsx");
     writeFileSync(source, "export const x = 1;\n");
 
-    const attach1 = runCli(["attach", "c1", source]);
+    const attach1 = runCli(["task", "attach", "c1", source]);
     expect(attach1.status).toBe(0);
     expect(attach1.stdout).toContain("attached fixture.tsx (20 bytes)");
     expect(attach1.stdout).toContain(join(dir, "c1", "attachments", "fixture.tsx"));
 
-    const list1 = runCli(["attachments", "c1"]);
+    const list1 = runCli(["task", "attachments", "c1"]);
     expect(list1.status).toBe(0);
     expect(list1.stdout).toBe("fixture.tsx\t20\n");
 
     writeFileSync(source, "export const x = 2;\n");
-    const attach2 = runCli(["attach", "c1", source]);
+    const attach2 = runCli(["task", "attach", "c1", source]);
     expect(attach2.status).toBe(0);
     expect(attach2.stdout).toContain("attached fixture-2.tsx (20 bytes)");
     expect(attach2.stdout).toContain(
@@ -1760,47 +1780,39 @@ describe("attach / attachments / detach", () => {
       readFileSync(join(dir, "c1", "attachments", "fixture-2.tsx"), "utf8"),
     ).toBe("export const x = 2;\n");
 
-    const detach = runCli(["detach", "c1", "fixture.tsx"]);
+    const detach = runCli(["task", "detach", "c1", "fixture.tsx"]);
     expect(detach.status).toBe(0);
     expect(detach.stdout).toBe("detached fixture.tsx from c1\n");
-    expect(runCli(["attachments", "c1"]).stdout).toBe("fixture-2.tsx\t20\n");
+    expect(runCli(["task", "attachments", "c1"]).stdout).toBe("fixture-2.tsx\t20\n");
 
-    expect(runCli(["detach", "c1", "fixture-2.tsx"]).status).toBe(0);
-    expect(runCli(["attachments", "c1"]).stdout).toBe("(no attachments)\n");
+    expect(runCli(["task", "detach", "c1", "fixture-2.tsx"]).status).toBe(0);
+    expect(runCli(["task", "attachments", "c1"]).stdout).toBe("(no attachments)\n");
   });
 
   it("allows attachments on epic and branch", () => {
     const source = join(dir, "ui.png");
     writeFileSync(source, "png-bytes");
 
-    expect(runCli(["attach", "e", source]).status).toBe(0);
-    expect(runCli(["attach", "a", source]).status).toBe(0);
-    expect(runCli(["attachments", "e"]).stdout).toContain("ui.png\t9\n");
-    expect(runCli(["attachments", "a"]).stdout).toContain("ui.png\t9\n");
+    expect(runCli(["epic", "attach", "e", source]).status).toBe(0);
+    expect(runCli(["story", "attach", "a", source]).status).toBe(0);
+    expect(runCli(["epic", "attachments", "e"]).stdout).toContain("ui.png\t9\n");
+    expect(runCli(["story", "attachments", "a"]).stdout).toContain("ui.png\t9\n");
   });
 
-  it("rejects attachments on a project", () => {
-    const source = join(dir, "nope.bin");
-    writeFileSync(source, "x");
-    const { stderr, status } = runCli(["attach", "p", source]);
-    expect(status).toBe(1);
-    expect(stderr).toContain("attachments are not allowed on a Project");
-  });
-
-  it("prints attachments in show when present and omits them when empty", () => {
+  it("prints attachments in view when present and omits them when empty", () => {
     const source = join(dir, "mock.tsx");
     writeFileSync(source, "canvas");
-    expect(runCli(["attach", "c1", source]).status).toBe(0);
+    expect(runCli(["task", "attach", "c1", source]).status).toBe(0);
 
-    const withAttachments = runCli(["show", "c1"]);
+    const withAttachments = runCli(["task", "view", "c1"]);
     expect(withAttachments.status).toBe(0);
     expect(withAttachments.stdout).toContain("Attachments:");
     expect(withAttachments.stdout).toContain(
       `mock.tsx (6 bytes) — ${join(dir, "c1", "attachments", "mock.tsx")}`,
     );
 
-    expect(runCli(["detach", "c1", "mock.tsx"]).status).toBe(0);
-    const withoutAttachments = runCli(["show", "c1"]);
+    expect(runCli(["task", "detach", "c1", "mock.tsx"]).status).toBe(0);
+    const withoutAttachments = runCli(["task", "view", "c1"]);
     expect(withoutAttachments.status).toBe(0);
     expect(withoutAttachments.stdout).not.toContain("Attachments:");
   });
@@ -1808,7 +1820,7 @@ describe("attach / attachments / detach", () => {
   it("prints attachments in summary when present and omits them when empty", () => {
     const source = join(dir, "mock.tsx");
     writeFileSync(source, "canvas");
-    expect(runCli(["attach", "c1", source]).status).toBe(0);
+    expect(runCli(["task", "attach", "c1", source]).status).toBe(0);
 
     const withAttachments = runCli(["summary", "c1"]);
     expect(withAttachments.status).toBe(0);
@@ -1817,7 +1829,7 @@ describe("attach / attachments / detach", () => {
       `mock.tsx (6 bytes) — ${join(dir, "c1", "attachments", "mock.tsx")}`,
     );
 
-    expect(runCli(["detach", "c1", "mock.tsx"]).status).toBe(0);
+    expect(runCli(["task", "detach", "c1", "mock.tsx"]).status).toBe(0);
     const withoutAttachments = runCli(["summary", "c1"]);
     expect(withoutAttachments.status).toBe(0);
     expect(withoutAttachments.stdout).not.toContain("Attachments:");
@@ -1871,14 +1883,6 @@ describe("kind-scoped view / delete / comment / attach", () => {
     );
   });
 
-  it("keeps legacy top-level ops listed in --help", () => {
-    const help = runCli(["--help"]);
-    expect(help.status).toBe(0);
-    for (const verb of ["show", "delete", "comment", "attach", "attachments", "detach"]) {
-      expect(help.stdout, verb).toMatch(new RegExp(`\\n  ${verb}\\b`));
-    }
-  });
-
   it.each([
     { kind: "project", id: "p" },
     { kind: "idea", id: "idea-1" },
@@ -1886,11 +1890,9 @@ describe("kind-scoped view / delete / comment / attach", () => {
     { kind: "story", id: "a" },
     { kind: "task", id: "c1" },
   ])("views a $kind via kind-scoped view", ({ kind, id }) => {
-    const legacy = runCli(["show", id]);
-    const scoped = runCli([kind, "view", id]);
-    expect(scoped.status).toBe(0);
-    expect(scoped.stdout).toBe(legacy.stdout);
-    expect(scoped.stdout).toContain(`kind: ${kind}`);
+    const { stdout, status } = runCli([kind, "view", id]);
+    expect(status).toBe(0);
+    expect(stdout).toContain(`kind: ${kind}`);
   });
 
   it("supports --chat on kind-scoped view", () => {
@@ -2021,24 +2023,5 @@ describe("kind-scoped view / delete / comment / attach", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("deleted c2");
     expect(runCli(["task", "view", "c2"]).status).toBe(1);
-  });
-
-  it("legacy comment/attach still refuse idea chat and project attachments", () => {
-    const comment = runCli([
-      "comment",
-      "idea-1",
-      "--role",
-      "agent",
-      "--body",
-      "nope",
-    ]);
-    expect(comment.status).toBe(1);
-    expect(comment.stderr).toContain("chat is not allowed on an Idea");
-
-    const source = join(dir, "nope.bin");
-    writeFileSync(source, "x");
-    const attach = runCli(["attach", "p", source]);
-    expect(attach.status).toBe(1);
-    expect(attach.stderr).toContain("attachments are not allowed on a Project");
   });
 });
