@@ -88,3 +88,7 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   `plan-authoring-conformance`, `plan-dependency-order`), aggregate findings
   into one epic-form `apply` proposal, and `issue apply` only after user
   approval.
+- **`issue-tracker-project-docs`** — author or revise one Project supporting
+  doc (vision, coding standards, or design system) at a time: grill for
+  goals/content, write as a Project attachment or workspace file, and record
+  its location in `supportingDocs`.
