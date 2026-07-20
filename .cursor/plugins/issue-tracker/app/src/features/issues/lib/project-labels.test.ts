@@ -1,13 +1,114 @@
 import { describe, expect, it } from "vitest";
 import {
+  assignmentLabelsEqual,
   catalogDraftsFromIssue,
   catalogLabelsEqual,
+  isLabelAssignableIssue,
+  isLabelAssignableKind,
   labelChipTextColor,
   normalizeCatalogLabel,
   planCatalogLabelsSave,
+  projectCatalogLabels,
+  resolveAssignedLabels,
+  sanitizeAssignmentIds,
+  toggleAssignmentId,
   validateCatalogDraft,
   validateCatalogDrafts,
 } from "./project-labels";
+import { issuesById } from "./build-tree";
+import type { IssueRecord } from "@server/schemas";
+
+describe("assignment helpers", () => {
+  it("recognizes assignable kinds", () => {
+    expect(isLabelAssignableKind("epic")).toBe(true);
+    expect(isLabelAssignableKind("idea")).toBe(true);
+    expect(isLabelAssignableKind("story")).toBe(true);
+    expect(isLabelAssignableKind("task")).toBe(false);
+    expect(isLabelAssignableKind("project")).toBe(false);
+    expect(
+      isLabelAssignableIssue({
+        id: "i",
+        kind: "idea",
+        title: "Idea",
+        partOf: "p",
+        archived: false,
+        order: 0,
+        createdAt: "",
+        updatedAt: "",
+      }),
+    ).toBe(true);
+  });
+
+  it("compares assignment arrays", () => {
+    expect(assignmentLabelsEqual(undefined, [])).toBe(true);
+    expect(assignmentLabelsEqual(["a"], ["a"])).toBe(true);
+    expect(assignmentLabelsEqual(["a"], ["b"])).toBe(false);
+    expect(assignmentLabelsEqual(["a", "b"], ["b", "a"])).toBe(false);
+  });
+
+  it("resolves assignment ids against the catalog in order", () => {
+    const catalog = [
+      { id: "bug", color: "#ff0000", description: "Defect" },
+      { id: "feat", color: "#00ff00" },
+    ];
+    expect(resolveAssignedLabels(["feat", "missing", "bug"], catalog)).toEqual([
+      { id: "feat", color: "#00ff00" },
+      { id: "bug", color: "#ff0000", description: "Defect" },
+    ]);
+    expect(resolveAssignedLabels(undefined, catalog)).toEqual([]);
+  });
+
+  it("sanitizes assignment ids to catalog members", () => {
+    const catalog = [
+      { id: "bug", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    ];
+    expect(sanitizeAssignmentIds(["feat", "gone", "bug"], catalog)).toEqual([
+      "feat",
+      "bug",
+    ]);
+    expect(sanitizeAssignmentIds(["gone"], catalog)).toEqual([]);
+  });
+
+  it("reads project catalog labels from the issue map", () => {
+    const issues: IssueRecord[] = [
+      {
+        id: "p",
+        kind: "project",
+        title: "P",
+        mergePolicy: "manual",
+        order: 0,
+        createdAt: "",
+        updatedAt: "",
+        labels: [{ id: "bug", color: "#ff0000" }],
+      },
+      {
+        id: "e",
+        kind: "epic",
+        title: "E",
+        partOf: "p",
+        blockedBy: [],
+        needsAttention: false,
+        attentionReason: null,
+        archived: false,
+        order: 0,
+        createdAt: "",
+        updatedAt: "",
+      },
+    ];
+    const byId = issuesById(issues);
+    expect(projectCatalogLabels(byId, "p")).toEqual([
+      { id: "bug", color: "#ff0000" },
+    ]);
+    expect(projectCatalogLabels(byId, "missing")).toEqual([]);
+    expect(projectCatalogLabels(byId, null)).toEqual([]);
+  });
+
+  it("toggles assignment ids while preserving order", () => {
+    expect(toggleAssignmentId(["a"], "b")).toEqual(["a", "b"]);
+    expect(toggleAssignmentId(["a", "b"], "a")).toEqual(["b"]);
+  });
+});
 
 describe("normalizeCatalogLabel", () => {
   it("omits empty description", () => {

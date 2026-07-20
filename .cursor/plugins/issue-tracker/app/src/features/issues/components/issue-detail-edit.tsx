@@ -1,6 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { IssueDetail, IssuePatch, MergePolicy } from "@server/schemas";
+import type {
+  IssueDetail,
+  IssuePatch,
+  MergePolicy,
+  ProjectLabel,
+} from "@server/schemas";
 import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
@@ -22,10 +27,14 @@ import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-up
 import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 import {
+  assignmentLabelsEqual,
   catalogDraftsFromIssue,
+  isLabelAssignableIssue,
   planCatalogLabelsSave,
+  sanitizeAssignmentIds,
   type CatalogDraft,
 } from "../lib/project-labels";
+import { AssignmentLabelsEditor } from "./assignment-labels-editor";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
 import { ProjectLabelsEditor } from "./project-labels-editor";
@@ -38,6 +47,7 @@ interface FormState {
   workspace: string;
   mergePolicy: MergePolicy;
   labels: CatalogDraft[];
+  assignedLabels: string[];
   assignee: string;
   needsAttention: boolean;
   attentionReason: string;
@@ -50,7 +60,10 @@ interface FormState {
   blockedBy: string;
 }
 
-function formStateFromIssue(issue: IssueDetail): FormState {
+function formStateFromIssue(
+  issue: IssueDetail,
+  catalog: ProjectLabel[],
+): FormState {
   return {
     title: issue.title,
     description: issue.description,
@@ -58,6 +71,9 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     mergePolicy: issue.kind === "project" ? issue.mergePolicy : "manual",
     labels:
       issue.kind === "project" ? catalogDraftsFromIssue(issue.labels) : [],
+    assignedLabels: isLabelAssignableIssue(issue)
+      ? sanitizeAssignmentIds(issue.labels, catalog)
+      : [],
     assignee: hasAssignee(issue) ? issue.assignee ?? "" : "",
     needsAttention: hasAttention(issue) ? issue.needsAttention : false,
     attentionReason: hasAttention(issue) ? issue.attentionReason ?? "" : "",
@@ -82,15 +98,19 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 export function IssueDetailEdit({
   issue,
+  catalog,
   onDone,
   upload,
 }: {
   issue: IssueDetail;
+  catalog: ProjectLabel[];
   onDone: () => void;
   upload?: UploadAttachmentMutation;
 }) {
   const update = useUpdateIssue();
-  const [form, setForm] = useState<FormState>(() => formStateFromIssue(issue));
+  const [form, setForm] = useState<FormState>(() =>
+    formStateFromIssue(issue, catalog),
+  );
   const [labelsError, setLabelsError] = useState<string | null>(null);
   const { hasConflict, acknowledge } = useExternalEditConflict(issue);
 
@@ -104,7 +124,7 @@ export function IssueDetailEdit({
   );
 
   const reload = () => {
-    setForm(formStateFromIssue(issue));
+    setForm(formStateFromIssue(issue, catalog));
     setLabelsError(null);
     acknowledge();
   };
@@ -164,6 +184,13 @@ export function IssueDetailEdit({
       setClearable("stackedOn", form.stackedOn, issue.stackedOn);
       setClearable("prUrl", form.prUrl, issue.prUrl);
       if (form.merged !== issue.merged) patch.merged = form.merged;
+    }
+
+    if (isLabelAssignableIssue(issue)) {
+      const nextLabels = sanitizeAssignmentIds(form.assignedLabels, catalog);
+      if (!assignmentLabelsEqual(issue.labels, nextLabels)) {
+        patch.labels = nextLabels;
+      }
     }
 
     return patch;
@@ -346,6 +373,14 @@ export function IssueDetailEdit({
             set("labels", labels);
           }}
           error={labelsError}
+        />
+      ) : null}
+
+      {isLabelAssignableIssue(issue) ? (
+        <AssignmentLabelsEditor
+          catalog={catalog}
+          selected={form.assignedLabels}
+          onChange={(assignedLabels) => set("assignedLabels", assignedLabels)}
         />
       ) : null}
 

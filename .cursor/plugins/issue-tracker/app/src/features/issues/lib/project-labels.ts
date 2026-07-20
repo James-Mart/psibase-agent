@@ -1,7 +1,73 @@
-import { LABEL_COLOR_RE, type ProjectLabel } from "@server/schemas";
+import {
+  LABEL_COLOR_RE,
+  type Issue,
+  type IssueKind,
+  type IssueRecord,
+  type ProjectLabel,
+} from "@server/schemas";
 import { SLUG_RE } from "@server/slug";
 
 export const LABEL_DESCRIPTION_MAX = 120;
+
+export type LabelAssignableKind = "epic" | "idea" | "story";
+export type LabelAssignableIssue = Extract<Issue, { kind: LabelAssignableKind }>;
+
+export function isLabelAssignableKind(
+  kind: IssueKind,
+): kind is LabelAssignableKind {
+  return kind === "epic" || kind === "idea" || kind === "story";
+}
+
+export function isLabelAssignableIssue(
+  issue: Issue,
+): issue is LabelAssignableIssue {
+  return isLabelAssignableKind(issue.kind);
+}
+
+/** Project catalog for `projectId`, or `[]` when missing / not a project. */
+export function projectCatalogLabels(
+  byId: Map<string, IssueRecord>,
+  projectId: string | null | undefined,
+): ProjectLabel[] {
+  if (!projectId) return [];
+  const project = byId.get(projectId);
+  return project?.kind === "project" ? (project.labels ?? []) : [];
+}
+
+export function assignmentLabelsEqual(
+  a: string[] | undefined,
+  b: string[],
+): boolean {
+  return JSON.stringify(a ?? []) === JSON.stringify(b);
+}
+
+/** Resolve assignment ids against the Project catalog, preserving order. */
+export function resolveAssignedLabels(
+  assignmentIds: string[] | undefined,
+  catalog: ProjectLabel[] | undefined,
+): ProjectLabel[] {
+  if (!assignmentIds?.length) return [];
+  const byId = new Map((catalog ?? []).map((label) => [label.id, label]));
+  const resolved: ProjectLabel[] = [];
+  for (const id of assignmentIds) {
+    const label = byId.get(id);
+    if (label) resolved.push(label);
+  }
+  return resolved;
+}
+
+/** Drop assignment ids absent from the catalog, preserving order. */
+export function sanitizeAssignmentIds(
+  assignmentIds: string[] | undefined,
+  catalog: ProjectLabel[] | undefined,
+): string[] {
+  return resolveAssignedLabels(assignmentIds, catalog).map((label) => label.id);
+}
+
+export function toggleAssignmentId(current: string[], id: string): string[] {
+  if (current.includes(id)) return current.filter((value) => value !== id);
+  return [...current, id];
+}
 
 export type CatalogDraft = {
   key: string;

@@ -9,7 +9,7 @@ import {
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import type { IssueDetail } from "@server/schemas";
+import type { IssueDetail, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,9 +24,11 @@ import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL, kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
+import { projectCatalogLabels } from "../lib/project-labels";
 import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
+import { ProjectLabelChips } from "./project-label-chips";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
@@ -99,12 +101,14 @@ function IssueDetailBody({
   editing,
   setEditing,
   upload,
+  catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
   editing: boolean;
   setEditing: (value: boolean) => void;
   upload?: UploadAttachmentMutation;
+  catalog: ProjectLabel[];
 }) {
   const navigate = useNavigate();
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
@@ -124,7 +128,10 @@ function IssueDetailBody({
             </span>
             <CopyIssueIdButton id={issue.id} />
           </div>
-          <IssueBadges issue={issue} className="mt-2" />
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <ProjectLabelChips issue={issue} catalog={catalog} />
+            <IssueBadges issue={issue} />
+          </div>
         </div>
         {!editing ? (
           <div className="flex shrink-0 gap-2">
@@ -154,6 +161,7 @@ function IssueDetailBody({
       {editing ? (
         <IssueDetailEdit
           issue={issue}
+          catalog={catalog}
           onDone={() => setEditing(false)}
           upload={upload}
         />
@@ -193,12 +201,14 @@ function IssueDetailAttachable({
   editing,
   setEditing,
   backLink,
+  catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
   editing: boolean;
   setEditing: (value: boolean) => void;
   backLink: ReactNode;
+  catalog: ProjectLabel[];
 }) {
   const upload = useUploadAttachment(issue.id);
   const { rootProps } = useIssueDetailFileUpload(upload);
@@ -212,6 +222,7 @@ function IssueDetailAttachable({
         editing={editing}
         setEditing={setEditing}
         upload={upload}
+        catalog={catalog}
       />
     </DetailShell>
   );
@@ -231,6 +242,11 @@ export function IssueDetailPage() {
   const byId = useMemo(
     () => issuesById(list?.issues ?? []),
     [list?.issues],
+  );
+
+  const catalog = useMemo(
+    () => projectCatalogLabels(byId, projectId),
+    [byId, projectId],
   );
 
   const missing = error instanceof ApiError && error.status === 404;
@@ -262,6 +278,7 @@ export function IssueDetailPage() {
         editing={editing}
         setEditing={setEditing}
         backLink={backLink}
+        catalog={catalog}
       />
     );
   }
@@ -304,6 +321,7 @@ export function IssueDetailPage() {
           projectId={projectId}
           editing={editing}
           setEditing={setEditing}
+          catalog={catalog}
         />
       ) : null}
     </DetailShell>
