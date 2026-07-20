@@ -25,14 +25,16 @@ optional remediation Task) without editing workspace source; the git subagent
 owns branch create, Task finalize, and Story finish.
 
 **You do not write code, run the app, or verify the work yourself.** You read the
-plan with `issue tree`, mark Tasks in-progress, and spawn subagents. Do
-**essentially no reasoning**: every coordinator step below is a CLI invocation
-or a fixed linear action — this skill is meant to be replaced by a deterministic
-script. Never set status on a Story or Epic — Story/Epic status derives
-automatically (see SPEC.md). Git and git-fact recording are delegated — see
-Rules. Task `assignee` is overloaded as the implementor **model id** (set by
-the model discriminator via `issue task set <taskId> assignee …`). Before each implementor spawn,
-**Resolve implementor model** (below) and pass the result as Cursor Task `model`.
+plan with `issue tree` and spawn subagents. Do **essentially no reasoning**:
+every coordinator step below is a CLI invocation or a fixed linear action —
+this skill is meant to be replaced by a deterministic script. Never set status
+on a Story or Epic — Story/Epic status derives automatically (see SPEC.md).
+Task `status` / `qa` and Epic `retro` writes are subagent-owned — see **Field
+ownership**. Git and git-fact recording are delegated — see Rules. Task
+`assignee` is overloaded as the implementor **model id** (set by the model
+discriminator via `issue task set <taskId> assignee …`). Before each
+implementor spawn, **Resolve implementor model** (below) and pass the result
+as Cursor Task `model`.
 
 **Nomenclature:** **Task** / **Story** are issue-tracker kinds. **Cursor Task**
 is the subagent spawn/resume tool (`model`, `prompt`, `subagent_type`, resume).
@@ -141,13 +143,25 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
-| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`issue task set … status in-progress` only) |
+| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | spawn/CLI only (see Field ownership) |
 | Git | `issue-tracker-git` | Start a Story; finish a Task after revise; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
-| Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
-| Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes |
+| Model discriminator | `issue-tracker-model-discriminator` | Before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
+| Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
 | Code-quality validator | `issue-tracker-code-quality-validator` | After a Task's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `add-task` / `comment`) |
 | Retro | `issue-tracker-retro` | Completion when every Story in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue <kind> set … needsAttention`) |
+
+### Field ownership
+
+Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
+
+| Field | Owner | When |
+|-------|-------|------|
+| Task `status` `in-progress` | Implementor | on first implement entry |
+| Task `status` `fixing` | Implementor | on every revise entry |
+| Task `status` `done` | Git (finish-commit) | Task finalize |
+| Task `qa` | Code-quality | owned by that agent (not the coordinator) |
+| Epic `retro` | Retro | owned by that agent (not the coordinator) |
 
 Implement and revise are the **same** implementor agent. Code-quality is
 advisory (read-only `issue comment`) — it surfaces issues but is **not** in
@@ -178,23 +192,25 @@ creates and records the git branch.
 
 ### Per-Task cycle (for each Task, in sequence)
 
-1. **Mark in-progress.** `issue task set <taskId> status in-progress`.
-2. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
+Status transitions during this cycle are owned by subagents — see **Field
+ownership**. Do not set Task `status` yourself.
+
+1. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
    model-discriminator spawn stub. Wait until it finishes (or raises
    needsAttention). Do not read its result.
-3. **Implement.** Resolve implementor model for `<task>`. Spawn
+2. **Implement.** Resolve implementor model for `<task>`. Spawn
    `issue-tracker-implementor` with Cursor Task `model` set to that value. Use
    the implement spawn stub. Remember the Cursor Task agent id for resume. Wait
    for finished or blocked (needsAttention on `<id>`). Do not read its diff or
    ingest a report.
-4. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
+3. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
    (read-only) with the code-quality spawn stub.
-5. **Revise (one pass).** **Resume** the implementor Cursor Task from step 3
+4. **Revise (one pass).** **Resume** the implementor Cursor Task from step 2
    (same session; same model). Use the revise spawn stub. Always one resume
    pass, even if the validator posted "nothing actionable". Do not re-run the
    validator or loop.
-6. **Finalize.** Spawn `issue-tracker-git` with the finish-commit stub.
-7. **Advance** to the next Task.
+5. **Finalize.** Spawn `issue-tracker-git` with the finish-commit stub.
+6. **Advance** to the next Task.
 
 ### Close a Story
 
@@ -347,14 +363,18 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 ## Rules
 
 - Never implement, verify, or run the app yourself — always delegate. You own
-  only coordination and `issue task set <taskId> status in-progress`.
+  only coordination (thin CLI reads + spawn/resume). Field write scopes:
+  **Field ownership**.
 - Prefer `issue <kind> get` for scalar field reads — do not parse `show` /
   `summary` / `tree` for a single field (except `summary`'s `Workspace:`
   bootstrap line and `tree` chips for walk order).
-- Never run `git`/`gh` or the git-fact record commands (`issue story set … branchName` /
-  `issue task set … status` / `issue task set … commitSha` / `issue story set … prUrl` /
-  `issue story set … merged`) yourself — spawn
-  `issue-tracker-git` for Story start, Task finalize, and Story finish only.
+- Never write Task `status`, Task `qa`, or Epic `retro` yourself (Field
+  ownership).
+- Never run `git`/`gh` or the git-fact record commands (`issue story set …
+  branchName` / `issue task set … commitSha` / `issue story set … prUrl` /
+  `issue story set … merged`) yourself — spawn `issue-tracker-git` for Story
+  start, Task finalize, and Story finish only. Git sets Task `status` `done`
+  on finish-commit; implementor owns `in-progress` / `fixing`.
 - Work one Epic, one Task at a time, in the Story order `issue tree` prints;
   finish a Story before the Stories stacked on it.
 - Re-read `issue tree --epic <id>` every time control returns to you and re-sync
