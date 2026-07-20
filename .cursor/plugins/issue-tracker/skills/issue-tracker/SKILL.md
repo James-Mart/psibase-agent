@@ -68,17 +68,17 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   blockedBy/diamond, localized prose, and a completeness pass — then author the
   whole tree as one nested YAML doc and `apply` it. Glossary and apply-doc
   shape: SPEC.md. Work it: issue-tracker-work.
-- **`issue-tracker-work`** — coordinating implementation of one Epic:
-  delegating each task to subagents in a per-task QA loop (implementor →
-  code-quality gate on `qa` → revise/resume until `passed` or escalate) and
-  recording git progress through the CLI; inspect the stack with `tree`/`view`.
-  The coordinator only reads gates and spawns/resumes — it does not write
-  Task `status`/`qa` or count revise rounds. Completion spawns
-  **`issue-tracker-retro`** once when every Story in the Epic is `merged`
-  and Epic `retro` is unset — post-implement confusion retro: mine the work
-  run for tracker/work-loop meta confusion and apply a residual Epic under
-  Project `issue-tracker` (or comment clean on the source Epic); not invoked
-  directly.
+- **`issue-tracker-work`** — coordinating implementation of one work root
+  (Epic or project-level Story): delegating each task to subagents in a
+  per-task QA loop (implementor → code-quality gate on `qa` → revise/resume
+  until `passed` or escalate) and recording git progress through the CLI;
+  inspect the stack with `tree`/`view`. The coordinator only reads gates and
+  spawns/resumes — it does not write Task `status`/`qa` or count revise
+  rounds. Completion spawns **`issue-tracker-retro`** once when every Story
+  in the work-root walk is `merged` and work-root `retro` is unset —
+  post-implement confusion retro: mine the work run for tracker/work-loop
+  meta confusion and apply a residual Epic under Project `issue-tracker` (or
+  comment clean on the source work root); not invoked directly.
 - **`issue-tracker-plan`** — grill an Idea or a pre-implementation (`todo`)
   Epic to shared understanding, then migrate into a detailed Epic tree via
   `apply` (new Epic id + `issue idea delete`, or in-place epic-form rewrite);

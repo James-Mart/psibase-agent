@@ -1,20 +1,22 @@
 ---
 name: issue-tracker-work
 description: >-
-  Coordinate implementation of one tracked Epic without doing the work yourself:
-  walk its `tree <id>` outline top-to-bottom, delegating each task through
-  a per-task QA loop (model discriminator, implementor, code-quality on `qa`,
-  git; revise = implementor resume when `qa=changes-requested`). Use when an
-  agent works a tracked Epic to completion. CLI invariants in SPEC.md
-  § CLI invariants; glossary in SPEC.md.
+  Coordinate implementation of one tracked work root (Epic or project-level
+  Story) without doing the work yourself: walk its `tree <id>` outline
+  top-to-bottom, delegating each task through a per-task QA loop (model
+  discriminator, implementor, code-quality on `qa`, git; revise = implementor
+  resume when `qa=changes-requested`). Use when an agent works a tracked Epic
+  or project-level Story to completion. CLI invariants in SPEC.md § CLI
+  invariants; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
 
-Coordinate the implementation of one **Epic** without doing the implementation
-yourself. You (the agent invoked with the Epic) are the **coordinator**. Your
-context is precious: delegate all implementation, verification, review, model
-assignment, and git to plugin subagents (`agents/*.md`).
+Coordinate the implementation of one **work root** — an **Epic** or a
+**project-level Story** — without doing the implementation yourself. You (the
+agent invoked with the work root) are the **coordinator**. Your context is
+precious: delegate all implementation, verification, review, model assignment,
+and git to plugin subagents (`agents/*.md`).
 
 The coordinator does no real reasoning — it reads tracker state, runs a thin set
 of CLI commands, and spawns subagents in a fixed order — so it should itself run
@@ -31,8 +33,8 @@ plan with `issue tree` and spawn subagents. Do **essentially no reasoning**:
 every coordinator step below is a CLI invocation or a fixed linear action —
 this skill is meant to be replaced by a deterministic script. Never set status
 on a Story or Epic — Story/Epic status derives automatically (see SPEC.md).
-Task `status` / `qa` and Epic `retro` writes are subagent-owned — see **Field
-ownership**. Git and git-fact recording are delegated — see Rules. Task
+Task `status` / `qa` and work-root `retro` writes are subagent-owned — see
+**Field ownership**. Git and git-fact recording are delegated — see Rules. Task
 `assignee` is overloaded as the implementor **model id** (set by the model
 discriminator via `issue task set <taskId> assignee …`). Before each
 implementor spawn, **Resolve implementor model** (below) and pass the result
@@ -40,13 +42,16 @@ as Cursor Task `model`.
 
 **Nomenclature:** **Task** / **Story** are issue-tracker kinds. **Cursor Task**
 is the subagent spawn/resume tool (`model`, `prompt`, `subagent_type`, resume).
+**Work root** means the Epic or project-level Story id this skill was invoked
+with — the top-level unit Completion and retro key to.
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 ## Argument
 
-An Epic id. If none is given:
+An **Epic** id or a **project-level Story** id (`partOf` the Project). If none
+is given:
 
 1. Run `issue tree` (no-arg: all projects).
 2. Resolve `<projectId>` from the `project <id>` lines:
@@ -55,37 +60,42 @@ An Epic id. If none is given:
    - If it shows more than one project, show the user the id/title list and ask
      which project.
    - If it shows exactly one project, use that project's id.
-3. Run `issue tree <projectId>` to list Epics and ask which one.
+3. Run `issue tree <projectId>` to list Epics and **project-level** Stories and
+   ask which work root.
 
-Never bare `issue list`. This skill works exactly one Epic; to work several at
-once, start several agents. There is no pick-up list — work starts only when
-the user chooses an Epic. An Epic that is `blockedBy` another Epic cannot start
+Never bare `issue list`. This skill works exactly one work root; to work several
+at once, start several agents. There is no pick-up list — work starts only when
+the user chooses a root. An Epic that is `blockedBy` another Epic cannot start
 until that blocker is **fully merged** (all the blocker's Stories merged) —
-only start an Epic once `issue epic get <epicId> blocked` prints `false`.
-Because blockers clear at a human-paced Epic boundary (a merge round-trip), this
-fits the one-Epic-at-a-time model. Use the default `issues/` dir (do not set
+only start an Epic once `issue epic get <rootId> blocked` prints `false`.
+(`blockedBy` is Epic-only; a project-level Story has no such gate.) Because
+blockers clear at a human-paced Epic boundary (a merge round-trip), this fits
+the one-root-at-a-time model. Use the default `issues/` dir (do not set
 `ISSUES_DIR`) so the human sees changes live in the UI.
 
 ## Preflight: confirm before starting
 
 Before doing anything else, stop and ask the user to confirm they want you to
-coordinate this Epic now. State that **Composer 2.5 (`composer-2.5`) is the
+coordinate this work root now. State that **Composer 2.5 (`composer-2.5`) is the
 recommended coordinator**. Do not attempt to detect or print the current model
 id. If they do not confirm, have them re-invoke this skill with `composer-2.5`
 instead of continuing.
 
 ### CLI checks
 
-Run these four commands in order (use `<epicId>` throughout):
+Run these commands in order (use `<rootId>` throughout):
 
-1. `issue tree <epicId>`. This outline **is** your plan. It prints the
-   Epic's Stories in **pure stacked depth-first** order over `stackedOn` alone —
-   a Story stacked on another is nested under it, and root Stories (and
-   same-level siblings) follow their stored order. `blockedBy` is an Epic-level
-   edge and plays **no part** in Story ordering (it only gates whether the
-   whole Epic may start — see Argument). Under each Story its Tasks print in
-   sequence. Every Story line carries chips; every Task line carries `status=`
-   and, once done, `sha=`. **Chip legend (coordinator use):**
+1. `issue tree <rootId>`. This outline **is** your plan. For an **Epic**, it
+   prints the Epic's Stories in **pure stacked depth-first** order over
+   `stackedOn` alone — a Story stacked on another is nested under it, and root
+   Stories (and same-level siblings) follow their stored order. For a
+   **project-level Story**, it prints that Story, its Tasks, and any Stories
+   stacked under it (same stacked depth-first order within the Project
+   container). `blockedBy` is an Epic-level edge and plays **no part** in Story
+   ordering (it only gates whether a whole Epic may start — see Argument).
+   Under each Story its Tasks print in sequence. Every Story line carries chips;
+   every Task line carries `status=` and, once done, `sha=`. **Chip legend
+   (coordinator use):**
    - Walk order and Task sequence — top-to-bottom from this output; do not
      reorder by hand.
    - `base=<ref>` — human display of the Story's stored `mergeBase` (or
@@ -100,29 +110,37 @@ Run these four commands in order (use `<epicId>` throughout):
    - `pr=`, `merged`, `blocked` — progress signals only; ignore for spawn
      *inputs*. Exception: Completion’s retro gate (below) reads `merged` chips
      to decide whether to spawn retro — that is not a spawn-input.
-2. `issue summary <epicId>` — read `Project:` and `Workspace:`.
+2. `issue summary <rootId>` — read `Project:` and `Workspace:`.
    - Take `<projectId>` from the id token on `Project: <projectId> — <title>`
      (SPEC § Project workspace).
    - If `Workspace:` is absent, the Project has no workspace and every
      repo-touching subagent would immediately escalate, so **stop and hand back to
      the user** to set it (`issue project set <projectId> workspace <path>`) before
      spawning anything.
-3. `issue list <projectId>` — read `problems`. If `problems` is
+3. Confirm the root kind from step 2 and bind `<rootKind>` (`epic` or `story`)
+   for the rest of the run:
+   - **Epic** — set `<rootKind>` = `epic`; proceed.
+   - **Story** — confirm it is **project-level** (`issue story get <rootId> partOf`
+     equals `<projectId>`; refuse Epic-child Stories — they are not work roots).
+     Set `<rootKind>` = `story`.
+   - Any other kind → refuse.
+4. `issue list <projectId>` — read `problems`. If `problems` is
    non-empty, **stop and hand back to the user** — do not reason about or
    attempt fixes, and do not work a tree with integrity problems. (`list` /
    `tree` hide archived rows by default; pass `--show-archived` when you need
    them — see [SPEC.md](../../SPEC.md#archived-visibility).)
-4. `issue epic get <epicId> blocked` — if stdout is `true`, the Epic is
-   `blockedBy` a blocker that has not fully merged, so — per Argument — it
-   **cannot start**. Stop and hand back to the user rather than working any
-   Task.
+5. **Epic only** (`<rootKind>` = `epic`): `issue epic get <rootId> blocked` —
+   if stdout is `true`, the Epic is `blockedBy` a blocker that has not fully
+   merged, so — per Argument — it **cannot start**. Stop and hand back to the
+   user rather than working any Task. Skip this check when `<rootKind>` is
+   `story`.
 
 ## Setup
 
 1. Mirror the Stories and their Tasks, in `issue tree` order, into your own
    todo list so you can track progress; keep exactly one Task `in_progress` at
    a time. This mirror is a cache of the outline — re-sync it from a fresh
-   `issue tree <epicId>` each time control returns to you (see The loop).
+   `issue tree <rootId>` each time control returns to you (see The loop).
 2. Spawn via Cursor Task `subagent_type` for the plugin agents below. Pass
    **only** the fields each spawn stub lists (see Spawn stubs). Never pass the
    workspace — each repo subagent resolves it from its own `issue summary`
@@ -152,11 +170,11 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 | Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
 | Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `issue task comment`) |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `issue task add` / `issue story|task comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Story is `merged` and Epic `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`issue epic|story|task comment` / `apply` / `issue epic set … retro` / `issue <kind> set … needsAttention`) |
+| Retro | `issue-tracker-retro` | Completion when every Story in the walk is `merged` and work-root `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`issue <rootKind> comment` on source / `apply` / `issue <rootKind> set … retro` / `issue <rootKind> set … needsAttention`) |
 
 ### Field ownership
 
-Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
+Coordinator writes **none** of Task `status`, Task `qa`, or work-root `retro`.
 
 | Field | Owner | When |
 |-------|-------|------|
@@ -164,8 +182,8 @@ Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
 | Task `status` `fixing` | Implementor | on every revise entry |
 | Task `status` `done` | Git (finish-commit) | Task finalize |
 | Task `qa` | Code-quality | on each entry `reviewing`, then terminal `passed` / `changes-requested` (three-strike → `needsAttention`); never the coordinator |
-| Epic `retro` `in-progress` | Retro | after transcript resolution succeeds |
-| Epic `retro` `done` | Retro | after successful terminal comment |
+| Work-root `retro` `in-progress` | Retro | after transcript resolution succeeds (`issue <rootKind> set <rootId> retro`) |
+| Work-root `retro` `done` | Retro | after successful terminal comment |
 
 Implement and revise are the **same** implementor agent. Code-quality is a
 **writer** of Task `qa` (spawn/resume and three-strike escalate: see **Per-Task
@@ -184,7 +202,7 @@ finish-branch) before moving to Stories nested under it.
 **Re-read `issue tree <id>` every time control returns to you** — after
 every subagent finishes and before you choose the next action — and re-sync your
 todo list to it. The tree is the live plan, not a one-time snapshot: Stories or
-Tasks can be injected into the in-progress Epic mid-run (for example when
+Tasks can be injected into the in-progress work root mid-run (for example when
 someone applies an epic- or story-rooted doc), and only a fresh `issue tree`
 picks them up. Never act from a cached outline.
 
@@ -306,7 +324,7 @@ alone as “fully finished” for retro purposes.
 
 ### Phase 1 — Task-done summary
 
-The Story walk ends when every Task in the Epic is `done`. Give a short
+The Story walk ends when every Task under the work root is `done`. Give a short
 final summary: which Stories were built, and anything still open or escalated
 (needsAttention escalation). For validator findings and revise history, point the user
 at the tracker comments (`issue <kind> view <id> --chat`) rather than collecting them
@@ -317,32 +335,36 @@ PR, `merged` for a merged Story, neither when left for the human).
 ### Phase 2 — Retro gate
 
 Distinct coordinator hook after the Story walk — **not** part of Close-Story.
-Re-read `issue tree <epicId>`. Spawn
+Re-read `issue tree <rootId>`. Spawn
 `issue-tracker-retro` only when **all** of the following hold:
 
-1. The Epic has **at least one** Story (a zero-Story Epic must not spawn
-   retro — same non-vacuous rule as derived Epic `done`).
-2. **Every** Story carries the `merged` chip. Detect from those chips only —
-   do not guess from merge policy or finish-branch outcomes. Under `merge`
-   policy this usually follows the last finish-branch; under `pull-request` /
-   `manual` it runs only after humans (or later process) have set every Story
-   merged.
-3. `issue epic get <epicId> retro` is **unset** (empty stdout). If the field
-   is set (`in-progress` or `done`), skip — retro already started or finished
-   for this Epic. Do **not** check chat roles for this gate.
+1. The walk has **at least one** Story (a zero-Story Epic must not spawn
+   retro — same non-vacuous rule as derived Epic `done`). A project-level Story
+   root always satisfies this (the root itself is a Story).
+2. **Every** Story in the walk carries the `merged` chip (Epic: all Stories
+   under the Epic; project-level Story: that Story and any stacked Stories in
+   the walk). Detect from those chips only — do not guess from merge policy or
+   finish-branch outcomes. Under `merge` policy this usually follows the last
+   finish-branch; under `pull-request` / `manual` it runs only after humans (or
+   later process) have set every Story merged.
+3. Work-root `retro` is **unset** (empty stdout):
+   `issue <rootKind> get <rootId> retro` (bound in Preflight step 3). If the
+   field is set (`in-progress` or `done`), skip — retro already started or
+   finished for this root. Do **not** check chat roles for this gate. Do
+   **not** require promoting a project-level Story to an Epic before retro.
 
 When the gate holds, spawn **once** with Cursor Task `model`
 `cursor-grok-4.5-high-fast` (Models table) and the retro spawn stub (source
-Epic id + title). Wait until the Cursor Task finishes (or raises
+work-root id + title). Wait until the Cursor Task finishes (or raises
 needsAttention). Do **not** mine transcripts yourself, and do **not** expect
 or relay a retro summary into your context. If the gate fails only because some
 Story is not `merged` yet, skip the spawn; a later re-run of this skill on the
-same Epic re-evaluates Phase 2 once the chips show all merged (an unset
+same root re-evaluates Phase 2 once the chips show all merged (an unset
 `retro` field is the sole Completion re-run guard).
 
 Everything lives on disk and every derived fact is recomputed on read, so the
-loop is **resumable** for unambiguous gates: re-running the skill on the Epic
-re-reads `issue tree <id>`, continues from the first not-`done` Task,
+loop is **resumable** for unambiguous gates: re-running the skill on the work
+root re-reads `issue tree <id>`, continues from the first not-`done` Task,
 and the Per-Task **entry gate** branches on `needsAttention` / `qa` (`passed`
 → finalize, `reviewing` → resume code-quality, `changes-requested` → revise
 rather than Mode `implement`). Cold-restart windows that disk cannot
@@ -353,16 +375,16 @@ Phase 2 above).
 ## Spawn stubs
 
 Pass these as the Cursor Task `prompt`. Inline the fields each stub lists.
-Id labels in spawn prompts must be `Issue:` (or `Epic:` where noted) — never
-kind nouns (`Task:`, `Story:`, `Commit:`, `Branch:`). Children own static
-behavior via their `agents/*.md` files — do not paste workflow instructions
-here. Exception: append the **Plugin redeploy clause** (below) to Implement
-and Revise prompts — that temporary injection is intentional.
+Id labels in spawn prompts must be `Issue:` (or `Work root:` where noted) —
+never kind nouns (`Task:`, `Story:`, `Commit:`, `Branch:`, `Epic:`). Children
+own static behavior via their `agents/*.md` files — do not paste workflow
+instructions here. Exception: append the **Plugin redeploy clause** (below) to
+Implement and Revise prompts — that temporary injection is intentional.
 
 **Issue context line** — shared prefix for discriminator, implement,
 code-quality, spec-conformance, and revise stubs:
 
-> Epic: `<epicId>`. Issue: `<id>` (`<title>`).
+> Work root: `<rootId>`. Issue: `<id>` (`<title>`).
 
 **Plugin redeploy clause** — append to Implement and Revise prompts:
 
@@ -375,7 +397,7 @@ code-quality, spec-conformance, and revise stubs:
 > hard-coding it here.)*
 
 Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
-**only** Mode + issue id — no Epic id, tree chips, or git facts (`base`,
+**only** Mode + issue id — no work-root id, tree chips, or git facts (`base`,
 `mergeBase`, `branchName`).
 
 **Start branch** — `subagent_type: issue-tracker-git`
@@ -428,7 +450,7 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 
 **Retro** — `subagent_type: issue-tracker-retro`
 
-> Epic: `<epicId>` (`<title>`). Comment role: `retro`.
+> Work root: `<rootId>` (`<title>`). Comment role: `retro`.
 
 ## Rules
 
@@ -438,17 +460,17 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 - Prefer `issue <kind> get` for scalar field reads — do not parse `view` /
   `summary` / `tree` for a single field (except `summary`'s `Workspace:`
   bootstrap line and `tree` chips for walk order).
-- Never write Task `status`, Task `qa`, or Epic `retro` yourself (Field
+- Never write Task `status`, Task `qa`, or work-root `retro` yourself (Field
   ownership).
 - Never run `git`/`gh` or the git-fact record commands (`issue story set …
   branchName` / `issue task set … commitSha` / `issue story set … prUrl` /
   `issue story set … merged`) yourself — spawn `issue-tracker-git` for Story
   start, Task finalize, and Story finish only. Git sets Task `status` `done`
   on finish-commit; implementor owns `in-progress` / `fixing`.
-- Work one Epic, one Task at a time, in the Story order `issue tree` prints;
+- Work one root, one Task at a time, in the Story order `issue tree` prints;
   finish a Story before the Stories stacked on it.
 - Re-read `issue tree <id>` every time control returns to you and re-sync
-  your todo list, so Stories or Tasks injected into the in-progress Epic
+  your todo list, so Stories or Tasks injected into the in-progress work root
   mid-run are picked up. Never act from a cached outline.
 - The implementor leaves work uncommitted; the **git** subagent finalizes per
   its Finish Commit matrix (the authority for these outcomes): a normal Task
@@ -471,5 +493,5 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
   resolve or pass it — each repo-touching subagent and the model discriminator
   read it from their own `issue summary` (discriminator: read-only peek only; see
   SPEC § Model discriminator (read-only peek)). Your only workspace duty is the
-  Preflight CLI checks step 2: if the Epic's Project has no `Workspace:` line,
-  stop and hand back to the user instead of spawning.
+  Preflight CLI checks step 2: if the work root's Project has no `Workspace:`
+  line, stop and hand back to the user instead of spawning.

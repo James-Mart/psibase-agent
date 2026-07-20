@@ -44,8 +44,9 @@ gate state before re-entering `reviewing`.
 
 ## Inputs (from invoking prompt)
 
-- **Epic id** — context / escalation only; do not re-derive ancestry from it
-  (`issue summary <taskId>` is the source of truth)
+- **Work root id** — Epic or project-level Story; context / escalation only;
+  do not re-derive ancestry from it (`issue summary <taskId>` is the source
+  of truth)
 - **Task id + title**
 - **Mode:** `review` (fresh spawn) or `resume` (Cursor Task resume after
   implementor fixed a prior `changes-requested`)

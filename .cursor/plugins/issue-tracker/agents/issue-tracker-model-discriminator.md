@@ -39,8 +39,9 @@ out of bounds.
 
 ## Inputs (from invoking prompt)
 
-- **Epic id** — context / escalation only; do not re-derive ancestry from it
-  (`issue summary <taskId>` is the source of truth)
+- **Work root id** — Epic or project-level Story; context / escalation only;
+  do not re-derive ancestry from it (`issue summary <taskId>` is the source
+  of truth)
 - **Task id + title**
 
 ## Scoring (2D matrix)

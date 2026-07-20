@@ -41,8 +41,9 @@ Glossary: plugin `SPEC.md`.
 
 ## Inputs (from invoking prompt)
 
-- **Epic id** — context / escalation only; do not re-derive ancestry from it
-  (`issue summary <issueId>` is the source of truth)
+- **Work root id** — Epic or project-level Story; context / escalation only;
+  do not re-derive ancestry from it (`issue summary <issueId>` is the source
+  of truth)
 - **Issue id + title** (Task for implement / revise)
 - **Mode:** `implement` or `revise`
 - **Comment role** — pass as `--role <role>` on every `issue task comment`

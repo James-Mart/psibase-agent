@@ -27,17 +27,20 @@ verbs, etc.).
 
 ## Bootstrap
 
-Run `issue summary <storyId>` for Project → Epic → Story context. Use
-`issue tree <epicId>` and `issue task view <id>` on the Story's Tasks for
-their full specs (the normative checklist), and `issue story view <storyId>` for
-scope/context. That summary also carries the Project **workspace** —
-inspect the Story's tasks, diffs, and files with it as the cwd, and honor
-the unset escalation, per **SPEC § Project workspace**.
+Run `issue summary <storyId>` for Project → … → Story context (Epic may be
+absent when the work root is a project-level Story). Use
+`issue tree <workRootId>` (Work root id from Inputs) and
+`issue task view <id>` on the Story's Tasks for their full specs (the
+normative checklist), and `issue story view <storyId>` for scope/context.
+That summary also carries the Project **workspace** — inspect the Story's
+tasks, diffs, and files with it as the cwd, and honor the unset escalation,
+per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 
-- **Epic id** — context / escalation only; do not re-derive ancestry from it
-  (`issue summary <storyId>` is the source of truth)
+- **Work root id** — Epic or project-level Story; context / escalation only;
+  do not re-derive ancestry from it (`issue summary <storyId>` is the source
+  of truth)
 - **Story id + title**
 - **Comment role** — pass as `--role <role>` on `issue story comment`
 
