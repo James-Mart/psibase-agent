@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   AlertTriangle,
   Archive,
+  GitBranch,
   Layers,
   Lightbulb,
   Plus,
@@ -43,9 +44,10 @@ const BOARD_FILTER_OPTIONS: {
   label: string;
   icon: typeof Layers;
 }[] = [
-  { value: "both", label: "Both", icon: Layers },
+  { value: "both", label: "All", icon: Layers },
   { value: "epic", label: "Epics", icon: Layers },
   { value: "idea", label: "Ideas", icon: Lightbulb },
+  { value: "story", label: "Stories", icon: GitBranch },
 ];
 
 function LabelFilterControl({
