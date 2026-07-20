@@ -50,6 +50,7 @@ import {
 import { registerKindGetSet } from "./cli-kind.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
+type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
 type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
 type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
 type ProjectBoardChild = Extract<IssueRecord, { kind: "epic" | "idea" }>;
@@ -125,10 +126,11 @@ function attentionChip(issue: IssueRecord): string[] {
   return [`attention=${issue.attentionReason ?? "(no reason)"}`];
 }
 
-function epicChips(epic: IssueRecord, derived: Record<string, DerivedState>): string[] {
+function epicChips(epic: EpicRecord, derived: Record<string, DerivedState>): string[] {
   const d = derived[epic.id];
   const chips: string[] = [];
   if (d?.epicStatus) chips.push(`status=${d.epicStatus}`);
+  if (epic.retro) chips.push(`retro=${epic.retro}`);
   return [...chips, ...attentionChip(epic)];
 }
 
@@ -136,6 +138,7 @@ function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): 
   const d = derived[story.id];
   const chips: string[] = [];
   if (d?.storyStatus) chips.push(`status=${d.storyStatus}`);
+  if (story.specReview) chips.push(`specReview=${story.specReview}`);
   chips.push(`base=${d?.base ?? CHIP_UNSET}`);
   chips.push(`branch=${story.branchName ?? CHIP_UNSET}`);
   if (story.prUrl) chips.push(`pr=${story.prUrl}`);
@@ -193,7 +196,7 @@ function renderProjectBoard(
 // depth-first order (roots first, each followed by what forks from it); within
 // a Branch its Commits print first (in sequence) and its stacked children
 // after, so indentation mirrors the git stack.
-function renderEpic(epic: IssueRecord, indent: number, ctx: TreeContext): string[] {
+function renderEpic(epic: EpicRecord, indent: number, ctx: TreeContext): string[] {
   const lines = [nodeLine(indent, "epic", epic.id, epic.title, epicChips(epic, ctx.derived))];
   const stories = stackedStoryOrder(ctx.storiesOf.get(epic.id) ?? []);
   const inSet = new Set(stories.map((s) => s.id));

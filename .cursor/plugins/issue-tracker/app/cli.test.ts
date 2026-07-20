@@ -1187,7 +1187,7 @@ describe("task get/set", () => {
     expect(runCli(["task", "set", "c1", "qa", "passed"]).status).toBe(0);
     expect(runCli(["show", "c1"]).stdout).toContain("status: fixing");
     expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
-    expect(runCli(["tree", "p"]).stdout).toMatch(/qa=passed/);
+    expect(runCli(["tree", "p"]).stdout).toMatch(/^ {6}task c1\b.*\bqa=passed/m);
 
     const applyPath = join(dir, "task-apply.yaml");
     writeFileSync(
@@ -1210,6 +1210,9 @@ epic:
     expect(onDisk.qa).toBe("passed");
     expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
     expect(runCli(["show", "c1"]).stdout).toContain("title: Commit 1 renamed");
+
+    expect(runCli(["task", "set", "c1", "qa", "--clear"]).status).toBe(0);
+    expect(runCli(["tree", "p"]).stdout).not.toMatch(/^ {6}task c1\b.*\bqa=/m);
   });
 
   it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {
@@ -1381,6 +1384,28 @@ describe("tree", () => {
     const withEpic = runCli(["tree", "a", "--epic", "e"]);
     expect(withEpic.status).toBe(1);
     expect(withEpic.stderr).toContain("cannot combine tree [id] with --project or --epic");
+  });
+
+  it("shows specReview and retro chips on the correct lines only when set", () => {
+    const unset = runCli(["tree", "--project", "p"]);
+    expect(unset.status).toBe(0);
+    expect(unset.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bspecReview=/m);
+
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
+
+    const set = runCli(["tree", "--project", "p"]);
+    expect(set.status).toBe(0);
+    expect(set.stdout).toMatch(/^ {2}epic e\b.*\bretro=in-progress\b/m);
+    expect(set.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
+
+    expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+
+    const cleared = runCli(["tree", "--project", "p"]);
+    expect(cleared.status).toBe(0);
+    expect(cleared.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(cleared.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
   });
 });
 
