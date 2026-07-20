@@ -4,6 +4,7 @@ import type { BadgeProps } from "@/components/ui/badge";
 export const TASK_STATUS_CLASS: Record<TaskStatus, string> = {
   todo: "text-muted-foreground",
   "in-progress": "[color:hsl(var(--warning))]",
+  fixing: "[color:hsl(var(--warning))]",
   done: "[color:hsl(var(--success))]",
 };
 

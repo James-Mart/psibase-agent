@@ -146,6 +146,7 @@ function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): 
 
 function taskChips(task: TaskRecord, derived: Record<string, DerivedState>): string[] {
   const chips = [`status=${task.status}`];
+  if (task.qa) chips.push(`qa=${task.qa}`);
   if (task.commitSha) chips.push(`sha=${task.commitSha.slice(0, 7)}`);
   if (derived[task.id]?.blocked) chips.push("blocked");
   return [...chips, ...attentionChip(task)];
@@ -552,6 +553,7 @@ program
       }
       if (detail.kind === "task") {
         lines.push(`status: ${detail.status}`);
+        if (detail.qa) lines.push(`qa: ${detail.qa}`);
         if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
         if (detail.noDiff) lines.push(`noDiff: true`);
       }

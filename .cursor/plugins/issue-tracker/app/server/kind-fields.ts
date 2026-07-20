@@ -1,5 +1,6 @@
 import {
   TASK_STATUSES,
+  QA_STATUSES,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type IssueKind,
@@ -63,6 +64,7 @@ export const TASK_SET_FIELDS = {
   archived: { type: "boolean" },
   partOf: { type: "string" },
   status: { type: "enum", values: TASK_STATUSES },
+  qa: { type: "enum", values: QA_STATUSES },
   commitSha: { type: "commitSha" },
   noDiff: { type: "boolean" },
   description: { type: "description" },
@@ -162,6 +164,7 @@ export const TASK_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   status: STORED,
+  qa: STORED,
   commitSha: STORED,
   noDiff: STORED,
   order: STORED,

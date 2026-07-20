@@ -183,7 +183,7 @@ export function IssueDetailEdit({
   };
 
   const controls: Record<
-    ProjectFieldKey | EpicFieldKey | StoryFormFieldKey | Exclude<TaskFieldKey, "noDiff">,
+    ProjectFieldKey | EpicFieldKey | StoryFormFieldKey | Exclude<TaskFieldKey, "noDiff" | "qa">,
     ReactNode
   > = {
     workspace: (

@@ -142,6 +142,46 @@ describe("parseIssue - valid per kind", () => {
     if (result.ok && result.issue.kind === "task") {
       expect(result.issue.status).toBe("in-progress");
     }
+
+    const fixing = parseIssue({ ...commit, status: "fixing" });
+    expect(fixing.ok).toBe(true);
+    if (fixing.ok && fixing.issue.kind === "task") {
+      expect(fixing.issue.status).toBe("fixing");
+    }
+  });
+
+  it("parses a commit with an optional qa", () => {
+    const reviewing = parseIssue({ ...commit, qa: "reviewing" });
+    expect(reviewing.ok).toBe(true);
+    if (reviewing.ok && reviewing.issue.kind === "task") {
+      expect(reviewing.issue.qa).toBe("reviewing");
+    }
+
+    const changesRequested = parseIssue({ ...commit, qa: "changes-requested" });
+    expect(changesRequested.ok).toBe(true);
+    if (changesRequested.ok && changesRequested.issue.kind === "task") {
+      expect(changesRequested.issue.qa).toBe("changes-requested");
+    }
+
+    const passed = parseIssue({ ...commit, qa: "passed" });
+    expect(passed.ok).toBe(true);
+    if (passed.ok && passed.issue.kind === "task") {
+      expect(passed.issue.qa).toBe("passed");
+    }
+
+    const absent = parseIssue(commit);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "task") {
+      expect(absent.issue.qa).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown qa value", () => {
+    expect(parseIssue({ ...commit, qa: "pending" }).ok).toBe(false);
+  });
+
+  it("rejects an unknown task status value", () => {
+    expect(parseIssue({ ...commit, status: "reviewing" }).ok).toBe(false);
   });
 
   it("parses a commit with an optional noDiff", () => {

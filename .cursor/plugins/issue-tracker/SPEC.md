@@ -50,7 +50,8 @@ Every issue has a `kind`, one of:
   Story tip, the package must still **build** and tests must remain
   **meaningful** (vertical slices, not horizontal layers such as types-only,
   wire-up-later, or half-migrations that do not compile). The only kind with a
-  **stored** `status` (`todo` / `in-progress` / `done`), an optional `commitSha`
+  **stored** `status` (`todo` / `in-progress` / `fixing` / `done`), an optional
+  `qa` gate (`reviewing` / `changes-requested` / `passed`), an optional `commitSha`
   (set when done with a real git commit), and an optional `noDiff` flag (set via
   kind [`set`](#kind-scoped-get--set) when the implementor deliberately lands no
   file changes).
@@ -219,7 +220,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
 | project | `title`, `workspace`, `mergePolicy`, `description` |
 | epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `description` |
 | story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
-| task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `commitSha`, `noDiff`, `description` |
+| task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
 #### Value parsing
 
@@ -231,7 +232,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   mutually exclusive.
 - `--clear` (mutually exclusive with a positional value / `--add` / `--remove`):
   - **Clearable scalars** (`assignee`, `commitSha`, `branchName`, `stackedOn`,
-    `prUrl`, `workspace`): blanks the field (absent / `null`).
+    `prUrl`, `workspace`, `qa`): blanks the field (absent / `null`).
   - **`blockedBy`**: sets `[]` (empty array, not null).
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
@@ -449,7 +450,8 @@ Task — the Epic/Story/Task common fields plus:
 | field | type | notes |
 | --- | --- | --- |
 | `partOf` | string | the Story id (required) |
-| `status` | `"todo"` \| `"in-progress"` \| `"done"` | defaults `todo`; the only stored status |
+| `status` | `"todo"` \| `"in-progress"` \| `"fixing"` \| `"done"` | defaults `todo`; the only stored status |
+| `qa` | `"reviewing"` \| `"changes-requested"` \| `"passed"`? | absent until set; machine-readable QA gate |
 | `commitSha` | string? | set when done |
 | `noDiff` | boolean? | absent until set; signals an intentional empty implementor diff |
 
@@ -561,7 +563,7 @@ no consumer can persist a broken file.
   `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
   `attentionReason`, `archived` (Epic / Idea / Story / Task; cascades to
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
-  kind-specific fields (`blockedBy` for an Epic; `status`/`commitSha`/`noDiff`
+  kind-specific fields (`blockedBy` for an Epic; `status`/`qa`/`commitSha`/`noDiff`
   for a Task; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
   `specReview` for a Story), and `description` (written to `description.md`).
   Clearable fields are removed when patched to `null`. A patch that names a
@@ -850,7 +852,7 @@ preserves everything else from the existing same-kind issue.
 | `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
-| `status`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |

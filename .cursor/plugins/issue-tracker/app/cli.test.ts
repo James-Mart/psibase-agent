@@ -1030,6 +1030,18 @@ describe("task get/set", () => {
     expect(runCli(["task", "set", "c1", "status", "in-progress"]).status).toBe(0);
     expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("in-progress\n");
 
+    expect(runCli(["task", "set", "c1", "status", "fixing"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("fixing\n");
+
+    expect(runCli(["task", "set", "c1", "qa", "reviewing"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "qa"]).stdout).toBe("reviewing\n");
+    expect(runCli(["task", "set", "c1", "qa", "--clear"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "qa"]).stdout).toBe("");
+
+    const invalidQa = runCli(["task", "set", "c1", "qa", "pending"]);
+    expect(invalidQa.status).toBe(1);
+    expect(invalidQa.stderr).toMatch(/invalid qa "pending"/);
+
     expect(runCli(["task", "set", "c1", "commitSha", sha1]).status).toBe(0);
     expect(runCli(["task", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
     expect(runCli(["task", "set", "c1", "commitSha", "--clear"]).status).toBe(0);
@@ -1136,6 +1148,38 @@ describe("task get/set", () => {
     const badNoDiff = runCli(["task", "set", "c1", "noDiff", "maybe"]);
     expect(badNoDiff.status).toBe(1);
     expect(badNoDiff.stderr).toMatch(/invalid noDiff "maybe"/);
+  });
+
+  it("surfaces qa in show/tree and preserves it across apply", () => {
+    expect(runCli(["show", "c1"]).stdout).not.toContain("qa:");
+
+    expect(runCli(["task", "set", "c1", "status", "fixing"]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "qa", "passed"]).status).toBe(0);
+    expect(runCli(["show", "c1"]).stdout).toContain("status: fixing");
+    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["tree", "p"]).stdout).toMatch(/qa=passed/);
+
+    const applyPath = join(dir, "task-apply.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  stories:
+    - id: a
+      title: Branch A
+      tasks:
+        - id: c1
+          title: Commit 1 renamed
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(onDisk.status).toBe("fixing");
+    expect(onDisk.qa).toBe("passed");
+    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["show", "c1"]).stdout).toContain("title: Commit 1 renamed");
   });
 
   it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {

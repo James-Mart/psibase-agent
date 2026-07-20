@@ -3,7 +3,7 @@ import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../sche
 import {
   PROJECT_FIELD_KEYS,
   STORY_RUNTIME_OPTIONAL_KEYS,
-  TASK_OPTIONAL_PRESERVE_KEYS,
+  TASK_RUNTIME_OPTIONAL_KEYS,
 } from "../fields.js";
 import type { ApplyDoc, DesiredIssue } from "./apply-schema.js";
 import { flattenApplyDoc, isStoryDoc, isEpicDoc } from "./apply-schema.js";
@@ -34,7 +34,7 @@ export interface ApplySummary {
 // Build the on-disk issue for a desired doc node. Doc-owned fields (title,
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
-// (status, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
+// (status, qa, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
 // needsAttention, attentionReason, archived, workspace, mergePolicy) and `createdAt` are
 // preserved from a same-kind existing issue; for a brand-new issue they are left off the
 // draft entirely so `parseIssue` fills them from the schema `.default()`s — except
@@ -145,7 +145,7 @@ function buildIssue(
     const prior = existing && existing.kind === "task" ? existing : undefined;
     if (prior) {
       draft.status = prior.status;
-      for (const key of TASK_OPTIONAL_PRESERVE_KEYS) {
+      for (const key of TASK_RUNTIME_OPTIONAL_KEYS) {
         if (prior[key] !== undefined) draft[key] = prior[key];
       }
     }
