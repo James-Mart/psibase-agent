@@ -22,11 +22,14 @@ Glossary: plugin `SPEC.md`.
 
 ## Bootstrap
 
-Run `issue summary <id>` first to rebuild Project → Epic → Story → Task
-context. Use `issue show <id>` when you need the full `description.md`. That
-summary also carries the Project **workspace** — run all implementation work
-(file edits, builds, tests, browser checks) with it as the cwd, and honor the
-unset escalation, per **SPEC § Project workspace**.
+1. Set Task `status` from Mode (before any other step):
+   - `implement` → `issue task set <id> status in-progress` (on first entry)
+   - `revise` → `issue task set <id> status fixing` (on every revise entry)
+2. Run `issue summary <id>` to rebuild Project → Epic → Story → Task
+   context. Use `issue show <id>` when you need the full `description.md`.
+3. The summary carries the Project **workspace** — run all implementation work
+   (file edits, builds, tests, browser checks) with it as the cwd, and honor the
+   unset escalation, per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 
@@ -39,14 +42,7 @@ unset escalation, per **SPEC § Project workspace**.
 ## Mode
 
 If Mode is `revise`, follow **## Revise** only. Otherwise follow **## Implement**
-only. In either case, set Task `status` first per **## Task status**.
-
-## Task status
-
-Before other mode steps, set Task `status` from Mode:
-
-- `implement` → `issue task set <id> status in-progress` (on first entry)
-- `revise` → `issue task set <id> status fixing` (on every revise entry)
+only. Complete all of **## Bootstrap** (steps 1–3) before other mode steps.
 
 ## Implement
 
