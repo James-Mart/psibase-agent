@@ -189,16 +189,21 @@ describe("listAttachments / putAttachment / getAttachment / removeAttachment (gu
     expect(listAttachments("idea-1").map((a) => a.name)).toEqual(["note.txt"]);
   });
 
-  it("refuses project and unknown ids", async () => {
+  it("stores and lists attachments on a project", async () => {
     const { listAttachments, putAttachment, getAttachment, removeAttachment } =
       await loadAttachments();
 
-    expect(() => listAttachments("p")).toThrow(/project/i);
-    await expect(
-      putAttachment("p", "x.txt", Buffer.from("nope")),
-    ).rejects.toThrow(/project/i);
-    await expect(getAttachment("p", "x.txt")).rejects.toThrow(/project/i);
-    await expect(removeAttachment("p", "x.txt")).rejects.toThrow(/project/i);
+    await putAttachment("p", "vision.md", Buffer.from("# Vision"));
+    expect(listAttachments("p").map((a) => a.name)).toEqual(["vision.md"]);
+    const got = await getAttachment("p", "vision.md");
+    expect(got.bytes.toString("utf8")).toBe("# Vision");
+    await removeAttachment("p", "vision.md");
+    expect(listAttachments("p")).toEqual([]);
+  });
+
+  it("refuses unknown ids", async () => {
+    const { listAttachments, putAttachment, getAttachment, removeAttachment } =
+      await loadAttachments();
 
     expect(() => listAttachments("ghost")).toThrow(/unknown issue/);
     await expect(

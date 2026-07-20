@@ -1817,6 +1817,24 @@ describe("attach / attachments / detach", () => {
     expect(withoutAttachments.stdout).not.toContain("Attachments:");
   });
 
+  it("prints project attachments in view when present and omits them when empty", () => {
+    const source = join(dir, "vision.md");
+    writeFileSync(source, "# Vision");
+    expect(runCli(["project", "attach", "p", source]).status).toBe(0);
+
+    const withAttachments = runCli(["project", "view", "p"]);
+    expect(withAttachments.status).toBe(0);
+    expect(withAttachments.stdout).toContain("Attachments:");
+    expect(withAttachments.stdout).toContain(
+      `vision.md (8 bytes) — ${join(dir, "p", "attachments", "vision.md")}`,
+    );
+
+    expect(runCli(["project", "detach", "p", "vision.md"]).status).toBe(0);
+    const withoutAttachments = runCli(["project", "view", "p"]);
+    expect(withoutAttachments.status).toBe(0);
+    expect(withoutAttachments.stdout).not.toContain("Attachments:");
+  });
+
   it("prints attachments in summary when present and omits them when empty", () => {
     const source = join(dir, "mock.tsx");
     writeFileSync(source, "canvas");
@@ -1996,17 +2014,18 @@ describe("kind-scoped view / delete / comment / attach", () => {
     }
   });
 
-  it("does not register attach under project", () => {
-    const help = runCli(["project", "--help"]);
-    expect(help.status).toBe(0);
-    for (const verb of ["attach", "attachments", "detach"]) {
-      expect(help.stdout, verb).not.toMatch(new RegExp(`\\n {2}${verb}\\b`));
-    }
-    const source = join(dir, "nope.bin");
-    writeFileSync(source, "x");
-    const { stderr, status } = runCli(["project", "attach", "p", source]);
-    expect(status).not.toBe(0);
-    expect(stderr).toMatch(/unknown command 'attach'/);
+  it("attaches on project via kind-scoped attach", () => {
+    const source = join(dir, "note.txt");
+    writeFileSync(source, "hello");
+    const attach = runCli(["project", "attach", "p", source]);
+    expect(attach.status).toBe(0);
+    expect(attach.stdout).toContain("attached note.txt");
+    const list = runCli(["project", "attachments", "p"]);
+    expect(list.status).toBe(0);
+    expect(list.stdout).toContain("note.txt\t5");
+    const detach = runCli(["project", "detach", "p", "note.txt"]);
+    expect(detach.status).toBe(0);
+    expect(detach.stdout).toBe("detached note.txt from p\n");
   });
 
   it("deletes via kind-scoped delete", () => {

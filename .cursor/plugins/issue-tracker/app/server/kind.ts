@@ -17,7 +17,7 @@ export const KIND_CAPABILITIES = {
     archived: false,
     assignee: false,
     attention: false,
-    attachments: false,
+    attachments: true,
     chat: true,
     // CLI `comment` is narrower than chat storage (project has chat, not comment).
     comment: false,

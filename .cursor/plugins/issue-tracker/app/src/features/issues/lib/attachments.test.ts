@@ -9,8 +9,8 @@ import {
 } from "./attachments";
 
 describe("supportsAttachments", () => {
-  it("hides the panel for Project and shows it for other kinds", () => {
-    expect(supportsAttachments("project")).toBe(false);
+  it("shows the panel for kinds with the attachments capability", () => {
+    expect(supportsAttachments("project")).toBe(true);
     expect(supportsAttachments("epic")).toBe(true);
     expect(supportsAttachments("story")).toBe(true);
     expect(supportsAttachments("task")).toBe(true);

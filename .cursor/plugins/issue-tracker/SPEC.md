@@ -222,7 +222,7 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
 | --- | --- |
 | `add` / `get` / `set` / `view` / `delete` | every kind |
 | `comment` | epic / story / task (not project / idea) |
-| `attach` / `attachments` / `detach` | epic / idea / story / task (not project) |
+| `attach` / `attachments` / `detach` | every kind |
 
 - **`add`** — `issue project add <title>` (no `--part-of`); children take
   `--part-of`. Description: `--description` and/or `--file` (use `-` for
@@ -236,9 +236,9 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
 - **`comment`** — `issue epic|story|task comment <id> --role <role> --body
   <text>` (optional `--name`); see [Service layer](#service-layer).
 - **`attach` / `attachments` / `detach`** —
-  `issue epic|idea|story|task attach <id> <file>` /
-  `issue epic|idea|story|task attachments <id>` /
-  `issue epic|idea|story|task detach <id> <name>`; see
+  `issue <kind> attach <id> <file>` /
+  `issue <kind> attachments <id>` /
+  `issue <kind> detach <id> <name>`; see
   [Attachments](#attachments).
 
 ### Global ops
@@ -348,7 +348,7 @@ issues/<id>/
   issue.json        # metadata + relationships (machine-readable)
   description.md    # the spec/description (for an Epic, the plan). GFM; may contain issue: links
   chat.jsonl        # append-only per-issue chat (not Ideas), one message object per line
-  attachments/      # optional; opaque files for Epic/Idea/Story/Task (not Project)
+  attachments/      # optional; opaque files for any kind with attachments
 ```
 
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
@@ -356,7 +356,7 @@ issues/<id>/
   optional; absent means empty. Ideas refuse chat writes — see
   [`appendMessage`](#service-layer).
 - `attachments/` is likewise by convention: no manifest; scan the directory.
-  Allowed on Epic, Idea, Story, and Task only (not Project). See
+  Allowed on every kind with the attachments capability. See
   [Attachments](#attachments).
 - `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
   edits, and globally unique across all kinds. Its *origin* depends on the
@@ -792,14 +792,14 @@ dangling-reference, wrong-kind, or cycle problem — guaranteed by construction 
 
 ## Attachments
 
-Opaque files that travel with an Epic, Idea, Story, or Task (e.g. Cursor
-Canvases as `.tsx`, images, small fixtures). Owned by
+Opaque files that travel with an issue (e.g. Cursor Canvases as `.tsx`, images,
+small fixtures, Project supporting docs). Owned by
 `app/server/services/attachments.ts`, a sibling writer whose per-file
 get/put/remove share the same `serialize` chain as `issues.ts` writes;
 `listAttachments` is unsynchronized.
 
-**Kinds.** Attach / list / download / detach only on Epic, Idea, Story, and
-Task. Project (and unknown ids) are refused.
+**Kinds.** Attach / list / download / detach on every kind with the attachments
+capability. Unknown ids are refused.
 
 **On-disk.** `issues/<id>/attachments/<basename>` — no manifest; metadata is
 filename + size + mtime, with MIME inferred from the extension
@@ -813,7 +813,7 @@ bytes, and any name that is not a plain basename. No extension allowlist.
 requested basename when free, otherwise `{stem}-{n}{ext}` with the smallest
 `n ≥ 2` not already taken (stem + last extension). Existing files are never
 overwritten. Removal is explicit (`removeAttachment` /
-`issue epic|idea|story|task detach` / `DELETE`). There is no rename verb —
+`issue <kind> detach` / `DELETE`). There is no rename verb —
 attach under the desired basename and detach the old name.
 
 **HTTP** (thin adapter over the service; payloads are not embedded in
@@ -1003,7 +1003,7 @@ preserves everything else from the existing same-kind issue.
 | `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`issue epic|story|task comment`); `apply` never reads or writes it |
-| `attachments/` | imperative only (HTTP or `issue epic|idea|story|task attach` / `detach`); `apply` never reads or writes attachment bytes |
+| `attachments/` | imperative only (HTTP or `issue <kind> attach` / `detach`); `apply` never reads or writes attachment bytes |
 
 So authoring/decomposition is declarative through `apply`, while working the
 stack (progress, git facts, escalation, chat, attachments) stays on the

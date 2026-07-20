@@ -77,9 +77,9 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
     if (hasAttention(detail) && detail.needsAttention) {
       lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
     }
-    if (kindHas(detail.kind, "attachments")) {
-      lines.push(...formatAttachmentsSection(id, listAttachments(id)));
-    }
+  }
+  if (kindHas(detail.kind, "attachments")) {
+    lines.push(...formatAttachmentsSection(id, listAttachments(id)));
   }
   console.log(lines.join("\n"));
   console.log();
@@ -204,7 +204,7 @@ function registerCommentCommand(parent: Command, run: Run, kind: IssueKind): voi
 function registerAttachCommands(parent: Command, run: Run, kind: IssueKind): void {
   parent
     .command("attach")
-    .argument("<id>", "issue id (epic, idea, story, or task)")
+    .argument("<id>", "issue id")
     .argument("<file>", "path to file to attach")
     .description(
       "attach a file; on basename collision keeps the existing file and stores under a unique name; prints the stored basename",
@@ -218,7 +218,7 @@ function registerAttachCommands(parent: Command, run: Run, kind: IssueKind): voi
 
   parent
     .command("attachments")
-    .argument("<id>", "issue id (epic, idea, story, or task)")
+    .argument("<id>", "issue id")
     .description("list attachment names and sizes")
     .action((id: string) =>
       run(() => {
@@ -229,7 +229,7 @@ function registerAttachCommands(parent: Command, run: Run, kind: IssueKind): voi
 
   parent
     .command("detach")
-    .argument("<id>", "issue id (epic, idea, story, or task)")
+    .argument("<id>", "issue id")
     .argument("<name>", "attachment basename to remove")
     .action((id: string, name: string) =>
       run(async () => {

@@ -145,12 +145,31 @@ describe("attachments HTTP API", () => {
     ).toBe("v2");
   });
 
-  it("rejects attachments on a project with 4xx", async () => {
-    const res = await upload("p", "nope.bin", "x");
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: "attachments are not allowed on a Project",
+  it("uploads, lists, downloads, and deletes attachments on a project", async () => {
+    const uploadRes = await upload("p", "vision.md", "# Vision");
+    expect(uploadRes.status).toBe(201);
+    expect(await uploadRes.json()).toEqual(
+      expect.objectContaining({ name: "vision.md" }),
+    );
+
+    const listed = await fetch(`${baseUrl}/api/issues/p/attachments`);
+    expect(await listed.json()).toEqual([
+      expect.objectContaining({ name: "vision.md" }),
+    ]);
+
+    const download = await fetch(
+      `${baseUrl}/api/issues/p/attachments/vision.md`,
+    );
+    expect(download.status).toBe(200);
+    expect(await download.text()).toBe("# Vision");
+
+    const del = await fetch(`${baseUrl}/api/issues/p/attachments/vision.md`, {
+      method: "DELETE",
     });
+    expect(del.status).toBe(204);
+    expect(await (await fetch(`${baseUrl}/api/issues/p/attachments`)).json()).toEqual(
+      [],
+    );
   });
 
   it("rejects oversize uploads with 4xx", async () => {
