@@ -324,6 +324,7 @@ export function TreePage() {
                 derived={derived}
                 issues={scoped}
                 catalog={catalog}
+                projectId={projectId}
               />
             )}
           </div>

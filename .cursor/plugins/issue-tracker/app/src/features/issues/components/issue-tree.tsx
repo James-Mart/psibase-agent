@@ -36,6 +36,7 @@ import {
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
+import { isRowDraggable } from "../lib/story-tree-dnd-logic";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { AxisChip } from "./axis-chip";
 import { EpicAxisChips, StoryAxisChips } from "./axis-chips";
@@ -176,10 +177,12 @@ function TreeRow({
   node,
   derived,
   catalog,
+  issues,
 }: {
   node: IssueNode;
   derived: DerivedMap;
   catalog: ProjectLabel[];
+  issues: IssueRecord[];
 }) {
   const { projectId = "" } = useParams();
   const { issue } = node;
@@ -189,7 +192,7 @@ function TreeRow({
   const hasChildren = node.children.length > 0;
   const Icon = KIND_ICON[issue.kind];
   const state = derived[issue.id];
-  const isStory = issue.kind === "story";
+  const rowDraggable = isRowDraggable(issue, issues);
   const { isDragging, isDropTarget, ...rowDnDHandlers } = getRowDnDProps(issue);
 
   return (
@@ -198,7 +201,7 @@ function TreeRow({
         className={cn(
           "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
           hasChildren && "cursor-pointer",
-          isStory && "cursor-grab active:cursor-grabbing",
+          rowDraggable && "cursor-grab active:cursor-grabbing",
           state?.blocked && "opacity-40",
           isDragging && "opacity-50",
           isDropTarget && "bg-accent ring-1 ring-ring",
@@ -255,10 +258,38 @@ function TreeRow({
               node={child}
               derived={derived}
               catalog={catalog}
+              issues={issues}
             />
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ProjectUnstackDropZone({
+  projectId,
+  issues,
+}: {
+  projectId: string;
+  issues: IssueRecord[];
+}) {
+  const { getProjectDnDProps, draggingId } = useStoryTreeDnDContext();
+  const dragging = draggingId
+    ? issues.find((issue) => issue.id === draggingId)
+    : undefined;
+  if (!dragging || dragging.kind !== "story") return null;
+  const { isDragging: _ignored, isDropTarget, ...handlers } =
+    getProjectDnDProps(projectId);
+  return (
+    <div
+      {...handlers}
+      className={cn(
+        "mb-2 rounded-md border border-dashed px-2 py-1.5 text-center text-xs text-muted-foreground",
+        isDropTarget && "border-ring bg-accent text-foreground ring-1 ring-ring",
+      )}
+    >
+      Drop story here to unstack onto project
     </div>
   );
 }
@@ -268,28 +299,45 @@ export function IssueTree({
   derived,
   issues,
   catalog,
+  projectId,
 }: {
   nodes: IssueNode[];
   derived: DerivedMap;
   issues: IssueRecord[];
   catalog: ProjectLabel[];
+  projectId: string;
 }) {
   const dnd = useStoryTreeDnD(issues);
 
   if (nodes.length === 0) {
     return (
-      <p className="px-2 py-8 text-center text-sm text-muted-foreground">
-        No issues yet.
-      </p>
+      <StoryTreeDnDProvider value={dnd}>
+        <div className="flex flex-col">
+          {projectId ? (
+            <ProjectUnstackDropZone projectId={projectId} issues={issues} />
+          ) : null}
+          <p className="px-2 py-8 text-center text-sm text-muted-foreground">
+            No issues yet.
+          </p>
+        </div>
+      </StoryTreeDnDProvider>
     );
   }
   return (
     <StoryTreeDnDProvider value={dnd}>
       <div className="flex flex-col">
+        {projectId ? (
+          <ProjectUnstackDropZone projectId={projectId} issues={issues} />
+        ) : null}
         {nodes.map((node, index) => (
           <Fragment key={node.issue.id}>
             {index > 0 ? <Separator className="my-3" /> : null}
-            <TreeRow node={node} derived={derived} catalog={catalog} />
+            <TreeRow
+              node={node}
+              derived={derived}
+              catalog={catalog}
+              issues={issues}
+            />
           </Fragment>
         ))}
       </div>

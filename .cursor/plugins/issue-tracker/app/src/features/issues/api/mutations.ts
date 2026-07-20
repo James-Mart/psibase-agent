@@ -140,3 +140,24 @@ export function useMoveStory() {
     onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.list() }),
   });
 }
+
+export interface ReorderBoardResult {
+  order: string[];
+}
+
+export function useReorderBoardChild() {
+  const qc = useQueryClient();
+  return useMutation<
+    ReorderBoardResult,
+    Error,
+    { id: string; before: string }
+  >({
+    mutationFn: ({ id, before }) =>
+      request<ReorderBoardResult>(`/api/issues/${id}/reorder`, {
+        method: "POST",
+        body: { before },
+      }),
+    onError: (err) => toast.error(messageOf(err)),
+    onSettled: () => qc.invalidateQueries({ queryKey: issuesKeys.list() }),
+  });
+}

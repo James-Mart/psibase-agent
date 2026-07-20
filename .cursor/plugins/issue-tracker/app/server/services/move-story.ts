@@ -12,6 +12,7 @@ import {
 } from "./issues.js";
 import { checkIntegrity } from "./integrity.js";
 import { IssueError } from "./errors.js";
+import { assignResolvedMergeBase } from "./merge-base.js";
 import { mergeIssue } from "./merge.js";
 
 export interface MoveStoryResult {
@@ -129,10 +130,15 @@ export function moveStory(
         );
       }
 
+      if (story.stackedOn !== existing.stackedOn) {
+        assignResolvedMergeBase(story, [...prospective.values()]);
+      }
+
       const unchanged =
         story.partOf === existing.partOf &&
         story.stackedOn === existing.stackedOn &&
-        story.order === existing.order;
+        story.order === existing.order &&
+        story.mergeBase === existing.mergeBase;
       if (unchanged) continue;
 
       story.updatedAt = now;

@@ -100,6 +100,7 @@ describe("moveStory", () => {
       title: "Peer",
       partOf: "e1",
       order: 1,
+      branchName: "peer",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -110,6 +111,7 @@ describe("moveStory", () => {
     expect(result.moved).toEqual(["b", "c"]);
 
     expect(readJson("b").stackedOn).toBe("peer");
+    expect(readJson("b").mergeBase).toBe("peer");
     expect(readJson("b").partOf).toBe("e1");
     expect(readJson("c").stackedOn).toBe("b");
     expect(readJson("c").partOf).toBe("e1");
@@ -158,6 +160,7 @@ describe("moveStory", () => {
 
     expect(readJson("b").partOf).toBe("e1");
     expect(readJson("b").stackedOn).toBeUndefined();
+    expect(readJson("b").mergeBase).toBe("main");
     expect(readJson("c").stackedOn).toBe("b");
     expect(readJson("c").partOf).toBe("e1");
     // Appends among e1 roots (a at order 0)
@@ -208,10 +211,41 @@ describe("moveStory", () => {
 
     expect(readJson("b").partOf).toBe("p");
     expect(readJson("b").stackedOn).toBeUndefined();
+    expect(readJson("b").mergeBase).toBe("main");
     expect(readJson("c").partOf).toBe("p");
     expect(readJson("c").stackedOn).toBe("b");
     // Appends among project board roots (e1=0, e2=1)
     expect(readJson("b").order).toBe(2);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("stacks project-level stories and updates mergeBase", async () => {
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo",
+      partOf: "p",
+      order: 2,
+      branchName: "solo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("other", {
+      kind: "story",
+      title: "Other",
+      partOf: "p",
+      order: 3,
+      branchName: "other",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("other", "solo");
+    expect(result.moved).toEqual(["other"]);
+    expect(readJson("other").partOf).toBe("p");
+    expect(readJson("other").stackedOn).toBe("solo");
+    expect(readJson("other").mergeBase).toBe("solo");
     expect(list().problems).toEqual([]);
   });
 
