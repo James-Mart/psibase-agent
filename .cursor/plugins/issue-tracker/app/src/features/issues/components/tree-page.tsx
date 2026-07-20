@@ -74,6 +74,7 @@ export function TreePage() {
       ),
     [issues, projectId],
   );
+  const catalog = project?.kind === "project" ? (project.labels ?? []) : [];
   const scoped = useMemo(
     () =>
       visibleIssues(
@@ -228,7 +229,12 @@ export function TreePage() {
                 <Skeleton className="h-8 w-10/12" />
               </div>
             ) : (
-              <IssueTree nodes={nodes} derived={derived} issues={scoped} />
+              <IssueTree
+                nodes={nodes}
+                derived={derived}
+                issues={scoped}
+                catalog={catalog}
+              />
             )}
           </div>
         </>

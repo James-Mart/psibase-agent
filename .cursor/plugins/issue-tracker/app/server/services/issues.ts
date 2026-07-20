@@ -59,6 +59,7 @@ import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 import {
   planLabelCatalogCascade,
   planLabelCatalogRename,
+  singleCatalogIdRename,
   type LabelCascadePatch,
 } from "./labels.js";
 
@@ -577,11 +578,18 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       jsonPatch,
       issues,
     );
-    const labelCascadePatches = planLabelCatalogCascade(
-      existing,
-      next,
-      issues,
-    );
+    const catalogRename =
+      existing.kind === "project" && next.kind === "project"
+        ? singleCatalogIdRename(existing, next)
+        : null;
+    const labelCascadePatches = catalogRename
+      ? planLabelCatalogRename(
+          existing,
+          catalogRename.oldId,
+          catalogRename.newId,
+          issues,
+        ).assignmentPatches
+      : planLabelCatalogCascade(existing, next, issues);
 
     const jsonUnchanged =
       JSON.stringify(parsed.issue) === JSON.stringify(existing);

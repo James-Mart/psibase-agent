@@ -1,6 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { IssueDetail, IssuePatch, MergePolicy } from "@server/schemas";
+import type {
+  IssueDetail,
+  IssuePatch,
+  MergePolicy,
+  ProjectLabel,
+} from "@server/schemas";
 import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
@@ -8,7 +13,7 @@ import {
   type ClearableKey,
   type TaskFieldKey,
   type EpicFieldKey,
-  type ProjectFieldKey,
+  type ProjectFormFieldKey,
 } from "@server/fields";
 import { hasAssignee, hasAttention, hasPartOf, kindHas } from "@server/kind";
 import { Button } from "@/components/ui/button";
@@ -21,8 +26,18 @@ import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
 import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
+import {
+  assignmentLabelsEqual,
+  catalogDraftsFromIssue,
+  isLabelAssignableIssue,
+  planCatalogLabelsSave,
+  sanitizeAssignmentIds,
+  type CatalogDraft,
+} from "../lib/project-labels";
+import { AssignmentLabelsEditor } from "./assignment-labels-editor";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
+import { ProjectLabelsEditor } from "./project-labels-editor";
 import { TaskStatusChips } from "./task-status-chips";
 import { WorkspacePathInput } from "./workspace-path-input";
 
@@ -31,6 +46,8 @@ interface FormState {
   description: string;
   workspace: string;
   mergePolicy: MergePolicy;
+  labels: CatalogDraft[];
+  assignedLabels: string[];
   assignee: string;
   needsAttention: boolean;
   attentionReason: string;
@@ -43,12 +60,20 @@ interface FormState {
   blockedBy: string;
 }
 
-function formStateFromIssue(issue: IssueDetail): FormState {
+function formStateFromIssue(
+  issue: IssueDetail,
+  catalog: ProjectLabel[],
+): FormState {
   return {
     title: issue.title,
     description: issue.description,
     workspace: issue.kind === "project" ? issue.workspace ?? "" : "",
     mergePolicy: issue.kind === "project" ? issue.mergePolicy : "manual",
+    labels:
+      issue.kind === "project" ? catalogDraftsFromIssue(issue.labels) : [],
+    assignedLabels: isLabelAssignableIssue(issue)
+      ? sanitizeAssignmentIds(issue.labels, catalog)
+      : [],
     assignee: hasAssignee(issue) ? issue.assignee ?? "" : "",
     needsAttention: hasAttention(issue) ? issue.needsAttention : false,
     attentionReason: hasAttention(issue) ? issue.attentionReason ?? "" : "",
@@ -73,15 +98,20 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 export function IssueDetailEdit({
   issue,
+  catalog,
   onDone,
   upload,
 }: {
   issue: IssueDetail;
+  catalog: ProjectLabel[];
   onDone: () => void;
   upload?: UploadAttachmentMutation;
 }) {
   const update = useUpdateIssue();
-  const [form, setForm] = useState<FormState>(() => formStateFromIssue(issue));
+  const [form, setForm] = useState<FormState>(() =>
+    formStateFromIssue(issue, catalog),
+  );
+  const [labelsError, setLabelsError] = useState<string | null>(null);
   const { hasConflict, acknowledge } = useExternalEditConflict(issue);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -94,7 +124,8 @@ export function IssueDetailEdit({
   );
 
   const reload = () => {
-    setForm(formStateFromIssue(issue));
+    setForm(formStateFromIssue(issue, catalog));
+    setLabelsError(null);
     acknowledge();
   };
 
@@ -155,11 +186,40 @@ export function IssueDetailEdit({
       if (form.merged !== issue.merged) patch.merged = form.merged;
     }
 
+    if (isLabelAssignableIssue(issue)) {
+      const nextLabels = sanitizeAssignmentIds(form.assignedLabels, catalog);
+      if (!assignmentLabelsEqual(issue.labels, nextLabels)) {
+        patch.labels = nextLabels;
+      }
+    }
+
     return patch;
   };
 
-  const save = () => {
+  const save = async () => {
     const patch = buildPatch();
+
+    if (issue.kind === "project") {
+      const result = planCatalogLabelsSave(issue.labels, form.labels);
+      if (!result.ok) {
+        setLabelsError(result.error);
+        return;
+      }
+      setLabelsError(null);
+
+      for (const labels of result.plan.stagingPatches) {
+        try {
+          await update.mutateAsync({ id: issue.id, patch: { labels } });
+        } catch (err) {
+          setLabelsError(
+            err instanceof Error ? err.message : "Failed to rename labels",
+          );
+          return;
+        }
+      }
+      if (result.plan.finalLabels) patch.labels = result.plan.finalLabels;
+    }
+
     if (Object.keys(patch).length === 0) {
       onDone();
       return;
@@ -168,7 +228,10 @@ export function IssueDetailEdit({
   };
 
   const controls: Record<
-    ProjectFieldKey | EpicFieldKey | StoryFormFieldKey | Exclude<TaskFieldKey, "noDiff" | "qa">,
+    | ProjectFormFieldKey
+    | EpicFieldKey
+    | StoryFormFieldKey
+    | Exclude<TaskFieldKey, "noDiff" | "qa">,
     ReactNode
   > = {
     workspace: (
@@ -302,6 +365,25 @@ export function IssueDetailEdit({
         </div>
       ) : null}
 
+      {issue.kind === "project" ? (
+        <ProjectLabelsEditor
+          drafts={form.labels}
+          onChange={(labels) => {
+            setLabelsError(null);
+            set("labels", labels);
+          }}
+          error={labelsError}
+        />
+      ) : null}
+
+      {isLabelAssignableIssue(issue) ? (
+        <AssignmentLabelsEditor
+          catalog={catalog}
+          selected={form.assignedLabels}
+          onChange={(assignedLabels) => set("assignedLabels", assignedLabels)}
+        />
+      ) : null}
+
       {hasAttention(issue) ? (
         <div className="flex flex-col gap-2 rounded-md border p-3">
           <label className="flex items-center gap-2 text-sm">
@@ -327,7 +409,7 @@ export function IssueDetailEdit({
         <Button variant="ghost" onClick={onDone} disabled={update.isPending}>
           Cancel
         </Button>
-        <Button onClick={save} disabled={update.isPending || hasConflict}>
+        <Button onClick={() => void save()} disabled={update.isPending || hasConflict}>
           Save
         </Button>
       </div>

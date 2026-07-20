@@ -745,6 +745,32 @@ describe("project labels catalog and assignments", () => {
     );
   });
 
+  it("rewrites assignments when a same-length labels patch renames one id", async () => {
+    const { update } = await loadService();
+    await update("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    await update("e", { labels: ["bug", "feat"] });
+    await update("a", { labels: ["bug"] });
+
+    await update("p", {
+      labels: [
+        { id: "defect", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+
+    expect(readJson("p").labels).toEqual([
+      { id: "defect", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    ]);
+    expect(readJson("e").labels).toEqual(["defect", "feat"]);
+    expect(readJson("a").labels).toEqual(["defect"]);
+  });
+
   it("rejects labels on a Task", async () => {
     writeIssue("t", {
       kind: "task",

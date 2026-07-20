@@ -4,32 +4,50 @@ import type { IssueDetail } from "@server/schemas";
 import { projectMetaValue } from "../lib/issue-detail-form";
 import { IssueLink } from "./issue-link";
 import { MetaRow } from "./meta-row";
+import { ProjectLabelChip } from "./project-label-chip";
 
 export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
   const rows =
     issue.kind === "project"
-      ? KIND_FIELD_KEYS.project.map((key) => {
-          const meta = projectMetaValue(issue, key);
-          return (
-            <MetaRow
-              key={key}
-              label={FIELD_LABELS[key]}
-              value={
-                <span
-                  className={
-                    meta.mono
-                      ? "font-mono"
-                      : meta.muted
-                        ? "text-muted-foreground"
-                        : undefined
-                  }
-                >
-                  {meta.text}
+      ? [
+          ...KIND_FIELD_KEYS.project.map((key) => {
+            const meta = projectMetaValue(issue, key);
+            return (
+              <MetaRow
+                key={key}
+                label={FIELD_LABELS[key]}
+                value={
+                  <span
+                    className={
+                      meta.mono
+                        ? "font-mono"
+                        : meta.muted
+                          ? "text-muted-foreground"
+                          : undefined
+                    }
+                  >
+                    {meta.text}
+                  </span>
+                }
+              />
+            );
+          }),
+          <MetaRow
+            key="labels"
+            label={FIELD_LABELS.labels}
+            value={
+              issue.labels?.length ? (
+                <span className="flex flex-wrap gap-1.5">
+                  {issue.labels.map((label) => (
+                    <ProjectLabelChip key={label.id} label={label} />
+                  ))}
                 </span>
-              }
-            />
-          );
-        })
+              ) : (
+                <span className="text-muted-foreground">none</span>
+              )
+            }
+          />,
+        ]
       : kindHas(issue.kind, "detailPartOf") && "partOf" in issue
         ? [
             <MetaRow

@@ -21,6 +21,28 @@ export function removedCatalogIds(existing: Issue, next: Issue): string[] {
 }
 
 /**
+ * When a same-length catalog patch drops exactly one id and adds exactly one,
+ * treat it as a rename (UI / PATCH) rather than remove+add.
+ */
+export function singleCatalogIdRename(
+  existing: Issue,
+  next: Issue,
+): { oldId: string; newId: string } | null {
+  if (existing.kind !== "project" || next.kind !== "project") return null;
+  const prev = existing.labels ?? [];
+  const nxt = next.labels ?? [];
+  if (prev.length !== nxt.length || prev.length === 0) return null;
+  const prevIds = prev.map((label) => label.id);
+  const nextIds = nxt.map((label) => label.id);
+  const nextSet = new Set(nextIds);
+  const prevSet = new Set(prevIds);
+  const removed = prevIds.filter((id) => !nextSet.has(id));
+  const added = nextIds.filter((id) => !prevSet.has(id));
+  if (removed.length !== 1 || added.length !== 1) return null;
+  return { oldId: removed[0], newId: added[0] };
+}
+
+/**
  * When a Project catalog drops ids, strip those ids from every Epic / Idea /
  * Story assignment in the same Project.
  */

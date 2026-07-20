@@ -1,4 +1,7 @@
-import { MERGE_POLICY_LABELS, type ProjectFieldKey } from "@server/fields";
+import {
+  MERGE_POLICY_LABELS,
+  type ProjectFormFieldKey,
+} from "@server/fields";
 import type { IssueDetail } from "@server/schemas";
 
 export function blockedByFormValue(issue: IssueDetail): string {
@@ -17,7 +20,7 @@ export type ProjectMetaValue = { text: string; mono?: boolean; muted?: boolean }
 
 export function projectMetaValue(
   issue: Extract<IssueDetail, { kind: "project" }>,
-  key: ProjectFieldKey,
+  key: ProjectFormFieldKey,
 ): ProjectMetaValue {
   switch (key) {
     case "workspace":

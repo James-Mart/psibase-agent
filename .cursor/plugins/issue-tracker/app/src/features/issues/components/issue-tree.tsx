@@ -17,6 +17,7 @@ import {
   type DerivedState,
   type IssueKind,
   type IssueRecord,
+  type ProjectLabel,
 } from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import { AxisChip } from "./axis-chip";
 import { EpicAxisChips, StoryAxisChips } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 import { IssueBadges } from "./issue-badges";
+import { ProjectLabelChips } from "./project-label-chips";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
   project: FolderKanban,
@@ -172,9 +174,11 @@ type DerivedMap = Record<string, DerivedState>;
 function TreeRow({
   node,
   derived,
+  catalog,
 }: {
   node: IssueNode;
   derived: DerivedMap;
+  catalog: ProjectLabel[];
 }) {
   const { projectId = "" } = useParams();
   const { issue } = node;
@@ -230,6 +234,7 @@ function TreeRow({
           {state?.blocked ? (
             <AxisChip className="text-muted-foreground">blocked</AxisChip>
           ) : null}
+          <ProjectLabelChips issue={issue} catalog={catalog} />
           <IssueBadges issue={issue} compact />
           {issue.kind === "story" && issue.prUrl ? (
             <PrLink url={issue.prUrl} />
@@ -244,7 +249,12 @@ function TreeRow({
       {hasChildren && expanded ? (
         <div className="ml-4 border-l border-border/60 pl-2">
           {node.children.map((child) => (
-            <TreeRow key={child.issue.id} node={child} derived={derived} />
+            <TreeRow
+              key={child.issue.id}
+              node={child}
+              derived={derived}
+              catalog={catalog}
+            />
           ))}
         </div>
       ) : null}
@@ -256,10 +266,12 @@ export function IssueTree({
   nodes,
   derived,
   issues,
+  catalog,
 }: {
   nodes: IssueNode[];
   derived: DerivedMap;
   issues: IssueRecord[];
+  catalog: ProjectLabel[];
 }) {
   const dnd = useStoryTreeDnD(issues);
 
@@ -276,7 +288,7 @@ export function IssueTree({
         {nodes.map((node, index) => (
           <Fragment key={node.issue.id}>
             {index > 0 ? <Separator className="my-3" /> : null}
-            <TreeRow node={node} derived={derived} />
+            <TreeRow node={node} derived={derived} catalog={catalog} />
           </Fragment>
         ))}
       </div>
