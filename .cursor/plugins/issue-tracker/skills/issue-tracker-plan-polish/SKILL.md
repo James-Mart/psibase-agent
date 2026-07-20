@@ -2,16 +2,18 @@
 name: issue-tracker-plan-polish
 description: >-
   Polish an existing issue-tracker Epic: spawn four parallel read-only check
-  agents, aggregate findings into one epic-form apply proposal, and apply only
-  after user approval. Use when the user asks to polish a plan, clean up an
-  Epic tree, or run plan-polish checks.
+  agents, aggregate findings into a retained epic-form apply plan, present a
+  short chat summary for approval, and apply the retained YAML only after the
+  user approves. Use when the user asks to polish a plan, clean up an Epic
+  tree, or run plan-polish checks.
 ---
 
 # Issue Tracker — Plan Polish
 
 Polish one **Epic** already in the tracker. You are the **coordinator**: spawn
-read-only check agents, propose a single epic-form `apply` doc from their
-findings, and write the tracker only after the user approves that doc.
+read-only check agents, compose a full epic-form `apply` from their findings
+(keep it internal), present a short findings + changes summary in chat, and
+write the tracker only after the user approves that summary.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
@@ -105,34 +107,43 @@ After all four return:
 1. Parse each result as a JSON findings array. Deduplicate overlapping
    findings; prefer concrete `suggestedFix` text.
 2. **Severity:** any unresolved `error` means you **must not** propose “no
-   changes needed”. Fold fixes for every `error` into the epic-form YAML (or
-   ask the user how to resolve conflicting errors). `warning` findings should
-   be listed in the chat summary; include their fixes in the YAML when the
-   suggested change is clear, or call them out as optional for the user to
-   accept/edit. Never treat a clean apply as OK while errors remain unaddressed
-   in the proposal.
-3. Build **one** proposal for the user:
-   - An **epic-form** `apply` YAML (`project: <projectId>` string + `epic:`
-     object) with the corrected prose. Follow issue-tracker-authoring and
-     [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format).
+   changes needed”. Fold fixes for every `error` into the retained apply plan
+   (or ask the user how to resolve conflicting errors). List `warning`
+   findings in the chat summary; include their fixes in the retained plan when
+   the suggested change is clear, or call them out as optional for the user to
+   accept/edit. Never treat a clean outcome as OK while errors remain
+   unaddressed in the proposal.
+3. **Compose and retain** one full epic-form `apply` YAML
+   (`project: <projectId>` string + `epic:` object) from the deduplicated
+   findings, per issue-tracker-authoring and
+   [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format). Keep this
+   YAML internal — do not paste it into chat.
+4. Build **one** user-facing proposal for chat, derived from that retained
+   plan:
+   - A **short summary** of findings (with severities) and the proposed plan
+     changes — not the full epic-form `apply` YAML.
    - Or, only when there are **zero** `error` findings (and you are not
      adopting warning fixes), state explicitly that **no changes are needed**
-     (no YAML).
-4. Show the proposal (and a short findings summary, including severities) in
+     (no retained YAML).
+5. Show that summary in chat. Do **not** dump the epic-form apply doc into
    chat. Do **not** `issue apply` yet.
 
 ## Approve, then apply
 
-On approval (the user may edit the YAML in chat):
+On approval (the user may request revisions to the summary):
 
-1. Write the approved YAML to a temp file (or stdin).
+1. Apply the **retained** epic-form YAML from Aggregate. If the user edited
+   the summary, revise that retained YAML to match those edits first — do not
+   rebuild it from the short summary alone. Write it to a temp file (or
+   stdin).
 2. Run `issue apply <file>` (or equivalent) so tracker writes stay
    **single-threaded** through this coordinator.
 3. Show `apply` stdout (created/updated/deleted + subtree outline).
 
-If the user rejects or asks for revisions, revise the proposal in chat and
-wait again — do not apply unapproved docs. Write path is the approved
-epic-form `apply` per issue-tracker-authoring (declarative apply).
+If the user rejects or asks for revisions, revise the retained plan and the
+chat summary together, then wait again — do not apply unapproved changes.
+Write path is the approved epic-form `apply` per issue-tracker-authoring
+(declarative apply).
 
 ## Rules
 
