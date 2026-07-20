@@ -11,7 +11,7 @@ You are the **plan no-ambiguity** checker for issue-tracker plan polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <epicId>`, then **read from disk** (cwd =
+Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
 `Workspace:`):
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
