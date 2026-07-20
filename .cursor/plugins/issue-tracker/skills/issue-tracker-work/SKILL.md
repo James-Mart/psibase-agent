@@ -308,9 +308,9 @@ alone as “fully finished” for retro purposes.
 
 The Story walk ends when every Task in the Epic is `done`. Give a short
 final summary: which Stories were built, and anything still open or escalated
-(needsAttention escalation). For validator findings and what the implementor accepted or
-declined on revise, point the user at the tracker comments
-(`issue <kind> view <id> --chat`) rather than collecting them into your context. Note
+(needsAttention escalation). For validator findings and revise history, point the user
+at the tracker comments (`issue <kind> view <id> --chat`) rather than collecting them
+into your context. Note
 how finished Stories landed from the `issue tree` chips (`pr=` for an opened
 PR, `merged` for a merged Story, neither when left for the human).
 
@@ -460,7 +460,7 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 - Per-Task QA loop (entry gate, spawn/resume, three-strike): see **Per-Task
   cycle** — single canonical definition; you never count QA rounds.
   Spec-conformance remediation is Close-Story's job (see that section) — no
-  story-level revise. The implementor may decline findings with reasoning.
+  story-level revise.
 - Never let a validator edit workspace source (write scopes: Models table).
   Code-quality may write Task `qa` / `needsAttention` and comments only.
 - Never set status on a Story or Epic. Do not decide whether to open or merge a
