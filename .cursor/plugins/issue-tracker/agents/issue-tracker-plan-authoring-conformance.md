@@ -13,7 +13,7 @@ polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <epicId>`, then **read from disk** (cwd =
+Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
 `Workspace:`):
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
@@ -50,16 +50,20 @@ Structural / guideline violations of issue-tracker-authoring:
   of work with an empty Task tier misuse; horizontal layering that leaves an
   intermediate tip unbuildable (authoring **Task shape**).
 - **Epic grain (soft)** — authoring **Epic grain: project-level Story vs
-  Epic**. Emit `warning` findings (never `error`) for these shapes only:
-  1. **Single-Story Epic, no stacks** — the Epic under review has exactly one
-     root Story (`partOf` that Epic, no `stackedOn`) and no Story in the Epic
-     has `stackedOn` / is a stack fork point. Suggest dropping the Epic
-     wrapper for a project-level Story. Do **not** flag multi-root Epics or
-     Epics that contain any stacking.
-  2. **Project-level stack** — a Story under review is `partOf` a Project and
-     either has `stackedOn` or is the `stackedOn` target of another
+  Epic**. Emit `warning` findings (never `error`) for these shapes only;
+  scope each rule by work-root kind (`<rootKind>` from the shared check-base):
+  1. **Single-Story Epic, no stacks** — only when `<rootKind>` is `epic`. The
+     Epic under review has exactly one root Story (`partOf` that Epic, no
+     `stackedOn`) and no Story in the Epic has `stackedOn` / is a stack fork
+     point. Suggest dropping the Epic wrapper for a project-level Story. Do
+     **not** flag multi-root Epics or Epics that contain any stacking. Skip
+     this rule entirely when the polish work root is a project-level Story.
+  2. **Project-level stack** — only when `<rootKind>` is `story`. The
+     project-level Story under review (or another same-Project Story in the
+     tree) either has `stackedOn` or is the `stackedOn` target of another
      same-Project Story. Suggest wrapping the stack in an Epic. Do **not**
-     flag a lone project-level Story with no stack edges.
+     flag a lone project-level Story with no stack edges. Skip this rule
+     entirely when the polish work root is an Epic.
 - **Companion / attachments** — external workspace paths in prose where
   attachments belong (authoring **Attachments**).
 

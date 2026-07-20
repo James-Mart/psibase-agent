@@ -11,7 +11,7 @@ You are the **plan DRY** checker for issue-tracker plan polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <epicId>`, then **read from disk** (cwd =
+Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
 `Workspace:`):
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
@@ -23,10 +23,11 @@ uniquely flag.
 ## What you flag
 
 **Near-verbatim repeated blocks** of prose that appear in more than one
-Epic/Story/Task node (across siblings or across tiers) and should live in
-exactly one place:
+plan node (across siblings or across tiers) and should live in exactly one
+place:
 
-- Same paragraph/section copied into Epic and again into a Story/Task
+- Same paragraph/section copied into a parent work root and again into a
+  descendant Story or Task
 - Sibling Stories or Tasks duplicating the same block instead of factoring it
   to the shared parent (when that parent is the right home)
 

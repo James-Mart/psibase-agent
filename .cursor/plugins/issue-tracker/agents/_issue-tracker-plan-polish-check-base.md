@@ -1,7 +1,8 @@
 # Plan-polish check agent — shared contract
 
 Not a spawnable agent (no frontmatter). Referenced by the four
-`issue-tracker-plan-*` check agents. Used by `issue-tracker-plan-polish`.
+`issue-tracker-plan-*` check agents and by `issue-tracker-plan-polish`
+Bootstrap (work-root kind gates). Used by `issue-tracker-plan-polish`.
 
 Spawnable agents **must** load this file from disk at bootstrap (workspace-
 relative path below) — a markdown link in the agent body is not enough;
@@ -11,8 +12,8 @@ Workspace-relative path (cwd = `Workspace:` from `issue summary`):
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 
-You only read the Epic tree and return findings. Do not write the tracker or
-edit workspace source.
+You only read the work-root tree and return findings. Do not write the
+tracker or edit workspace source.
 
 ## CLI
 
@@ -27,18 +28,28 @@ Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
 
 ## Bootstrap
 
-1. `issue summary <epicId>` for Project → Epic context (and `Workspace:`).
-   Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-2. Read
+1. `issue summary <rootId>` for Project → work-root context (and
+   `Workspace:`). Take `<projectId>` from the id token on
+   `Project: <projectId> — <title>`.
+2. **Work-root kind gates** (single source of truth for polish roots —
+   coordinator and check agents both apply this block):
+   - **Epic** — set `<rootKind>` = `epic`; proceed.
+   - **Story** — confirm it is **project-level** (`issue story get <rootId>
+     partOf` equals `<projectId>`; refuse Epic-child Stories — they are not
+     polish roots). Set `<rootKind>` = `story`.
+   - Any other kind → refuse.
+   On refuse: check agents return `[]` and stop; the coordinator stops and
+   hands back to the user (does not spawn checks).
+3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
    from disk. Consult `vision` per that file using the step-1 summary output.
-3. `issue tree <epicId>` for the Story/Task outline.
-4. `issue <kind> view <id>` on the Epic and every Story/Task you review (plus any
-   extra `<kind> get` / sibling reads your agent file calls for).
+4. `issue tree <rootId>` for the Story/Task outline.
+5. `issue <kind> view <id>` on the work root and every Story/Task you review
+   (plus any extra `<kind> get` / sibling reads your agent file calls for).
 
 ## Inputs (from invoking prompt)
 
-- **Epic id** (+ title)
+- **Work root** id (+ title) — Epic or project-level Story
 - Return findings **only** in this Cursor Task result to the parent (never
   `issue <kind> comment` or other writes).
 
