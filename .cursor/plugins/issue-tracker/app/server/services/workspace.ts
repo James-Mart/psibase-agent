@@ -1,4 +1,5 @@
-import { existsSync, statSync } from "fs";
+import { existsSync, readFileSync, statSync } from "fs";
+import mime from "mime";
 import { isAbsolute, join, resolve, sep } from "path";
 import type { IssuePatch } from "../schemas.js";
 import { IssueError } from "./errors.js";
@@ -65,4 +66,26 @@ export function resolveUnderWorkspace(workspace: string, relPath: string): strin
     );
   }
   return resolved;
+}
+
+export interface WorkspaceFileBytes {
+  mime: string;
+  bytes: Buffer;
+}
+
+export function readWorkspaceFile(
+  workspace: string,
+  relativePath: string,
+): WorkspaceFileBytes {
+  const resolved = resolveUnderWorkspace(workspace, relativePath);
+  if (!existsSync(resolved) || !statSync(resolved).isFile()) {
+    throw new IssueError(
+      "not_found",
+      `workspace file not found: ${relativePath}`,
+    );
+  }
+  return {
+    mime: mime.lookup(relativePath) || "application/octet-stream",
+    bytes: readFileSync(resolved),
+  };
 }

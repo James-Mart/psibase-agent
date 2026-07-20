@@ -9,6 +9,7 @@ import { distDir, hasBuiltClient, isProdEnv } from "./config.js";
 import { errorHandler } from "./errors.js";
 import { eventsRouter } from "./routes/events.js";
 import { issuesRouter } from "./routes/issues.js";
+import { projectsRouter } from "./routes/projects.js";
 
 function requestLogger(req: Request, res: Response, next: NextFunction): void {
   const start = process.hrtime.bigint();
@@ -33,6 +34,7 @@ export function createApp(): Express {
   }
 
   app.use("/api/issues", issuesRouter);
+  app.use("/api/projects", projectsRouter);
   app.use("/api/events", eventsRouter);
 
   if (serveStatic) {
