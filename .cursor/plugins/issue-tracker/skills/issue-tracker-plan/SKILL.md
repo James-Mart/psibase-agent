@@ -56,8 +56,8 @@ Before grilling:
        only rewrites pre-implementation Epics; for an existing tree use
        `issue-tracker-plan-polish` (or work it with `issue-tracker-work`).
    - Any other kind → refuse.
-3. `issue show <id>` — load the full capture (`description.md`), not only the
-   summary blurb.
+3. `issue <kind> view <id>` — load the full capture (`description.md`), not
+   only the summary blurb (`idea` or `epic` from step 2).
 4. If the source is an **Epic**, also `issue tree <id>` so the existing
    Story/Task subtree is in context before grilling.
 
@@ -103,12 +103,12 @@ Both paths use one **epic-form** `apply` (`project: <projectId>` string +
 `epic:` object) — prune-by-default within that Epic root. Ship the **full**
 desired subtree (title, description, Stories/Tasks); omitting children
 **deletes** them. Prefer declarative `apply` over imperative
-`create-epic` / `add-story` / `add-task`. Never use a project-root `apply`
+`issue epic|story|task add`. Never use a project-root `apply`
 for this migration (a partial project doc would prune sibling Epics/Ideas).
 
 | Source | Epic id in the doc | After successful `apply` |
 | --- | --- | --- |
-| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue delete <ideaId>` |
+| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea delete <ideaId>` |
 | **Epic** (`todo`) | **Keep** the existing Epic id | (none) |
 
 Show `apply` stdout (and delete outcome on the Idea path). Report the

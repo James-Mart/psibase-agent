@@ -44,9 +44,9 @@ the global bin away from the authoritative workspace `issues/` store.
 
 ## Semantics (what `--help` doesn't spell out)
 
-- **Create verbs print the new id** (`create-project`/`create-epic`/`add-story`/
-  `add-task`) on stdout — capture it to link children. `apply` (below) makes
-  this unnecessary for whole-tree authoring, since ids are author-chosen.
+- **`add` prints the new id** (`issue project|epic|idea|story|task add …`) on
+  stdout — capture it to link children. `apply` (below) makes this unnecessary
+  for whole-tree authoring, since ids are author-chosen.
 - **`attach` collision may rename** — the stored basename can differ from the
   source file; stdout prints the stored name (and path).
 - **Updates are partial merges** — only the named field changes; the rest is
@@ -55,19 +55,37 @@ the global bin away from the authoritative workspace `issues/` store.
   message and fix the input.
 - Cross-link issues inside any body/description: `[text](issue:<id>)`.
 
+### Kind-scoped ops
+
+Single-issue ops are kind-scoped (`project` | `epic` | `idea` | `story` |
+`task`); the CLI kind must equal the stored kind (hard error otherwise). Full
+surface: [SPEC.md](../../SPEC.md#cli-surface).
+
+```
+issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
+```
+
+- **`add`** — `issue project add <title>` (no `--part-of`); children take
+  `--part-of`. Description: `--description` and/or `--file` (use `-` for
+  stdin). Also: `--assignee` on epic / story / task; `--stacked-on` on story.
+- **`view`** — `issue <kind> view <id>` (pass `--chat` for the chat log).
+- **`delete`** — `issue <kind> delete <id>` (cascades per SPEC).
+- **`comment`** — epic / story / task only:
+  `issue epic|story|task comment <id> --role <role> --body <text>`.
+- **`attach` / `attachments` / `detach`** — epic / idea / story / task only
+  (not project); see [Attachments](#attachments).
+
 ### Kind-scoped `get` / `set`
 
-Field read/write: `issue <kind> get|set …` (`project` | `epic` | `story` |
-`task`). Allowlists, flags, and `--clear` semantics:
-`issue <kind> get|set --help` and
+Field read/write: `issue <kind> get|set …`. Allowlists, flags, and `--clear`
+semantics: `issue <kind> get|set --help` and
 [SPEC.md](../../SPEC.md#kind-scoped-get--set).
 
-- **Prefer `get` for scalar reads** — do not parse `show` / `summary` / `tree`
+- **Prefer `get` for scalar reads** — do not parse `view` / `summary` / `tree`
   for a single field. (`summary`'s `Workspace:` line remains the bootstrap
   contract for Project workspace resolution.)
 - **`needsAttention true` requires `--reason`**.
-- **`description`**: create with `--description` / `--file` on the create/`add`
-  verbs; update with
+- **`description`**: seed with `--description` / `--file` on `add`; update with
   `issue <kind> set <id> description --file <path|->` (omit the positional
   value). Pass `-` for stdin to avoid shell-escaping multiline Markdown. When
   the description introduces or wires an interface, see
@@ -96,31 +114,31 @@ Field read/write: `issue <kind> get|set …` (`project` | `epic` | `story` |
 
 Companion material (Canvas `.tsx`, images, fixtures) belongs **with the issue
 that uses it** as opaque files under `issues/<id>/attachments/` — do not paste
-binary or Canvas bytes into `description.md`. Full model and limits (Epic/
-Story/Task only; basename path-safety; 25 MiB cap):
+binary or Canvas bytes into `description.md`. Full model and limits (epic /
+idea / story / task; basename path-safety; 25 MiB cap):
 [SPEC.md](../../SPEC.md#attachments).
 
 - **Links.** Issue-local relative Markdown only: `[foo](foo.tsx)` means that
   issue's `attachments/foo.tsx`. No `attachment:` prefix and no `attachments/`
   segment in the link. Arbitrary external workspace paths remain forbidden.
-- **`attach <id> <file>`** — basename when free; unique suffix on collision
-  (keeps existing file) — see [SPEC.md](../../SPEC.md#attachments). Project
-  ids are refused.
-- **`attachments <id>`** — list names and sizes, or `(no attachments)`.
-- **`detach <id> <name>`** — remove one attachment by basename (explicit
-  delete).
+- **`attach` / `attachments` / `detach`** —
+  `issue epic|idea|story|task attach <id> <file>` /
+  `issue epic|idea|story|task attachments <id>` /
+  `issue epic|idea|story|task detach <id> <name>`. Basename when free; unique
+  suffix on collision (keeps existing file) — see
+  [SPEC.md](../../SPEC.md#attachments). Project ids are refused.
 - **`apply` seam.** `apply` never creates, updates, or deletes attachment
-  bytes (same as `chat.jsonl`). After the tree is applied, use `attach` /
-  `detach` for bytes.
-- **Discovery.** `show` and `summary` list attachments (name, size, on-disk
+  bytes (same as `chat.jsonl`). After the tree is applied, use kind-scoped
+  `attach` / `detach` for bytes.
+- **Discovery.** `view` and `summary` list attachments (name, size, on-disk
   path) when present; omitted when empty.
 
 ### Inspection / bootstrap
 
-- **`show <id>`** — print one issue's metadata + rendered `description.md`
-  (attachments listed when present — see above). `--chat` also prints the chat
-  log. Self-verify a single issue without piping the big `list` JSON through a
-  script.
+Global board/bootstrap ops (`apply` is under **Declarative apply**). For a
+single issue's metadata + `description.md`, use `issue <kind> view <id>`
+(**Kind-scoped ops**).
+
 - **`summary <id>`** — Project → Epic → Story → Task bootstrap chain; each
   node that has attachments includes the same listing (omitted when empty).
 - **`tree [id]`** / **`list [id]`** — shared optional positional scope (id only;

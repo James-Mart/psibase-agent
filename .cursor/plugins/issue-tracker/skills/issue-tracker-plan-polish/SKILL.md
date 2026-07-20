@@ -39,7 +39,8 @@ Never bare `issue list`.
      fall back).
 2. `issue tree <epicId>` — full Story/Task outline (implementation
    order).
-3. `issue show <epicId>` (and children as needed) when preparing the proposal.
+3. `issue epic view <epicId>` (and children as needed) when preparing the
+   proposal.
 
 ## Parallel check agents
 
@@ -138,7 +139,7 @@ On approval (the user may edit the YAML in chat):
 
 If the user rejects or asks for revisions, revise the proposal in chat and
 wait again — do not apply unapproved docs. Never patch plan-owned fields with
-imperative `create`/`add`/`set` for polish outcomes; the approved epic-form
+imperative `issue <kind> add`/`set` for polish outcomes; the approved epic-form
 doc is the write path.
 
 ## Rules
