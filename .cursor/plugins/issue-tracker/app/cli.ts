@@ -18,7 +18,11 @@ import {
   isEpicDoc,
   type ApplyDoc,
 } from "./server/services/apply-schema.js";
-import { bySequence, buildProjectBoardOf, stackedStoryOrder } from "./server/order.js";
+import {
+  bySequence,
+  buildProjectBoardOf,
+  stackedOnSubtree,
+} from "./server/order.js";
 import {
   assertScopeVisible,
   resolveBoardScope,
@@ -36,11 +40,14 @@ import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
 type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
 type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
-type ProjectBoardChild = Extract<IssueRecord, { kind: "epic" | "idea" }>;
+type ProjectBoardChild = Extract<
+  IssueRecord,
+  { kind: "epic" | "idea" | "story" }
+>;
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
-// by kind, and the derived state. Commits are pre-sorted into their execution
-// sequence; Branches are ordered per-Epic via `stackedStoryOrder`.
+// by kind, and the derived state. Tasks are pre-sorted into their execution
+// sequence; Story stacks are ordered via `stackedOnSubtree` per root.
 interface TreeContext {
   storiesOf: Map<string, StoryRecord[]>;
   tasksOf: Map<string, TaskRecord[]>;
@@ -71,9 +78,9 @@ function buildTreeContext(
   return { storiesOf, tasksOf, storyById, derived };
 }
 
-// The git-stack depth of a Branch within its Epic: how many `stackedOn` hops it
-// takes to reach a root Branch. Drives the extra indentation a stacked Branch
-// gets under the one it forks from.
+// The git-stack depth of a Story within its container: how many `stackedOn`
+// hops it takes to reach a root Story. Drives the extra indentation a stacked
+// Story gets under the one it forks from.
 function storyDepth(
   story: StoryRecord,
   inSet: Set<string>,
@@ -127,6 +134,7 @@ function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): 
   const chips: string[] = [];
   if (d?.storyStatus) chips.push(`status=${d.storyStatus}`);
   if (story.specReview) chips.push(`specReview=${story.specReview}`);
+  if (story.retro) chips.push(`retro=${story.retro}`);
   chips.push(`base=${d?.base ?? CHIP_UNSET}`);
   chips.push(`branch=${story.branchName ?? CHIP_UNSET}`);
   if (story.prUrl) chips.push(`pr=${story.prUrl}`);
@@ -143,7 +151,7 @@ function taskChips(task: TaskRecord, derived: Record<string, DerivedState>): str
   return [...chips, ...attentionChip(task)];
 }
 
-// Render one Branch line plus its Commits (no stacked child Branches).
+// Render one Story line plus its Tasks (no stacked child Stories).
 function renderStory(story: StoryRecord, indent: number, ctx: TreeContext): string[] {
   const lines = [
     nodeLine(indent, "story", story.id, story.title, storyChips(story, ctx.derived)),
@@ -156,6 +164,34 @@ function renderStory(story: StoryRecord, indent: number, ctx: TreeContext): stri
   return lines;
 }
 
+// Render an ordered Story stack (root + stacked descendants) with indentation
+// from `stackedOn` depth. Shared by Epic and project-board Story roots.
+function renderStoryStack(
+  stories: StoryRecord[],
+  baseIndent: number,
+  ctx: TreeContext,
+): string[] {
+  const inSet = new Set(stories.map((s) => s.id));
+  const lines: string[] = [];
+  for (const story of stories) {
+    const level = baseIndent + storyDepth(story, inSet, ctx.storyById);
+    lines.push(...renderStory(story, level, ctx));
+  }
+  return lines;
+}
+
+function renderStoryStackFromRoot(
+  root: StoryRecord,
+  baseIndent: number,
+  ctx: TreeContext,
+): string[] {
+  return renderStoryStack(
+    stackedOnSubtree(ctx.storiesOf.get(root.partOf) ?? [], root.id),
+    baseIndent,
+    ctx,
+  );
+}
+
 function renderBoardChild(
   child: ProjectBoardChild,
   indent: number,
@@ -163,6 +199,9 @@ function renderBoardChild(
 ): string[] {
   if (child.kind === "idea") {
     return [nodeLine(indent, "idea", child.id, child.title, labelsChip(child))];
+  }
+  if (child.kind === "story") {
+    return renderStoryStackFromRoot(child, indent, ctx);
   }
   return renderEpic(child, indent, ctx);
 }
@@ -180,17 +219,19 @@ function renderProjectBoard(
   return lines;
 }
 
-// Render one Epic subtree starting at `indent`. Branches print in stacked
-// depth-first order (roots first, each followed by what forks from it); within
-// a Branch its Commits print first (in sequence) and its stacked children
-// after, so indentation mirrors the git stack.
+// Render one Epic subtree starting at `indent`. Root Stories (and each stack)
+// use the same helper as project-board Stories.
 function renderEpic(epic: EpicRecord, indent: number, ctx: TreeContext): string[] {
-  const lines = [nodeLine(indent, "epic", epic.id, epic.title, epicChips(epic, ctx.derived))];
-  const stories = stackedStoryOrder(ctx.storiesOf.get(epic.id) ?? []);
-  const inSet = new Set(stories.map((s) => s.id));
-  for (const story of stories) {
-    const level = indent + 1 + storyDepth(story, inSet, ctx.storyById);
-    lines.push(...renderStory(story, level, ctx));
+  const lines = [
+    nodeLine(indent, "epic", epic.id, epic.title, epicChips(epic, ctx.derived)),
+  ];
+  const containerStories = ctx.storiesOf.get(epic.id) ?? [];
+  const inSet = new Set(containerStories.map((s) => s.id));
+  const roots = containerStories
+    .filter((s) => !s.stackedOn || !inSet.has(s.stackedOn))
+    .sort(bySequence);
+  for (const root of roots) {
+    lines.push(...renderStoryStackFromRoot(root, indent + 1, ctx));
   }
   return lines;
 }
@@ -282,7 +323,7 @@ program
   .command("apply")
   .argument("<file>", "path to the nested YAML doc to apply")
   .description(
-    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Story (one story + its tasks in an existing epic); prunes within the declared root's subtree only",
+    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Story (one story + its tasks under an existing Epic or Project); prunes within the declared root's subtree only",
   )
   .action((file) =>
     run(async () => {
@@ -311,7 +352,7 @@ program
   .command("summary")
   .argument("<id>", "issue id (task, story, epic, idea, or project)")
   .description(
-    "print the Project → … → target chain for agent bootstrap (e.g. Project → Idea, or Project → Epic → Story → Task)",
+    "print the Project → … → target chain for agent bootstrap (e.g. Project → Idea, Project → Story → Task, or Project → Epic → Story → Task)",
   )
   .action((id) =>
     run(() => {
@@ -357,7 +398,7 @@ program
 program
   .command("tree")
   .description(
-    "print an indented Project outline (Ideas and Epics interleaved by order; Epics show Story > Task subtrees with derived chips)",
+    "print an indented Project outline (Epics, Ideas, and project-level Stories interleaved by order; Stories show Task subtrees with derived chips)",
   )
   .argument(
     "[id]",

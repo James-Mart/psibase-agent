@@ -716,8 +716,8 @@ describe("kind-scoped add", () => {
     },
     {
       kind: "story",
-      args: ["story", "add", "--part-of", "p", "Nope"],
-      error: /must be a epic/,
+      args: ["story", "add", "--part-of", "a", "Nope"],
+      error: /must be one of: project, epic/,
     },
     {
       kind: "task",
@@ -728,6 +728,33 @@ describe("kind-scoped add", () => {
     const result = runCli(args);
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(error);
+  });
+
+  it("adds a story under a project and reparents between project and epic", () => {
+    const add = runCli([
+      "story",
+      "add",
+      "Solo Story",
+      "--part-of",
+      "p",
+    ]);
+    expect(add.status).toBe(0);
+    expect(add.stdout.trim()).toBe("solo-story");
+    expect(issueJsonField("solo-story", "partOf")).toBe("p");
+
+    expect(runCli(["story", "set", "solo-story", "partOf", "e"]).status).toBe(
+      0,
+    );
+    expect(issueJsonField("solo-story", "partOf")).toBe("e");
+
+    expect(runCli(["story", "set", "solo-story", "partOf", "p"]).status).toBe(
+      0,
+    );
+    expect(issueJsonField("solo-story", "partOf")).toBe("p");
+
+    const bad = runCli(["story", "set", "solo-story", "partOf", "a"]);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/must be one of: project, epic/);
   });
 });
 
@@ -775,6 +802,70 @@ describe("tree / list / summary include Ideas", () => {
     const ideaB = stdout.indexOf("idea idea-b");
     expect(ideaA).toBeLessThan(epic);
     expect(epic).toBeLessThan(ideaB);
+  });
+
+  it("interleaves project-level Stories with Epics and Ideas and nests stacked children", () => {
+    // beforeEach: idea-a=0, e=1, idea-b=2 — bump idea-b so solo sits between e and idea-b.
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 3,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo Story",
+      partOf: "p",
+      order: 2,
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("solo-t", {
+      kind: "task",
+      title: "Solo task",
+      partOf: "solo",
+      status: "todo",
+      order: 0,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("stacked", {
+      kind: "story",
+      title: "Stacked Solo",
+      partOf: "p",
+      stackedOn: "solo",
+      order: 0,
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(
+      join(dir, "solo", "description.md"),
+      "# Solo\n\nproject-level story\n",
+    );
+
+    const { stdout, status } = runCli(["tree", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^ {2}story solo {2}Solo Story\b/m);
+    expect(stdout).toMatch(/^ {4}task solo-t {2}Solo task\b/m);
+    expect(stdout).toMatch(/^ {4}story stacked {2}Stacked Solo\b/m);
+    const ideaA = stdout.indexOf("idea idea-a");
+    const epic = stdout.indexOf("epic e");
+    const solo = stdout.indexOf("story solo");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(ideaA).toBeLessThan(epic);
+    expect(epic).toBeLessThan(solo);
+    expect(solo).toBeLessThan(ideaB);
+
+    const summary = runCli(["summary", "solo-t"]);
+    expect(summary.status).toBe(0);
+    expect(summary.stdout).toContain("Project: p — Proj");
+    expect(summary.stdout).toContain("Story: solo — Solo Story");
+    expect(summary.stdout).toContain("Task: solo-t — Solo task");
+    expect(summary.stdout).not.toContain("Epic:");
   });
 
   it("includes Ideas in list JSON for the project", () => {
@@ -1116,6 +1207,17 @@ describe("story get/set", () => {
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
     expect(runCli(["story", "get", "a", "specReview"]).stdout).toBe("passed\n");
 
+    expect(runCli(["story", "set", "a", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("in-progress\n");
+    expect(runCli(["story", "set", "a", "retro", "done"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("done\n");
+    expect(runCli(["story", "set", "a", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("");
+
+    const invalidRetro = runCli(["story", "set", "a", "retro", "pending"]);
+    expect(invalidRetro.status).toBe(1);
+    expect(invalidRetro.stderr).toMatch(/invalid retro "pending"/);
+
     expect(runCli(["story", "set", "a", "assignee", "bot"]).status).toBe(0);
     expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("bot\n");
     expect(runCli(["story", "set", "a", "assignee", "--clear"]).status).toBe(0);
@@ -1277,6 +1379,27 @@ epic:
     );
     expect(runCli(["story", "view", "a"]).stdout).toContain("specReview: failed");
     expect(runCli(["story", "view", "a"]).stdout).toContain("title: Branch A renamed");
+  });
+
+  it("preserves retro across apply", () => {
+    expect(runCli(["story", "set", "a", "retro", "in-progress"]).status).toBe(0);
+
+    const applyPath = join(dir, "epic-retro.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  stories:
+    - id: a
+      title: Branch A renamed
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
+    expect(onDisk.retro).toBe("in-progress");
+    expect(onDisk.title).toBe("Branch A renamed");
   });
 });
 
@@ -1712,20 +1835,25 @@ describe("tree", () => {
     expect(unset.status).toBe(0);
     expect(unset.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
     expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bspecReview=/m);
+    expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bretro=/m);
 
     expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "retro", "done"]).status).toBe(0);
 
     const set = runCli(["tree", "p"]);
     expect(set.status).toBe(0);
     expect(set.stdout).toMatch(/^ {2}epic e\b.*\bretro=in-progress\b/m);
     expect(set.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
+    expect(set.stdout).toMatch(/^ {4}story a\b.*\bretro=done\b/m);
 
     expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "retro", "--clear"]).status).toBe(0);
 
     const cleared = runCli(["tree", "p"]);
     expect(cleared.status).toBe(0);
     expect(cleared.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(cleared.stdout).not.toMatch(/^ {4}story a\b.*\bretro=/m);
     expect(cleared.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
   });
 });

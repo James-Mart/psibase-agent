@@ -62,6 +62,7 @@ export const STORY_SET_FIELDS = {
   prUrl: { type: "string" },
   merged: { type: "boolean" },
   specReview: { type: "enum", values: SPEC_REVIEW_STATUSES },
+  retro: { type: "enum", values: RETRO_STATUSES },
   labels: { type: "array" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
@@ -159,6 +160,7 @@ export const STORY_GET_FIELDS = {
   prUrl: STORED,
   merged: STORED,
   specReview: STORED,
+  retro: STORED,
   labels: STORED,
   order: STORED,
   createdAt: STORED,

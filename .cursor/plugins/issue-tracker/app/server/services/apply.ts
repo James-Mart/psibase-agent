@@ -236,9 +236,27 @@ function resolveRoot(
 
   if (isStoryDoc(doc)) {
     requireKind(doc.project, "project");
-    requireKind(doc.epic, "epic");
-    requireContainment(doc.epic, doc.project);
-    requireContainment(doc.story.id, doc.epic);
+    if (doc.epic !== undefined) {
+      // Epic-scoped story form: project + epic + story.
+      requireKind(doc.epic, "epic");
+      requireContainment(doc.epic, doc.project);
+    } else {
+      // Project-level story form: project + story (no epic). Refuse when the
+      // on-disk Story already sits under an Epic — that needs the epic-scoped
+      // form instead (before the shared containment check below).
+      const existing = onDiskById.get(doc.story.id);
+      if (existing && existing.kind === "story") {
+        const parent = onDiskById.get(existing.partOf);
+        if (parent?.kind === "epic") {
+          throw new IssueError(
+            "validation",
+            `cannot apply "${doc.story.id}": it belongs to epic "${existing.partOf}"; use the epic-scoped story form (project + epic + story)`,
+          );
+        }
+      }
+    }
+    // Same parent expression as flatten (`doc.epic ?? doc.project`).
+    requireContainment(doc.story.id, doc.epic ?? doc.project);
     return { rootId: doc.story.id, rootKind: "story", preserveStackedOn: true };
   }
   if (isEpicDoc(doc)) {
@@ -333,9 +351,9 @@ export function apply(doc: ApplyDoc): Promise<ApplySummary> {
     // from the doc's nesting, so re-inheriting fork points would fight the doc.
     // The only edge that can still dangle is an out-of-scope Epic's `blockedBy`
     // into the prune set, repaired below (see `repairSurvivor`). Project-root
-    // docs declare Epics and Ideas under `children:`; omitted ones are pruned.
-    // Epic-/story-rooted docs never include Ideas in scope (Ideas are Project
-    // children), so those forms leave Ideas untouched.
+    // docs declare Epics, Ideas, and project-level Stories under `children:`;
+    // omitted ones are pruned. Epic-/story-rooted docs never include Ideas in
+    // scope (Ideas are Project children), so those forms leave Ideas untouched.
     const deleteSet = new Set(
       [...scope].filter((id) => !desiredIds.has(id)),
     );

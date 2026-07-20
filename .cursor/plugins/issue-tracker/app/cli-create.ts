@@ -6,7 +6,7 @@ import {
 } from "./cli-io.js";
 import { KIND_CAPABILITIES } from "./server/kind.js";
 import {
-  PARENT_KIND,
+  PARENT_KINDS,
   type CreateInput,
   type IssueKind,
 } from "./server/schemas.js";
@@ -21,12 +21,14 @@ type CreateOpts = CreateDescriptionOpts & {
 };
 
 function withCreateKindOptions(cmd: Command, kind: IssueKind): Command {
-  const parentKind = PARENT_KIND[kind];
-  if (parentKind) {
-    cmd = cmd.requiredOption(
-      `--part-of <${parentKind}>`,
-      `parent ${parentKind} id`,
-    );
+  const parentKinds = PARENT_KINDS[kind];
+  if (parentKinds.length > 0) {
+    const label = parentKinds.join("|");
+    const help =
+      parentKinds.length === 1
+        ? `parent ${parentKinds[0]} id`
+        : `parent ${parentKinds.join(" or ")} id`;
+    cmd = cmd.requiredOption(`--part-of <${label}>`, help);
   }
   if (KIND_CAPABILITIES[kind].assignee) {
     cmd = cmd.option("--assignee <who>", "assignee id");

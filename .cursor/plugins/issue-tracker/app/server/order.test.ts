@@ -3,6 +3,7 @@ import {
   buildProjectBoardOf,
   epicDependencyIds,
   epicsBlockedBy,
+  isProjectBoardChild,
   nextSiblingOrder,
   siblingGroupKey,
   stackedStoryOrder,
@@ -123,7 +124,7 @@ describe("epic dependency edges", () => {
   });
 });
 
-describe("epic + idea shared sibling group", () => {
+describe("epic + idea + project-level story shared sibling group", () => {
   const ideaIssue = (
     id: string,
     order: number,
@@ -139,29 +140,82 @@ describe("epic + idea shared sibling group", () => {
     updatedAt: "2026-07-10T14:00:00.000Z",
   });
 
+  const projectIssue = (id: string): Issue => ({
+    id,
+    kind: "project",
+    title: id,
+    order: 0,
+    createdAt: "2026-07-10T14:00:00.000Z",
+    updatedAt: "2026-07-10T14:00:00.000Z",
+  });
+
   it("puts epic and idea under the same project-keyed group", () => {
     const e = epic("e");
     const i = ideaIssue("i", 1);
-    expect(siblingGroupKey(e)).toBe(siblingGroupKey(i));
-    expect(siblingGroupKey(e)).toBe("project:p");
+    const byId = new Map(
+      [projectIssue("p"), e, i].map((issue) => [issue.id, issue]),
+    );
+    expect(siblingGroupKey(e, byId)).toBe(siblingGroupKey(i, byId));
+    expect(siblingGroupKey(e, byId)).toBe("project:p");
   });
 
-  it("appends nextSiblingOrder across epic and idea in the same project", () => {
+  it("puts a project-level story in the same project-keyed group", () => {
+    const p = projectIssue("p");
+    const e = epic("e");
+    const s = branch("s", 2, { partOf: "p" });
+    const byId = new Map([p, e, s].map((issue) => [issue.id, issue]));
+    expect(siblingGroupKey(s, byId)).toBe("project:p");
+    expect(siblingGroupKey(s, byId)).toBe(siblingGroupKey(e, byId));
+  });
+
+  it("puts a stacked project-level story in a stack sibling group", () => {
+    const p = projectIssue("p");
+    const root = branch("root", 0, { partOf: "p" });
+    const stacked = branch("stacked", 0, { partOf: "p", stackedOn: "root" });
+    const byId = new Map([p, root, stacked].map((issue) => [issue.id, issue]));
+    expect(siblingGroupKey(root, byId)).toBe("project:p");
+    expect(siblingGroupKey(stacked, byId)).toBe("story:p:root");
+    expect(isProjectBoardChild(root, byId)).toBe(true);
+    expect(isProjectBoardChild(stacked, byId)).toBe(false);
+  });
+
+  it("keeps an epic-parented story in a story sibling group", () => {
+    const p = projectIssue("p");
+    const e = epic("e");
+    const s = branch("s", 0, { partOf: "e" });
+    const byId = new Map([p, e, s].map((issue) => [issue.id, issue]));
+    expect(siblingGroupKey(s, byId)).toBe("story:e:");
+  });
+
+  it("appends nextSiblingOrder across epic, idea, and project-level story", () => {
+    const p = projectIssue("p");
     const e = epic("e");
     const i = ideaIssue("i", 1);
-    expect(nextSiblingOrder([e, i], "idea", "p", undefined)).toBe(2);
-    expect(nextSiblingOrder([e, i], "epic", "p", undefined)).toBe(2);
+    const issues = [p, e, i];
+    expect(nextSiblingOrder(issues, "idea", "p", undefined)).toBe(2);
+    expect(nextSiblingOrder(issues, "epic", "p", undefined)).toBe(2);
+    expect(nextSiblingOrder(issues, "story", "p", undefined)).toBe(2);
   });
 
-  it("buildProjectBoardOf interleaves epics and ideas by order per project", () => {
+  it("buildProjectBoardOf interleaves epics, ideas, and project-level stories", () => {
+    const p = projectIssue("p");
     const e = epic("e", [], { order: 1 });
     const first = ideaIssue("first", 0);
-    const last = ideaIssue("last", 2);
+    const story = branch("solo", 2, { partOf: "p" });
+    const last = ideaIssue("last", 3);
     const otherProject = ideaIssue("other", 0, "p2");
-    const boardOf = buildProjectBoardOf([last, e, first, otherProject]);
+    const boardOf = buildProjectBoardOf([
+      last,
+      e,
+      first,
+      story,
+      otherProject,
+      p,
+    ]);
     expect(boardOf.get("p")?.map((issue) => issue.id)).toEqual([
       "first",
       "e",
+      "solo",
       "last",
     ]);
     expect(boardOf.get("p2")?.map((issue) => issue.id)).toEqual(["other"]);

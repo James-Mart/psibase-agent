@@ -176,6 +176,7 @@ export const storySchema = z.object({
   prUrl: z.string().optional(),
   merged: z.boolean().default(false),
   specReview: z.enum(SPEC_REVIEW_STATUSES).optional(),
+  retro: z.enum(RETRO_STATUSES).optional(),
   labels: assignmentLabelsSchema,
   ...mutableCommon,
   ...orderField,
@@ -211,13 +212,18 @@ export type RetroStatus = (typeof RETRO_STATUSES)[number];
 export type MergePolicy = (typeof MERGE_POLICIES)[number];
 export type SpecReviewStatus = (typeof SPEC_REVIEW_STATUSES)[number];
 
-export const PARENT_KIND: Record<IssueKind, IssueKind | null> = {
-  project: null,
-  epic: "project",
-  idea: "project",
-  story: "epic",
-  task: "story",
+/** Allowed `partOf` parent kinds per child kind (empty = no parent). */
+export const PARENT_KINDS: Record<IssueKind, readonly IssueKind[]> = {
+  project: [],
+  epic: ["project"],
+  idea: ["project"],
+  story: ["project", "epic"],
+  task: ["story"],
 };
+
+export function requiresPartOf(kind: IssueKind): boolean {
+  return PARENT_KINDS[kind].length > 0;
+}
 
 export const CHILD_KIND: Record<IssueKind, IssueKind | null> = {
   project: "epic",

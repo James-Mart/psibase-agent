@@ -127,6 +127,57 @@ describe("buildSummary", () => {
     const result = buildSummary("stacked", nestedIssues, descriptionOf);
     expect(result.nodes.map((n) => n.id)).toEqual(["p", "e", "stacked"]);
   });
+
+  it("walks Project → Story → Task for a project-level Story", () => {
+    const projectLevel: Issue[] = [
+      {
+        id: "p",
+        kind: "project",
+        title: "Proj",
+        order: 0,
+        createdAt: AT,
+        updatedAt: AT,
+      },
+      {
+        id: "solo",
+        kind: "story",
+        title: "Solo",
+        partOf: "p",
+        merged: false,
+        needsAttention: false,
+        attentionReason: null,
+        archived: false,
+        order: 0,
+        createdAt: AT,
+        updatedAt: AT,
+      },
+      {
+        id: "t1",
+        kind: "task",
+        title: "Task",
+        partOf: "solo",
+        status: "todo",
+        needsAttention: false,
+        attentionReason: null,
+        archived: false,
+        order: 0,
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    ];
+    const result = buildSummary("t1", projectLevel, (id) =>
+      id === "t1" ? "# Task\n\nDo it.\n" : "",
+    );
+    expect(result.nodes.map((n) => n.kind)).toEqual([
+      "project",
+      "story",
+      "task",
+    ]);
+    expect(result.nodes.map((n) => n.id)).toEqual(["p", "solo", "t1"]);
+    const text = formatSummary(result);
+    expect(text).toContain("Story: solo — Solo");
+    expect(text).not.toContain("Epic:");
+  });
 });
 
 describe("formatSummary", () => {

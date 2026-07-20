@@ -7,16 +7,19 @@ export function bySequence(a: Sequenced, b: Sequenced): number {
 }
 
 // The sibling group an issue's `order` is unique within: same parent, and for
-// Branches also the same fork point, so root Branches (no `stackedOn`) share one
+// Stories also the same fork point, so root Stories (no `stackedOn`) share one
 // bucket and each stack shares another — matching the DFS traversal below and
-// the readiness walk in derive.ts. Projects share a single global group. Epic
-// and Idea share one Project-keyed group (interleaved under the Project). This
-// is the one definition of "siblings"; both the integrity duplicate-order check
-// and the append math in the writers key off it so they can never disagree.
+// the readiness walk in derive.ts. Projects share a single global group. Epic,
+// Idea, and *root* project-level Stories share one Project-keyed group
+// (interleaved under the Project); stacked project-level Stories use a stack
+// bucket. This is the one definition of "siblings"; both the integrity
+// duplicate-order check and the append math in the writers key off it so they
+// can never disagree.
 function groupKeyFor(
   kind: IssueKind,
   partOf: string | undefined,
   stackedOn: string | undefined,
+  parentKind?: IssueKind,
 ): string {
   switch (kind) {
     case "project":
@@ -27,39 +30,79 @@ function groupKeyFor(
     case "task":
       return `task:${partOf}`;
     case "story":
+      // Root project-level Stories (no fork point) share the Project board
+      // order with Epics/Ideas. Stacked project-level Stories stay in a
+      // stack sibling bucket keyed by fork point, matching epic-parented
+      // Stories — so a nested `stacked:` child can reuse order 0 without
+      // colliding with its board-root parent.
+      if (parentKind === "project" && !stackedOn) {
+        return `project:${partOf}`;
+      }
       return `story:${partOf}:${stackedOn ?? ""}`;
   }
 }
 
-export function siblingGroupKey(issue: Issue): string {
+function parentKindOf(
+  partOf: string | undefined,
+  byId: ReadonlyMap<string, Issue>,
+): IssueKind | undefined {
+  return partOf ? byId.get(partOf)?.kind : undefined;
+}
+
+/** `order` sibling-group key; `byId` resolves a Story's parent kind. */
+export function siblingGroupKey(
+  issue: Issue,
+  byId: ReadonlyMap<string, Issue>,
+): string {
+  const partOf = "partOf" in issue ? issue.partOf : undefined;
+  const parentKind =
+    issue.kind === "story" ? parentKindOf(partOf, byId) : undefined;
   return groupKeyFor(
     issue.kind,
-    "partOf" in issue ? issue.partOf : undefined,
+    partOf,
     issue.kind === "story" ? issue.stackedOn : undefined,
+    parentKind,
   );
 }
 
-export type ProjectBoardChild = Extract<Issue, { kind: "epic" | "idea" }>;
+export type ProjectBoardChild = Extract<
+  Issue,
+  { kind: "epic" | "idea" | "story" }
+>;
 
 export function projectBoardGroupKey(projectId: string): string {
   return `project:${projectId}`;
 }
 
-/** Epic and Idea rows that share one Project-keyed sibling `order` group. */
-export function isProjectBoardChild(issue: Issue): issue is ProjectBoardChild {
+/**
+ * Epic, Idea, and project-level Story rows that share one Project-keyed
+ * sibling `order` group. `byId` resolves whether a Story's `partOf` is a
+ * Project.
+ */
+export function isProjectBoardChild(
+  issue: Issue,
+  byId: ReadonlyMap<string, Issue>,
+): issue is ProjectBoardChild {
+  if (
+    issue.kind !== "epic" &&
+    issue.kind !== "idea" &&
+    issue.kind !== "story"
+  ) {
+    return false;
+  }
   return (
-    (issue.kind === "epic" || issue.kind === "idea") &&
-    siblingGroupKey(issue) === projectBoardGroupKey(issue.partOf)
+    siblingGroupKey(issue, byId) === projectBoardGroupKey(issue.partOf)
   );
 }
 
-/** One pass over `issues` → each Project's interleaved Epic/Idea board children. */
+/** One pass over `issues` → each Project's interleaved board children. */
 export function buildProjectBoardOf(
   issues: Issue[],
 ): Map<string, ProjectBoardChild[]> {
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
   const boardOf = new Map<string, ProjectBoardChild[]>();
   for (const issue of issues) {
-    if (!isProjectBoardChild(issue)) continue;
+    if (!isProjectBoardChild(issue, byId)) continue;
     const bucket = boardOf.get(issue.partOf) ?? [];
     bucket.push(issue);
     boardOf.set(issue.partOf, bucket);
@@ -79,11 +122,17 @@ export function nextSiblingOrder(
   stackedOn: string | undefined,
   excludeId?: string,
 ): number {
-  const key = groupKeyFor(kind, partOf, stackedOn);
+  const byId = new Map(issues.map((issue) => [issue.id, issue]));
+  const key = groupKeyFor(
+    kind,
+    partOf,
+    stackedOn,
+    parentKindOf(partOf, byId),
+  );
   let max = -1;
   for (const issue of issues) {
     if (issue.id === excludeId) continue;
-    if (siblingGroupKey(issue) !== key) continue;
+    if (siblingGroupKey(issue, byId) !== key) continue;
     if (issue.order > max) max = issue.order;
   }
   return max + 1;

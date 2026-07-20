@@ -1,4 +1,9 @@
-import { PARENT_KIND, type Issue, type IssueKind, type Problem } from "../schemas.js";
+import {
+  PARENT_KINDS,
+  type Issue,
+  type IssueKind,
+  type Problem,
+} from "../schemas.js";
 import {
   storyDependencyIds,
   epicDependencyIds,
@@ -6,10 +11,14 @@ import {
 } from "../order.js";
 import { projectContaining } from "./subtree.js";
 
-function checkDuplicateOrder(issues: Issue[], problems: Problem[]): void {
+function checkDuplicateOrder(
+  issues: Issue[],
+  byId: Map<string, Issue>,
+  problems: Problem[],
+): void {
   const buckets = new Map<string, Issue[]>();
   for (const issue of issues) {
-    const key = siblingGroupKey(issue);
+    const key = siblingGroupKey(issue, byId);
     const bucket = buckets.get(key) ?? [];
     bucket.push(issue);
     buckets.set(key, bucket);
@@ -30,10 +39,15 @@ function checkDuplicateOrder(issues: Issue[], problems: Problem[]): void {
   }
 }
 
+function formatExpectedKinds(expectedKinds: readonly IssueKind[]): string {
+  if (expectedKinds.length === 1) return `a ${expectedKinds[0]}`;
+  return `one of: ${expectedKinds.join(", ")}`;
+}
+
 function checkReferent(
   issue: Issue,
   refId: string,
-  expectedKind: IssueKind,
+  expectedKinds: readonly IssueKind[],
   relation: string,
   byId: Map<string, Issue>,
   problems: Problem[],
@@ -46,18 +60,19 @@ function checkReferent(
     });
     return;
   }
-  if (referent.kind !== expectedKind) {
+  if (!expectedKinds.includes(referent.kind)) {
     problems.push({
       id: issue.id,
-      message: `${relation} "${refId}" must be a ${expectedKind}, not a ${referent.kind}`,
+      message: `${relation} "${refId}" must be ${formatExpectedKinds(expectedKinds)}, not a ${referent.kind}`,
     });
   }
 }
 
 // A referent that must not only be `expectedKind` but also share the referring
-// issue's parent: a Branch's `stackedOn` peer lives in the same Epic, an Epic's
-// `blockedBy` peer in the same Project. Wraps `checkReferent` and adds the
-// same-container guard so `stackedOn` and `blockedBy` validation stay one shape.
+// issue's parent: a Story's `stackedOn` peer lives under the same parent
+// (Epic or Project), an Epic's `blockedBy` peer in the same Project. Wraps
+// `checkReferent` and adds the same-container guard so `stackedOn` and
+// `blockedBy` validation stay one shape.
 function checkReferentInSameContainer(
   issue: Issue,
   refId: string,
@@ -67,7 +82,7 @@ function checkReferentInSameContainer(
   byId: Map<string, Issue>,
   problems: Problem[],
 ): void {
-  checkReferent(issue, refId, expectedKind, relation, byId, problems);
+  checkReferent(issue, refId, [expectedKind], relation, byId, problems);
   const referent = byId.get(refId);
   const issueParent = "partOf" in issue ? issue.partOf : undefined;
   const referentParent =
@@ -132,24 +147,31 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
   const byId = new Map(issues.map((issue) => [issue.id, issue]));
 
   for (const issue of issues) {
-    const expectedParent = PARENT_KIND[issue.kind];
-    if (expectedParent && "partOf" in issue && issue.partOf) {
+    const expectedParents = PARENT_KINDS[issue.kind];
+    if (expectedParents.length > 0 && "partOf" in issue && issue.partOf) {
       checkReferent(
         issue,
         issue.partOf,
-        expectedParent,
+        expectedParents,
         "partOf",
         byId,
         problems,
       );
     }
     if (issue.kind === "story" && issue.stackedOn) {
+      const parent = byId.get(issue.partOf);
+      const container =
+        parent?.kind === "project"
+          ? "Project"
+          : parent?.kind === "epic"
+            ? "Epic"
+            : "parent";
       checkReferentInSameContainer(
         issue,
         issue.stackedOn,
         "story",
         "stackedOn",
-        "Epic",
+        container,
         byId,
         problems,
       );
@@ -176,7 +198,7 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
     });
   }
 
-  checkDuplicateOrder(issues, problems);
+  checkDuplicateOrder(issues, byId, problems);
   checkClosedCatalogLabels(issues, byId, problems);
 
   return problems;

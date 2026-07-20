@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { KINDS, PARENT_KIND, type IssueKind } from "@server/schemas";
+import { KINDS, PARENT_KINDS, type IssueKind } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,13 +48,17 @@ export function NewIssueDialog() {
     setTitle("");
   }, [target]);
 
-  const parentKind = PARENT_KIND[kind];
+  const parentKinds = PARENT_KINDS[kind];
   const parentOptions = useMemo(
-    () => (data?.issues ?? []).filter((issue) => issue.kind === parentKind),
-    [data?.issues, parentKind],
+    () =>
+      (data?.issues ?? []).filter((issue) =>
+        parentKinds.includes(issue.kind),
+      ),
+    [data?.issues, parentKinds],
   );
 
-  const needsParent = parentKind !== null;
+  const needsParent = parentKinds.length > 0;
+  const parentKindLabel = parentKinds.join(" / ");
   const canSubmit =
     title.trim().length > 0 &&
     (!needsParent || parent.length > 0) &&
@@ -124,10 +128,10 @@ export function NewIssueDialog() {
 
           {needsParent && !parentLocked ? (
             <div className="grid gap-1.5">
-              <Label>Part of ({parentKind})</Label>
+              <Label>Part of ({parentKindLabel})</Label>
               <Select value={parent} onValueChange={setParent}>
                 <SelectTrigger>
-                  <SelectValue placeholder={`Select a ${parentKind}`} />
+                  <SelectValue placeholder={`Select a ${parentKindLabel}`} />
                 </SelectTrigger>
                 <SelectContent>
                   {parentOptions.map((option) => (

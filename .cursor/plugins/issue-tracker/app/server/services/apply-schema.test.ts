@@ -106,7 +106,7 @@ describe("parseApplyDoc", () => {
     expect(result).toEqual({
       ok: false,
       message:
-        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea',
+        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea | story',
     });
   });
 
@@ -477,5 +477,123 @@ describe("flattenApplyDoc — branch form", () => {
     expect(branch.partOf).toBe("epic-a");
     // stackedOn is preserved from disk by apply, never emitted from the doc.
     expect(branch.stackedOn).toBeUndefined();
+  });
+});
+
+// Project-level Story as a Project `children:` entry (kind: story) with the
+// same nested tasks/stacked shape as an epic-nested story.
+const projectStoryChildDoc = {
+  project: {
+    id: "my-project",
+    title: "My Project",
+    children: [
+      {
+        kind: "story" as const,
+        id: "solo",
+        title: "Solo story",
+        description: "Project-level.",
+        tasks: [{ id: "solo-t1", title: "Task one" }],
+        stacked: [{ id: "solo-stacked", title: "Stacked on solo" }],
+      },
+      { kind: "idea" as const, id: "later", title: "Later" },
+      {
+        kind: "epic" as const,
+        id: "epic-a",
+        title: "Epic A",
+        stories: [{ id: "epic-story", title: "Under epic" }],
+      },
+    ],
+  },
+};
+
+// Story-rooted form without `epic:` — Story's partOf is the Project.
+const projectStoryRootDoc = {
+  project: "my-project",
+  story: {
+    id: "solo",
+    title: "Solo story",
+    tasks: [{ id: "solo-t1", title: "Task one" }],
+  },
+};
+
+describe("parseApplyDoc — project-level story child", () => {
+  it("accepts kind: story under project children:", () => {
+    expect(parseApplyDoc(projectStoryChildDoc).ok).toBe(true);
+  });
+
+  it("detects a duplicate id across a project-level story and a sibling", () => {
+    const result = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          { kind: "story", id: "dupe", title: "S" },
+          { kind: "idea", id: "dupe", title: "I" },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toContain('duplicate id "dupe"');
+  });
+});
+
+describe("flattenApplyDoc — project-level story child", () => {
+  const result = parseApplyDoc(projectStoryChildDoc);
+  if (!result.ok) {
+    throw new Error(`project story child doc should parse: ${result.message}`);
+  }
+  const map = byId(flattenApplyDoc(result.doc));
+
+  it("infers partOf as the Project for the story and its stacked child", () => {
+    const solo = map.get("solo");
+    const stacked = map.get("solo-stacked");
+    if (solo?.kind !== "story" || stacked?.kind !== "story") {
+      throw new Error("missing story");
+    }
+    expect(solo.partOf).toBe("my-project");
+    expect(solo.order).toBe(0);
+    expect(stacked.partOf).toBe("my-project");
+    expect(stacked.stackedOn).toBe("solo");
+    expect(map.get("solo-t1")).toMatchObject({ kind: "task", partOf: "solo" });
+  });
+
+  it("keeps epic-nested stories partOf the Epic", () => {
+    expect(map.get("epic-story")).toMatchObject({
+      kind: "story",
+      partOf: "epic-a",
+    });
+  });
+
+  it("interleaves story/idea/epic order from children index", () => {
+    expect(map.get("solo")?.order).toBe(0);
+    expect(map.get("later")?.order).toBe(1);
+    expect(map.get("epic-a")?.order).toBe(2);
+  });
+});
+
+describe("parseApplyDoc — project-level story form", () => {
+  it("accepts project + story without epic:", () => {
+    expect(parseApplyDoc(projectStoryRootDoc).ok).toBe(true);
+  });
+
+  it("still accepts the epic-scoped story form", () => {
+    expect(parseApplyDoc(branchDoc).ok).toBe(true);
+  });
+});
+
+describe("flattenApplyDoc — project-level story form", () => {
+  const result = parseApplyDoc(projectStoryRootDoc);
+  if (!result.ok) {
+    throw new Error(`project story root doc should parse: ${result.message}`);
+  }
+  const map = byId(flattenApplyDoc(result.doc));
+
+  it("emits only the story and its tasks under the project", () => {
+    expect(map.has("my-project")).toBe(false);
+    expect([...map.keys()].sort()).toEqual(["solo", "solo-t1"]);
+    const story = map.get("solo");
+    if (story?.kind !== "story") throw new Error("missing story");
+    expect(story.partOf).toBe("my-project");
+    expect(story.stackedOn).toBeUndefined();
   });
 });

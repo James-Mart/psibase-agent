@@ -74,15 +74,20 @@ export function ancestorChain(id: string, issues: Issue[]): Issue[] {
   return ascending;
 }
 
-/** Project id that contains an Epic/Idea (via `partOf`) or Story (via Epic). */
+/**
+ * Project id that contains an Epic/Idea (via `partOf`), a Story (directly via
+ * Project or via Epic), or undefined when the chain is broken.
+ */
 export function projectContaining(
   issue: Issue,
   byId: Map<string, Issue>,
 ): string | undefined {
   if (issue.kind === "epic" || issue.kind === "idea") return issue.partOf;
   if (issue.kind === "story") {
-    const epic = byId.get(issue.partOf);
-    return epic?.kind === "epic" ? epic.partOf : undefined;
+    const parent = byId.get(issue.partOf);
+    if (parent?.kind === "project") return parent.id;
+    if (parent?.kind === "epic") return parent.partOf;
+    return undefined;
   }
   return undefined;
 }
