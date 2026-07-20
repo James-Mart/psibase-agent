@@ -476,6 +476,34 @@ describe("apply — update preserves imperative progress state", () => {
     expect(proj.title).toBe("Project renamed again");
     expect(proj.mergePolicy).toBe("pull-request");
   });
+
+  it("preserves project catalog and issue label assignments across re-apply", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    await update("proj", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    await update("epic-a", { labels: ["bug", "feat"] });
+    await update("b1", { labels: ["feat"] });
+
+    const doc = baseDoc();
+    doc.project.title = "Project with labels preserved";
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("proj");
+
+    const proj = readIssue("proj");
+    expect(proj.title).toBe("Project with labels preserved");
+    expect(proj.labels).toEqual([
+      { id: "bug", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    ]);
+    expect(readIssue("epic-a").labels).toEqual(["bug", "feat"]);
+    expect(readIssue("b1").labels).toEqual(["feat"]);
+  });
 });
 
 describe("apply — prune by default", () => {

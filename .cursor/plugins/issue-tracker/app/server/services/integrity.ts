@@ -4,6 +4,7 @@ import {
   epicDependencyIds,
   siblingGroupKey,
 } from "../order.js";
+import { projectContaining } from "./subtree.js";
 
 function checkDuplicateOrder(issues: Issue[], problems: Problem[]): void {
   const buckets = new Map<string, Issue[]>();
@@ -176,8 +177,41 @@ export function checkIntegrity(issues: Issue[]): Problem[] {
   }
 
   checkDuplicateOrder(issues, problems);
+  checkClosedCatalogLabels(issues, byId, problems);
 
   return problems;
+}
+
+function checkClosedCatalogLabels(
+  issues: Issue[],
+  byId: Map<string, Issue>,
+  problems: Problem[],
+): void {
+  for (const issue of issues) {
+    if (
+      issue.kind !== "epic" &&
+      issue.kind !== "idea" &&
+      issue.kind !== "story"
+    ) {
+      continue;
+    }
+    if (!issue.labels?.length) continue;
+    const projectId = projectContaining(issue, byId);
+    const project = projectId ? byId.get(projectId) : undefined;
+    const catalog = new Set(
+      project?.kind === "project"
+        ? (project.labels ?? []).map((label) => label.id)
+        : [],
+    );
+    for (const labelId of issue.labels) {
+      if (!catalog.has(labelId)) {
+        problems.push({
+          id: issue.id,
+          message: `labels references unknown catalog id "${labelId}"`,
+        });
+      }
+    }
+  }
 }
 
 export function problemsFor(id: string, issues: Issue[]): Problem[] {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ClearableKey } from "./fields.js";
+import { SLUG_RE } from "./slug.js";
 
 export const KINDS = ["project", "epic", "idea", "story", "task"] as const;
 export const TASK_STATUSES = ["todo", "in-progress", "fixing", "done"] as const;
@@ -8,7 +9,62 @@ export const RETRO_STATUSES = ["in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
 
+/** Chip color for a Project catalog label (`#RRGGBB` only). */
+export const LABEL_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
 const nonEmpty = z.string().min(1);
+
+const kebabId = z
+  .string()
+  .regex(
+    SLUG_RE,
+    "id must be kebab-case (lowercase letters and digits, single hyphens, no leading/trailing hyphen)",
+  );
+
+export const projectLabelSchema = z.object({
+  id: kebabId,
+  color: z
+    .string()
+    .regex(LABEL_COLOR_RE, "color must be #RRGGBB"),
+  description: z.string().max(120).optional(),
+});
+
+export type ProjectLabel = z.infer<typeof projectLabelSchema>;
+
+function dedupePreserveOrder(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+const projectLabelsSchema = z
+  .array(projectLabelSchema)
+  .superRefine((labels, ctx) => {
+    const seen = new Set<string>();
+    for (let i = 0; i < labels.length; i += 1) {
+      const id = labels[i].id;
+      if (seen.has(id)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `duplicate label id "${id}"`,
+          path: [i, "id"],
+        });
+      }
+      seen.add(id);
+    }
+  })
+  .optional();
+
+// Assignment ids: unique, order-preserving. Transform normalizes duplicates on read.
+const assignmentLabelsSchema = z
+  .array(nonEmpty)
+  .transform(dedupePreserveOrder)
+  .optional();
 
 export const chatMessageSchema = z.object({
   role: nonEmpty,
@@ -50,6 +106,8 @@ export const projectSchema = z.object({
   title: nonEmpty,
   workspace: z.string().optional(),
   mergePolicy: z.enum(MERGE_POLICIES).default("manual"),
+  // Closed catalog of attachable labels (imperative; apply preserves).
+  labels: projectLabelsSchema,
   ...orderField,
   ...timestamps,
 });
@@ -60,6 +118,8 @@ export const epicSchema = z.object({
   partOf: nonEmpty,
   blockedBy: z.array(z.string()).default([]),
   retro: z.enum(RETRO_STATUSES).optional(),
+  // Catalog id assignments (imperative; apply preserves).
+  labels: assignmentLabelsSchema,
   ...mutableCommon,
   ...orderField,
   ...timestamps,
@@ -73,6 +133,7 @@ export const ideaSchema = z.object({
   partOf: nonEmpty,
   title: nonEmpty,
   archived: z.boolean().default(false),
+  labels: assignmentLabelsSchema,
   ...orderField,
   ...timestamps,
 });
@@ -91,6 +152,7 @@ export const storySchema = z.object({
   prUrl: z.string().optional(),
   merged: z.boolean().default(false),
   specReview: z.enum(SPEC_REVIEW_STATUSES).optional(),
+  labels: assignmentLabelsSchema,
   ...mutableCommon,
   ...orderField,
   ...timestamps,
@@ -141,15 +203,20 @@ export const CHILD_KIND: Record<IssueKind, IssueKind | null> = {
   task: null,
 };
 
-type IssueFields = Omit<z.infer<typeof projectSchema>, "kind"> &
-  Omit<z.infer<typeof epicSchema>, "kind"> &
-  Omit<z.infer<typeof ideaSchema>, "kind"> &
-  Omit<z.infer<typeof storySchema>, "kind"> &
+type IssueFields = Omit<z.infer<typeof projectSchema>, "kind" | "labels"> &
+  Omit<z.infer<typeof epicSchema>, "kind" | "labels"> &
+  Omit<z.infer<typeof ideaSchema>, "kind" | "labels"> &
+  Omit<z.infer<typeof storySchema>, "kind" | "labels"> &
   Omit<z.infer<typeof taskSchema>, "kind">;
 
+// Project catalog vs Epic/Idea/Story assignment arrays share the key name but
+// not the value shape — keep them out of the IssueFields intersection.
 export type IssuePatch = Partial<
   Omit<IssueFields, "id" | "createdAt" | "updatedAt" | ClearableKey>
-> & { description?: string } & Partial<Record<ClearableKey, string | null>>;
+> & {
+  description?: string;
+  labels?: ProjectLabel[] | string[];
+} & Partial<Record<ClearableKey, string | null>>;
 
 export type CreateInput = Pick<IssueFields, "title"> &
   Partial<

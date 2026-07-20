@@ -56,6 +56,11 @@ import { uniqueSlug } from "./slug.js";
 import { validateNonClearablePatch } from "./patch.js";
 import { validateCommitShaPatch } from "./commit-sha.js";
 import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
+import {
+  planLabelCatalogCascade,
+  planLabelCatalogRename,
+  type LabelCascadePatch,
+} from "./labels.js";
 
 let writeChain: Promise<unknown> = Promise.resolve();
 
@@ -390,6 +395,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
 function applyCascadePatches(
   mergeBasePatches: MergeBaseCascadePatch[],
   archivedPatches: ArchivedCascadePatch[],
+  labelPatches: LabelCascadePatch[],
   issues: Issue[],
   now: string,
 ): Issue[] {
@@ -403,6 +409,10 @@ function applyCascadePatches(
   for (const { id: childId, archived } of archivedPatches) {
     const prior = patchesById.get(childId) ?? {};
     patchesById.set(childId, { ...prior, archived });
+  }
+  for (const { id: childId, labels } of labelPatches) {
+    const prior = patchesById.get(childId) ?? {};
+    patchesById.set(childId, { ...prior, labels });
   }
 
   const cascaded: Issue[] = [];
@@ -426,6 +436,17 @@ function applyCascadePatches(
         `archived cascade target "${childId}" is missing or not archivable`,
       );
     }
+    if (
+      patch.labels !== undefined &&
+      child.kind !== "epic" &&
+      child.kind !== "idea" &&
+      child.kind !== "story"
+    ) {
+      throw new IssueError(
+        "validation",
+        `label cascade target "${childId}" is missing or not assignable`,
+      );
+    }
     const childParsed = parseIssue(mergeIssue(child, patch));
     if (!childParsed.ok) {
       throw new IssueError("validation", childParsed.message);
@@ -434,6 +455,64 @@ function applyCascadePatches(
     cascaded.push(childParsed.issue);
   }
   return cascaded;
+}
+
+/**
+ * Rename a Project catalog label id and rewrite matching assignments in the
+ * same write. Refuses when `newId` already exists or is not kebab-safe.
+ */
+export function renameProjectLabel(
+  projectId: string,
+  oldId: string,
+  newId: string,
+): Promise<IssueDetail> {
+  return serialize(() => {
+    const existing = readIssueOrThrow(projectId);
+    if (existing.kind !== "project") {
+      throw new IssueError(
+        "validation",
+        `"${projectId}" is not a project`,
+      );
+    }
+    const { issues } = readAll();
+    const { projectLabels, assignmentPatches } = planLabelCatalogRename(
+      existing,
+      oldId,
+      newId,
+      issues,
+    );
+
+    const projectParsed = parseIssue(
+      mergeIssue(existing, { labels: projectLabels }),
+    );
+    if (!projectParsed.ok) {
+      throw new IssueError("validation", projectParsed.message);
+    }
+
+    const now = new Date().toISOString();
+    projectParsed.issue.updatedAt = now;
+    const cascaded = applyCascadePatches([], [], assignmentPatches, issues, now);
+
+    const writes: IssueWrite[] = [
+      { issue: projectParsed.issue },
+      ...cascaded.map((issue) => ({ issue })),
+    ];
+    const prospective = new Map(issues.map((issue) => [issue.id, issue]));
+    for (const write of writes) {
+      prospective.set(write.issue.id, write.issue);
+    }
+    const problems = checkIntegrity([...prospective.values()]);
+    if (problems.length > 0) {
+      throw new IssueError(
+        "validation",
+        problems.map((p) => p.message).join("; "),
+      );
+    }
+
+    commitIssueBatch(writes, []);
+    const jsonText = serializeIssue(projectParsed.issue);
+    return toDetail(projectParsed.issue, jsonText, readDescription(projectId));
+  });
 }
 
 export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
@@ -498,6 +577,11 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       jsonPatch,
       issues,
     );
+    const labelCascadePatches = planLabelCatalogCascade(
+      existing,
+      next,
+      issues,
+    );
 
     const jsonUnchanged =
       JSON.stringify(parsed.issue) === JSON.stringify(existing);
@@ -505,6 +589,7 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       jsonUnchanged &&
       mergeBaseCascadePatches.length === 0 &&
       archivedCascadePatches.length === 0 &&
+      labelCascadePatches.length === 0 &&
       description === undefined
     ) {
       return read(id);
@@ -514,6 +599,7 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     const cascaded = applyCascadePatches(
       mergeBaseCascadePatches,
       archivedCascadePatches,
+      labelCascadePatches,
       issues,
       now,
     );
