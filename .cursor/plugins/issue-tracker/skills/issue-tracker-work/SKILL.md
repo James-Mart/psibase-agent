@@ -151,7 +151,7 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 | Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
 | Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `comment`) |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `add-task` / `comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Story in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue <kind> set … needsAttention`) |
+| Retro | `issue-tracker-retro` | Completion when every Story is `merged` and Epic `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue epic set … retro` / `issue <kind> set … needsAttention`) |
 
 ### Field ownership
 
@@ -163,7 +163,8 @@ Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
 | Task `status` `fixing` | Implementor | on every revise entry |
 | Task `status` `done` | Git (finish-commit) | Task finalize |
 | Task `qa` | Code-quality | on each entry `reviewing`, then terminal `passed` / `changes-requested` (three-strike → `needsAttention`); never the coordinator |
-| Epic `retro` | Retro | owned by that agent (not the coordinator) |
+| Epic `retro` `in-progress` | Retro | after transcript resolution succeeds |
+| Epic `retro` `done` | Retro | after successful terminal comment |
 
 Implement and revise are the **same** implementor agent. Code-quality is a
 **writer** of Task `qa` (spawn/resume and three-strike escalate: see **Per-Task
@@ -325,9 +326,9 @@ Re-read `issue tree --epic <epicId>`. Spawn
    policy this usually follows the last finish-branch; under `pull-request` /
    `manual` it runs only after humans (or later process) have set every Story
    merged.
-3. The source Epic’s chat has **no** prior comment with role `retro` (check
-   `issue show <epicId> --chat`). If a `retro`-role comment already exists,
-   skip — retro already ran for this Epic.
+3. `issue epic get <epicId> retro` is **unset** (empty stdout). If the field
+   is set (`in-progress` or `done`), skip — retro already started or finished
+   for this Epic. Do **not** check chat roles for this gate.
 
 When the gate holds, spawn **once** with Cursor Task `model`
 `cursor-grok-4.5-high-fast` (Models table) and the retro spawn stub (source
@@ -335,9 +336,8 @@ Epic id + title). Wait until the Cursor Task finishes (or raises
 needsAttention). Do **not** mine transcripts yourself, and do **not** expect
 or relay a retro summary into your context. If the gate fails only because some
 Story is not `merged` yet, skip the spawn; a later re-run of this skill on the
-same Epic re-evaluates Phase 2 once the chips show all merged (the
-`retro`-role comment guard keeps that re-run from duplicating a completed
-retro).
+same Epic re-evaluates Phase 2 once the chips show all merged (an unset
+`retro` field is the sole Completion re-run guard).
 
 Everything lives on disk and every derived fact is recomputed on read, so the
 loop is **resumable** for unambiguous gates: re-running the skill on the Epic

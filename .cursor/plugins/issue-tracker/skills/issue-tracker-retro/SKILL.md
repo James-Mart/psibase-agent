@@ -11,7 +11,8 @@ description: >-
 # Issue Tracker — Post-Implement Confusion Retro
 
 Spawned once by `issue-tracker-work` Completion when **every Story in the
-source Epic is `merged`**. Pass source Epic id (+ title) and comment role;
+source Epic is `merged`** and Epic `retro` is unset. Pass source Epic id
+(+ title) and comment role;
 transcript resolution is in `agents/issue-tracker-retro.md`
 **## Transcript resolution**. Do not expect a confusion summary return
 value.

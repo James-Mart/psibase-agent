@@ -74,10 +74,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   recording git progress through the CLI; inspect the stack with `tree`/`show`.
   The coordinator only reads gates and spawns/resumes — it does not write
   Task `status`/`qa` or count revise rounds. Completion spawns
-  **`issue-tracker-retro`** once when every Story in the Epic is `merged` —
-  post-implement confusion retro: mine the work run for tracker/work-loop
-  meta confusion and apply a residual Epic under Project `issue-tracker` (or
-  comment clean on the source Epic); not invoked directly.
+  **`issue-tracker-retro`** once when every Story in the Epic is `merged`
+  and Epic `retro` is unset — post-implement confusion retro: mine the work
+  run for tracker/work-loop meta confusion and apply a residual Epic under
+  Project `issue-tracker` (or comment clean on the source Epic); not invoked
+  directly.
 - **`issue-tracker-authoring`** — create/update/`apply` semantics, kind-scoped
   `get`/`set`, the **Attachments** model + verbs (`attach` / `attachments` /
   `detach`), and inspection (`show`/`summary`/`tree`), pointing at

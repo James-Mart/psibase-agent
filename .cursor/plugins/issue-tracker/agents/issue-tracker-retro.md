@@ -18,9 +18,9 @@ implement product work, grill the user, or hand a summary back to the coordinato
 
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
-**Allowed writes:** `comment`, `apply`, `epic set` (for `needsAttention` on the
-source Epic; `--reason` required when true). Do not run any other mutating
-`issue` command.
+**Allowed writes:** `comment`, `apply`, `epic set` (for `retro` on the source
+Epic, including `retro --clear` on escalation; also `needsAttention` with
+`--reason` required when true). Do not run any other mutating `issue` command.
 Flags: `issue <command> --help`. Glossary: plugin `SPEC.md`. Author the residual
 Epic YAML per `skills/issue-tracker-decompose/SKILL.md`. Use
 `issue summary <sourceEpicId>` for source context (title, linkage) as needed
@@ -76,16 +76,30 @@ simplification can eliminate the confusion.
 
 1. Resolve transcripts (**## Transcript resolution**), then mine them plus your
    live CoT and filter to remaining meta gaps (**## Invariants**).
-2. **Clean run** (nothing remains): post the terminal comment, then stop.
-3. **Gaps remain:** author one nested epic-form YAML (`project: issue-tracker`),
-   `issue apply` it, then post the terminal comment. If the comment fails after
-   a successful apply, escalate per **## Escalation** and stop — apply alone is
+2. Mark in progress:
+
+```bash
+issue epic set <sourceEpicId> retro in-progress
+```
+
+3. **Clean run** (nothing remains): post the terminal comment
+   (**## Terminal comment**). On success:
+
+```bash
+issue epic set <sourceEpicId> retro done
+```
+
+then stop. If the comment fails, escalate per **## Escalation** and stop.
+
+4. **Gaps remain:** author one nested epic-form YAML (`project: issue-tracker`),
+   `issue apply` it, then post the terminal comment. On success, set
+   `retro done` (step 3 command) and stop. If the comment fails after a
+   successful apply, escalate per **## Escalation** and stop — apply alone is
    not terminal.
 
 ## Terminal comment
 
-Always end by posting a comment on the source Epic (arms the work-skill Phase 2
-idempotency guard):
+Always end by posting a comment on the source Epic:
 
 ```bash
 issue comment <sourceEpicId> --role <comment-role> --body "<body>"
@@ -98,5 +112,8 @@ issue comment <sourceEpicId> --role <comment-role> --body "<body>"
 ## Escalation
 
 If blocked (missing/unreadable transcripts, cannot load source Epic context,
-`apply` refusal, terminal-comment refusal after a successful apply, CLI
-refusal), raise `issue epic set <sourceEpicId> needsAttention true --reason "..."` and stop; do not guess.
+`apply` refusal, terminal-comment refusal on either path, CLI refusal): when
+`retro done` was not reached, clear the gate first
+(`issue epic set <sourceEpicId> retro --clear`), then raise
+`issue epic set <sourceEpicId> needsAttention true --reason "..."` and stop;
+do not guess.
