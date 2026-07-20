@@ -10,10 +10,11 @@ export function bySequence(a: Sequenced, b: Sequenced): number {
 // Stories also the same fork point, so root Stories (no `stackedOn`) share one
 // bucket and each stack shares another — matching the DFS traversal below and
 // the readiness walk in derive.ts. Projects share a single global group. Epic,
-// Idea, and project-level Stories share one Project-keyed group (interleaved
-// under the Project). This is the one definition of "siblings"; both the
-// integrity duplicate-order check and the append math in the writers key off
-// it so they can never disagree.
+// Idea, and *root* project-level Stories share one Project-keyed group
+// (interleaved under the Project); stacked project-level Stories use a stack
+// bucket. This is the one definition of "siblings"; both the integrity
+// duplicate-order check and the append math in the writers key off it so they
+// can never disagree.
 function groupKeyFor(
   kind: IssueKind,
   partOf: string | undefined,
@@ -29,8 +30,12 @@ function groupKeyFor(
     case "task":
       return `task:${partOf}`;
     case "story":
-      // Project-level Stories share the Project board order with Epics/Ideas.
-      if (parentKind === "project") {
+      // Root project-level Stories (no fork point) share the Project board
+      // order with Epics/Ideas. Stacked project-level Stories stay in a
+      // stack sibling bucket keyed by fork point, matching epic-parented
+      // Stories — so a nested `stacked:` child can reuse order 0 without
+      // colliding with its board-root parent.
+      if (parentKind === "project" && !stackedOn) {
         return `project:${partOf}`;
       }
       return `story:${partOf}:${stackedOn ?? ""}`;

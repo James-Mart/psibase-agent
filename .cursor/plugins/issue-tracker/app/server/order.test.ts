@@ -3,6 +3,7 @@ import {
   buildProjectBoardOf,
   epicDependencyIds,
   epicsBlockedBy,
+  isProjectBoardChild,
   nextSiblingOrder,
   siblingGroupKey,
   stackedStoryOrder,
@@ -165,6 +166,17 @@ describe("epic + idea + project-level story shared sibling group", () => {
     const byId = new Map([p, e, s].map((issue) => [issue.id, issue]));
     expect(siblingGroupKey(s, byId)).toBe("project:p");
     expect(siblingGroupKey(s, byId)).toBe(siblingGroupKey(e, byId));
+  });
+
+  it("puts a stacked project-level story in a stack sibling group", () => {
+    const p = projectIssue("p");
+    const root = branch("root", 0, { partOf: "p" });
+    const stacked = branch("stacked", 0, { partOf: "p", stackedOn: "root" });
+    const byId = new Map([p, root, stacked].map((issue) => [issue.id, issue]));
+    expect(siblingGroupKey(root, byId)).toBe("project:p");
+    expect(siblingGroupKey(stacked, byId)).toBe("story:p:root");
+    expect(isProjectBoardChild(root, byId)).toBe(true);
+    expect(isProjectBoardChild(stacked, byId)).toBe(false);
   });
 
   it("keeps an epic-parented story in a story sibling group", () => {

@@ -3,14 +3,15 @@ import type { Issue } from "../schemas.js";
 import { formatZodError } from "../schemas.js";
 import { SLUG_RE } from "./slug.js";
 
-// The declarative `apply` doc describes a whole Project > Epic|Idea > Story >
+// The declarative `apply` doc describes a whole Project > Epic|Idea|Story >
 // Task tree in one nested document. Under a Project, kind is explicit on each
-// `children:` entry (`kind: epic | idea`). Below an Epic, kind is implied by the
-// child key (`stories` / `tasks` / `stacked`) and is never written. `partOf` is
-// inferred from the enclosing container and `stackedOn` from being nested under
-// another story; only `blockedBy` (an Epic-level cross-Epic dep list) uses
-// explicit id references. Every node carries a mandatory author-chosen kebab
-// `id` so re-apply is stable across retitles.
+// `children:` entry (`kind: epic | idea | story`). Below an Epic (or inside a
+// project-level Story), kind is implied by the child key (`stories` / `tasks` /
+// `stacked`) and is never written. `partOf` is inferred from the enclosing
+// container and `stackedOn` from being nested under another story; only
+// `blockedBy` (an Epic-level cross-Epic dep list) uses explicit id references.
+// Every node carries a mandatory author-chosen kebab `id` so re-apply is stable
+// across retitles.
 
 // Ids must be slug-safe: the same shape `slugify()` produces (see `SLUG_RE` in
 // slug.ts), so auto-slugs and author-chosen ids stay aligned.
@@ -43,16 +44,19 @@ export interface StoryNode {
   stacked?: StoryNode[];
 }
 
+// Shared story fields for nested `storyNode` and project-child `storyChildNode`
+// so a field change cannot drift between them. `stacked` stays plain
+// `storyNode`s (kind implied by the key), matching epic-nested stories.
+const storyFields = () => ({
+  id: idField,
+  title: titleField,
+  description: descriptionField,
+  tasks: z.array(taskNode).optional(),
+  stacked: z.array(storyNode).optional(),
+});
+
 const storyNode: z.ZodType<StoryNode> = z.lazy(() =>
-  z
-    .object({
-      id: idField,
-      title: titleField,
-      description: descriptionField,
-      tasks: z.array(taskNode).optional(),
-      stacked: z.array(storyNode).optional(),
-    })
-    .strict(),
+  z.object(storyFields()).strict(),
 );
 
 const epicFields = {
@@ -69,9 +73,9 @@ const epicNode = z.object(epicFields).strict();
 
 export type EpicNode = z.infer<typeof epicNode>;
 
-// Project `children:` entries declare kind explicitly so Epics and Ideas can
-// interleave in one shared Project-child order group. Derive from `epicNode`
-// so the two epic shapes cannot drift.
+// Project `children:` entries declare kind explicitly so Epics, Ideas, and
+// project-level Stories can interleave in one shared Project-child order group.
+// Derive from `epicNode` / `storyFields` so shapes cannot drift.
 const epicChildNode = epicNode.extend({ kind: z.literal("epic") });
 
 const ideaChildNode = z
@@ -83,18 +87,46 @@ const ideaChildNode = z
   })
   .strict();
 
+// Same nested `tasks` / `stacked` shape as an epic-nested story; `kind: story`
+// marks it as a Project child.
+export interface StoryChildNode extends StoryNode {
+  kind: "story";
+}
+
+const storyChildNode: z.ZodType<StoryChildNode> = z.lazy(() =>
+  z.object({ kind: z.literal("story"), ...storyFields() }).strict(),
+);
+
 type IdeaChildNode = z.infer<typeof ideaChildNode>;
 export type EpicChildNode = z.infer<typeof epicChildNode>;
+type ProjectChildNode = EpicChildNode | IdeaChildNode | StoryChildNode;
 
 const projectChildNode = z.discriminatedUnion("kind", [
   epicChildNode,
   ideaChildNode,
+  storyChildNode,
 ]);
 
+// Single dispatch for Project `children:` so collectIds / flatten stay aligned.
+function forEachProjectChild(
+  children: ProjectChildNode[] | undefined,
+  visit: {
+    idea: (idea: IdeaChildNode, index: number) => void;
+    story: (story: StoryChildNode, index: number) => void;
+    epic: (epic: EpicChildNode, index: number) => void;
+  },
+): void {
+  (children ?? []).forEach((child, index) => {
+    if (child.kind === "idea") visit.idea(child, index);
+    else if (child.kind === "story") visit.story(child, index);
+    else visit.epic(child, index);
+  });
+}
+
 // A story-rooted doc reconciles only the story's own subtree (the story plus
-// its tasks). Stacked children live under the *Epic* (`partOf` the Epic, not
-// the story), so they are outside a story's subtree and cannot be declared
-// here — hence a non-recursive node with no `stacked` key.
+// its tasks). Stacked children live under the *container* (`partOf` the Epic
+// or Project, not the story), so they are outside a story's subtree and cannot
+// be declared here — hence a non-recursive node with no `stacked` key.
 const rootStoryNode = z
   .object({
     id: idField,
@@ -119,10 +151,16 @@ const projectNode = z
 // upserted and pruned within its own subtree; any enclosing parent (named by id)
 // is a reference that must already exist and is never upserted or pruned. Forms
 // are told apart by which root key holds an object (see `parseApplyDoc`).
+// Story form: `project` + `story` always; optional `epic` string scopes the
+// Story under an Epic. Omit `epic` for a project-level Story (`partOf` Project).
 const projectApplyDoc = z.object({ project: projectNode }).strict();
 const epicApplyDoc = z.object({ project: idField, epic: epicNode }).strict();
 const storyApplyDoc = z
-  .object({ project: idField, epic: idField, story: rootStoryNode })
+  .object({
+    project: idField,
+    epic: idField.optional(),
+    story: rootStoryNode,
+  })
   .strict();
 
 export type ProjectApplyDoc = z.infer<typeof projectApplyDoc>;
@@ -131,7 +169,8 @@ export type StoryApplyDoc = z.infer<typeof storyApplyDoc>;
 export type ApplyDoc = ProjectApplyDoc | EpicApplyDoc | StoryApplyDoc;
 
 // A story-rooted doc is the only one with a `story` key; an epic-rooted doc
-// is the only remaining one with an `epic` key. Anything else is project-rooted.
+// is the only remaining one with an object `epic` key. Anything else is
+// project-rooted.
 export function isStoryDoc(doc: ApplyDoc): doc is StoryApplyDoc {
   return "story" in doc;
 }
@@ -175,10 +214,11 @@ function collectIds(doc: ApplyDoc): string[] {
     return ids;
   }
   ids.push(doc.project.id);
-  for (const child of doc.project.children ?? []) {
-    if (child.kind === "idea") ids.push(child.id);
-    else visitEpic(child);
-  }
+  forEachProjectChild(doc.project.children, {
+    idea: (idea) => ids.push(idea.id),
+    story: (story) => visitStory(story),
+    epic: (epic) => visitEpic(epic),
+  });
   return ids;
 }
 
@@ -215,7 +255,7 @@ export function parseApplyDoc(raw: unknown): ApplyParseResult {
     return {
       ok: false,
       message:
-        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea',
+        'project "epics:" is no longer accepted; use "children:" with kind: epic | idea | story',
     };
   }
   const schema =
@@ -240,7 +280,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
 
   const emitStory = (
     story: StoryNode | RootStoryNode,
-    epicId: string,
+    parentId: string,
     stackedOn: string | undefined,
     order?: number,
   ): void => {
@@ -248,7 +288,7 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       id: story.id,
       kind: "story",
       title: story.title,
-      partOf: epicId,
+      partOf: parentId,
       ...(order !== undefined ? { order } : {}),
       ...(stackedOn ? { stackedOn } : {}),
       ...(story.description !== undefined
@@ -267,12 +307,13 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
           : {}),
       });
     });
-    // A stacked story lives in the same Epic as its fork point; only its
-    // `stackedOn` reflects the nesting under this story. A `RootStoryNode`
-    // (story-rooted doc) has no `stacked`, so this is a no-op there.
+    // A stacked story lives in the same container (Epic or Project) as its
+    // fork point; only its `stackedOn` reflects the nesting under this story.
+    // A `RootStoryNode` (story-rooted doc) has no `stacked`, so this is a
+    // no-op there.
     (("stacked" in story ? story.stacked : undefined) ?? []).forEach(
       (stacked, index) => {
-        emitStory(stacked, epicId, story.id, index);
+        emitStory(stacked, parentId, story.id, index);
       },
     );
   };
@@ -318,9 +359,10 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
   // A story- or epic-rooted doc names its enclosing parent(s) by id only; the
   // parent issues already exist and are not part of the desired set. `stackedOn`
   // for a story-rooted story is intentionally omitted here and preserved from
-  // disk by `apply` (a story doc never moves its fork point).
+  // disk by `apply` (a story doc never moves its fork point). With `epic`
+  // omitted, the Story's `partOf` is the Project (project-level Story form).
   if (isStoryDoc(doc)) {
-    emitStory(doc.story, doc.epic, undefined);
+    emitStory(doc.story, doc.epic ?? doc.project, undefined);
     return desired;
   }
   if (isEpicDoc(doc)) {
@@ -337,9 +379,10 @@ export function flattenApplyDoc(doc: ApplyDoc): DesiredIssue[] {
       ? { description: project.description }
       : {}),
   });
-  (project.children ?? []).forEach((child, index) => {
-    if (child.kind === "idea") emitIdea(child, project.id, index);
-    else emitEpic(child, project.id, index);
+  forEachProjectChild(project.children, {
+    idea: (idea, index) => emitIdea(idea, project.id, index),
+    story: (story, index) => emitStory(story, project.id, undefined, index),
+    epic: (epic, index) => emitEpic(epic, project.id, index),
   });
 
   return desired;
