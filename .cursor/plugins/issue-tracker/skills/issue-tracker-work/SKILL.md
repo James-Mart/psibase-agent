@@ -5,8 +5,8 @@ description: >-
   walk its `tree <id>` outline top-to-bottom, delegating each task through
   a per-task QA loop (model discriminator, implementor, code-quality on `qa`,
   git; revise = implementor resume when `qa=changes-requested`). Use when an
-  agent works a tracked Epic to completion. Assumes the CLI from
-  issue-tracker-authoring; glossary in SPEC.md.
+  agent works a tracked Epic to completion. CLI invariants in SPEC.md
+  § CLI invariants; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
@@ -42,6 +42,7 @@ as Cursor Task `model`.
 is the subagent spawn/resume tool (`model`, `prompt`, `subagent_type`, resume).
 
 Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
+Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 ## Argument
 

@@ -171,6 +171,35 @@ These are computed by `derive()` and never written to disk (see
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
 
+<a id="cli-invariants"></a>
+
+## CLI invariants
+
+Durable, cross-cutting rules for driving the tracker CLI. Per-command verbs and
+flags live in `issue --help` and [CLI surface](#cli-surface); this section is
+the shared contract skills and agents point at for invariants that are not
+per-command.
+
+- **Act only through the CLI.** Never hand-edit `issue.json` (or other tracker
+  files) to change state. The CLI wraps the validated service layer and
+  re-validates the whole set on each write.
+- **Nonzero exit = refused.** On bad inputs or integrity violations the CLI
+  exits nonzero with a message and leaves disk unchanged. Read the message, fix
+  the inputs, and retry — do not retry the same invocation blindly. If `list`
+  reports `problems`, resolve them first.
+- **Issues directory.** Default is the plugin's own `issues/` directory.
+  `ISSUES_DIR=/abs/path` overrides it (match the UI/server so the human sees
+  changes live). Agents should leave `ISSUES_DIR` unset unless they intend that
+  override.
+- **`issue` bin vs `npx tsx cli.ts`.** Prefer `issue <verb> …`. Equivalent
+  without a global link:
+  `cd <workspace>/.cursor/plugins/issue-tracker/app && npx tsx cli.ts <verb> …`.
+  One-time setup of the bin is `npm link` in that **workspace** `app/`
+  directory.
+- **Never `npm link` from `/root/.cursor/plugins/local/...`.** Linking from the
+  deployed local copy retargets the global `issue` bin away from the
+  authoritative workspace `issues/` store.
+
 ## CLI surface
 
 One rule: single-issue ops are kind-scoped; multi-kind / board ops stay global.

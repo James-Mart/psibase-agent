@@ -17,6 +17,8 @@ transcript resolution is in `agents/issue-tracker-retro.md`
 **## Transcript resolution**. Do not expect a confusion summary return
 value.
 
+Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+
 Static behavior (CLI allowlist, invariants, transcript resolution, clean-run
 comment, epic-form `apply` with `project: issue-tracker`, escalation) lives
 only in

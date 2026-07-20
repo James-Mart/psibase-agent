@@ -16,7 +16,8 @@ issue-tracker-decompose). Do not implement product code; this skill only
 authors the plan artifact.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`.
+`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
+[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 Grain, apply doc shape, and parent-prose rules live in issue-tracker-decompose
 and [SPEC.md](../../SPEC.md) — follow those when building the tree; do not
