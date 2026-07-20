@@ -17,6 +17,9 @@ Story via `specReview`. Do not edit workspace source files.
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
+Load all issue specs (Story and Task) via `issue show <id>` only — never
+filesystem-read `issues/**` (including `description.md`).
+
 **Allowed writes:** `story set` (for `specReview` and `needsAttention`),
 `add-task`, `comment`. Do not run any other mutating `issue` command
 (`task set`, `assign`, `description` on existing issues, `apply`, git-fact
@@ -26,8 +29,8 @@ verbs, etc.).
 
 Run `issue summary <storyId>` for Project → Epic → Story context. Use
 `issue tree --epic <epicId>` and `issue show <id>` on the Story's Tasks for
-their full `description.md` specs (the normative checklist), and on the Story
-for scope/context. That summary also carries the Project **workspace** —
+their full specs (the normative checklist), and on the Story for
+scope/context. That summary also carries the Project **workspace** —
 inspect the Story's tasks, diffs, and files with it as the cwd, and honor
 the unset escalation, per **SPEC § Project workspace**.
 
@@ -42,22 +45,22 @@ the unset escalation, per **SPEC § Project workspace**.
 
 1. **Preconditions.** Every Task on the Story must be `done`. If any is not,
    escalate per ## Escalation and stop — do not review a partial Story.
-2. **Verify.** The normative checklist is the Story's **Task**
-   `description.md` files, plus each Task's recorded diff / `noDiff` chat
-   rationale. The Story `description.md` is scope/context only, never a second
-   independent checklist — read it once here for background, then judge only the
-   Task deliverables. **Ignore orphan claims:** a deliverable claim on the
-   Story `description.md` that no Task of the Story covers, or a Task
-   description's reference to sibling work that was pruned or fixed out-of-band,
-   is **not** a gap. Ignore it — do not escalate, and do not hunt through git
-   history or prior transcripts.
+2. **Verify.** The normative checklist is the Story's **Task** specs
+   (from Bootstrap `issue show`), plus each Task's recorded diff / `noDiff`
+   chat rationale. The Story spec is scope/context only, never a second
+   independent checklist — load it once via `issue show <storyId>` for
+   background, then judge only the Task deliverables. **Ignore orphan
+   claims:** a deliverable claim on the Story spec that no Task of the Story
+   covers, or a Task spec's reference to sibling work that was pruned or
+   fixed out-of-band, is **not** a gap. Ignore it — do not escalate, and do
+   not hunt through git history or prior transcripts.
 
    For each Task on the Story with `status=done`:
-   - Read its `description.md`.
+   - Use its Task spec from `issue show <taskId>` (Bootstrap / ## CLI).
    - Inspect the workspace at that Task's recorded `commitSha` (or the
      equivalent diff of what that Task delivered against its spec).
-   - A `noDiff` Task has no `commitSha` and delivered no diff: judge it by its
-     `description.md` plus the implementor's chat rationale
+   - A `noDiff` Task has no `commitSha` and delivered no diff: judge it by
+     its Task spec plus the implementor's chat rationale
      (`issue show <taskId> --chat`) against the spec — was landing no changes
      actually correct? Treat an unjustified or spec-violating no-op as a gap.
    - Collect **only** missing or off-spec behavior. Omit anything you judge
