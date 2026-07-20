@@ -2,16 +2,9 @@
 // One-time setup to invoke this CLI as `issue <verb>` instead of `npx tsx cli.ts <verb>`:
 //   cd .cursor/plugins/issue-tracker/app && npm link
 import { readFileSync } from "fs";
-import { basename } from "path";
 import { Command } from "commander";
 import { parse as parseYaml } from "yaml";
-import {
-  appendMessage,
-  list,
-  read,
-  readChat,
-  remove,
-} from "./server/services/issues.js";
+import { list } from "./server/services/issues.js";
 import {
   KINDS,
   type DerivedState,
@@ -29,24 +22,14 @@ import {
 import { bySequence, buildProjectBoardOf, stackedStoryOrder } from "./server/order.js";
 import { resolveProjectId } from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
-import {
-  formatAttachmentsSection,
-  formatSummary,
-  summarize,
-} from "./server/services/summary.js";
-import { assigneeOf } from "./server/assignee.js";
-import { hasAttention, hasPartOf, kindHas } from "./server/kind.js";
-import {
-  attachmentPath,
-  listAttachments,
-  putAttachment,
-  removeAttachment,
-} from "./server/services/attachments.js";
+import { formatSummary, summarize } from "./server/services/summary.js";
+import { hasAttention } from "./server/kind.js";
 import {
   registerKindAdd,
   registerLegacyCreateCommands,
 } from "./cli-create.js";
 import { registerKindGetSet } from "./cli-kind.js";
+import { registerKindOps, registerLegacyOps } from "./cli-ops.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
@@ -329,8 +312,10 @@ async function run(action: () => unknown): Promise<void> {
 for (const kind of KINDS) {
   const kindCmd = registerKindGetSet(program, kind, run);
   registerKindAdd(kindCmd, kind, run);
+  registerKindOps(kindCmd, kind, run);
 }
 registerLegacyCreateCommands(program, run);
+registerLegacyOps(program, run);
 
 program
   .command("apply")
@@ -362,87 +347,6 @@ program
   );
 
 program
-  .command("attach")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .argument("<file>", "path to file to attach")
-  .description(
-    "attach a file; on basename collision keeps the existing file and stores under a unique name; prints the stored basename",
-  )
-  .action((id, file) =>
-    run(async () => {
-      const bytes = readFileSync(file);
-      const meta = await putAttachment(id, basename(file), bytes);
-      console.log(
-        `attached ${meta.name} (${meta.size} bytes) — ${attachmentPath(id, meta.name)}`,
-      );
-    }),
-  );
-
-program
-  .command("attachments")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .description("list attachment names and sizes")
-  .action((id) =>
-    run(() => {
-      const attachments = listAttachments(id);
-      if (attachments.length === 0) {
-        console.log("(no attachments)");
-        return;
-      }
-      for (const att of attachments) {
-        console.log(`${att.name}\t${att.size}`);
-      }
-    }),
-  );
-
-program
-  .command("detach")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .argument("<name>", "attachment basename to remove")
-  .action((id, name) =>
-    run(async () => {
-      await removeAttachment(id, name);
-      console.log(`detached ${name} from ${id}`);
-    }),
-  );
-
-program
-  .command("comment")
-  .argument("<id>", "issue id")
-  .requiredOption("--role <role>", "message author role (e.g. agent, human)")
-  .requiredOption("--body <text>", "message body (Markdown)")
-  .option("--name <name>", "author display name")
-  .action((id, opts) =>
-    run(async () => {
-      const message = await appendMessage(id, {
-        role: opts.role,
-        name: opts.name,
-        body: opts.body,
-      });
-      console.log(`commented on ${id} as ${message.name ?? message.role}`);
-    }),
-  );
-
-program
-  .command("delete")
-  .argument("<id>", "issue id")
-  .description(
-    "delete an issue: cascades to contained children, splices stackedOn, drops blockedBy",
-  )
-  .action((id) =>
-    run(async () => {
-      const result = await remove(id);
-      console.log(`deleted ${result.deleted.join(", ")}`);
-      for (const { id: bid, to } of result.repointed) {
-        console.log(`  repointed ${bid}.stackedOn -> ${to ?? "main"}`);
-      }
-      for (const { id: bid } of result.unblocked) {
-        console.log(`  dropped deleted blocker from ${bid}.blockedBy`);
-      }
-    }),
-  );
-
-program
   .command("summary")
   .argument("<id>", "issue id (task, story, epic, idea, or project)")
   .description(
@@ -451,79 +355,6 @@ program
   .action((id) =>
     run(() => {
       console.log(formatSummary(summarize(id)));
-    }),
-  );
-
-program
-  .command("show")
-  .argument("<id>", "issue id")
-  .description(
-    "print an issue's metadata and description (pass --chat for the chat log)",
-  )
-  .option("--chat", "also print the chat log")
-  .action((id, opts) =>
-    run(() => {
-      const detail = read(id);
-      const lines = [
-        `id: ${detail.id}`,
-        `kind: ${detail.kind}`,
-        `title: ${detail.title}`,
-      ];
-      if (detail.kind === "project") {
-        lines.push(`mergePolicy: ${detail.mergePolicy}`);
-        if (detail.workspace) {
-          lines.push(`workspace: ${detail.workspace}`);
-        }
-      }
-      if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);
-      if (detail.kind === "epic" && detail.blockedBy.length > 0) {
-        lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
-      }
-      if (detail.kind === "story") {
-        if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
-        lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
-        if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
-        if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
-        lines.push(`merged: ${detail.merged}`);
-        if (detail.specReview) lines.push(`specReview: ${detail.specReview}`);
-      }
-      if (detail.kind === "task") {
-        lines.push(`status: ${detail.status}`);
-        if (detail.qa) lines.push(`qa: ${detail.qa}`);
-        if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
-        if (detail.noDiff) lines.push(`noDiff: true`);
-      }
-      if (hasPartOf(detail)) {
-        const assignee = assigneeOf(detail);
-        if (assignee) lines.push(`assignee: ${assignee}`);
-        if (hasAttention(detail) && detail.needsAttention) {
-          lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
-        }
-        if (kindHas(detail.kind, "attachments")) {
-          lines.push(...formatAttachmentsSection(id, listAttachments(id)));
-        }
-      }
-      console.log(lines.join("\n"));
-      console.log();
-      console.log(detail.description || "(no description)");
-
-      if (opts.chat) {
-        const { messages, problems } = readChat(id);
-        console.log();
-        console.log("--- chat ---");
-        if (messages.length === 0) console.log("(no messages)");
-        for (const message of messages) {
-          console.log(`[${message.at}] ${message.name ?? message.role}: ${message.body}`);
-        }
-        // Malformed chat lines are surfaced as stderr warnings but deliberately
-        // do not fail the command: like list()'s `problems`, they are data
-        // warnings, not a failure of `show` itself, which still printed the
-        // issue and every parseable message. Only thrown errors (e.g. unknown
-        // id) set a nonzero exit code.
-        for (const problem of problems) {
-          console.error(`chat problem: ${problem.message}`);
-        }
-      }
     }),
   );
 

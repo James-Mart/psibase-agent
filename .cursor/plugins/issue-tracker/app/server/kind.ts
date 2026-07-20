@@ -19,6 +19,8 @@ export const KIND_CAPABILITIES = {
     attention: false,
     attachments: false,
     chat: true,
+    // CLI `comment` is narrower than chat storage (project has chat, not comment).
+    comment: false,
   },
   idea: {
     partOf: true,
@@ -29,6 +31,7 @@ export const KIND_CAPABILITIES = {
     attention: false,
     attachments: true,
     chat: false,
+    comment: false,
   },
   epic: {
     partOf: true,
@@ -38,6 +41,7 @@ export const KIND_CAPABILITIES = {
     attention: true,
     attachments: true,
     chat: true,
+    comment: true,
   },
   story: {
     partOf: true,
@@ -47,6 +51,7 @@ export const KIND_CAPABILITIES = {
     attention: true,
     attachments: true,
     chat: true,
+    comment: true,
   },
   task: {
     partOf: true,
@@ -56,6 +61,7 @@ export const KIND_CAPABILITIES = {
     attention: true,
     attachments: true,
     chat: true,
+    comment: true,
   },
 } as const satisfies Record<
   IssueKind,
@@ -67,6 +73,7 @@ export const KIND_CAPABILITIES = {
     attention: boolean;
     attachments: boolean;
     chat: boolean;
+    comment: boolean;
   }
 >;
 

@@ -1806,3 +1806,222 @@ describe("attach / attachments / detach", () => {
     expect(withoutAttachments.stdout).not.toContain("Attachments:");
   });
 });
+
+describe("kind-scoped view / delete / comment / attach", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("idea-1", {
+      kind: "idea",
+      title: "Idea",
+      partOf: "p",
+      order: 0,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      order: 1,
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "story",
+      title: "Story A",
+      partOf: "e",
+      order: 0,
+      branchName: "feat/a",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("c1", {
+      kind: "task",
+      title: "C1",
+      partOf: "a",
+      order: 0,
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(join(dir, "a", "description.md"), "# Story A\n\nthe body\n");
+    writeFileSync(
+      join(dir, "a", "chat.jsonl"),
+      JSON.stringify({ role: "agent", name: "bot", body: "first note", at: nextAt() }) +
+        "\n",
+    );
+  });
+
+  it("keeps legacy top-level ops listed in --help", () => {
+    const help = runCli(["--help"]);
+    expect(help.status).toBe(0);
+    for (const verb of ["show", "delete", "comment", "attach", "attachments", "detach"]) {
+      expect(help.stdout, verb).toMatch(new RegExp(`\\n  ${verb}\\b`));
+    }
+  });
+
+  it.each([
+    { kind: "project", id: "p" },
+    { kind: "idea", id: "idea-1" },
+    { kind: "epic", id: "e" },
+    { kind: "story", id: "a" },
+    { kind: "task", id: "c1" },
+  ])("views a $kind via kind-scoped view", ({ kind, id }) => {
+    const legacy = runCli(["show", id]);
+    const scoped = runCli([kind, "view", id]);
+    expect(scoped.status).toBe(0);
+    expect(scoped.stdout).toBe(legacy.stdout);
+    expect(scoped.stdout).toContain(`kind: ${kind}`);
+  });
+
+  it("supports --chat on kind-scoped view", () => {
+    const { stdout, status } = runCli(["story", "view", "a", "--chat"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("--- chat ---");
+    expect(stdout).toContain("bot: first note");
+  });
+
+  it.each([
+    {
+      name: "epic view",
+      cmd: () => ["epic", "view", "a"],
+      error: '"a" is a story, not an epic',
+    },
+    {
+      name: "story delete",
+      cmd: () => ["story", "delete", "e"],
+      error: '"e" is an epic, not a story',
+    },
+    {
+      name: "task comment",
+      cmd: () => ["task", "comment", "a", "--role", "agent", "--body", "x"],
+      error: '"a" is a story, not a task',
+    },
+    {
+      name: "idea attach",
+      cmd: () => {
+        const file = join(dir, "mismatch-attach.txt");
+        writeFileSync(file, "x");
+        return ["idea", "attach", "e", file];
+      },
+      error: '"e" is an epic, not an idea',
+    },
+  ])("refuses kind mismatch for $name", ({ cmd, error }) => {
+    const { stderr, status } = runCli(cmd());
+    expect(status).toBe(1);
+    expect(stderr).toContain(error);
+  });
+
+  it("comments on epic/story/task via kind-scoped comment", () => {
+    for (const [kind, id] of [
+      ["epic", "e"],
+      ["story", "a"],
+      ["task", "c1"],
+    ] as const) {
+      const { stdout, status } = runCli([
+        kind,
+        "comment",
+        id,
+        "--role",
+        "agent",
+        "--body",
+        `note on ${id}`,
+      ]);
+      expect(status, kind).toBe(0);
+      expect(stdout, kind).toContain(`commented on ${id}`);
+      expect(readFileSync(join(dir, id, "chat.jsonl"), "utf8")).toContain(
+        `note on ${id}`,
+      );
+    }
+  });
+
+  it("does not register comment under project or idea", () => {
+    for (const kind of ["project", "idea"]) {
+      const help = runCli([kind, "--help"]);
+      expect(help.status).toBe(0);
+      expect(help.stdout).not.toMatch(/\n {2}comment\b/);
+      const { stderr, status } = runCli([
+        kind,
+        "comment",
+        kind === "project" ? "p" : "idea-1",
+        "--role",
+        "agent",
+        "--body",
+        "nope",
+      ]);
+      expect(status).not.toBe(0);
+      expect(stderr).toMatch(/unknown command 'comment'/);
+    }
+  });
+
+  it("attaches on idea/epic/story/task via kind-scoped attach", () => {
+    const source = join(dir, "note.txt");
+    writeFileSync(source, "hello");
+    for (const [kind, id] of [
+      ["idea", "idea-1"],
+      ["epic", "e"],
+      ["story", "a"],
+      ["task", "c1"],
+    ] as const) {
+      const attach = runCli([kind, "attach", id, source]);
+      expect(attach.status, kind).toBe(0);
+      expect(attach.stdout, kind).toContain("attached note.txt");
+      const list = runCli([kind, "attachments", id]);
+      expect(list.status, kind).toBe(0);
+      expect(list.stdout, kind).toContain("note.txt\t5");
+      const detach = runCli([kind, "detach", id, "note.txt"]);
+      expect(detach.status, kind).toBe(0);
+      expect(detach.stdout, kind).toBe(`detached note.txt from ${id}\n`);
+    }
+  });
+
+  it("does not register attach under project", () => {
+    const help = runCli(["project", "--help"]);
+    expect(help.status).toBe(0);
+    for (const verb of ["attach", "attachments", "detach"]) {
+      expect(help.stdout, verb).not.toMatch(new RegExp(`\\n {2}${verb}\\b`));
+    }
+    const source = join(dir, "nope.bin");
+    writeFileSync(source, "x");
+    const { stderr, status } = runCli(["project", "attach", "p", source]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/unknown command 'attach'/);
+  });
+
+  it("deletes via kind-scoped delete", () => {
+    writeIssue("c2", {
+      kind: "task",
+      title: "C2",
+      partOf: "a",
+      order: 1,
+      status: "todo",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    const { stdout, status } = runCli(["task", "delete", "c2"]);
+    expect(status).toBe(0);
+    expect(stdout).toContain("deleted c2");
+    expect(runCli(["task", "view", "c2"]).status).toBe(1);
+  });
+
+  it("legacy comment/attach still refuse idea chat and project attachments", () => {
+    const comment = runCli([
+      "comment",
+      "idea-1",
+      "--role",
+      "agent",
+      "--body",
+      "nope",
+    ]);
+    expect(comment.status).toBe(1);
+    expect(comment.stderr).toContain("chat is not allowed on an Idea");
+
+    const source = join(dir, "nope.bin");
+    writeFileSync(source, "x");
+    const attach = runCli(["attach", "p", source]);
+    expect(attach.status).toBe(1);
+    expect(attach.stderr).toContain("attachments are not allowed on a Project");
+  });
+});

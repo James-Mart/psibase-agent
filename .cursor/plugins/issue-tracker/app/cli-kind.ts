@@ -23,7 +23,7 @@ function articleFor(kind: IssueKind): "a" | "an" {
   return kind === "epic" || kind === "idea" ? "an" : "a";
 }
 
-function assertKind(expected: IssueKind, id: string): IssueDetail {
+export function assertKind(expected: IssueKind, id: string): IssueDetail {
   const detail = read(id);
   if (detail.kind !== expected) {
     throw new Error(
