@@ -130,6 +130,7 @@ function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): 
   const chips: string[] = [];
   if (d?.storyStatus) chips.push(`status=${d.storyStatus}`);
   if (story.specReview) chips.push(`specReview=${story.specReview}`);
+  if (story.retro) chips.push(`retro=${story.retro}`);
   chips.push(`base=${d?.base ?? CHIP_UNSET}`);
   chips.push(`branch=${story.branchName ?? CHIP_UNSET}`);
   if (story.prUrl) chips.push(`pr=${story.prUrl}`);

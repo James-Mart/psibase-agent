@@ -48,9 +48,10 @@ Every issue has a `kind`, one of:
   share one Project-child sibling `order` space. There is no separate Idea
   Board kind — the "board" is the Project's Ideas in the tree/CLI/UI.
 - **Story** — a unit of work under an Epic. Contains Tasks. Carries
-  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, `specReview`, and
-  optional `labels` assignments from the containing Project catalog (see
-  [Project labels](#project-labels)). Status is derived, never stored.
+  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, `specReview`, an
+  optional `retro` gate, and optional `labels` assignments from the containing
+  Project catalog (see [Project labels](#project-labels)). Status is derived,
+  never stored.
 - **Task** — an atomic, story-point-sized unit under a Story. Each Task is a
   **small but standalone cross-section** of the work: after it lands on the
   Story tip, the package must still **build** and tests must remain
@@ -304,7 +305,7 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
 | project | `title`, `workspace`, `mergePolicy`, `labels`, `supportingDocs`, `description` |
 | epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `labels`, `description` |
 | idea | `title`, `archived`, `partOf`, `labels`, `description` |
-| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `labels`, `description` |
+| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `retro`, `labels`, `description` |
 | task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
 ##### Value parsing
@@ -626,6 +627,7 @@ Story — the Epic/Story/Task common fields plus:
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
+| `retro` | `"in-progress"` \| `"done"`? | absent until set; machine-readable retro gate |
 | `labels` | string[]? | assignment ids from the containing Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
 Task — the Epic/Story/Task common fields plus:
@@ -1038,6 +1040,7 @@ preserves everything else from the existing same-kind issue.
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
 | `retro` (Epic) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `supportingDocs` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
@@ -1047,7 +1050,7 @@ preserves everything else from the existing same-kind issue.
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
+| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview`, `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`issue epic|story|task comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP or `issue <kind> attach` / `detach`); `apply` never reads or writes attachment bytes |

@@ -201,6 +201,30 @@ describe("parseIssue - valid per kind", () => {
     expect(parseIssue({ ...branch, specReview: "pending" }).ok).toBe(false);
   });
 
+  it("parses a branch with an optional retro", () => {
+    const inProgress = parseIssue({ ...branch, retro: "in-progress" });
+    expect(inProgress.ok).toBe(true);
+    if (inProgress.ok && inProgress.issue.kind === "story") {
+      expect(inProgress.issue.retro).toBe("in-progress");
+    }
+
+    const done = parseIssue({ ...branch, retro: "done" });
+    expect(done.ok).toBe(true);
+    if (done.ok && done.issue.kind === "story") {
+      expect(done.issue.retro).toBe("done");
+    }
+
+    const absent = parseIssue(branch);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "story") {
+      expect(absent.issue.retro).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown retro value on a story", () => {
+    expect(parseIssue({ ...branch, retro: "pending" }).ok).toBe(false);
+  });
+
   it("parses a commit with a stored status", () => {
     const result = parseIssue(commit);
     expect(result.ok).toBe(true);

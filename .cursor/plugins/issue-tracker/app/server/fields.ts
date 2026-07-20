@@ -47,6 +47,7 @@ export const STORY_FORM_FIELD_KEYS = [
 
 export const STORY_IMPERATIVE_ONLY_KEYS = [
   "specReview",
+  "retro",
   "mergeBase",
   "labels",
 ] as const;
@@ -62,6 +63,7 @@ export const STORY_RUNTIME_OPTIONAL_KEYS = [
   "mergeBase",
   "prUrl",
   "specReview",
+  "retro",
   "labels",
 ] as const;
 

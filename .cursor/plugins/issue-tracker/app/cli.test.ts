@@ -1143,6 +1143,17 @@ describe("story get/set", () => {
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
     expect(runCli(["story", "get", "a", "specReview"]).stdout).toBe("passed\n");
 
+    expect(runCli(["story", "set", "a", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("in-progress\n");
+    expect(runCli(["story", "set", "a", "retro", "done"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("done\n");
+    expect(runCli(["story", "set", "a", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "get", "a", "retro"]).stdout).toBe("");
+
+    const invalidRetro = runCli(["story", "set", "a", "retro", "pending"]);
+    expect(invalidRetro.status).toBe(1);
+    expect(invalidRetro.stderr).toMatch(/invalid retro "pending"/);
+
     expect(runCli(["story", "set", "a", "assignee", "bot"]).status).toBe(0);
     expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("bot\n");
     expect(runCli(["story", "set", "a", "assignee", "--clear"]).status).toBe(0);
@@ -1304,6 +1315,27 @@ epic:
     );
     expect(runCli(["story", "view", "a"]).stdout).toContain("specReview: failed");
     expect(runCli(["story", "view", "a"]).stdout).toContain("title: Branch A renamed");
+  });
+
+  it("preserves retro across apply", () => {
+    expect(runCli(["story", "set", "a", "retro", "in-progress"]).status).toBe(0);
+
+    const applyPath = join(dir, "epic-retro.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  stories:
+    - id: a
+      title: Branch A renamed
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "a", "issue.json"), "utf8"));
+    expect(onDisk.retro).toBe("in-progress");
+    expect(onDisk.title).toBe("Branch A renamed");
   });
 });
 
@@ -1739,20 +1771,25 @@ describe("tree", () => {
     expect(unset.status).toBe(0);
     expect(unset.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
     expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bspecReview=/m);
+    expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bretro=/m);
 
     expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "retro", "done"]).status).toBe(0);
 
     const set = runCli(["tree", "p"]);
     expect(set.status).toBe(0);
     expect(set.stdout).toMatch(/^ {2}epic e\b.*\bretro=in-progress\b/m);
     expect(set.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
+    expect(set.stdout).toMatch(/^ {4}story a\b.*\bretro=done\b/m);
 
     expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "retro", "--clear"]).status).toBe(0);
 
     const cleared = runCli(["tree", "p"]);
     expect(cleared.status).toBe(0);
     expect(cleared.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(cleared.stdout).not.toMatch(/^ {4}story a\b.*\bretro=/m);
     expect(cleared.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
   });
 });
