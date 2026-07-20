@@ -142,6 +142,12 @@ the Project `workspace` root. Do not use plugin-root shorthand (`agents/...`,
 - **Good:** `In
   .cursor/plugins/issue-tracker/agents/issue-tracker-spec-conformance-validator.md`
 
+## Prior-content consistency
+
+When a Task Change updates content, you must update every place that still
+describes or depends on the prior version of that content so it stays
+consistent with the new version.
+
 ## Completeness pass
 
 Before done:
@@ -159,3 +165,6 @@ Before done:
   field names (see [Task interface seams](#task-interface-seams)).
 - Every Task Change that names file paths uses workspace-relative paths (see
   [Task Change paths](#task-change-paths)).
+- Every Task Change that updates content also updates every place that still
+  describes or depends on the prior version (see
+  [Prior-content consistency](#prior-content-consistency)).
