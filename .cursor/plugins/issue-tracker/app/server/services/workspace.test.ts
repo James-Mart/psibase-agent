@@ -126,3 +126,18 @@ describe("project workspace", () => {
     await expect(update("e", { workspace: gitDir })).rejects.toThrow(/workspace/i);
   });
 });
+
+describe("workspace-relative path guards", () => {
+  it("resolves a safe relative path and refuses escape", async () => {
+    const { assertSafeWorkspaceRelPath, resolveUnderWorkspace } = await import(
+      "./workspace.js"
+    );
+    writeFileSync(join(gitDir, "doc.md"), "# Doc");
+    expect(assertSafeWorkspaceRelPath("doc.md")).toBeUndefined();
+    expect(resolveUnderWorkspace(gitDir, "doc.md")).toBe(join(gitDir, "doc.md"));
+
+    expect(() => assertSafeWorkspaceRelPath("/tmp/x.md")).toThrow(/relative/);
+    expect(() => assertSafeWorkspaceRelPath("../x.md")).toThrow(/\.\./);
+    expect(() => resolveUnderWorkspace(gitDir, "../x.md")).toThrow(/\.\./);
+  });
+});

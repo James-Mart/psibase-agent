@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ClearableKey } from "./fields.js";
+import type { ClearableKey, NullClearableObjectKey } from "./fields.js";
 import { SLUG_RE } from "./slug.js";
 
 export const KINDS = ["project", "epic", "idea", "story", "task"] as const;
@@ -8,6 +8,11 @@ export const QA_STATUSES = ["reviewing", "changes-requested", "passed"] as const
 export const RETRO_STATUSES = ["in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
+export const SUPPORTING_DOC_KEYS = [
+  "vision",
+  "codingStandards",
+  "designSystem",
+] as const;
 
 /** Chip color for a Project catalog label (`#RRGGBB` only). */
 export const LABEL_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -98,6 +103,23 @@ const timestamps = {
 };
 const orderField = { order: z.number().int().nonnegative().default(0) };
 
+export const supportingDocRefSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("attachment"), name: nonEmpty }),
+  z.object({ type: z.literal("workspace"), path: nonEmpty }),
+]);
+
+export const supportingDocsSchema = z
+  .object({
+    vision: supportingDocRefSchema.optional(),
+    codingStandards: supportingDocRefSchema.optional(),
+    designSystem: supportingDocRefSchema.optional(),
+  })
+  .strict();
+
+export type SupportingDocKey = (typeof SUPPORTING_DOC_KEYS)[number];
+export type SupportingDocRef = z.infer<typeof supportingDocRefSchema>;
+export type SupportingDocs = z.infer<typeof supportingDocsSchema>;
+
 // A Project is a minimal organizational container: no status, no assignee, and
 // no needs-attention. Deliberately does not spread `mutableCommon`.
 export const projectSchema = z.object({
@@ -108,6 +130,8 @@ export const projectSchema = z.object({
   mergePolicy: z.enum(MERGE_POLICIES).default("manual"),
   // Closed catalog of attachable labels (imperative; apply preserves).
   labels: projectLabelsSchema,
+  // Imperative pointers to vision / coding standards / design system docs.
+  supportingDocs: supportingDocsSchema.optional(),
   ...orderField,
   ...timestamps,
 });
@@ -211,12 +235,19 @@ type IssueFields = Omit<z.infer<typeof projectSchema>, "kind" | "labels"> &
 
 // Project catalog vs Epic/Idea/Story assignment arrays share the key name but
 // not the value shape — keep them out of the IssueFields intersection.
+// Null-clearable object keys (see NULL_CLEARABLE_OBJECT_KEYS) accept `T | null`.
 export type IssuePatch = Partial<
-  Omit<IssueFields, "id" | "createdAt" | "updatedAt" | ClearableKey>
+  Omit<
+    IssueFields,
+    "id" | "createdAt" | "updatedAt" | ClearableKey | NullClearableObjectKey
+  >
 > & {
   description?: string;
   labels?: ProjectLabel[] | string[];
-} & Partial<Record<ClearableKey, string | null>>;
+} & Partial<Record<ClearableKey, string | null>> &
+  Partial<{
+    [K in NullClearableObjectKey]: NonNullable<IssueFields[K]> | null;
+  }>;
 
 export type CreateInput = Pick<IssueFields, "title"> &
   Partial<

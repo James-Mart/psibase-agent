@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { coerceSetPatch, resolveLabelCatalogSet } from "./cli-kind.js";
+import {
+  coerceSetPatch,
+  resolveLabelCatalogSet,
+  resolveSupportingDocsSet,
+} from "./cli-kind.js";
 
 describe("coerceSetPatch", () => {
   let dir: string;
@@ -338,5 +342,69 @@ describe("resolveLabelCatalogSet", () => {
       action: "patch",
       patch: { labels: [{ id: "feat", color: "#00ff00" }] },
     });
+  });
+});
+
+describe("resolveSupportingDocsSet", () => {
+  it("sets an attachment or workspace ref for one doc key", () => {
+    expect(
+      resolveSupportingDocsSet(
+        { doc: "vision", attachment: "vision.md" },
+        undefined,
+      ),
+    ).toEqual({
+      supportingDocs: {
+        vision: { type: "attachment", name: "vision.md" },
+      },
+    });
+    expect(
+      resolveSupportingDocsSet(
+        { doc: "codingStandards", workspace: "docs/cs.md" },
+        { vision: { type: "attachment", name: "vision.md" } },
+      ),
+    ).toEqual({
+      supportingDocs: {
+        vision: { type: "attachment", name: "vision.md" },
+        codingStandards: { type: "workspace", path: "docs/cs.md" },
+      },
+    });
+  });
+
+  it("clears one key or the whole field", () => {
+    expect(
+      resolveSupportingDocsSet(
+        { clear: true, doc: "vision" },
+        {
+          vision: { type: "attachment", name: "vision.md" },
+          designSystem: { type: "workspace", path: "ds.md" },
+        },
+      ),
+    ).toEqual({
+      supportingDocs: {
+        designSystem: { type: "workspace", path: "ds.md" },
+      },
+    });
+    expect(
+      resolveSupportingDocsSet(
+        { clear: true, doc: "vision" },
+        { vision: { type: "attachment", name: "vision.md" } },
+      ),
+    ).toEqual({ supportingDocs: null });
+    expect(resolveSupportingDocsSet({ clear: true }, undefined)).toEqual({
+      supportingDocs: null,
+    });
+  });
+
+  it("rejects unknown keys and invalid mode combos", () => {
+    expect(() =>
+      resolveSupportingDocsSet({ doc: "roadmap", attachment: "x.md" }, undefined),
+    ).toThrow(/unknown supportingDocs key/);
+    expect(() =>
+      resolveSupportingDocsSet(
+        { doc: "vision", attachment: "a.md", workspace: "b.md" },
+        undefined,
+      ),
+    ).toThrow(/exactly one/);
+    expect(() => resolveSupportingDocsSet({}, undefined)).toThrow(/--doc/);
   });
 });

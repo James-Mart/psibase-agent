@@ -318,6 +318,143 @@ describe("project get/set", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("mergePolicy: pull-request");
   });
+
+  it("sets, gets, clears, and surfaces supportingDocs", () => {
+    const ws = makeGitWorkspace();
+    const visionSrc = join(dir, "vision.md");
+    writeFileSync(visionSrc, "# Vision");
+    writeFileSync(join(ws, "standards.md"), "# Standards");
+    try {
+      expect(runCli(["project", "set", "p", "workspace", ws]).status).toBe(0);
+      expect(runCli(["project", "attach", "p", visionSrc]).status).toBe(0);
+
+      expect(
+        runCli([
+          "project",
+          "set",
+          "p",
+          "supportingDocs",
+          "--doc",
+          "vision",
+          "--attachment",
+          "vision.md",
+        ]).status,
+      ).toBe(0);
+      expect(
+        runCli([
+          "project",
+          "set",
+          "p",
+          "supportingDocs",
+          "--doc",
+          "codingStandards",
+          "--workspace",
+          "standards.md",
+        ]).status,
+      ).toBe(0);
+
+      const got = runCli(["project", "get", "p", "supportingDocs"]);
+      expect(got.status).toBe(0);
+      expect(JSON.parse(got.stdout)).toEqual({
+        vision: { type: "attachment", name: "vision.md" },
+        codingStandards: { type: "workspace", path: "standards.md" },
+      });
+
+      const view = runCli(["project", "view", "p"]);
+      expect(view.status).toBe(0);
+      expect(view.stdout).toContain(
+        "supportingDocs: vision=attachment:vision.md, codingStandards=workspace:standards.md",
+      );
+
+      const summary = runCli(["summary", "p"]);
+      expect(summary.status).toBe(0);
+      expect(summary.stdout).toContain(
+        "supportingDocs: vision=attachment:vision.md, codingStandards=workspace:standards.md",
+      );
+
+      expect(
+        runCli([
+          "project",
+          "set",
+          "p",
+          "supportingDocs",
+          "--clear",
+          "--doc",
+          "vision",
+        ]).status,
+      ).toBe(0);
+      expect(JSON.parse(runCli(["project", "get", "p", "supportingDocs"]).stdout)).toEqual({
+        codingStandards: { type: "workspace", path: "standards.md" },
+      });
+
+      expect(runCli(["project", "set", "p", "supportingDocs", "--clear"]).status).toBe(0);
+      expect(runCli(["project", "get", "p", "supportingDocs"]).stdout).toBe("");
+      expect(runCli(["project", "view", "p"]).stdout).not.toContain("supportingDocs:");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses invalid supportingDocs sets", () => {
+    const ws = makeGitWorkspace();
+    try {
+      expect(runCli(["project", "set", "p", "workspace", ws]).status).toBe(0);
+
+      const missingAttach = runCli([
+        "project",
+        "set",
+        "p",
+        "supportingDocs",
+        "--doc",
+        "vision",
+        "--attachment",
+        "vision.md",
+      ]);
+      expect(missingAttach.status).toBe(1);
+      expect(missingAttach.stderr).toContain("not attached");
+
+      const badPath = runCli([
+        "project",
+        "set",
+        "p",
+        "supportingDocs",
+        "--doc",
+        "vision",
+        "--workspace",
+        "../escape.md",
+      ]);
+      expect(badPath.status).toBe(1);
+      expect(badPath.stderr).toMatch(/\.\.|relative|escape/i);
+
+      const unknownKey = runCli([
+        "project",
+        "set",
+        "p",
+        "supportingDocs",
+        "--doc",
+        "roadmap",
+        "--workspace",
+        "x.md",
+      ]);
+      expect(unknownKey.status).toBe(1);
+      expect(unknownKey.stderr).toContain("unknown supportingDocs key");
+
+      const missingFile = runCli([
+        "project",
+        "set",
+        "p",
+        "supportingDocs",
+        "--doc",
+        "vision",
+        "--workspace",
+        "missing.md",
+      ]);
+      expect(missingFile.status).toBe(1);
+      expect(missingFile.stderr).toContain("does not exist");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("idea add / get / set", () => {

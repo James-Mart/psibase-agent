@@ -301,7 +301,7 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
 
 | kind | settable fields |
 | --- | --- |
-| project | `title`, `workspace`, `mergePolicy`, `labels`, `description` |
+| project | `title`, `workspace`, `mergePolicy`, `labels`, `supportingDocs`, `description` |
 | epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `labels`, `description` |
 | idea | `title`, `archived`, `partOf`, `labels`, `description` |
 | story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `labels`, `description` |
@@ -319,12 +319,19 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
   (object via `--add '{…}'`, `--file <path|->`, or positional JSON);
   `--remove <ids...>`; `--rename <oldId> <newId>`; `--clear` → `[]`. Modes are
   mutually exclusive. See [Project labels](#project-labels).
+- **Project `supportingDocs`:** no positional value. Set one key with
+  `--doc vision|codingStandards|designSystem` plus exactly one of
+  `--attachment <name>` or `--workspace <path>`. `--clear` blanks the whole
+  field; `--clear --doc <key>` removes one key. See
+  [Project supporting docs](#project-supporting-docs).
 - `--clear` (mutually exclusive with a positional value / `--add` / `--remove` /
   `--rename`):
   - **Clearable scalars** (`assignee`, `commitSha`, `branchName`, `stackedOn`,
     `prUrl`, `workspace`, `qa`, `retro`): blanks the field (absent / `null`).
   - **`blockedBy`** / assignment **`labels`**: sets `[]` (empty array, not null).
   - **Project `labels`**: sets `[]` (empty catalog).
+  - **Project `supportingDocs`**: blanks the field (absent / `null`); with
+    `--doc <key>`, removes only that key.
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
 - `description`: omit positional value when `--file <path|->` is passed.
@@ -403,9 +410,47 @@ Project — the common-to-every-kind fields plus:
 | `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
 | `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Story's last Task is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
 | `labels` | `{ id, color, description? }[]`? | closed catalog of attachable labels; chip text is the kebab `id` (see [Project labels](#project-labels)) |
+| `supportingDocs` | `{ vision?, codingStandards?, designSystem? }`? | optional pointers to vision / coding standards / design system docs (see [Project supporting docs](#project-supporting-docs)) |
 
 No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
 short overview of the Project.
+
+### Project supporting docs
+
+A Project may point at up to three optional supporting documents — **vision**,
+**coding standards**, and **design system** — via the imperative
+`supportingDocs` field. Each present key is a `SupportingDocRef`:
+
+- `{ type: "attachment", name: string }` — basename already attached on the
+  Project
+- `{ type: "workspace", path: string }` — path relative to the Project
+  `workspace` (no absolute paths, no `..`); the file must exist on disk at set
+  time
+
+Missing or unset keys mean that doc is absent. Agents resolve docs **only**
+through `supportingDocs` (**consult-if-present**): no key or an unreadable
+target → skip; never fail the workflow for a missing doc.
+
+**Well-known attachment basenames** (skill default when choosing attachment
+storage): `vision.md`, `coding-standards.md`, `design-system.md`.
+
+**CLI.**
+
+```
+issue project set <id> supportingDocs --doc vision|codingStandards|designSystem \
+  --attachment <name>|--workspace <path>
+issue project set <id> supportingDocs --clear
+issue project set <id> supportingDocs --clear --doc <key>
+issue project get <id> supportingDocs
+```
+
+`get` prints JSON. `project view` and `summary` surface a `supportingDocs:`
+line when the field is set. Must-exist checks run at set time only (attachment
+already present; workspace file on disk under the Project workspace).
+
+**`apply`.** Imperative-only — same class as `workspace` / `mergePolicy` /
+`labels`. `apply` preserves `supportingDocs` and never reads or writes it from
+the YAML doc.
 
 ### Project workspace
 
@@ -994,6 +1039,7 @@ preserves everything else from the existing same-kind issue.
 | `retro` (Epic) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `supportingDocs` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Project catalog) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Epic / Idea / Story assignments) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |

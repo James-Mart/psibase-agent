@@ -18,6 +18,7 @@ import {
   removeAttachment,
 } from "./server/services/attachments.js";
 import { formatAttachmentsSection } from "./server/services/summary.js";
+import { formatSupportingDocsLine } from "./server/services/supporting-docs.js";
 import { assertKind } from "./cli-kind.js";
 
 type Run = (action: () => unknown) => Promise<void>;
@@ -47,6 +48,10 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
     lines.push(`mergePolicy: ${detail.mergePolicy}`);
     if (detail.workspace) {
       lines.push(`workspace: ${detail.workspace}`);
+    }
+    if (detail.supportingDocs) {
+      const line = formatSupportingDocsLine(detail.supportingDocs);
+      if (line) lines.push(`supportingDocs: ${line}`);
     }
   }
   if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);
