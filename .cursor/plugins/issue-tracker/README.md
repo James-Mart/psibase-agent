@@ -1,14 +1,14 @@
 # issue-tracker
 
 A local Cursor plugin: a dark shadcn/ui web app plus a CLI over a file-backed,
-hierarchical work tracker (**Project > Epic > Branch > Commit**) that maps
+hierarchical work tracker (**Project > Epic > Story > Task**) that maps
 directly onto git stacked PRs. A directory per issue on disk is the source of
 truth; all writes funnel through one validated service layer so issues cannot be
 misconfigured. It is metadata-only with respect to git — it records the git state
 agents set (`branchName`, `prUrl`, `commitSha`, `merged`) and never runs git itself.
 
-It replaces the giant "plan" doc: an agent decomposes a spec into a
-Project > Epic > Branch > Commit tree, then works the tree — updating state and
+It replaces the giant "plan" doc: an agent authors a spec into a
+Project > Epic > Story > Task tree, then works the tree — updating state and
 conversing per issue — while a human watches live in the browser. A **Project**
 is the top-level container that groups related Epics; the web UI's sidebar
 selects one Project and scopes the tree and Ready view to it.
@@ -28,8 +28,9 @@ selects one Project and scopes the tree and Ready view to it.
     panel, chat, live SSE updates).
 - `issues/` — one directory per issue; the on-disk source of truth.
 - `skills/issue-tracker/SKILL.md` — the launch skill (how to start the UI).
-- `skills/issue-tracker-authoring/SKILL.md` — the agent authoring contract
-  (CLI reference + stacked-PR workflow).
+- `skills/issue-tracker-authoring/SKILL.md` — planning skill for turning a
+  spec into a Project > Epic > Story > Task tree (grain, vertical slices,
+  declarative `apply`).
 - `SPEC.md` — the canonical glossary + design rationale, referenced by both
   skills.
 
@@ -47,8 +48,7 @@ Other scripts: `npm test` (Vitest) and `npm run build` (build the client into
 serves the built client when `NODE_ENV=production` **and** `dist/` exists;
 otherwise it runs API-only on `:8061` (use `npm run dev` for the full UI, or
 `npm run build && NODE_ENV=production npm start` to serve the built client). Run
-the CLI with `npx tsx cli.ts <command>` (see the authoring skill for the command
-reference).
+the CLI with `npx tsx cli.ts <command>` (see `issue --help` or SPEC.md).
 
 ## How the pieces fit
 
@@ -78,4 +78,5 @@ refresh.
 - [skills/issue-tracker/SKILL.md](./skills/issue-tracker/SKILL.md) — launching
   the UI.
 - [skills/issue-tracker-authoring/SKILL.md](./skills/issue-tracker-authoring/SKILL.md)
-  — the CLI-based authoring contract for agents.
+  — planning a Project > Epic > Story > Task tree (grain, vertical slices,
+  declarative `apply`).
