@@ -716,8 +716,8 @@ describe("kind-scoped add", () => {
     },
     {
       kind: "story",
-      args: ["story", "add", "--part-of", "p", "Nope"],
-      error: /must be a epic/,
+      args: ["story", "add", "--part-of", "a", "Nope"],
+      error: /must be one of: project, epic/,
     },
     {
       kind: "task",
@@ -728,6 +728,33 @@ describe("kind-scoped add", () => {
     const result = runCli(args);
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(error);
+  });
+
+  it("adds a story under a project and reparents between project and epic", () => {
+    const add = runCli([
+      "story",
+      "add",
+      "Solo Story",
+      "--part-of",
+      "p",
+    ]);
+    expect(add.status).toBe(0);
+    expect(add.stdout.trim()).toBe("solo-story");
+    expect(issueJsonField("solo-story", "partOf")).toBe("p");
+
+    expect(runCli(["story", "set", "solo-story", "partOf", "e"]).status).toBe(
+      0,
+    );
+    expect(issueJsonField("solo-story", "partOf")).toBe("e");
+
+    expect(runCli(["story", "set", "solo-story", "partOf", "p"]).status).toBe(
+      0,
+    );
+    expect(issueJsonField("solo-story", "partOf")).toBe("p");
+
+    const bad = runCli(["story", "set", "solo-story", "partOf", "a"]);
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/must be one of: project, epic/);
   });
 });
 

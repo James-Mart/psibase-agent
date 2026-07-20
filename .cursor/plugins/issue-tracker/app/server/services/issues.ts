@@ -20,7 +20,7 @@ import {
   parseChatMessage,
   parseChatMessageInput,
   parseIssue,
-  PARENT_KIND,
+  requiresPartOf,
   type ChatMessage,
   type ChatMessageInput,
   type ChatResponse,
@@ -354,7 +354,7 @@ export function create(input: CreateInput): Promise<IssueRecord> {
     if (kindHas(input.kind, "archived")) {
       draft.archived = ancestorIsArchived(input.partOf, issues);
     }
-    if (PARENT_KIND[input.kind]) {
+    if (requiresPartOf(input.kind)) {
       if (!input.partOf) {
         throw new IssueError(
           "validation",
@@ -554,7 +554,11 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     // group change already makes the issue differ, so the unchanged path is safe.
     const next = parsed.issue;
     const orderPatched = "order" in jsonPatch;
-    if (!orderPatched && siblingGroupKey(next) !== siblingGroupKey(existing)) {
+    const byId = new Map(issues.map((issue) => [issue.id, issue]));
+    if (
+      !orderPatched &&
+      siblingGroupKey(next, byId) !== siblingGroupKey(existing, byId)
+    ) {
       const partOf = "partOf" in next ? next.partOf : undefined;
       const stackedOn = next.kind === "story" ? next.stackedOn : undefined;
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);

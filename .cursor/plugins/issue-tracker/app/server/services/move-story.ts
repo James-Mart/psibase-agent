@@ -44,8 +44,8 @@ function requireIssue(issues: Issue[], id: string): Issue {
  * `stackedOn` descendant, validated once via `checkIntegrity` and written with
  * a single `commitIssueBatch`.
  *
- * - Target Story → restack onto it (reparent the stack into the target's Epic
- *   when that Epic differs).
+ * - Target Story → restack onto it (reparent the stack into the target's
+ *   `partOf` parent when that parent differs).
  * - Target Epic → reparent the stack into that Epic; clears the root's
  *   `stackedOn` (unstack when the Epic is already the current one).
  */
@@ -70,7 +70,7 @@ export function moveStory(
     const moved = stack.map((s) => s.id);
     const stackSet = new Set(moved);
 
-    let destEpic: string;
+    let destPartOf: string;
     let rootStackedOn: string | null | undefined;
 
     if (target.kind === "story") {
@@ -80,10 +80,10 @@ export function moveStory(
           `move-story would create a stackedOn cycle (target "${targetId}" is in the moved stack)`,
         );
       }
-      destEpic = target.partOf;
+      destPartOf = target.partOf;
       rootStackedOn = targetId;
     } else {
-      destEpic = targetId;
+      destPartOf = targetId;
       rootStackedOn = null;
     }
 
@@ -99,7 +99,7 @@ export function moveStory(
         byId.get(storyId)!,
         `stack member "${storyId}"`,
       );
-      const patch: IssuePatch = { partOf: destEpic };
+      const patch: IssuePatch = { partOf: destPartOf };
       if (storyId === source.id) {
         patch.stackedOn = rootStackedOn;
       }
@@ -113,7 +113,8 @@ export function moveStory(
       // keep relative order — their sibling buckets move as a unit.
       if (
         storyId === source.id &&
-        siblingGroupKey(story) !== siblingGroupKey(existing)
+        siblingGroupKey(story, prospective) !==
+          siblingGroupKey(existing, prospective)
       ) {
         story.order = nextSiblingOrder(
           [...prospective.values()],

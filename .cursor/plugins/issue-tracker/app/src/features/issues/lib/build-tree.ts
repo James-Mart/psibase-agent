@@ -144,6 +144,7 @@ export function buildTree(
   });
 
   const rootIssues =
-    roots ?? issues.filter(isProjectBoardChild).sort(bySequence);
+    roots ??
+    issues.filter((issue) => isProjectBoardChild(issue, byId)).sort(bySequence);
   return rootIssues.map(toNode);
 }

@@ -36,7 +36,10 @@ import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
 type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
 type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
-type ProjectBoardChild = Extract<IssueRecord, { kind: "epic" | "idea" }>;
+type ProjectBoardChild = Extract<
+  IssueRecord,
+  { kind: "epic" | "idea" | "story" }
+>;
 
 // Shared context for the `tree` renderer: the children of each parent bucketed
 // by kind, and the derived state. Commits are pre-sorted into their execution
@@ -163,6 +166,9 @@ function renderBoardChild(
 ): string[] {
   if (child.kind === "idea") {
     return [nodeLine(indent, "idea", child.id, child.title, labelsChip(child))];
+  }
+  if (child.kind === "story") {
+    return renderStory(child, indent, ctx);
   }
   return renderEpic(child, indent, ctx);
 }

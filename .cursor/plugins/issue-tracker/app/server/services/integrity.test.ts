@@ -110,10 +110,50 @@ describe("checkIntegrity", () => {
     expect(problems.some((p) => p.message.includes("must be a story"))).toBe(true);
   });
 
-  it("flags a branch whose partOf is not an epic", () => {
-    const problems = checkIntegrity([branch("b1", "e1"), branch("b2", "b1")]);
+  it("flags a story whose partOf is not a project or epic", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      branch("b1", "root"),
+      branch("b2", "b1"),
+    ]);
     const relevant = problems.filter((p) => p.id === "b2");
-    expect(relevant[0].message).toContain("must be a epic");
+    expect(relevant[0].message).toMatch(/must be one of: project, epic/);
+  });
+
+  it("accepts a story partOf a project or an epic", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      epic("e1"),
+      branch("project-story", "root", { order: 1 }),
+      branch("epic-story", "e1"),
+      commit("c1", "project-story"),
+    ]);
+    expect(problems).toEqual([]);
+  });
+
+  it("rejects a story partOf a task or idea", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      idea("i1"),
+      branch("under-idea", "i1"),
+      branch("ok", "root", { order: 1 }),
+      commit("c1", "ok"),
+      branch("under-task", "c1"),
+    ]);
+    expect(
+      problems.some(
+        (p) =>
+          p.id === "under-idea" &&
+          p.message.includes("must be one of: project, epic"),
+      ),
+    ).toBe(true);
+    expect(
+      problems.some(
+        (p) =>
+          p.id === "under-task" &&
+          p.message.includes("must be one of: project, epic"),
+      ),
+    ).toBe(true);
   });
 
   it("flags a dangling stackedOn", () => {
@@ -150,6 +190,20 @@ describe("checkIntegrity", () => {
     ).toBe(true);
   });
 
+  it("flags a stackedOn across different projects for project-level stories", () => {
+    const problems = checkIntegrity([
+      project("p1"),
+      project("p2"),
+      branch("b1", "p1"),
+      branch("b2", "p2", { stackedOn: "b1" }),
+    ]);
+    expect(
+      problems.some(
+        (p) => p.id === "b2" && p.message.includes("same Project"),
+      ),
+    ).toBe(true);
+  });
+
   it("does not flag a same-epic stackedOn", () => {
     const problems = checkIntegrity([
       epic("e1"),
@@ -157,6 +211,17 @@ describe("checkIntegrity", () => {
       branch("b2", "e1", { stackedOn: "b1" }),
     ]);
     expect(problems.some((p) => p.message.includes("same Epic"))).toBe(false);
+  });
+
+  it("does not flag a same-project stackedOn for project-level stories", () => {
+    const problems = checkIntegrity([
+      project("root"),
+      branch("b1", "root"),
+      branch("b2", "root", { order: 1, stackedOn: "b1" }),
+    ]);
+    expect(problems.some((p) => p.message.includes("same Project"))).toBe(
+      false,
+    );
   });
 
   it("flags a dangling blockedBy referent", () => {

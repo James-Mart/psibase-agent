@@ -111,6 +111,35 @@ describe("planDeletion - containment cascade", () => {
     expect(plan.unblock).toEqual([]);
   });
 
+  it("deletes project-level stories with the project, not with an unrelated epic", () => {
+    const issues = [
+      project("p"),
+      epic("e", "p"),
+      branch("under-epic", "e"),
+      branch("under-project", "p"),
+      commit("c-epic", "under-epic"),
+      commit("c-project", "under-project"),
+    ];
+    const deleteProject = planDeletion(issues, "p");
+    expect([...deleteProject.deleteIds].sort()).toEqual([
+      "c-epic",
+      "c-project",
+      "e",
+      "p",
+      "under-epic",
+      "under-project",
+    ]);
+
+    const deleteEpic = planDeletion(issues, "e");
+    expect([...deleteEpic.deleteIds].sort()).toEqual([
+      "c-epic",
+      "e",
+      "under-epic",
+    ]);
+    expect(deleteEpic.deleteIds).not.toContain("under-project");
+    expect(deleteEpic.deleteIds).not.toContain("c-project");
+  });
+
   it("returns an empty plan for an unknown id", () => {
     expect(planDeletion([epic("e")], "ghost")).toEqual({
       deleteIds: [],
