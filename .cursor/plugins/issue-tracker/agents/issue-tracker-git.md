@@ -122,7 +122,7 @@ idempotency, and recovery live there). This section is only the concrete
    - **pull-request** — `git push -u origin <branchName>`, then
      `gh pr create --draft --base <mergeBase> --head <branchName> --title
      "<Story title>" --body "<body>"`, where `<body>` is the Story's
-     rendered `description.md` (`issue show <storyId>`; a one-line default if
+     rendered `description.md` (`issue story view <storyId>`; a one-line default if
      empty). Record it: `issue story set <storyId> prUrl <url>`.
    - **merge** — `git checkout <mergeBase>`, `git merge --no-ff <branchName>`,
      `git push origin <mergeBase>`, `issue story set <storyId> merged true`.

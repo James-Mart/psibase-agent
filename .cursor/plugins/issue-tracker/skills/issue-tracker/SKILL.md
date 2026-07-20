@@ -71,7 +71,7 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
   delegating each task to subagents in a per-task QA loop (implementor →
   code-quality gate on `qa` → revise/resume until `passed` or escalate) and
-  recording git progress through the CLI; inspect the stack with `tree`/`show`.
+  recording git progress through the CLI; inspect the stack with `tree`/`view`.
   The coordinator only reads gates and spawns/resumes — it does not write
   Task `status`/`qa` or count revise rounds. Completion spawns
   **`issue-tracker-retro`** once when every Story in the Epic is `merged`
@@ -79,15 +79,14 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   run for tracker/work-loop meta confusion and apply a residual Epic under
   Project `issue-tracker` (or comment clean on the source Epic); not invoked
   directly.
-- **`issue-tracker-authoring`** — create/update/`apply` semantics, kind-scoped
-  `get`/`set`, the **Attachments** model + verbs (`attach` / `attachments` /
-  `detach`), and inspection (`show`/`summary`/`tree`), pointing at
-  `cli.ts --help` as the authoritative command reference; the shared tool doc
-  the other skills build on.
+- **`issue-tracker-authoring`** — kind-scoped `add`/`get`/`set`/`view`/
+  `delete`/`comment`/`attach` semantics, `apply`, and inspection
+  (`view`/`summary`/`tree`), pointing at `cli.ts --help` as the authoritative
+  command reference; the shared tool doc the other skills build on.
 - **`issue-tracker-plan`** — grill an Idea or a pre-implementation (`todo`)
   Epic to shared understanding, then migrate into a detailed Epic tree via
-  `apply` (new Epic id + delete Idea, or in-place epic-form rewrite); offers
-  `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
+  `apply` (new Epic id + `issue idea delete`, or in-place epic-form rewrite);
+  offers `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
 - **`issue-tracker-plan-polish`** — polish an existing Epic: spawn four
   parallel read-only check agents (`plan-no-ambiguity`, `plan-dry`,
   `plan-authoring-conformance`, `plan-dependency-order`), aggregate findings

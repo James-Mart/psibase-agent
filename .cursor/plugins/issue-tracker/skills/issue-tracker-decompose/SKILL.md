@@ -27,7 +27,7 @@ children each cover
 ## Author declaratively: one YAML doc, then `apply`
 
 Write the **whole tree as a single nested YAML doc** and `apply` it — do not
-build it up with imperative `create`/`add` calls and hand-threaded ids.
+build it up with imperative `issue <kind> add` calls and hand-threaded ids.
 
 ```bash
 cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
@@ -61,7 +61,7 @@ cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts apply plan.yaml
   (see issue-tracker-authoring **Declarative apply** /
   [SPEC.md § Declarative/imperative field seam](../../SPEC.md#declarativeimperative-field-seam)).
   Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
-  incrementally with `create`/`add` or kind `set`.
+  incrementally with `issue <kind> add` or kind `set`.
 - **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
   To edit one epic or story without touching its siblings, root the doc there
   and reference the enclosing parents by id: an **epic form** (`project: <id>`

@@ -26,7 +26,7 @@ Glossary: plugin `SPEC.md`.
    - `implement` → `issue task set <id> status in-progress` (on first entry)
    - `revise` → `issue task set <id> status fixing` (on every revise entry)
 2. Run `issue summary <id>` to rebuild Project → Epic → Story → Task
-   context. Use `issue show <id>` when you need the full `description.md`.
+   context. Use `issue task view <id>` when you need the full `description.md`.
 3. The summary carries the Project **workspace** — run all implementation work
    (file edits, builds, tests, browser checks) with it as the cwd, and honor the
    unset escalation, per **SPEC § Project workspace**.
@@ -37,7 +37,7 @@ Glossary: plugin `SPEC.md`.
   (`issue summary <issueId>` is the source of truth)
 - **Issue id + title** (Task for implement / revise)
 - **Mode:** `implement` or `revise`
-- **Comment role** — pass as `--role <role>` on every `issue comment`
+- **Comment role** — pass as `--role <role>` on every `issue task comment`
 
 ## Mode
 
@@ -53,7 +53,7 @@ only. Complete all of **## Bootstrap** (steps 1–3) before other mode steps.
    Task's surface — do not re-run the prior Task's full matrix by default.
 4. **Intentional no-op.** If correctly satisfying the spec means landing **no
    file changes** (the working tree stays clean), signal it explicitly:
-   `issue task set <id> noDiff true`, then `issue comment <id> --role
+   `issue task set <id> noDiff true`, then `issue task comment <id> --role
    <comment-role> --body "..."` explaining why no diff is the right outcome.
    That structured flag plus the chat rationale is how the empty diff is judged
    and finalized downstream — an empty tree on its own is **not** a completion
@@ -63,7 +63,7 @@ only. Complete all of **## Bootstrap** (steps 1–3) before other mode steps.
 
 ## Revise
 
-1. Read feedback with `issue show <id> --chat`.
+1. Read feedback with `issue task view <id> --chat`.
 2. The feedback was delivered by a weaker engineer. You are the senior engineer. 
    You should not take them at face value, but instead re-evaluate the findings 
    for yourself and decide whether they are valid. Address findings you agree 
@@ -74,6 +74,6 @@ only. Complete all of **## Bootstrap** (steps 1–3) before other mode steps.
    outcome is no file changes, set it (`issue task set <id> noDiff true`) and
    say why in your reply.
 4. Post a succinct reply:
-   `issue comment <id> --role <comment-role> --body "..."` (what you changed,
+   `issue task comment <id> --role <comment-role> --body "..."` (what you changed,
    what you declined and why).
 5. Leave changes uncommitted.

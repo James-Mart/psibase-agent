@@ -26,10 +26,6 @@ type ViewOptions = {
   chat?: boolean;
 };
 
-function maybeAssertKind(kind: IssueKind | undefined, id: string): void {
-  if (kind) assertKind(kind, id);
-}
-
 function printIssueView(id: string, opts: ViewOptions = {}): void {
   const detail = read(id);
   const lines = [
@@ -85,7 +81,7 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
     }
     // Malformed chat lines are surfaced as stderr warnings but deliberately
     // do not fail the command: like list()'s `problems`, they are data
-    // warnings, not a failure of `show` itself, which still printed the
+    // warnings, not a failure of `view` itself, which still printed the
     // issue and every parseable message. Only thrown errors (e.g. unknown
     // id) set a nonzero exit code.
     for (const problem of problems) {
@@ -141,9 +137,9 @@ async function printComment(
   console.log(`commented on ${id} as ${message.name ?? message.role}`);
 }
 
-function registerViewCommand(parent: Command, run: Run, kind?: IssueKind): void {
+function registerViewCommand(parent: Command, run: Run, kind: IssueKind): void {
   parent
-    .command(kind ? "view" : "show")
+    .command("view")
     .argument("<id>", "issue id")
     .description(
       "print an issue's metadata and description (pass --chat for the chat log)",
@@ -151,13 +147,13 @@ function registerViewCommand(parent: Command, run: Run, kind?: IssueKind): void 
     .option("--chat", "also print the chat log")
     .action((id: string, opts: ViewOptions) =>
       run(() => {
-        maybeAssertKind(kind, id);
+        assertKind(kind, id);
         printIssueView(id, opts);
       }),
     );
 }
 
-function registerDeleteCommand(parent: Command, run: Run, kind?: IssueKind): void {
+function registerDeleteCommand(parent: Command, run: Run, kind: IssueKind): void {
   parent
     .command("delete")
     .argument("<id>", "issue id")
@@ -166,13 +162,13 @@ function registerDeleteCommand(parent: Command, run: Run, kind?: IssueKind): voi
     )
     .action((id: string) =>
       run(async () => {
-        maybeAssertKind(kind, id);
+        assertKind(kind, id);
         await printDeleteResult(id);
       }),
     );
 }
 
-function registerCommentCommand(parent: Command, run: Run, kind?: IssueKind): void {
+function registerCommentCommand(parent: Command, run: Run, kind: IssueKind): void {
   parent
     .command("comment")
     .argument("<id>", "issue id")
@@ -185,13 +181,13 @@ function registerCommentCommand(parent: Command, run: Run, kind?: IssueKind): vo
         opts: { role: string; body: string; name?: string },
       ) =>
         run(async () => {
-          maybeAssertKind(kind, id);
+          assertKind(kind, id);
           await printComment(id, opts);
         }),
     );
 }
 
-function registerAttachCommands(parent: Command, run: Run, kind?: IssueKind): void {
+function registerAttachCommands(parent: Command, run: Run, kind: IssueKind): void {
   parent
     .command("attach")
     .argument("<id>", "issue id (epic, idea, story, or task)")
@@ -201,7 +197,7 @@ function registerAttachCommands(parent: Command, run: Run, kind?: IssueKind): vo
     )
     .action((id: string, file: string) =>
       run(async () => {
-        maybeAssertKind(kind, id);
+        assertKind(kind, id);
         await printAttach(id, file);
       }),
     );
@@ -212,7 +208,7 @@ function registerAttachCommands(parent: Command, run: Run, kind?: IssueKind): vo
     .description("list attachment names and sizes")
     .action((id: string) =>
       run(() => {
-        maybeAssertKind(kind, id);
+        assertKind(kind, id);
         printAttachments(id);
       }),
     );
@@ -223,7 +219,7 @@ function registerAttachCommands(parent: Command, run: Run, kind?: IssueKind): vo
     .argument("<name>", "attachment basename to remove")
     .action((id: string, name: string) =>
       run(async () => {
-        maybeAssertKind(kind, id);
+        assertKind(kind, id);
         await printDetach(id, name);
       }),
     );
@@ -242,12 +238,4 @@ export function registerKindOps(
   if (kindHas(kind, "attachments")) {
     registerAttachCommands(kindCmd, run, kind);
   }
-}
-
-/** Legacy top-level aliases kept until the cutover Story deletes them. */
-export function registerLegacyOps(program: Command, run: Run): void {
-  registerViewCommand(program, run);
-  registerDeleteCommand(program, run);
-  registerCommentCommand(program, run);
-  registerAttachCommands(program, run);
 }

@@ -133,7 +133,7 @@ Run these four commands in order (use `<epicId>` throughout):
 Given a Task id: run `issue task get <taskId> assignee`. If stdout is empty, raise
 `issue task set <taskId> needsAttention true --reason "no implementor model assigned"` and stop
 — do not spawn the implementor. Otherwise use stdout (trimmed) as Cursor Task
-`model`. Never `show|head`, never infer from discriminator chat or prior Tasks.
+`model`. Never `view|head`, never infer from discriminator chat or prior Tasks.
 
 Because `issue tree` lists each Story after the Story it is stacked on,
 walking the outline top-to-bottom always reaches a stacked Story only after its
@@ -149,9 +149,9 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 | Git | `issue-tracker-git` | Start a Story; finish a Task after `qa=passed`; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | Before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
 | Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
-| Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `comment`) |
-| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `add-task` / `comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Story is `merged` and Epic `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue epic set … retro` / `issue <kind> set … needsAttention`) |
+| Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `issue task comment`) |
+| Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `issue task add` / `issue story|task comment`) |
+| Retro | `issue-tracker-retro` | Completion when every Story is `merged` and Epic `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`issue epic|story|task comment` / `apply` / `issue epic set … retro` / `issue <kind> set … needsAttention`) |
 
 ### Field ownership
 
@@ -280,7 +280,7 @@ Repeat until finish-branch:
    for each in tree order (entry gate + steps there). Then continue from
    step 1.
 3. **`specReview` gate.** Read `specReview` with
-   `issue story get <storyId> specReview` — never by parsing chat or `show`.
+   `issue story get <storyId> specReview` — never by parsing chat or `view`.
    If unset, spawn `issue-tracker-spec-conformance-validator` with the
    spec-conformance spawn stub. Wait until it finishes (or raises
    needsAttention); do not ingest
@@ -309,7 +309,7 @@ The Story walk ends when every Task in the Epic is `done`. Give a short
 final summary: which Stories were built, and anything still open or escalated
 (needsAttention escalation). For validator findings and what the implementor accepted or
 declined on revise, point the user at the tracker comments
-(`issue show <id> --chat`) rather than collecting them into your context. Note
+(`issue <kind> view <id> --chat`) rather than collecting them into your context. Note
 how finished Stories landed from the `issue tree` chips (`pr=` for an opened
 PR, `merged` for a merged Story, neither when left for the human).
 
@@ -434,7 +434,7 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 - Never implement, verify, or run the app yourself — always delegate. You own
   only coordination (thin CLI reads + spawn/resume). Field write scopes:
   **Field ownership**.
-- Prefer `issue <kind> get` for scalar field reads — do not parse `show` /
+- Prefer `issue <kind> get` for scalar field reads — do not parse `view` /
   `summary` / `tree` for a single field (except `summary`'s `Workspace:`
   bootstrap line and `tree` chips for walk order).
 - Never write Task `status`, Task `qa`, or Epic `retro` yourself (Field

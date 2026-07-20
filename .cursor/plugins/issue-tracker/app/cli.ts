@@ -28,12 +28,9 @@ import {
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
 import { hasAttention } from "./server/kind.js";
-import {
-  registerKindAdd,
-  registerLegacyCreateCommands,
-} from "./cli-create.js";
+import { registerKindAdd } from "./cli-create.js";
 import { registerKindGetSet } from "./cli-kind.js";
-import { registerKindOps, registerLegacyOps } from "./cli-ops.js";
+import { registerKindOps } from "./cli-ops.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
@@ -275,8 +272,6 @@ for (const kind of KINDS) {
   registerKindAdd(kindCmd, kind, run);
   registerKindOps(kindCmd, kind, run);
 }
-registerLegacyCreateCommands(program, run);
-registerLegacyOps(program, run);
 
 program
   .command("apply")

@@ -39,10 +39,10 @@ Every issue has a `kind`, one of:
 - **Idea** — a Project-level capture item (title, description, attachments,
   archive) that agents and humans mine later into real work. Leaf kind: no
   children, no assignee/needs-attention, no status or git fields, and **no
-  chat** (`appendMessage` / CLI `comment` / chat HTTP refuse Ideas). Is
-  `partOf` a Project (required). Epics and Ideas share one Project-child
-  sibling `order` space. There is no separate Idea Board kind — the "board" is
-  the Project's Ideas in the tree/CLI/UI.
+  chat** (`appendMessage` / kind-scoped CLI `comment` / chat HTTP refuse
+  Ideas). Is `partOf` a Project (required). Epics and Ideas share one
+  Project-child sibling `order` space. There is no separate Idea Board kind —
+  the "board" is the Project's Ideas in the tree/CLI/UI.
 - **Story** — a unit of work under an Epic. Contains Tasks. Carries
   `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, and `specReview`.
   Status is derived, never stored.
@@ -98,9 +98,10 @@ re-derived from `stackedOn` at git time.
 
 - **Shared resolver** — canonical algorithm for a Story's `mergeBase` from its
   fork point:
-  - **Triggers**: any write that sets or clears `stackedOn` — create, `apply`
-    (when the doc changes it), kind [`set`](#kind-scoped-get--set), and delete
-    splice ([foreign-reference resolution](#foreign-reference-resolution)).
+  - **Triggers**: any write that sets or clears `stackedOn` — kind-scoped
+    `add`, `apply` (when the doc changes it), kind
+    [`set`](#kind-scoped-get--set), and delete splice
+    ([foreign-reference resolution](#foreign-reference-resolution)).
   - **Algorithm**: no `stackedOn` (root or unstack) → `main`; stacked on a
     merged parent → `parent.mergeBase`; else parent's `branchName` when set;
     else unset (key absent).
@@ -170,27 +171,73 @@ These are computed by `derive()` and never written to disk (see
   dependency cycles, dangling `partOf`/`stackedOn`/`blockedBy` ids, kind
   violations, and malformed/invalid files.
 
-## Kind-scoped `get` / `set`
+## CLI surface
 
-Field read/write on the CLI is kind-scoped:
+One rule: single-issue ops are kind-scoped; multi-kind / board ops stay global.
+The CLI kind must equal the issue's stored `kind` (hard error otherwise).
+
+### Kind-scoped ops
+
+```
+issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
+```
+
+`<kind>` is one of `project` | `epic` | `idea` | `story` | `task`.
+
+| verb | kinds |
+| --- | --- |
+| `add` / `get` / `set` / `view` / `delete` | every kind |
+| `comment` | epic / story / task (not project / idea) |
+| `attach` / `attachments` / `detach` | epic / idea / story / task (not project) |
+
+- **`add`** — `issue project add <title>` (no `--part-of`); children take
+  `--part-of`. Description: `--description` and/or `--file` (use `-` for
+  stdin). Also: `--assignee` on epic / story / task; `--stacked-on` on story.
+  Prints the new id on stdout.
+- **`view`** — `issue <kind> view <id>` (pass `--chat` for the chat log).
+  Prefer `issue <kind> get <id> <field>` for a single field.
+- **`delete`** — `issue <kind> delete <id>`; cascades per
+  [Deletion policy](#deletion-policy).
+- **`comment`** — `issue epic|story|task comment <id> --role <role> --body
+  <text>` (optional `--name`); see [Service layer](#service-layer).
+- **`attach` / `attachments` / `detach`** —
+  `issue epic|idea|story|task attach <id> <file>` /
+  `issue epic|idea|story|task attachments <id>` /
+  `issue epic|idea|story|task detach <id> <name>`; see
+  [Attachments](#attachments).
+
+### Global ops
+
+```
+issue apply|tree|summary|list
+```
+
+- **`apply`** — declarative upsert; see [`apply` doc format](#apply-doc-format).
+- **`summary <id>`** — Project → … → target chain for agent bootstrap.
+  (`summary`'s `Workspace:` line remains the bootstrap contract for
+  [Project workspace](#project-workspace) resolution.)
+- **`tree [id]`** / **`list [id]`** — identical optional positional `[id]`
+  scoping (no title lookup). Omitted = all projects; project / epic / story
+  scopes the subtree; idea / task refused. `list` keeps JSON shape `issues` /
+  `derived` / `problems`, filtered to scope. `--show-archived` unchanged. No
+  kind-scoped `list`.
+
+<a id="kind-scoped-get--set"></a>
+
+### Kind-scoped `get` / `set`
+
+Field read/write:
 
 - `issue <kind> get <id> <field>`
 - `issue <kind> set <id> <field> [value] [--clear] [--add <ids...>] [--remove <ids...>] [--file <path|->] [--reason <text>]`
 
-`<kind>` is one of `project` | `epic` | `story` | `task`. The verb kind must
-equal the issue's stored `kind` (hard error otherwise). Field names are
-camelCase, identical to schema / `issue.json` keys. There is no cross-kind
-`get`/`set`; shared fields are repeated on each kind that owns them.
+Field names are camelCase, identical to schema / `issue.json` keys. There is no
+cross-kind `get`/`set`; shared fields are repeated on each kind that owns them.
 
 Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
-`show` / `summary` / `tree` for a single field. (`summary`'s `Workspace:` line
-remains the bootstrap contract for [Project workspace](#project-workspace)
-resolution.)
+`view` / `summary` / `tree` for a single field.
 
-Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
-`summary` / `show` / `list` / `tree`) are unchanged.
-
-### `get`
+#### `get`
 
 - Prints the value alone on stdout (composable in `$(...)`).
 - Scalars raw; arrays/objects as JSON.
@@ -201,10 +248,10 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   derived fields (`epicStatus`, `storyStatus`, `blocked`, `base`, …).
 - Includes `description` and `attentionReason` as readable fields.
 
-### `set`
+#### `set`
 
 - Typed coercion + validation; same `update` + `checkIntegrity` write path as
-  `apply` / create.
+  `apply` / `add`.
 - Per-kind **set** allowlists (not a flat shared allowlist). Shared machinery is
   only coerce/dispatch (bool/enum/JSON/array/`--clear`/`--file`/`--reason`).
 - `order` is not settable. `mergeBase` is not settable (see
@@ -214,16 +261,17 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
 - **CLI/UI parity:** `set` can do anything the UI edit form can, including
   *clearing* fields via `--clear` (behaviors below).
 
-#### Set allowlists
+##### Set allowlists
 
 | kind | settable fields |
 | --- | --- |
 | project | `title`, `workspace`, `mergePolicy`, `description` |
 | epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `description` |
+| idea | `title`, `archived`, `partOf`, `description` |
 | story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
 | task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
-#### Value parsing
+##### Value parsing
 
 - Enums: literal strings.
 - Booleans: only `true` / `false`.
@@ -238,10 +286,10 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
 - `description`: omit positional value when `--file <path|->` is passed.
-  `--file` is the generic "value from a file" flag. Create/`add` verbs use the
+  `--file` is the generic "value from a file" flag. Kind-scoped `add` uses the
   same `--file` for seeding `description.md`.
 
-#### `needsAttention`
+##### `needsAttention`
 
 - `issue <kind> set <id> needsAttention true --reason <text>` — `--reason` is
   required.
@@ -271,8 +319,8 @@ issues/<id>/
 - `<id>` = directory name, mirrored in `issue.json.id`, **stable** across title
   edits, and globally unique across all kinds. Its *origin* depends on the
   writer, but the result is the same kind of id either way:
-  - the imperative `create*` verbs **derive** it as a slug from the title at
-    creation, adding a numeric suffix on collision (`add-auth`, `add-auth-2`);
+  - kind-scoped `add` **derives** it as a slug from the title at creation,
+    adding a numeric suffix on collision (`add-auth`, `add-auth-2`);
   - the declarative [`apply`](#apply-doc-format) doc requires an
     **author-chosen** id on every node (kebab, unique, slug-safe, and
     title-independent, so it survives retitles and lets `issue:<id>` cross-links
@@ -321,8 +369,8 @@ short overview of the Project.
 A Project's optional `workspace` is the absolute path to the local git checkout
 its Epics' work lands in. It is set with
 `issue project set <projectId> workspace <path>` (cleared with `--clear`) and
-surfaced on the Project node by both `issue show` (a `workspace:` line) and
-`issue summary` (a `Workspace:` line under the Project). Prefer
+surfaced on the Project node by both `issue project view` (a `workspace:`
+line) and `issue summary` (a `Workspace:` line under the Project). Prefer
 `issue project get <projectId> workspace` for a single-field read.
 
 The field exists so the work loop's **repo-touching subagents** (git,
@@ -506,7 +554,7 @@ nodes inside the tree — they are the selectable root. Projects are ordered by
 
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
-position (and rejects an explicit `order` key). Imperative `create` appends
+position (and rejects an explicit `order` key). Imperative `add` appends
 (`max + 1`); reparenting without an explicit `order` patch re-appends in the new
 group. Tree emission is structural DFS (each level sorted by `order`), never by
 `id` or `createdAt`.
@@ -521,12 +569,13 @@ node applies the same value to all descendants (cascade). Creating a child
 under any archived ancestor starts the child `archived: true`. Archiving a
 child while its parent stays unarchived remains allowed. Ideas are leaves, so
 archiving an Idea has no descendants to cascade to. `issue tree` and
-`issue list` omit archived rows by default; pass `--show-archived` to include
-them. The web UI tree uses the same filter rule: archived rows are hidden
-unless the client "Show archived" preference is on (default off; fills the
-former Ready view-control slot next to search). Detail header and tree-row
-hover expose Archive / Unarchive actions that PATCH `archived` through the same
-cascade path as CLI `set`.
+`issue list` (optional positional `[id]` scope — see
+[CLI surface](#cli-surface)) omit archived rows by default; pass
+`--show-archived` to include them. The web UI tree uses the same filter rule:
+archived rows are hidden unless the client "Show archived" preference is on
+(default off; fills the former Ready view-control slot next to search). Detail
+header and tree-row hover expose Archive / Unarchive actions that PATCH
+`archived` through the same cascade path as CLI `set`.
 
 ## `chat.jsonl` message shape
 
@@ -571,11 +620,11 @@ no consumer can persist a broken file.
   field not valid for the issue's kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
   surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
-  over HTTP as `DELETE /api/issues/:id` and via the CLI `delete` command.
+  over HTTP as `DELETE /api/issues/:id` and via `issue <kind> delete`.
 - `appendMessage(id, {role, name?, body})` — appends one JSONL line to
   `chat.jsonl` with a server-stamped `at`. Refused with a validation error for
-  Ideas (CLI `comment` and chat HTTP share this path); does not create
-  `chat.jsonl`.
+  Ideas (`issue epic|story|task comment` and chat HTTP share this path); does
+  not create `chat.jsonl`.
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
   `problems`. An Idea with no chat file returns empty messages (same as any
   other kind without `chat.jsonl`).
@@ -669,9 +718,9 @@ bytes, and any name that is not a plain basename. No extension allowlist.
 **Unique names.** `putAttachment` stores under a collision-free basename: the
 requested basename when free, otherwise `{stem}-{n}{ext}` with the smallest
 `n ≥ 2` not already taken (stem + last extension). Existing files are never
-overwritten. Removal is explicit (`removeAttachment` / CLI `detach` /
-`DELETE`). There is no rename verb — attach under the desired basename and
-detach the old name.
+overwritten. Removal is explicit (`removeAttachment` /
+`issue epic|idea|story|task detach` / `DELETE`). There is no rename verb —
+attach under the desired basename and detach the old name.
 
 **HTTP** (thin adapter over the service; payloads are not embedded in
 `GET /api/issues/:id`):
@@ -857,12 +906,12 @@ preserves everything else from the existing same-kind issue.
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
-| `chat.jsonl` | imperative only (`comment`); `apply` never reads or writes it |
-| `attachments/` | imperative only (HTTP attach/detach); `apply` never reads or writes attachment bytes |
+| `chat.jsonl` | imperative only (`issue epic|story|task comment`); `apply` never reads or writes it |
+| `attachments/` | imperative only (HTTP or `issue epic|idea|story|task attach` / `detach`); `apply` never reads or writes attachment bytes |
 
 So authoring/decomposition is declarative through `apply`, while working the
-stack (progress, git facts, escalation, chat, attachments) stays on kind
-`get`/`set` and the kept one-shot verbs — the two never fight over a field.
+stack (progress, git facts, escalation, chat, attachments) stays on the
+kind-scoped ops — the two never fight over a field.
 
 ## Derived state
 

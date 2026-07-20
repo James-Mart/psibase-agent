@@ -20,14 +20,6 @@ type CreateOpts = CreateDescriptionOpts & {
   stackedOn?: string;
 };
 
-/** Legacy top-level aliases kept until the cutover Story deletes them. */
-const LEGACY_CREATE_COMMANDS: Partial<Record<IssueKind, string>> = {
-  project: "create-project",
-  epic: "create-epic",
-  story: "add-story",
-  task: "add-task",
-};
-
 function withCreateKindOptions(cmd: Command, kind: IssueKind): Command {
   const parentKind = PARENT_KIND[kind];
   if (parentKind) {
@@ -60,31 +52,15 @@ function buildCreateInput(
   };
 }
 
-export function registerCreateCommand(
-  parent: Command,
-  name: string,
-  kind: IssueKind,
-  run: Run,
-): void {
-  withCreateKindOptions(
-    parent.command(name).argument("<title>", `${kind} title`),
-    kind,
-  ).action((title: string, opts: CreateOpts) =>
-    run(() => create(buildCreateInput(kind, title, opts))),
-  );
-}
-
 export function registerKindAdd(
   kindCmd: Command,
   kind: IssueKind,
   run: Run,
 ): void {
-  registerCreateCommand(kindCmd, "add", kind, run);
-}
-
-export function registerLegacyCreateCommands(program: Command, run: Run): void {
-  for (const kind of Object.keys(LEGACY_CREATE_COMMANDS) as IssueKind[]) {
-    const name = LEGACY_CREATE_COMMANDS[kind];
-    if (name) registerCreateCommand(program, name, kind, run);
-  }
+  withCreateKindOptions(
+    kindCmd.command("add").argument("<title>", `${kind} title`),
+    kind,
+  ).action((title: string, opts: CreateOpts) =>
+    run(() => create(buildCreateInput(kind, title, opts))),
+  );
 }

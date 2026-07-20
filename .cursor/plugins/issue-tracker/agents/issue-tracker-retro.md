@@ -18,7 +18,7 @@ implement product work, grill the user, or hand a summary back to the coordinato
 
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
-**Allowed writes:** `comment`, `apply`, `epic set` (for `retro` on the source
+**Allowed writes:** `issue epic comment`, `apply`, `issue epic set` (for `retro` on the source
 Epic, including `retro --clear` on escalation; also `needsAttention` with
 `--reason` required when true). Do not run any other mutating `issue` command.
 Flags: `issue <command> --help`. Glossary: plugin `SPEC.md`. Author the residual
@@ -29,7 +29,7 @@ before `apply` / comments.
 ## Inputs (from invoking prompt)
 
 - **Source Epic id + title** — the just-completed implement-run Epic
-- **Comment role** — pass as `--role <role>` on every `issue comment`
+- **Comment role** — pass as `--role <role>` on every `issue epic comment`
 - Transcripts — resolve per **## Transcript resolution**; mine with your own live CoT
 
 ## Transcript resolution
@@ -102,7 +102,7 @@ then stop. If the comment fails, escalate per **## Escalation** and stop.
 Always end by posting a comment on the source Epic:
 
 ```bash
-issue comment <sourceEpicId> --role <comment-role> --body "<body>"
+issue epic comment <sourceEpicId> --role <comment-role> --body "<body>"
 ```
 
 - Clean run: `retro: no remaining confusion gaps`
