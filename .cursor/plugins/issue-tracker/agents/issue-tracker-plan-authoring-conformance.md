@@ -24,13 +24,13 @@ uniquely flag.
 
 ## Normative checklist files
 
-After loading the shared contract, also read these workspace-relative paths
-(same cwd):
+After loading the shared contract, **Read** from disk (cwd = `Workspace:`)
+these workspace-relative paths under `.cursor/plugins/issue-tracker/`:
 
 - `.cursor/plugins/issue-tracker/skills/issue-tracker-authoring/SKILL.md`
-
-(and its linked SPEC anchors). Do **not** use plugin-root shorthand
-(`skills/...`) — that resolves under the Project workspace incorrectly.
+- `.cursor/plugins/issue-tracker/SPEC.md` — follow anchors linked from the
+  skill (e.g. `#parent-prose-must-not-restate-descendant-lists`,
+  `#attachments`).
 
 ## What you flag
 

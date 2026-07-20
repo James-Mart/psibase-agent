@@ -16,16 +16,14 @@ edit workspace source.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
+Invoke the installed `issue` CLI as `issue <subcommand> …`. Flags:
+`issue --help` / `issue <subcommand> --help`. Glossary:
+`.cursor/plugins/issue-tracker/SPEC.md#cli-invariants`.
 
 **Read-only allowlist:** `summary`, `tree`, `list`,
-`<kind> get`, `<kind> view`, `<kind> attachments`, and `--help`. Do **not** run mutating commands
-(`<kind> comment`, `apply`, `<kind> set`, `<kind> delete`, `<kind> add`, `<kind> attach`, `<kind> detach`,
-git-fact verbs, etc.).
+`<kind> get`, `<kind> view`, `<kind> attachments`, and `--help`.
 
-Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars) — do
-not filesystem-read `issues/**`.
+Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
 
 ## Bootstrap
 

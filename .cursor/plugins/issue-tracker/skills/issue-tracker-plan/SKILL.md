@@ -19,8 +19,9 @@ Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 Grain, apply doc shape, parent-prose, and prune-by-default rules live in
-issue-tracker-authoring and [SPEC.md](../../SPEC.md) — follow those when
-building the tree; do not restate them here.
+issue-tracker-authoring and [SPEC.md](../../SPEC.md) — when proposing the
+Epic tree, apply those rules yourself; only ask the user when a product
+or dependency choice remains after those rules. Do not restate them here.
 
 ## Argument
 
@@ -68,6 +69,10 @@ a **shared understanding**. Walk down each branch of the design tree, resolving
 dependencies between decisions one-by-one. For each question, provide your
 recommended answer.
 
+Do **not** ask the user to choose Story vs Task grain or slice
+decomposition — apply issue-tracker-authoring grain yourself. Reserve
+questions for product and dependency choices that remain after those rules.
+
 **Rules (mandatory):**
 
 - Ask **one question at a time**, waiting for feedback before continuing.
@@ -77,8 +82,8 @@ recommended answer.
   only via a `(recommended)` prefix in the **list of answers** (not inside the
   question).
 - If a fact can be found by exploring the codebase (cwd = Project
-  `Workspace:`), **look it up** rather than asking. Decisions remain the
-  user's — put each one to them and wait.
+  `Workspace:`), **look it up** rather than asking. Product and dependency
+  decisions remain the user's — put each one to them and wait.
 - **Do not enact** the plan (no `apply`, no tracker writes that materialize the
   tree) until the user confirms you have reached a shared understanding.
 
