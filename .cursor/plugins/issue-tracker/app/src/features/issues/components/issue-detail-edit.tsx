@@ -1,12 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import {
-  TASK_STATUSES,
-  type TaskStatus,
-  type IssueDetail,
-  type IssuePatch,
-  type MergePolicy,
-} from "@server/schemas";
+import type { IssueDetail, IssuePatch, MergePolicy } from "@server/schemas";
 import {
   FIELD_LABELS,
   KIND_FIELD_KEYS,
@@ -21,13 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUpdateIssue } from "../api/mutations";
 import { useDescriptionEditorUpload } from "../hooks/use-description-editor-upload";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
@@ -36,6 +23,7 @@ import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
+import { TaskStatusChips } from "./task-status-chips";
 import { WorkspacePathInput } from "./workspace-path-input";
 
 interface FormState {
@@ -47,7 +35,6 @@ interface FormState {
   needsAttention: boolean;
   attentionReason: string;
   partOf: string;
-  status: TaskStatus;
   commitSha: string;
   branchName: string;
   stackedOn: string;
@@ -66,7 +53,6 @@ function formStateFromIssue(issue: IssueDetail): FormState {
     needsAttention: hasAttention(issue) ? issue.needsAttention : false,
     attentionReason: hasAttention(issue) ? issue.attentionReason ?? "" : "",
     partOf: "partOf" in issue ? issue.partOf : "",
-    status: issue.kind === "task" ? issue.status : "todo",
     commitSha: issue.kind === "task" ? issue.commitSha ?? "" : "",
     branchName: issue.kind === "story" ? issue.branchName ?? "" : "",
     stackedOn: issue.kind === "story" ? issue.stackedOn ?? "" : "",
@@ -153,7 +139,6 @@ export function IssueDetailEdit({
     }
 
     if (issue.kind === "task") {
-      if (form.status !== issue.status) patch.status = form.status;
       setClearable("commitSha", form.commitSha, issue.commitSha);
     }
 
@@ -198,23 +183,10 @@ export function IssueDetailEdit({
         onChange={(value) => set("mergePolicy", value)}
       />
     ),
-    status: (
-      <Select
-        value={form.status}
-        onValueChange={(v) => set("status", v as TaskStatus)}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TASK_STATUSES.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    ),
+    status:
+      issue.kind === "task" ? (
+        <TaskStatusChips status={issue.status} qa={issue.qa} />
+      ) : null,
     commitSha: (
       <Input
         value={form.commitSha}

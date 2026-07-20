@@ -8,11 +8,8 @@ import { useIssuesQuery } from "../api/queries";
 import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
-import {
-  STORY_STATUS_CLASS,
-  STORY_STATUS_LABEL,
-  TASK_STATUS_CLASS,
-} from "../lib/derived";
+import { StoryAxisChips, storyAxesVisible } from "./axis-chips";
+import { TaskStatusChips } from "./task-status-chips";
 
 function BranchPanel({
   issue,
@@ -37,13 +34,14 @@ function BranchPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Git / stack
       </div>
-      {state?.storyStatus ? (
+      {storyAxesVisible(state?.storyStatus, issue.specReview) ? (
         <Row
           label="Status"
           value={
-            <span className={STORY_STATUS_CLASS[state.storyStatus]}>
-              {STORY_STATUS_LABEL[state.storyStatus]}
-            </span>
+            <StoryAxisChips
+              storyStatus={state?.storyStatus}
+              specReview={issue.specReview}
+            />
           }
         />
       ) : null}
@@ -112,9 +110,11 @@ function BranchPanel({
                   <GitCommitHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="truncate">{c.title}</span>
                   {c.kind === "task" ? (
-                    <span className={`ml-auto text-xs ${TASK_STATUS_CLASS[c.status]}`}>
-                      {c.status}
-                    </span>
+                    <TaskStatusChips
+                      status={c.status}
+                      qa={c.qa}
+                      className="ml-auto"
+                    />
                   ) : null}
                 </Link>
               ))}
@@ -152,7 +152,7 @@ function CommitPanel({
       {branch?.kind === "story" && branch.branchName ? (
         <Row label="Branch name" value={<span className="font-mono">{branch.branchName}</span>} />
       ) : null}
-      <Row label="Status" value={<span className={TASK_STATUS_CLASS[issue.status]}>{issue.status}</span>} />
+      <Row label="Status" value={<TaskStatusChips status={issue.status} qa={issue.qa} />} />
       <Row
         label="Commit SHA"
         value={
