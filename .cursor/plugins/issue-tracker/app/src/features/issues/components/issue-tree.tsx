@@ -35,14 +35,9 @@ import {
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
-import {
-  STORY_STATUS_CLASS,
-  STORY_STATUS_LABEL,
-  EPIC_STATUS_CLASS,
-  EPIC_STATUS_LABEL,
-} from "../lib/derived";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { AxisChip } from "./axis-chip";
+import { EpicAxisChips, StoryAxisChips } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 import { IssueBadges } from "./issue-badges";
 
@@ -77,19 +72,16 @@ function TreeRowDerivedMeta({
   derived?: DerivedState;
 }) {
   if (issue.kind === "story") {
-    if (!derived?.storyStatus) return null;
     return (
-      <span className={`text-xs ${STORY_STATUS_CLASS[derived.storyStatus]}`}>
-        {STORY_STATUS_LABEL[derived.storyStatus]}
-      </span>
+      <StoryAxisChips
+        storyStatus={derived?.storyStatus}
+        specReview={issue.specReview}
+      />
     );
   }
   if (issue.kind === "epic") {
-    if (!derived?.epicStatus) return null;
     return (
-      <span className={`text-xs ${EPIC_STATUS_CLASS[derived.epicStatus]}`}>
-        {EPIC_STATUS_LABEL[derived.epicStatus]}
-      </span>
+      <EpicAxisChips epicStatus={derived?.epicStatus} retro={issue.retro} />
     );
   }
   if (issue.kind === "task" && issue.commitSha) {

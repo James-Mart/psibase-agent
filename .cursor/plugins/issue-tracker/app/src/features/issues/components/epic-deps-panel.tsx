@@ -4,7 +4,7 @@ import { epicIsDone } from "@server/services/derive";
 import { useIssuesQuery } from "../api/queries";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
-import { EPIC_STATUS_CLASS, EPIC_STATUS_LABEL } from "../lib/derived";
+import { EpicAxisChips, epicAxesVisible } from "./axis-chips";
 
 function DepsPanel({
   issue,
@@ -23,13 +23,11 @@ function DepsPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Dependencies
       </div>
-      {state?.epicStatus ? (
+      {epicAxesVisible(state?.epicStatus, issue.retro) ? (
         <Row
           label="Status"
           value={
-            <span className={EPIC_STATUS_CLASS[state.epicStatus]}>
-              {EPIC_STATUS_LABEL[state.epicStatus]}
-            </span>
+            <EpicAxisChips epicStatus={state?.epicStatus} retro={issue.retro} />
           }
         />
       ) : null}

@@ -8,7 +8,7 @@ import { useIssuesQuery } from "../api/queries";
 import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
-import { STORY_STATUS_CLASS, STORY_STATUS_LABEL } from "../lib/derived";
+import { StoryAxisChips, storyAxesVisible } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 
 function BranchPanel({
@@ -34,13 +34,14 @@ function BranchPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Git / stack
       </div>
-      {state?.storyStatus ? (
+      {storyAxesVisible(state?.storyStatus, issue.specReview) ? (
         <Row
           label="Status"
           value={
-            <span className={STORY_STATUS_CLASS[state.storyStatus]}>
-              {STORY_STATUS_LABEL[state.storyStatus]}
-            </span>
+            <StoryAxisChips
+              storyStatus={state?.storyStatus}
+              specReview={issue.specReview}
+            />
           }
         />
       ) : null}

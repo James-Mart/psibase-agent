@@ -1,13 +1,10 @@
-import { AlertTriangle, CircleSlash, ClipboardCheck, User } from "lucide-react";
+import { AlertTriangle, CircleSlash, User } from "lucide-react";
 import type { IssueRecord } from "@server/schemas";
 import { assigneeOf } from "@server/assignee";
 import { hasAttention } from "@server/kind";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
-import {
-  SPEC_REVIEW_BADGE_VARIANT,
-  SPEC_REVIEW_LABEL,
-} from "../lib/derived";
+import { SpecReviewBadge } from "./spec-review-badge";
 
 export function IssueBadges({
   issue,
@@ -45,12 +42,7 @@ export function IssueBadges({
           {assignee}
         </Badge>
       ) : null}
-      {specReview ? (
-        <Badge variant={SPEC_REVIEW_BADGE_VARIANT[specReview]} className="gap-1">
-          <ClipboardCheck className="h-3 w-3" />
-          {SPEC_REVIEW_LABEL[specReview]}
-        </Badge>
-      ) : null}
+      {specReview ? <SpecReviewBadge status={specReview} /> : null}
       {noDiff ? (
         <Badge variant="secondary" className="gap-1" title="Intentional empty implementor diff">
           <CircleSlash className="h-3 w-3" />

@@ -4,6 +4,7 @@ import type {
   EpicStatus,
   SpecReviewStatus,
   QaStatus,
+  RetroStatus,
 } from "@server/schemas";
 import type { BadgeProps } from "@/components/ui/badge";
 
@@ -46,11 +47,14 @@ export const STORY_STATUS_LABEL: Record<StoryStatus, string> = {
   merged: "merged",
 };
 
-export const STORY_STATUS_CLASS: Record<StoryStatus, string> = {
-  "not-started": "text-muted-foreground",
-  "in-progress": "[color:hsl(var(--warning))]",
-  "pr-open": "text-foreground",
-  merged: "[color:hsl(var(--success))]",
+export const STORY_STATUS_BADGE_VARIANT: Record<
+  StoryStatus,
+  NonNullable<BadgeProps["variant"]>
+> = {
+  "not-started": "todo",
+  "in-progress": "inProgress",
+  "pr-open": "outline",
+  merged: "done",
 };
 
 export const EPIC_STATUS_LABEL: Record<EpicStatus, string> = {
@@ -59,10 +63,13 @@ export const EPIC_STATUS_LABEL: Record<EpicStatus, string> = {
   done: "done",
 };
 
-export const EPIC_STATUS_CLASS: Record<EpicStatus, string> = {
-  todo: "text-muted-foreground",
-  "in-progress": "[color:hsl(var(--warning))]",
-  done: "[color:hsl(var(--success))]",
+export const EPIC_STATUS_BADGE_VARIANT: Record<
+  EpicStatus,
+  NonNullable<BadgeProps["variant"]>
+> = {
+  todo: "todo",
+  "in-progress": "inProgress",
+  done: "done",
 };
 
 export const SPEC_REVIEW_LABEL: Record<SpecReviewStatus, string> = {
@@ -76,4 +83,17 @@ export const SPEC_REVIEW_BADGE_VARIANT: Record<
 > = {
   passed: "done",
   failed: "destructive",
+};
+
+export const RETRO_LABEL: Record<RetroStatus, string> = {
+  "in-progress": "in progress",
+  done: "done",
+};
+
+export const RETRO_BADGE_VARIANT: Record<
+  RetroStatus,
+  NonNullable<BadgeProps["variant"]>
+> = {
+  "in-progress": "inProgress",
+  done: "done",
 };
