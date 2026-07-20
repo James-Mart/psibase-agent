@@ -35,6 +35,7 @@ import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
+import { SupportingDocsSection } from "./supporting-docs-section";
 import { supportsAttachments } from "../lib/attachments";
 
 const DETAIL_SHELL_CLASS =
@@ -182,6 +183,9 @@ function IssueDetailBody({
               <p className="text-sm text-muted-foreground">No description.</p>
             )}
           </div>
+          {issue.kind === "project" ? (
+            <SupportingDocsSection supportingDocs={issue.supportingDocs} />
+          ) : null}
           {kindHas(issue.kind, "chat") ? (
             <ChatPanel
               id={issue.id}
