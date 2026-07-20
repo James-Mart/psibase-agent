@@ -2,10 +2,11 @@
 name: issue-tracker-work
 description: >-
   Coordinate implementation of one tracked Epic without doing the work yourself:
-  walk its `tree --epic <id>` outline top-to-bottom, delegating each task to
-  plugin subagents (model discriminator, implementor, validators, git; revise =
-  implementor resume). Use when an agent works a tracked Epic to completion.
-  Assumes the CLI from issue-tracker-authoring; glossary in SPEC.md.
+  walk its `tree --epic <id>` outline top-to-bottom, delegating each task through
+  a per-task QA loop (model discriminator, implementor, code-quality on `qa`,
+  git; revise = implementor resume when `qa=changes-requested`). Use when an
+  agent works a tracked Epic to completion. Assumes the CLI from
+  issue-tracker-authoring; glossary in SPEC.md.
 ---
 
 # Issue Tracker — Work the Stack
@@ -19,20 +20,23 @@ The coordinator does no real reasoning — it reads tracker state, runs a thin s
 of CLI commands, and spawns subagents in a fixed order — so it should itself run
 on the cheap model, **Composer 2.5 (`composer-2.5`)**, not a premium model. The
 model discriminator assigns an implementor model onto each Task; the
-implementor writes code; the code-quality validator is advisory (read-only
-comments); the spec-conformance validator records the Story gate (`specReview`,
-optional remediation Task) without editing workspace source; the git subagent
-owns branch create, Task finalize, and Story finish.
+implementor writes code; the code-quality validator owns Task `qa` (writes the
+gate, resumes across rounds, three-strike escalate); the spec-conformance
+validator records the Story gate (`specReview`, optional remediation Task)
+without editing workspace source; the git subagent owns branch create, Task
+finalize, and Story finish.
 
 **You do not write code, run the app, or verify the work yourself.** You read the
-plan with `issue tree`, mark Tasks in-progress, and spawn subagents. Do
-**essentially no reasoning**: every coordinator step below is a CLI invocation
-or a fixed linear action — this skill is meant to be replaced by a deterministic
-script. Never set status on a Story or Epic — Story/Epic status derives
-automatically (see SPEC.md). Git and git-fact recording are delegated — see
-Rules. Task `assignee` is overloaded as the implementor **model id** (set by
-the model discriminator via `issue task set <taskId> assignee …`). Before each implementor spawn,
-**Resolve implementor model** (below) and pass the result as Cursor Task `model`.
+plan with `issue tree` and spawn subagents. Do **essentially no reasoning**:
+every coordinator step below is a CLI invocation or a fixed linear action —
+this skill is meant to be replaced by a deterministic script. Never set status
+on a Story or Epic — Story/Epic status derives automatically (see SPEC.md).
+Task `status` / `qa` and Epic `retro` writes are subagent-owned — see **Field
+ownership**. Git and git-fact recording are delegated — see Rules. Task
+`assignee` is overloaded as the implementor **model id** (set by the model
+discriminator via `issue task set <taskId> assignee …`). Before each
+implementor spawn, **Resolve implementor model** (below) and pass the result
+as Cursor Task `model`.
 
 **Nomenclature:** **Task** / **Story** are issue-tracker kinds. **Cursor Task**
 is the subagent spawn/resume tool (`model`, `prompt`, `subagent_type`, resume).
@@ -141,19 +145,33 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
-| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | writes (`issue task set … status in-progress` only) |
-| Git | `issue-tracker-git` | Start a Story; finish a Task after revise; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
-| Model discriminator | `issue-tracker-model-discriminator` | After `in-progress`, before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
-| Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes |
-| Code-quality validator | `issue-tracker-code-quality-validator` | After a Task's implementation signals finished | Composer 2.5 (pinned in agent frontmatter) | read-only |
+| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | spawn/CLI only (see Field ownership) |
+| Git | `issue-tracker-git` | Start a Story; finish a Task after `qa=passed`; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
+| Model discriminator | `issue-tracker-model-discriminator` | Before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
+| Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
+| Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `comment`) |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `add-task` / `comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Story in the Epic is `merged` | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue <kind> set … needsAttention`) |
+| Retro | `issue-tracker-retro` | Completion when every Story is `merged` and Epic `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`comment` / `apply` / `issue epic set … retro` / `issue <kind> set … needsAttention`) |
 
-Implement and revise are the **same** implementor agent. Code-quality is
-advisory (read-only `issue comment`) — it surfaces issues but is **not** in
-charge. Spec-conformance is the Story gate recorder: it sets `specReview` and
-may append a remediation Task (tracker writes only; never workspace source).
-Both keep findings out of your context via comments / machine-readable fields.
+### Field ownership
+
+Coordinator writes **none** of Task `status`, Task `qa`, or Epic `retro`.
+
+| Field | Owner | When |
+|-------|-------|------|
+| Task `status` `in-progress` | Implementor | on first implement entry |
+| Task `status` `fixing` | Implementor | on every revise entry |
+| Task `status` `done` | Git (finish-commit) | Task finalize |
+| Task `qa` | Code-quality | on each entry `reviewing`, then terminal `passed` / `changes-requested` (three-strike → `needsAttention`); never the coordinator |
+| Epic `retro` `in-progress` | Retro | after transcript resolution succeeds |
+| Epic `retro` `done` | Retro | after successful terminal comment |
+
+Implement and revise are the **same** implementor agent. Code-quality is a
+**writer** of Task `qa` (spawn/resume and three-strike escalate: see **Per-Task
+cycle** — you do **not** count rounds). Spec-conformance is the Story gate
+recorder: it sets `specReview` and may append a remediation Task (tracker
+writes only; never workspace source). Both keep findings out of your context
+via comments / machine-readable fields.
 
 ## The loop
 
@@ -178,23 +196,79 @@ creates and records the git branch.
 
 ### Per-Task cycle (for each Task, in sequence)
 
-1. **Mark in-progress.** `issue task set <taskId> status in-progress`.
-2. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
+**Canonical** definition of implementor / code-quality spawn and resume.
+Other sections only cross-reference this. Status transitions during this cycle
+are owned by subagents — see **Field ownership**. Do not set Task `status` or
+`qa` yourself. Do not count QA rounds.
+
+0. **Entry gate.** On every entry to this cycle for `<task>` (including skill
+   re-run and Close-Story not-done), read via `issue task get` — in order —
+   `needsAttention`, then `qa`. First match wins; jump to that step and
+   continue the numbered flow from there. Do **not** re-run this gate
+   mid-cycle (after a subagent returns, follow the step that sent you there).
+   - `needsAttention` is `true` → stop (Escalation).
+   - `qa` is `passed` → step 5 (Finalize).
+   - `qa` is `reviewing` → step 3 (resume code-quality; stuck mid-review).
+   - `qa` is `changes-requested` → step 2b (revise; do not Mode `implement`).
+   - otherwise (`qa` unset) → step 1.
+
+   **Cold-restart limits** (no separate phase field — do not invent one here).
+   Task `status` is set on implementor *entry* (`in-progress` / `fixing`),
+   not on exit, so it is **not** a completion signal and must not be used to
+   infer “implementor finished.” Disk alone cannot uniquely recover these
+   windows; prefer staying in-cycle (agent ids + step flow) when possible:
+   - `qa` unset while implementor may still be in flight → falls through to
+     step 1 (may re-spawn Mode `implement`). Accept that window rather than
+     treating `in-progress`/`fixing` as “ready for QA.”
+   - `qa=changes-requested` is identical for mid-revise and post-revise
+     awaiting code-quality → entry gate always takes step 2b. In-cycle
+     re-review (step 2 → step 3) is unaffected; a skill re-run in the
+     post-revise window may run an extra revise before code-quality.
+
+1. **Assign model.** Spawn `issue-tracker-model-discriminator` with the
    model-discriminator spawn stub. Wait until it finishes (or raises
-   needsAttention). Do not read its result.
-3. **Implement.** Resolve implementor model for `<task>`. Spawn
-   `issue-tracker-implementor` with Cursor Task `model` set to that value. Use
-   the implement spawn stub. Remember the Cursor Task agent id for resume. Wait
-   for finished or blocked (needsAttention on `<id>`). Do not read its diff or
-   ingest a report.
-4. **Validate (code quality).** Spawn `issue-tracker-code-quality-validator`
-   (read-only) with the code-quality spawn stub.
-5. **Revise (one pass).** **Resume** the implementor Cursor Task from step 3
-   (same session; same model). Use the revise spawn stub. Always one resume
-   pass, even if the validator posted "nothing actionable". Do not re-run the
-   validator or loop.
-6. **Finalize.** Spawn `issue-tracker-git` with the finish-commit stub.
-7. **Advance** to the next Task.
+   needsAttention). Do not read its result. Then step 2a.
+
+2. **Implementor (spawn or resume).** Resolve implementor model for `<task>`.
+   Remember the Cursor Task agent id whenever you spawn so later revises can
+   resume. Wait for finished or blocked (needsAttention on `<id>`). Do not
+   read its diff or ingest a report. When the implementor finishes, go to
+   step 3 (including after revise — that is how in-cycle re-review runs).
+   - **2a. Spawn (implement).** Spawn `issue-tracker-implementor` with Cursor
+     Task `model` set to the resolved value and the implement spawn stub.
+     Fresh path only (from step 1).
+   - **2b. Resume (revise).** Resume the remembered implementor agent with the
+     revise stub (same model). If no agent id is available (skill re-run),
+     **spawn** with the revise stub (Mode `revise`) — never Mode `implement`
+     when entering from `qa=changes-requested`.
+
+3. **Validate (code quality).** Read `issue task get <task> qa`. Branch on
+   the value (do not count QA rounds yourself):
+   - unset → **spawn** `issue-tracker-code-quality-validator` with the
+     code-quality spawn stub; remember its Cursor Task agent id.
+   - `changes-requested` or `reviewing` → **resume** that same code-quality
+     Cursor Task with the code-quality resume stub (`reviewing` means a prior
+     entry did not reach a terminal qa — resume, do not spawn a second agent).
+     If no agent id is available (skill re-run), **spawn** with the
+     code-quality resume stub instead.
+   - `passed` → skip to step 5 (Finalize); do not spawn or resume
+     code-quality again.
+   Wait until a spawn/resume finishes (or raises needsAttention) before
+   step 4.
+
+4. **Gate after code-quality.** Read both
+   `issue task get <task> needsAttention` and `issue task get <task> qa`
+   (in that order). Branch:
+   - `needsAttention` is `true` → stop (Escalation). Check this **before**
+     `qa`, because three-strike leaves terminal `qa=changes-requested` **and**
+     `needsAttention` — do not resume the implementor in that case.
+   - `qa` is `passed` → step 5.
+   - `qa` is `changes-requested` and `needsAttention` is `false` →
+     step 2b (revise), which then continues at step 3.
+
+5. **Finalize.** Spawn `issue-tracker-git` with the finish-commit stub.
+
+6. **Advance** to the next Task.
 
 ### Close a Story
 
@@ -203,8 +277,8 @@ Repeat until finish-branch:
 1. **Re-sync.** Re-read `issue tree --epic <id>` and re-sync your todo list.
 2. **Not-done Tasks.** If any Task on the Story is not `done` (including a
    validator-injected remediation Task), **run** the full Per-Task cycle
-   for each in tree order (fresh implement spawn; resume only for the revise
-   step). Then continue from step 1.
+   for each in tree order (entry gate + steps there). Then continue from
+   step 1.
 3. **`specReview` gate.** Read `specReview` with
    `issue story get <storyId> specReview` — never by parsing chat or `show`.
    If unset, spawn `issue-tracker-spec-conformance-validator` with the
@@ -252,9 +326,9 @@ Re-read `issue tree --epic <epicId>`. Spawn
    policy this usually follows the last finish-branch; under `pull-request` /
    `manual` it runs only after humans (or later process) have set every Story
    merged.
-3. The source Epic’s chat has **no** prior comment with role `retro` (check
-   `issue show <epicId> --chat`). If a `retro`-role comment already exists,
-   skip — retro already ran for this Epic.
+3. `issue epic get <epicId> retro` is **unset** (empty stdout). If the field
+   is set (`in-progress` or `done`), skip — retro already started or finished
+   for this Epic. Do **not** check chat roles for this gate.
 
 When the gate holds, spawn **once** with Cursor Task `model`
 `cursor-grok-4.5-high-fast` (Models table) and the retro spawn stub (source
@@ -262,14 +336,18 @@ Epic id + title). Wait until the Cursor Task finishes (or raises
 needsAttention). Do **not** mine transcripts yourself, and do **not** expect
 or relay a retro summary into your context. If the gate fails only because some
 Story is not `merged` yet, skip the spawn; a later re-run of this skill on the
-same Epic re-evaluates Phase 2 once the chips show all merged (the
-`retro`-role comment guard keeps that re-run from duplicating a completed
-retro).
+same Epic re-evaluates Phase 2 once the chips show all merged (an unset
+`retro` field is the sole Completion re-run guard).
 
 Everything lives on disk and every derived fact is recomputed on read, so the
-loop is fully **resumable**: re-running the skill on the Epic re-reads
-`issue tree --epic <id>` and continues from the first not-`done` Task (or,
-when all Tasks are already `done`, from Completion Phase 2 above).
+loop is **resumable** for unambiguous gates: re-running the skill on the Epic
+re-reads `issue tree --epic <id>`, continues from the first not-`done` Task,
+and the Per-Task **entry gate** branches on `needsAttention` / `qa` (`passed`
+→ finalize, `reviewing` → resume code-quality, `changes-requested` → revise
+rather than Mode `implement`). Cold-restart windows that disk cannot
+disambiguate are listed under that entry gate — do not claim they are fully
+handled (or, when all Tasks are already `done`, continue from Completion
+Phase 2 above).
 
 ## Spawn stubs
 
@@ -323,10 +401,17 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 > *(Append the Plugin redeploy clause.)*
 
 **Code-quality validator** — `subagent_type: issue-tracker-code-quality-validator`
-(read-only)
+(when to spawn vs resume: Per-Task cycle step 3)
 
-> *(Issue context line.)* Comment role:
+> *(Issue context line.)* Mode: review. Comment role:
 > `code-quality-validator`.
+
+**Code-quality validator (resume)** — `subagent_type: issue-tracker-code-quality-validator`
+(when to resume: Per-Task cycle step 3)
+
+> *(Issue context line.)* Mode: resume. Comment role:
+> `code-quality-validator`. Verify that previously requested changes were
+> fixed.
 
 **Spec-conformance validator** — `subagent_type: issue-tracker-spec-conformance-validator`
 
@@ -347,14 +432,18 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 ## Rules
 
 - Never implement, verify, or run the app yourself — always delegate. You own
-  only coordination and `issue task set <taskId> status in-progress`.
+  only coordination (thin CLI reads + spawn/resume). Field write scopes:
+  **Field ownership**.
 - Prefer `issue <kind> get` for scalar field reads — do not parse `show` /
   `summary` / `tree` for a single field (except `summary`'s `Workspace:`
   bootstrap line and `tree` chips for walk order).
-- Never run `git`/`gh` or the git-fact record commands (`issue story set … branchName` /
-  `issue task set … status` / `issue task set … commitSha` / `issue story set … prUrl` /
-  `issue story set … merged`) yourself — spawn
-  `issue-tracker-git` for Story start, Task finalize, and Story finish only.
+- Never write Task `status`, Task `qa`, or Epic `retro` yourself (Field
+  ownership).
+- Never run `git`/`gh` or the git-fact record commands (`issue story set …
+  branchName` / `issue task set … commitSha` / `issue story set … prUrl` /
+  `issue story set … merged`) yourself — spawn `issue-tracker-git` for Story
+  start, Task finalize, and Story finish only. Git sets Task `status` `done`
+  on finish-commit; implementor owns `in-progress` / `fixing`.
 - Work one Epic, one Task at a time, in the Story order `issue tree` prints;
   finish a Story before the Stories stacked on it.
 - Re-read `issue tree --epic <id>` every time control returns to you and re-sync
@@ -367,11 +456,12 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
   **no** git commit and no sha. Either way the coordinator just spawns
   finish-commit — it never inspects the tree or the `noDiff` flag, and an empty
   tree alone is never a completion signal.
-- Exactly one revision pass after the code-quality validator (via **resume**);
-  never loop reviews. Spec-conformance remediation is Close-Story's job (see
-  that section) — no story-level revise. The implementor may decline findings
-  with reasoning.
+- Per-Task QA loop (entry gate, spawn/resume, three-strike): see **Per-Task
+  cycle** — single canonical definition; you never count QA rounds.
+  Spec-conformance remediation is Close-Story's job (see that section) — no
+  story-level revise. The implementor may decline findings with reasoning.
 - Never let a validator edit workspace source (write scopes: Models table).
+  Code-quality may write Task `qa` / `needsAttention` and comments only.
 - Never set status on a Story or Epic. Do not decide whether to open or merge a
   PR — that is the Project's `mergePolicy`, applied by `issue-tracker-git` on
   finish-branch. Always spawn finish-branch; never read or branch on the policy.

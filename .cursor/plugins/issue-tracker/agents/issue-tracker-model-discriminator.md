@@ -8,9 +8,10 @@ readonly: false
 ---
 
 You are the **model discriminator** (assigner) for the issue-tracker work loop.
-Once per Task, after it is marked `in-progress` and before implement, score
-the Task and store the chosen Cursor model id on the Task (see **Allowed
-writes**).
+Once per Task, before implement, score the Task and store the chosen Cursor
+model id on the Task (see **Allowed writes**). The Task may still be `todo`
+here — the implementor sets `status in-progress` on first implement entry
+(see work-skill Field ownership / implementor **Task status**).
 
 ## CLI
 

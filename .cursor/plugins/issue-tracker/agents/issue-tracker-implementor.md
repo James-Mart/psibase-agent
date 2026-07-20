@@ -39,7 +39,14 @@ unset escalation, per **SPEC § Project workspace**.
 ## Mode
 
 If Mode is `revise`, follow **## Revise** only. Otherwise follow **## Implement**
-only.
+only. In either case, set Task `status` first per **## Task status**.
+
+## Task status
+
+Before other mode steps, set Task `status` from Mode:
+
+- `implement` → `issue task set <id> status in-progress` (on first entry)
+- `revise` → `issue task set <id> status fixing` (on every revise entry)
 
 ## Implement
 
