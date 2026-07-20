@@ -16,6 +16,7 @@ nonzero with a message** on any integrity violation (bad/missing
 `partOf`/`stackedOn`, wrong-kind referent, cross-Epic `stackedOn`, cycle).
 Nonzero = refused — read it, fix inputs, don't retry blindly. If `list` reports
 `problems`, resolve them first. Glossary and derived state: [SPEC.md](../../SPEC.md).
+Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 Parent `description.md` prose must not restate the child list
 ([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)).
