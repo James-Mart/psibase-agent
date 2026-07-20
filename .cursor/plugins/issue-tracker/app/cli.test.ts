@@ -81,10 +81,10 @@ describe("removed commands", () => {
   });
 });
 
-describe("--description-file - reads stdin", () => {
+describe("--file - reads stdin on create", () => {
   it("seeds description.md from piped stdin through the create service", () => {
     const { stdout, status } = runCli(
-      ["create-project", "Stdin Project", "--description-file", "-"],
+      ["create-project", "Stdin Project", "--file", "-"],
       "# Piped description\n\nfrom stdin\n",
     );
     expect(status).toBe(0);
@@ -341,14 +341,15 @@ describe("idea add / get / set", () => {
     });
   });
 
-  it("shows --project on idea add --help", () => {
+  it("shows --part-of on idea add --help", () => {
     const { stdout, status } = runCli(["idea", "add", "--help"]);
     expect(status).toBe(0);
-    expect(stdout).toMatch(/--project/);
+    expect(stdout).toMatch(/--part-of/);
+    expect(stdout).not.toMatch(/--project/);
   });
 
   it("adds an idea without a description and prints its id", () => {
-    const { stdout, status } = runCli(["idea", "add", "--project", "p", "Capture me"]);
+    const { stdout, status } = runCli(["idea", "add", "--part-of", "p", "Capture me"]);
     expect(status).toBe(0);
     const id = stdout.trim();
     expect(id).toBe("capture-me");
@@ -362,7 +363,7 @@ describe("idea add / get / set", () => {
     const { stdout, status } = runCli([
       "idea",
       "add",
-      "--project",
+      "--part-of",
       "p",
       "With body",
       "--description",
@@ -374,16 +375,16 @@ describe("idea add / get / set", () => {
     expect(readFileSync(join(dir, id, "description.md"), "utf8")).toBe("# Idea\n\nnotes\n");
   });
 
-  it("adds an idea with --description-file", () => {
+  it("adds an idea with --file", () => {
     const descFile = join(dir, "idea-desc.md");
     writeFileSync(descFile, "# From file\n\nseeded\n");
     const { stdout, status } = runCli([
       "idea",
       "add",
-      "--project",
+      "--part-of",
       "p",
       "From file",
-      "--description-file",
+      "--file",
       descFile,
     ]);
     expect(status).toBe(0);
@@ -395,7 +396,7 @@ describe("idea add / get / set", () => {
   });
 
   it("gets and sets title, archived, partOf, and description", () => {
-    expect(runCli(["idea", "add", "--project", "p", "Mine later"]).status).toBe(0);
+    expect(runCli(["idea", "add", "--part-of", "p", "Mine later"]).status).toBe(0);
     writeFileSync(join(dir, "mine-later", "description.md"), "# Idea\n\nbody\n");
 
     expect(runCli(["idea", "get", "mine-later", "title"]).stdout).toBe("Mine later\n");
@@ -417,18 +418,18 @@ describe("idea add / get / set", () => {
   });
 
   it("rejects add and set when the parent is not a project", () => {
-    const badAdd = runCli(["idea", "add", "--project", "e", "Bad parent"]);
+    const badAdd = runCli(["idea", "add", "--part-of", "e", "Bad parent"]);
     expect(badAdd.status).toBe(1);
     expect(badAdd.stderr).toMatch(/must be a project/);
 
-    expect(runCli(["idea", "add", "--project", "p", "Ok"]).status).toBe(0);
+    expect(runCli(["idea", "add", "--part-of", "p", "Ok"]).status).toBe(0);
     const badSet = runCli(["idea", "set", "ok", "partOf", "e"]);
     expect(badSet.status).toBe(1);
     expect(badSet.stderr).toMatch(/must be a project/);
   });
 
   it("refuses kind mismatch and unknown fields", () => {
-    expect(runCli(["idea", "add", "--project", "p", "Mine"]).status).toBe(0);
+    expect(runCli(["idea", "add", "--part-of", "p", "Mine"]).status).toBe(0);
 
     const mismatch = runCli(["idea", "get", "e", "title"]);
     expect(mismatch.status).toBe(1);
@@ -446,6 +447,161 @@ describe("idea add / get / set", () => {
     expect(unknownSet.status).toBe(1);
     expect(unknownSet.stderr).toContain(
       'unknown or unsettable field "assignee" for idea',
+    );
+  });
+});
+
+describe("kind-scoped add", () => {
+  beforeEach(() => {
+    writeIssue("p", { kind: "project", title: "Proj", createdAt: nextAt(), updatedAt: nextAt() });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "story",
+      title: "Story A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  it("adds a project and prints its id", () => {
+    const { stdout, status } = runCli(["project", "add", "New Project"]);
+    expect(status).toBe(0);
+    const id = stdout.trim();
+    expect(id).toBe("new-project");
+    expect(issueJsonField(id, "kind")).toBe("project");
+    expect(issueJsonField(id, "title")).toBe("New Project");
+  });
+
+  it.each([
+    {
+      kind: "epic",
+      args: ["epic", "add", "--part-of", "p", "Child Epic", "--assignee", "alice"],
+      id: "child-epic",
+      partOf: "p",
+      assignee: "alice",
+    },
+    {
+      kind: "story",
+      args: ["story", "add", "--part-of", "e", "Child Story", "--assignee", "bob"],
+      id: "child-story",
+      partOf: "e",
+      assignee: "bob",
+    },
+    {
+      kind: "task",
+      args: ["task", "add", "--part-of", "a", "Child Task", "--assignee", "carol"],
+      id: "child-task",
+      partOf: "a",
+      assignee: "carol",
+    },
+  ])("adds $kind under the correct parent with assignee", ({ args, id, partOf, assignee }) => {
+    const result = runCli(args);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(id);
+    expect(issueJsonField(id, "partOf")).toBe(partOf);
+    expect(issueJsonField(id, "assignee")).toBe(assignee);
+  });
+
+  it("seeds description from --description and --file", () => {
+    const inline = runCli([
+      "project",
+      "add",
+      "Inline Desc",
+      "--description",
+      "# Inline\n",
+    ]);
+    expect(inline.status).toBe(0);
+    expect(readFileSync(join(dir, "inline-desc", "description.md"), "utf8")).toBe(
+      "# Inline\n",
+    );
+
+    const descFile = join(dir, "seed.md");
+    writeFileSync(descFile, "# From file\n");
+    const fromFile = runCli([
+      "epic",
+      "add",
+      "--part-of",
+      "p",
+      "File Desc",
+      "--file",
+      descFile,
+    ]);
+    expect(fromFile.status).toBe(0);
+    expect(readFileSync(join(dir, "file-desc", "description.md"), "utf8")).toBe(
+      "# From file\n",
+    );
+  });
+
+  it("stacks a story with --stacked-on", () => {
+    const help = runCli(["story", "add", "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toMatch(/--stacked-on <story>/);
+    expect(help.stdout).not.toMatch(/<branch>/);
+
+    const taskHelp = runCli(["task", "add", "--help"]);
+    expect(taskHelp.status).toBe(0);
+    expect(taskHelp.stdout).toMatch(/--part-of <story>/);
+    expect(taskHelp.stdout).not.toMatch(/<branch>/);
+
+    const add = runCli([
+      "story",
+      "add",
+      "Stacked Child",
+      "--part-of",
+      "e",
+      "--stacked-on",
+      "a",
+    ]);
+    expect(add.status).toBe(0);
+    expect(add.stdout.trim()).toBe("stacked-child");
+    expect(issueJsonField("stacked-child", "stackedOn")).toBe("a");
+  });
+
+  it.each([
+    {
+      kind: "epic",
+      args: ["epic", "add", "--part-of", "a", "Nope"],
+      error: /must be a project/,
+    },
+    {
+      kind: "story",
+      args: ["story", "add", "--part-of", "p", "Nope"],
+      error: /must be a epic/,
+    },
+    {
+      kind: "task",
+      args: ["task", "add", "--part-of", "e", "Nope"],
+      error: /must be a story/,
+    },
+  ])("rejects a bad parent for $kind", ({ args, error }) => {
+    const result = runCli(args);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(error);
+  });
+
+  it("keeps legacy create verbs on the shared --file flag", () => {
+    const help = runCli(["create-project", "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toMatch(/--file <path>/);
+    expect(help.stdout).not.toMatch(/--description[_-]file/);
+
+    const { stdout, status } = runCli(
+      ["create-project", "Legacy File", "--file", "-"],
+      "# Legacy\n",
+    );
+    expect(status).toBe(0);
+    expect(stdout.trim()).toBe("legacy-file");
+    expect(readFileSync(join(dir, "legacy-file", "description.md"), "utf8")).toBe(
+      "# Legacy\n",
     );
   });
 });

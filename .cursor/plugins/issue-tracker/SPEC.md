@@ -238,9 +238,8 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
 - `description`: omit positional value when `--file <path|->` is passed.
-  `--file` is the generic "value from a file" flag. Create verbs keep their own
-  `--description-file` until create folds under `issue <kind>`, so both
-  spellings coexist temporarily.
+  `--file` is the generic "value from a file" flag. Create/`add` verbs use the
+  same `--file` for seeding `description.md`.
 
 #### `needsAttention`
 

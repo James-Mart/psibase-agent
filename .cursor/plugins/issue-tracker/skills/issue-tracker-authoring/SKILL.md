@@ -66,8 +66,8 @@ Field read/write: `issue <kind> get|set …` (`project` | `epic` | `story` |
   for a single field. (`summary`'s `Workspace:` line remains the bootstrap
   contract for Project workspace resolution.)
 - **`needsAttention true` requires `--reason`**.
-- **`description`**: create with `--description` / `--description-file` on the
-  create verbs; update with
+- **`description`**: create with `--description` / `--file` on the create/`add`
+  verbs; update with
   `issue <kind> set <id> description --file <path|->` (omit the positional
   value). Pass `-` for stdin to avoid shell-escaping multiline Markdown. When
   the description introduces or wires an interface, see

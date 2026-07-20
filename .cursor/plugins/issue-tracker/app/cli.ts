@@ -7,7 +7,6 @@ import { Command } from "commander";
 import { parse as parseYaml } from "yaml";
 import {
   appendMessage,
-  create,
   list,
   read,
   readChat,
@@ -44,9 +43,9 @@ import {
   removeAttachment,
 } from "./server/services/attachments.js";
 import {
-  resolveDescription,
-  withCreateDescriptionOptions,
-} from "./cli-io.js";
+  registerKindAdd,
+  registerLegacyCreateCommands,
+} from "./cli-create.js";
 import { registerKindGetSet } from "./cli-kind.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
@@ -328,76 +327,10 @@ async function run(action: () => unknown): Promise<void> {
 }
 
 for (const kind of KINDS) {
-  registerKindGetSet(program, kind, run);
+  const kindCmd = registerKindGetSet(program, kind, run);
+  registerKindAdd(kindCmd, kind, run);
 }
-
-withCreateDescriptionOptions(
-  program.command("create-project").argument("<title>", "project title"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "project",
-      title,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("create-epic")
-    .argument("<title>", "epic title")
-    .requiredOption("--part-of <project>", "parent project id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "epic",
-      title,
-      partOf: opts.partOf,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("add-story")
-    .argument("<title>", "story title")
-    .requiredOption("--part-of <epic>", "parent epic id")
-    .option("--stacked-on <branch>", "fork-point story id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "story",
-      title,
-      partOf: opts.partOf,
-      stackedOn: opts.stackedOn,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("add-task")
-    .argument("<title>", "task title")
-    .requiredOption("--part-of <branch>", "parent story id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "task",
-      title,
-      partOf: opts.partOf,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
+registerLegacyCreateCommands(program, run);
 
 program
   .command("apply")

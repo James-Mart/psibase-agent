@@ -75,7 +75,7 @@ the unset escalation, per **SPEC § Project workspace**.
 2. Create one remediation Task. Pipe the concrete fix list (multiline
    Markdown) via stdin — do **not** use inline `--description`:
    ```bash
-   issue add-task --part-of <storyId> --description-file - \
+   issue add-task --part-of <storyId> --file - \
      "Address spec-conformance findings for <storyId>" <<'EOF'
    <concrete fix list>
    EOF
