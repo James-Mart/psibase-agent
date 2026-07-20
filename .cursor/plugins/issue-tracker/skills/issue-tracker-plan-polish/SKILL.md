@@ -20,9 +20,9 @@ Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 
 An Epic id (any `epicStatus` — not limited to `todo`). If none is given:
 
-1. Run `issue projects`.
-2. Resolve `<projectId>` (one row → use it; many → ask which; zero → stop).
-3. Run `issue tree --project <projectId>` and ask which Epic.
+1. Run `issue tree` (no-arg: all projects).
+2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
+3. Run `issue tree <projectId>` and ask which Epic.
 
 Never bare `issue list`.
 
@@ -37,7 +37,7 @@ Never bare `issue list`.
      SKILL files) from disk with cwd = `Workspace:` — there is no
      plan-only fallback (SPEC § Project workspace: unset → escalate, never
      fall back).
-2. `issue tree --epic <epicId>` — full Story/Task outline (implementation
+2. `issue tree <epicId>` — full Story/Task outline (implementation
    order).
 3. `issue show <epicId>` (and children as needed) when preparing the proposal.
 

@@ -1,20 +1,62 @@
 import type { IssueRecord } from "./schemas.js";
+import { subtreeIds } from "./services/subtree.js";
 
-// Resolve a `--project` value that may be either a project id or a project
-// title into a canonical project id. An exact id match wins; otherwise we fall
-// back to a unique title match. Zero or multiple title matches are an error so
-// callers never silently scope to the wrong project.
-export function resolveProjectId(issues: IssueRecord[], value: string): string {
-  const byId = issues.find(
-    (issue) => issue.id === value && issue.kind === "project",
-  );
-  if (byId) return byId.id;
-  const byTitle = issues.filter(
-    (issue) => issue.kind === "project" && issue.title === value,
-  );
-  if (byTitle.length === 1) return byTitle[0].id;
-  if (byTitle.length === 0) throw new Error(`unknown project "${value}"`);
-  throw new Error(
-    `ambiguous project title "${value}" matches ${byTitle.length} projects`,
-  );
+type StoryRecord = Extract<IssueRecord, { kind: "story" }>;
+
+// Shared `tree` / `list` scope: optional positional id after kind checks.
+// Story scope carries the record so tree render does not re-look it up.
+export type BoardScope =
+  | { kind: "all" }
+  | { kind: "project"; projectId: string }
+  | { kind: "epic"; epicId: string }
+  | { kind: "story"; story: StoryRecord };
+
+export function resolveBoardScope(
+  id: string | undefined,
+  issues: IssueRecord[],
+  verb: "tree" | "list",
+): BoardScope {
+  if (!id) return { kind: "all" };
+  const issue = issues.find((candidate) => candidate.id === id);
+  if (!issue) throw new Error(`unknown issue "${id}"`);
+  switch (issue.kind) {
+    case "project":
+      return { kind: "project", projectId: issue.id };
+    case "epic":
+      return { kind: "epic", epicId: issue.id };
+    case "story":
+      return { kind: "story", story: issue };
+    case "idea":
+      throw new Error(
+        `cannot scope ${verb} to an idea; pass project "${issue.partOf}" instead`,
+      );
+    case "task":
+      throw new Error(
+        `cannot scope ${verb} to a task; pass story "${issue.partOf}" or its epic instead`,
+      );
+  }
+}
+
+export function scopeIssueIds(scope: BoardScope, issues: IssueRecord[]): Set<string> {
+  switch (scope.kind) {
+    case "all":
+      return new Set(issues.map((issue) => issue.id));
+    case "project":
+      return subtreeIds(issues, scope.projectId);
+    case "epic":
+      return subtreeIds(issues, scope.epicId);
+    case "story":
+      return subtreeIds(issues, scope.story.id);
+  }
+}
+
+export function assertScopeVisible(scope: BoardScope, visibleIds: Set<string>): void {
+  if (scope.kind === "epic" && !visibleIds.has(scope.epicId)) {
+    throw new Error(`epic "${scope.epicId}" is archived; pass --show-archived`);
+  }
+  if (scope.kind === "story" && !visibleIds.has(scope.story.id)) {
+    throw new Error(
+      `story "${scope.story.id}" is archived; pass --show-archived`,
+    );
+  }
 }

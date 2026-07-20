@@ -29,9 +29,9 @@ An **Idea** id, or an **Epic** id whose derived
 
 If none is given:
 
-1. Run `issue projects`.
-2. Resolve `<projectId>` (one row → use it; many → ask which; zero → stop).
-3. Run `issue tree --project <projectId>`. Offer only **Ideas** and Epics whose
+1. Run `issue tree` (no-arg: all projects).
+2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
+3. Run `issue tree <projectId>`. Offer only **Ideas** and Epics whose
    status chip is `todo` (or confirm with `issue epic get <id> epicStatus`).
    **Do not offer** `in-progress` / `done` Epics — they fail §Bootstrap gates.
 
@@ -58,7 +58,7 @@ Before grilling:
    - Any other kind → refuse.
 3. `issue show <id>` — load the full capture (`description.md`), not only the
    summary blurb.
-4. If the source is an **Epic**, also `issue tree --epic <id>` so the existing
+4. If the source is an **Epic**, also `issue tree <id>` so the existing
    Story/Task subtree is in context before grilling.
 
 ## Grill-me protocol (inline)

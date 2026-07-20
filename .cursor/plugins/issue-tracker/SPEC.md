@@ -188,7 +188,7 @@ remains the bootstrap contract for [Project workspace](#project-workspace)
 resolution.)
 
 Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
-`summary` / `show` / `list` / `tree` / `projects`) are unchanged.
+`summary` / `show` / `list` / `tree`) are unchanged.
 
 ### `get`
 

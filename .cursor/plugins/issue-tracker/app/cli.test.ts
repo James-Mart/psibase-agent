@@ -638,7 +638,7 @@ describe("tree / list / summary include Ideas", () => {
   });
 
   it("interleaves Ideas and Epics by order in tree with title-only Idea rows", () => {
-    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    const { stdout, status } = runCli(["tree", "p"]);
     expect(status).toBe(0);
     expect(stdout).toMatch(/^project p {2}Proj$/m);
     expect(stdout).toMatch(/^ {2}idea idea-a {2}Capture first$/m);
@@ -653,7 +653,7 @@ describe("tree / list / summary include Ideas", () => {
   });
 
   it("includes Ideas in list JSON for the project", () => {
-    const { stdout, status } = runCli(["list", "--project", "p"]);
+    const { stdout, status } = runCli(["list", "p"]);
     expect(status).toBe(0);
     const listed = JSON.parse(stdout);
     const ids = listed.issues.map((i: { id: string }) => i.id).sort();
@@ -674,22 +674,22 @@ describe("tree / list / summary include Ideas", () => {
   it("hides archived Ideas from tree/list unless --show-archived", () => {
     expect(runCli(["idea", "set", "idea-a", "archived", "true"]).status).toBe(0);
 
-    const treeHidden = runCli(["tree", "--project", "p"]);
+    const treeHidden = runCli(["tree", "p"]);
     expect(treeHidden.status).toBe(0);
     expect(treeHidden.stdout).toContain("idea idea-b");
     expect(treeHidden.stdout).not.toContain("idea idea-a");
 
-    const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
+    const treeShown = runCli(["tree", "p", "--show-archived"]);
     expect(treeShown.status).toBe(0);
     expect(treeShown.stdout).toContain("idea idea-a");
 
-    const listHidden = JSON.parse(runCli(["list", "--project", "p"]).stdout);
+    const listHidden = JSON.parse(runCli(["list", "p"]).stdout);
     expect(listHidden.issues.map((i: { id: string }) => i.id).sort()).toEqual(
       ["e", "idea-b", "p"],
     );
 
     const listShown = JSON.parse(
-      runCli(["list", "--project", "p", "--show-archived"]).stdout,
+      runCli(["list", "p", "--show-archived"]).stdout,
     );
     expect(listShown.issues.map((i: { id: string }) => i.id).sort()).toEqual(
       ["e", "idea-a", "idea-b", "p"],
@@ -1117,7 +1117,7 @@ describe("story get/set", () => {
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
     expect(runCli(["show", "a"]).stdout).toContain("specReview: passed");
 
-    const listed = JSON.parse(runCli(["list", "--project", "p"]).stdout);
+    const listed = JSON.parse(runCli(["list", "p"]).stdout);
     const branch = listed.issues.find((i: { id: string }) => i.id === "a");
     expect(branch.specReview).toBe("passed");
 
@@ -1454,7 +1454,7 @@ describe("tree", () => {
   });
 
   it("renders indentation, chips, and stacked depth-first order", () => {
-    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    const { stdout, status } = runCli(["tree", "p"]);
     expect(status).toBe(0);
     // Indentation: project at col 0, epic +2, root branch +4, commit +6.
     expect(stdout).toMatch(/^project p {2}Proj$/m);
@@ -1476,41 +1476,35 @@ describe("tree", () => {
     expect(stdout.indexOf("task c1")).toBeLessThan(stdout.indexOf("story b"));
   });
 
-  it("scopes by a project title as well as its id", () => {
-    const byId = runCli(["tree", "--project", "p"]);
-    const byTitle = runCli(["tree", "--project", "Proj"]);
-    expect(byTitle.status).toBe(0);
-    expect(byTitle.stdout).toBe(byId.stdout);
-  });
-
   it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
     // Create via the CLI so post-migration semantics apply: child of an
     // unnamed parent leaves mergeBase unset until branchName cascades.
     const add = runCli(["add-story", "Unset child", "--part-of", "e", "--stacked-on", "a"]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
-    const { stdout, status } = runCli(["tree", "--project", "p"]);
+    const { stdout, status } = runCli(["tree", "p"]);
     expect(status).toBe(0);
     expect(stdout).toMatch(
       new RegExp(`^\\s+story ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
     );
   });
 
-  it("scopes by a positional project id like --project", () => {
-    const byFlag = runCli(["tree", "--project", "p"]);
-    const byId = runCli(["tree", "p"]);
-    expect(byId.status).toBe(0);
-    expect(byId.stdout).toBe(byFlag.stdout);
+  it("scopes by a positional project id", () => {
+    const { stdout, status } = runCli(["tree", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^project p {2}Proj$/m);
+    expect(stdout).toContain("epic e");
   });
 
-  it("scopes by a positional epic id like --epic", () => {
-    const byFlag = runCli(["tree", "--epic", "e"]);
-    const byId = runCli(["tree", "e"]);
-    expect(byId.status).toBe(0);
-    expect(byId.stdout).toBe(byFlag.stdout);
+  it("scopes by a positional epic id", () => {
+    const { stdout, status } = runCli(["tree", "e"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^epic e {2}Epic\b/m);
+    expect(stdout).toContain("story a");
+    expect(stdout).not.toContain("project p");
   });
 
-  it("scopes by a positional branch id to that branch and its commits only", () => {
+  it("scopes by a positional story id to that story and its tasks only", () => {
     const { stdout, status } = runCli(["tree", "a"]);
     expect(status).toBe(0);
     expect(stdout).toMatch(/^story a {2}Branch A\b/m);
@@ -1519,10 +1513,10 @@ describe("tree", () => {
     expect(stdout).not.toContain("epic e");
   });
 
-  it("refuses a positional commit id and names the parent branch", () => {
+  it("refuses a positional task id and names the parent story", () => {
     const { stderr, status } = runCli(["tree", "c1"]);
     expect(status).toBe(1);
-    expect(stderr).toContain('cannot scope tree to a task');
+    expect(stderr).toContain("cannot scope tree to a task");
     expect(stderr).toContain('story "a"');
   });
 
@@ -1532,18 +1526,48 @@ describe("tree", () => {
     expect(stderr).toContain('unknown issue "ghost"');
   });
 
-  it("refuses combining a positional id with --project or --epic", () => {
-    const withProject = runCli(["tree", "e", "--project", "p"]);
-    expect(withProject.status).toBe(1);
-    expect(withProject.stderr).toContain("cannot combine tree [id] with --project or --epic");
+  it("refuses title lookup and dropped scope flags", () => {
+    const byTitle = runCli(["tree", "Proj"]);
+    expect(byTitle.status).toBe(1);
+    expect(byTitle.stderr).toContain('unknown issue "Proj"');
 
-    const withEpic = runCli(["tree", "a", "--epic", "e"]);
-    expect(withEpic.status).toBe(1);
-    expect(withEpic.stderr).toContain("cannot combine tree [id] with --project or --epic");
+    const withProject = runCli(["tree", "--project", "p"]);
+    expect(withProject.status).not.toBe(0);
+    expect(withProject.stderr).toMatch(/unknown option '--project'/);
+
+    const withEpic = runCli(["tree", "--epic", "e"]);
+    expect(withEpic.status).not.toBe(0);
+    expect(withEpic.stderr).toMatch(/unknown option '--epic'/);
+  });
+
+  it("lists the same project/epic/story scopes as tree and omits for all", () => {
+    const projectList = JSON.parse(runCli(["list", "p"]).stdout);
+    expect(projectList.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["a", "b", "c1", "e", "p"],
+    );
+
+    const epicList = JSON.parse(runCli(["list", "e"]).stdout);
+    expect(epicList.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["a", "b", "c1", "e"],
+    );
+
+    const storyList = JSON.parse(runCli(["list", "a"]).stdout);
+    expect(storyList.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["a", "c1"],
+    );
+
+    const all = JSON.parse(runCli(["list"]).stdout);
+    expect(all.issues.map((i: { id: string }) => i.id).sort()).toEqual(
+      ["a", "b", "c1", "e", "p"],
+    );
+
+    const taskList = runCli(["list", "c1"]);
+    expect(taskList.status).toBe(1);
+    expect(taskList.stderr).toContain("cannot scope list to a task");
   });
 
   it("shows specReview and retro chips on the correct lines only when set", () => {
-    const unset = runCli(["tree", "--project", "p"]);
+    const unset = runCli(["tree", "p"]);
     expect(unset.status).toBe(0);
     expect(unset.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
     expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bspecReview=/m);
@@ -1551,14 +1575,14 @@ describe("tree", () => {
     expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
     expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
 
-    const set = runCli(["tree", "--project", "p"]);
+    const set = runCli(["tree", "p"]);
     expect(set.status).toBe(0);
     expect(set.stdout).toMatch(/^ {2}epic e\b.*\bretro=in-progress\b/m);
     expect(set.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
 
     expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
 
-    const cleared = runCli(["tree", "--project", "p"]);
+    const cleared = runCli(["tree", "p"]);
     expect(cleared.status).toBe(0);
     expect(cleared.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
     expect(cleared.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
@@ -1609,25 +1633,25 @@ describe("archived field, cascade, and CLI filtering", () => {
   it("hides archived issues from tree/list unless --show-archived", () => {
     expect(runCli(["epic", "set", "e", "archived", "true"]).status).toBe(0);
 
-    const treeHidden = runCli(["tree", "--project", "p"]);
+    const treeHidden = runCli(["tree", "p"]);
     expect(treeHidden.status).toBe(0);
     expect(treeHidden.stdout).toContain("project p");
     expect(treeHidden.stdout).not.toContain("epic e");
     expect(treeHidden.stdout).not.toContain("story a");
 
-    const treeShown = runCli(["tree", "--project", "p", "--show-archived"]);
+    const treeShown = runCli(["tree", "p", "--show-archived"]);
     expect(treeShown.status).toBe(0);
     expect(treeShown.stdout).toContain("epic e");
     expect(treeShown.stdout).toContain("story a");
 
-    const listHidden = runCli(["list", "--project", "p"]);
+    const listHidden = runCli(["list", "p"]);
     expect(listHidden.status).toBe(0);
     const hiddenIds = JSON.parse(listHidden.stdout).issues.map(
       (issue: { id: string }) => issue.id,
     );
     expect(hiddenIds).toEqual(["p"]);
 
-    const listShown = runCli(["list", "--project", "p", "--show-archived"]);
+    const listShown = runCli(["list", "p", "--show-archived"]);
     expect(listShown.status).toBe(0);
     const shownIds = JSON.parse(listShown.stdout).issues.map(
       (issue: { id: string }) => issue.id,
@@ -1650,25 +1674,6 @@ describe("archived field, cascade, and CLI filtering", () => {
   });
 });
 
-describe("project-title resolution errors surface through the CLI", () => {
-  beforeEach(() => {
-    writeIssue("p1", { kind: "project", title: "Dup", createdAt: nextAt(), updatedAt: nextAt() });
-  });
-
-  it("exits nonzero on an unknown project", () => {
-    const { stderr, status } = runCli(["list", "--project", "Nope"]);
-    expect(status).toBe(1);
-    expect(stderr).toContain('unknown project "Nope"');
-  });
-
-  it("exits nonzero on an ambiguous project title", () => {
-    writeIssue("p2", { kind: "project", title: "Dup", createdAt: nextAt(), updatedAt: nextAt() });
-    const { stderr, status } = runCli(["list", "--project", "Dup"]);
-    expect(status).toBe(1);
-    expect(stderr).toContain('ambiguous project title "Dup"');
-  });
-});
-
 describe("deleted field verbs", () => {
   it("are unknown commands and absent from top-level --help", () => {
     const help = runCli(["--help"]);
@@ -1680,6 +1685,18 @@ describe("deleted field verbs", () => {
       expect(stderr, verb).toMatch(new RegExp(`unknown command '${verb}'`));
       expect(help.stdout, verb).not.toMatch(new RegExp(`\\n  ${verb}\\b`));
     }
+  });
+});
+
+describe("projects command removed", () => {
+  it("is an unknown command and absent from top-level --help", () => {
+    const help = runCli(["--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).not.toMatch(/\n  projects\b/);
+
+    const { stderr, status } = runCli(["projects"]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/unknown command 'projects'/);
   });
 });
 

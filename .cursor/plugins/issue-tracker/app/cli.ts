@@ -10,7 +10,6 @@ import {
   type DerivedState,
   type IssueRecord,
 } from "./server/schemas.js";
-import { subtreeIds } from "./server/services/subtree.js";
 import { visibleIssues } from "./server/services/archived-visibility.js";
 import { apply } from "./server/services/apply.js";
 import {
@@ -20,7 +19,12 @@ import {
   type ApplyDoc,
 } from "./server/services/apply-schema.js";
 import { bySequence, buildProjectBoardOf, stackedStoryOrder } from "./server/order.js";
-import { resolveProjectId } from "./server/scope.js";
+import {
+  assertScopeVisible,
+  resolveBoardScope,
+  scopeIssueIds,
+  type BoardScope,
+} from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import { formatSummary, summarize } from "./server/services/summary.js";
 import { hasAttention } from "./server/kind.js";
@@ -189,55 +193,12 @@ function renderEpic(epic: EpicRecord, indent: number, ctx: TreeContext): string[
   return lines;
 }
 
-// Resolved `tree` scope: positional id and/or --project/--epic flags, after
-// conflict and kind checks. Branch scope carries the record so render does not
-// re-look it up.
-type TreeScope =
-  | { kind: "all" }
-  | { kind: "project"; projectRef: string }
-  | { kind: "epic"; epicId: string }
-  | { kind: "story"; story: StoryRecord };
-
-function resolveTreeScope(
-  id: string | undefined,
-  opts: { project?: string; epic?: string },
-  issues: IssueRecord[],
-): TreeScope {
-  if (id && (opts.project || opts.epic)) {
-    throw new Error("cannot combine tree [id] with --project or --epic");
-  }
-  if (id) {
-    const issue = issues.find((candidate) => candidate.id === id);
-    if (!issue) throw new Error(`unknown issue "${id}"`);
-    switch (issue.kind) {
-      case "project":
-        return { kind: "project", projectRef: issue.id };
-      case "epic":
-        return { kind: "epic", epicId: issue.id };
-      case "story":
-        return { kind: "story", story: issue };
-      case "idea":
-        throw new Error(
-          `cannot scope tree to an idea; pass project "${issue.partOf}" instead`,
-        );
-      case "task":
-        throw new Error(
-          `cannot scope tree to a task; pass story "${issue.partOf}" or its epic instead`,
-        );
-    }
-  }
-  if (opts.epic) return { kind: "epic", epicId: opts.epic };
-  if (opts.project) return { kind: "project", projectRef: opts.project };
-  return { kind: "all" };
-}
-
 function renderProjects(
   issues: IssueRecord[],
   ctx: TreeContext,
-  projectRef?: string,
+  projectId?: string,
 ): string[] {
   const boardOf = buildProjectBoardOf(issues);
-  const projectId = projectRef ? resolveProjectId(issues, projectRef) : undefined;
   const projects = issues
     .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
       issue.kind === "project" && (!projectId || issue.id === projectId),
@@ -252,7 +213,7 @@ function renderProjects(
 }
 
 function renderTreeScope(
-  scope: TreeScope,
+  scope: BoardScope,
   issues: IssueRecord[],
   ctx: TreeContext,
 ): string[] {
@@ -267,7 +228,7 @@ function renderTreeScope(
       return renderEpic(epic, 0, ctx);
     }
     case "project":
-      return renderProjects(issues, ctx, scope.projectRef);
+      return renderProjects(issues, ctx, scope.projectId);
     case "all":
       return renderProjects(issues, ctx);
   }
@@ -359,42 +320,34 @@ program
   );
 
 program
-  .command("projects")
-  .description("print all projects: id<TAB>title")
-  .action(() =>
-    run(() => {
-      const { issues } = list();
-      const projects = issues.filter((issue) => issue.kind === "project");
-      if (projects.length === 0) {
-        console.log("no projects");
-        return;
-      }
-      for (const project of projects) {
-        console.log(`${project.id}\t${project.title}`);
-      }
-    }),
-  );
-
-program
   .command("list")
-  .description("print a project's issues, derived state, and any problems as JSON")
-  .requiredOption("--project <id|title>", "project id or title to scope the listing to")
+  .description(
+    "print issues, derived state, and any problems as JSON (optional id scopes like tree)",
+  )
+  .argument(
+    "[id]",
+    "scope by issue id (project/epic/story subtree; idea/task refused; omit for all projects)",
+  )
   .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
-  .action((opts) =>
+  .action((id, opts) =>
     run(() => {
       const full = list();
-      const projectId = resolveProjectId(full.issues, opts.project);
-      const scope = subtreeIds(full.issues, projectId);
+      // Resolve scope against the full graph so archived ids remain addressable,
+      // then filter to the visible subset (unless --show-archived).
+      const scope = resolveBoardScope(id, full.issues, "list");
+      const showArchived = Boolean(opts.showArchived);
+      const inScope = scopeIssueIds(scope, full.issues);
       const scopedIssues = visibleIssues(
-        full.issues.filter((issue) => scope.has(issue.id)),
-        Boolean(opts.showArchived),
+        full.issues.filter((issue) => inScope.has(issue.id)),
+        showArchived,
       );
       const visibleIds = new Set(scopedIssues.map((issue) => issue.id));
+      if (!showArchived) assertScopeVisible(scope, visibleIds);
       const scoped = {
         issues: scopedIssues,
         problems: full.problems.filter((problem) => visibleIds.has(problem.id)),
         derived: Object.fromEntries(
-          Object.entries(full.derived).filter(([id]) => visibleIds.has(id)),
+          Object.entries(full.derived).filter(([issueId]) => visibleIds.has(issueId)),
         ),
       };
       console.log(JSON.stringify(scoped, null, 2));
@@ -408,32 +361,19 @@ program
   )
   .argument(
     "[id]",
-    "scope by issue id (project/epic/story subtree; tasks are refused)",
+    "scope by issue id (project/epic/story subtree; idea/task refused; omit for all projects)",
   )
-  .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
-  .option("--epic <id>", "scope the outline to a single epic subtree")
   .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
   .action((id, opts) =>
     run(() => {
       const { issues: allIssues, derived } = list();
       // Resolve scope against the full graph so archived ids remain addressable,
       // then render only the visible subset (unless --show-archived).
-      const scope = resolveTreeScope(id, opts, allIssues);
+      const scope = resolveBoardScope(id, allIssues, "tree");
       const showArchived = Boolean(opts.showArchived);
       const issues = visibleIssues(allIssues, showArchived);
       const visibleIds = new Set(issues.map((issue) => issue.id));
-      if (!showArchived) {
-        if (scope.kind === "epic" && !visibleIds.has(scope.epicId)) {
-          throw new Error(
-            `epic "${scope.epicId}" is archived; pass --show-archived`,
-          );
-        }
-        if (scope.kind === "story" && !visibleIds.has(scope.story.id)) {
-          throw new Error(
-            `story "${scope.story.id}" is archived; pass --show-archived`,
-          );
-        }
-      }
+      if (!showArchived) assertScopeVisible(scope, visibleIds);
       const visibleDerived = Object.fromEntries(
         Object.entries(derived).filter(([issueId]) => visibleIds.has(issueId)),
       );
