@@ -14,9 +14,8 @@ writes**).
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`; the global
-`issue` bin must stay linked to the Project workspace plugin app.
+Use the `issue` binary. Do not set `ISSUES_DIR`.
+Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
 **Allowed writes:** `issue task set <taskId> assignee <modelId>` (Task
 `assignee` is overloaded as the model slug); confirm with

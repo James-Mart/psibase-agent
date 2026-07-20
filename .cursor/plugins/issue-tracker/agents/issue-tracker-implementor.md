@@ -13,15 +13,9 @@ separate subagent.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
+Use the `issue` binary. Do not set `ISSUES_DIR`.
 
-**Never retarget `npm link`.** The global `issue` / `issue-tracker` link must
-point at the Project **workspace** plugin app
-(`<workspace>/.cursor/plugins/issue-tracker/app`), not
-`/root/.cursor/plugins/local/...`. Do not run `npm link` from the live local
-copy. Relinking to local makes CLI writes miss the authoritative `issues/`
-store; redeploy then looks like data loss. If the link is broken, only repair
-it from the workspace app dir.
+Never `npm link` from `/root/.cursor/plugins/local/...`.
 
 Authoring contract and flags: `issue --help` / `issue <command> --help`.
 Glossary: plugin `SPEC.md`.

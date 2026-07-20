@@ -289,7 +289,7 @@ code-quality, spec-conformance, and revise stubs:
 
 > If this Task changes files under
 > `<workspace>/.cursor/plugins/<plugin-name>/`, redeploy that plugin before
-> finish/stop: `rm -rf /root/.cursor/plugins/local/<plugin-name> && cp -r <workspace>/.cursor/plugins/<plugin-name> /root/.cursor/plugins/local/<plugin-name>` (full directory replace — no symlink, no partial file copy). Resolve `<workspace>` from `issue summary` on the Task. Do **not** run `npm link` as part of redeploy, and never `npm link` from `/root/.cursor/plugins/local/...` — the global `issue` bin must keep pointing at `<workspace>/.cursor/plugins/issue-tracker/app` so CLI writes hit the authoritative workspace `issues/` store.
+> finish/stop: `rm -rf /root/.cursor/plugins/local/<plugin-name> && cp -r <workspace>/.cursor/plugins/<plugin-name> /root/.cursor/plugins/local/<plugin-name>` (full directory replace — no symlink, no partial file copy). Resolve `<workspace>` from `issue summary` on the Task. Do **not** run `npm link` as part of redeploy, and never `npm link` from `/root/.cursor/plugins/local/...`.
 >
 > *(Temporary: once [visual-coordinator-loop](issue:visual-coordinator-loop)
 > lands, move this redeploy instruction to a placement node instead of
