@@ -30,7 +30,11 @@ Glossary: plugin `SPEC.md`.
    Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
 3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk. Consult `vision` per that file using the step-2 summary output.
+   from disk. Consult per that file using the step-2 summary output:
+   - `vision`
+   - `codingStandards`
+   - `designSystem` when this Task appears UI-related (judgment from Task prose
+     plus expected or changed paths; no Task flag)
 4. The summary carries the Project **workspace** — run all implementation work
    (file edits, builds, tests, browser checks) with it as the cwd, and honor the
    unset escalation, per **SPEC § Project workspace**.
