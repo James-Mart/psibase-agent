@@ -17,19 +17,19 @@ Story via `specReview`. Do not edit workspace source files.
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
-Load all issue specs (Story and Task) via `issue show <id>` only — never
-filesystem-read `issues/**` (including `description.md`).
+Load all issue specs (Story and Task) via `issue story view` / `issue task view`
+only — never filesystem-read `issues/**` (including `description.md`).
 
-**Allowed writes:** `story set` (for `specReview` and `needsAttention`),
-`add-task`, `comment`. Do not run any other mutating `issue` command
+**Allowed writes:** `issue story set` (for `specReview` and `needsAttention`),
+`issue task add`, `issue story comment`. Do not run any other mutating `issue` command
 (`task set`, `assign`, `description` on existing issues, `apply`, git-fact
 verbs, etc.).
 
 ## Bootstrap
 
 Run `issue summary <storyId>` for Project → Epic → Story context. Use
-`issue tree <epicId>` and `issue show <id>` on the Story's Tasks for
-their full specs (the normative checklist), and on the Story for
+`issue tree <epicId>` and `issue task view <id>` on the Story's Tasks for
+their full specs (the normative checklist), and `issue story view <storyId>` for
 scope/context. That summary also carries the Project **workspace** —
 inspect the Story's tasks, diffs, and files with it as the cwd, and honor
 the unset escalation, per **SPEC § Project workspace**.
@@ -39,16 +39,16 @@ the unset escalation, per **SPEC § Project workspace**.
 - **Epic id** — context / escalation only; do not re-derive ancestry from it
   (`issue summary <storyId>` is the source of truth)
 - **Story id + title**
-- **Comment role** — pass as `--role <role>` on `issue comment`
+- **Comment role** — pass as `--role <role>` on `issue story comment`
 
 ## What you do
 
 1. **Preconditions.** Every Task on the Story must be `done`. If any is not,
    escalate per ## Escalation and stop — do not review a partial Story.
 2. **Verify.** The normative checklist is the Story's **Task** specs
-   (from Bootstrap `issue show`), plus each Task's recorded diff / `noDiff`
+   (from Bootstrap `issue task view`), plus each Task's recorded diff / `noDiff`
    chat rationale. The Story spec is scope/context only, never a second
-   independent checklist — load it once via `issue show <storyId>` for
+   independent checklist — load it once via `issue story view <storyId>` for
    background, then judge only the Task deliverables. **Ignore orphan
    claims:** a deliverable claim on the Story spec that no Task of the Story
    covers, or a Task spec's reference to sibling work that was pruned or
@@ -56,12 +56,12 @@ the unset escalation, per **SPEC § Project workspace**.
    not hunt through git history or prior transcripts.
 
    For each Task on the Story with `status=done`:
-   - Use its Task spec from `issue show <taskId>` (Bootstrap / ## CLI).
+   - Use its Task spec from `issue task view <taskId>` (Bootstrap / ## CLI).
    - Inspect the workspace at that Task's recorded `commitSha` (or the
      equivalent diff of what that Task delivered against its spec).
    - A `noDiff` Task has no `commitSha` and delivered no diff: judge it by
      its Task spec plus the implementor's chat rationale
-     (`issue show <taskId> --chat`) against the spec — was landing no changes
+     (`issue task view <taskId> --chat`) against the spec — was landing no changes
      actually correct? Treat an unjustified or spec-violating no-op as a gap.
    - Collect **only** missing or off-spec behavior. Omit anything you judge
      in-spec or acceptable — the implementor treats anything not listed as
@@ -75,7 +75,7 @@ the unset escalation, per **SPEC § Project workspace**.
 2. Create one remediation Task. Pipe the concrete fix list (multiline
    Markdown) via stdin — do **not** use inline `--description`:
    ```bash
-   issue add-task --part-of <storyId> --file - \
+   issue task add --part-of <storyId> --file - \
      "Address spec-conformance findings for <storyId>" <<'EOF'
    <concrete fix list>
    EOF
@@ -84,7 +84,7 @@ the unset escalation, per **SPEC § Project workspace**.
 3. Story comment that links the new Task only — findings live on the Task
    description, not duplicated in the Story comment body. Use a GFM
    `issue:` link so the UI renders an `IssueLink`:
-   `issue comment <storyId> --role <comment-role> --body "Spec review failed; remediation: [issue:<newTaskId>](issue:<newTaskId>)"`
+   `issue story comment <storyId> --role <comment-role> --body "Spec review failed; remediation: [issue:<newTaskId>](issue:<newTaskId>)"`
 4. If any step after `specReview failed` fails, escalate per ## Escalation with
    the error — do not leave `failed` with no remediation Task/link silently.
 
@@ -92,7 +92,7 @@ the unset escalation, per **SPEC § Project workspace**.
 
 1. `issue story set <storyId> specReview passed`
 2. Short Story comment:
-   `issue comment <storyId> --role <comment-role> --body "Spec review passed; implementation matches the Task specs."`
+   `issue story comment <storyId> --role <comment-role> --body "Spec review passed; implementation matches the Task specs."`
 
 Do not edit workspace source files. Finish and stop.
 

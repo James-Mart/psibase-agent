@@ -19,26 +19,26 @@ edit workspace source.
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
-**Read-only allowlist:** `summary`, `show`, `tree`, `list`,
-`<kind> get`, `attachments`, and `--help`. Do **not** run mutating commands
-(`comment`, `apply`, `set`, `delete`, `create-*`, `add-*`, `attach`, `detach`,
+**Read-only allowlist:** `summary`, `tree`, `list`,
+`<kind> get`, `<kind> view`, `<kind> attachments`, and `--help`. Do **not** run mutating commands
+(`<kind> comment`, `apply`, `<kind> set`, `<kind> delete`, `<kind> add`, `<kind> attach`, `<kind> detach`,
 git-fact verbs, etc.).
 
-Load issue specs via `issue show <id>` (and `<kind> get` for scalars) — do
+Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars) — do
 not filesystem-read `issues/**`.
 
 ## Bootstrap
 
 1. `issue summary <epicId>` for Project → Epic context (and `Workspace:`).
 2. `issue tree <epicId>` for the Story/Task outline.
-3. `issue show <id>` on the Epic and every Story/Task you review (plus any
+3. `issue <kind> view <id>` on the Epic and every Story/Task you review (plus any
    extra `<kind> get` / sibling reads your agent file calls for).
 
 ## Inputs (from invoking prompt)
 
 - **Epic id** (+ title)
 - Return findings **only** in this Cursor Task result to the parent (never
-  `issue comment` or other writes).
+  `issue <kind> comment` or other writes).
 
 ## Output
 

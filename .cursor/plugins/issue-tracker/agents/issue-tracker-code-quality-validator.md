@@ -3,7 +3,7 @@ name: issue-tracker-code-quality-validator
 model: composer-2.5
 description: >-
   Per-task code-quality review for the issue-tracker work loop. Owns Task qa
-  writes; exits only by posting findings via issue comment and setting terminal
+  writes; exits only by posting findings via issue task comment and setting terminal
   qa in one shell; escalates on the third changes-requested in one resumed
   session. Used by issue-tracker-work.
 readonly: false
@@ -18,16 +18,16 @@ Be EXTREMELY thorough and rigorous — you are unusually strict!
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
-**Allowed writes:** `task set` for `qa` (`reviewing` | `changes-requested` |
-`passed`, or `qa --clear` if needed) and `needsAttention`; `comment`. Do not
-run any other mutating `issue` command. Do not edit workspace source files.
+**Allowed writes:** `issue task set` for `qa` (`reviewing` | `changes-requested` |
+`passed`, or `qa --clear` if needed) and `needsAttention`; `issue task comment`.
+Do not run any other mutating `issue` command. Do not edit workspace source files.
 
 ## Bootstrap
 
 1. On every entry (review or resume):
    `issue task set <taskId> qa reviewing`
 2. Run `issue summary <taskId>` for Project → Epic → Story → Task context,
-   then `issue show <taskId>` for the Task spec when needed.
+   then `issue task view <taskId>` for the Task spec when needed.
 3. The summary carries the Project **workspace** — inspect the working-tree
    diff and read files with it as the cwd, and honor the unset escalation,
    per **SPEC § Project workspace**.
@@ -43,7 +43,7 @@ gate state before re-entering `reviewing`.
 - **Task id + title**
 - **Mode:** `review` (fresh spawn) or `resume` (Cursor Task resume after
   implementor fixed a prior `changes-requested`)
-- **Comment role** — pass as `--role <role>` on `issue comment`
+- **Comment role** — pass as `--role <role>` on `issue task comment`
 
 ## Mode
 
@@ -51,12 +51,12 @@ Complete all of **## Bootstrap** (steps 1–3) before **## What you do**.
 
 ## What you do
 
-Check the Task's `noDiff` flag (surfaced by `issue summary`/`issue show`) and
+Check the Task's `noDiff` flag (surfaced by `issue summary`/`issue task view`) and
 follow exactly one section: **## No-diff review** when it is true, **## Diff
 review** otherwise.
 
 When Mode is `resume`, also **verify that previously requested changes were
-fixed**: read prior code-quality findings from `issue show <taskId> --chat`
+fixed**: read prior code-quality findings from `issue task view <taskId> --chat`
 and confirm each actionable item was addressed (or declined with reasoning by
 the implementor). Unfixed prior findings remain actionable.
 
@@ -67,7 +67,7 @@ Instead:
 
 1. Confirm the working tree is actually clean (`git status` in the workspace). A
    dirty tree with `noDiff` set is a contradiction — treat it as actionable.
-2. Confirm the implementor left a rationale: `issue show <taskId> --chat` must
+2. Confirm the implementor left a rationale: `issue task view <taskId> --chat` must
    contain an implementor comment tying the empty diff to the spec. A flag set
    with no rationale is actionable.
 3. Judge that rationale against the Task spec — is "no file changes" actually
@@ -117,7 +117,7 @@ for the comment body:
 **Clean** (nothing actionable):
 
 ```bash
-issue comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
+issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
 <body prepared above>
 EOF
 )" && issue task set <taskId> qa passed
@@ -132,7 +132,7 @@ does not count.
 - **1st or 2nd** `changes-requested`:
 
 ```bash
-issue comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
+issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
 <body prepared above>
 EOF
 )" && issue task set <taskId> qa changes-requested
@@ -143,7 +143,7 @@ EOF
   again:
 
 ```bash
-issue comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
+issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
 <body prepared above>
 EOF
 )" && issue task set <taskId> qa changes-requested && issue task set <taskId> needsAttention true --reason "code-quality: 3rd changes-requested in this QA session — <short summary>"
