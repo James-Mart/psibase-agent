@@ -21,7 +21,13 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
-export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy", "labels"] as const;
+// Form/meta grid fields (labels has a dedicated catalog editor).
+export const PROJECT_FORM_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
+
+export const PROJECT_FIELD_KEYS = [
+  ...PROJECT_FORM_FIELD_KEYS,
+  "labels",
+] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
@@ -74,6 +80,7 @@ export const TASK_FIELD_KEYS = [
   ...TASK_IMPERATIVE_ONLY_KEYS,
 ] as const;
 
+export type ProjectFormFieldKey = (typeof PROJECT_FORM_FIELD_KEYS)[number];
 export type ProjectFieldKey = (typeof PROJECT_FIELD_KEYS)[number];
 export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
 export type StoryFormFieldKey = (typeof STORY_FORM_FIELD_KEYS)[number];
@@ -86,7 +93,7 @@ export const IDEA_FIELD_KEYS = [] as const;
 export type IdeaRuntimeOptionalKey = (typeof IDEA_RUNTIME_OPTIONAL_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
-  project: PROJECT_FIELD_KEYS,
+  project: PROJECT_FORM_FIELD_KEYS,
   epic: EPIC_FIELD_KEYS,
   idea: IDEA_FIELD_KEYS,
   story: STORY_FORM_FIELD_KEYS,

@@ -4,6 +4,7 @@ import {
   planLabelCatalogCascade,
   planLabelCatalogRename,
   removedCatalogIds,
+  singleCatalogIdRename,
 } from "./labels.js";
 
 const AT = "2026-07-09T14:00:00.000Z";
@@ -159,5 +160,55 @@ describe("planLabelCatalogRename", () => {
     expect(() => planLabelCatalogRename(proj, "bug", "Bug!", [proj])).toThrow(
       /kebab-case/,
     );
+  });
+});
+
+describe("singleCatalogIdRename", () => {
+  it("detects a one-id swap on a same-length catalog", () => {
+    const existing = project("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    const next = project("p", {
+      labels: [
+        { id: "defect", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    expect(singleCatalogIdRename(existing, next)).toEqual({
+      oldId: "bug",
+      newId: "defect",
+    });
+  });
+
+  it("returns null when an entry is removed", () => {
+    const existing = project("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    const next = project("p", {
+      labels: [{ id: "feat", color: "#00ff00" }],
+    });
+    expect(singleCatalogIdRename(existing, next)).toBeNull();
+  });
+
+  it("returns null when two ids change at once", () => {
+    const existing = project("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    const next = project("p", {
+      labels: [
+        { id: "defect", color: "#ff0000" },
+        { id: "feature", color: "#00ff00" },
+      ],
+    });
+    expect(singleCatalogIdRename(existing, next)).toBeNull();
   });
 });
