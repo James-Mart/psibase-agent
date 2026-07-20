@@ -2,7 +2,7 @@
 name: issue-tracker-work
 description: >-
   Coordinate implementation of one tracked Epic without doing the work yourself:
-  walk its `tree --epic <id>` outline top-to-bottom, delegating each task through
+  walk its `tree <id>` outline top-to-bottom, delegating each task through
   a per-task QA loop (model discriminator, implementor, code-quality on `qa`,
   git; revise = implementor resume when `qa=changes-requested`). Use when an
   agent works a tracked Epic to completion. Assumes the CLI from
@@ -47,14 +47,14 @@ Use the `issue` binary for all tracker commands (do not set `ISSUES_DIR`).
 
 An Epic id. If none is given:
 
-1. Run `issue projects`.
-2. Resolve `<projectId>`:
-   - If it returns zero rows, **stop and hand back to the user** — no project
+1. Run `issue tree` (no-arg: all projects).
+2. Resolve `<projectId>` from the `project <id>` lines:
+   - If it prints `no projects`, **stop and hand back to the user** — no project
      to coordinate.
-   - If it returns more than one row, show the user the id/title list and ask
+   - If it shows more than one project, show the user the id/title list and ask
      which project.
-   - If it returns exactly one row, use that project's id.
-3. Run `issue tree --project <projectId>` to list Epics and ask which one.
+   - If it shows exactly one project, use that project's id.
+3. Run `issue tree <projectId>` to list Epics and ask which one.
 
 Never bare `issue list`. This skill works exactly one Epic; to work several at
 once, start several agents. There is no pick-up list — work starts only when
@@ -77,7 +77,7 @@ instead of continuing.
 
 Run these four commands in order (use `<epicId>` throughout):
 
-1. `issue tree --epic <epicId>`. This outline **is** your plan. It prints the
+1. `issue tree <epicId>`. This outline **is** your plan. It prints the
    Epic's Stories in **pure stacked depth-first** order over `stackedOn` alone —
    a Story stacked on another is nested under it, and root Stories (and
    same-level siblings) follow their stored order. `blockedBy` is an Epic-level
@@ -106,7 +106,7 @@ Run these four commands in order (use `<epicId>` throughout):
      repo-touching subagent would immediately escalate, so **stop and hand back to
      the user** to set it (`issue project set <projectId> workspace <path>`) before
      spawning anything.
-3. `issue list --project <projectId>` — read `problems`. If `problems` is
+3. `issue list <projectId>` — read `problems`. If `problems` is
    non-empty, **stop and hand back to the user** — do not reason about or
    attempt fixes, and do not work a tree with integrity problems. (`list` /
    `tree` hide archived rows by default; pass `--show-archived` when you need
@@ -121,7 +121,7 @@ Run these four commands in order (use `<epicId>` throughout):
 1. Mirror the Stories and their Tasks, in `issue tree` order, into your own
    todo list so you can track progress; keep exactly one Task `in_progress` at
    a time. This mirror is a cache of the outline — re-sync it from a fresh
-   `issue tree --epic <epicId>` each time control returns to you (see The loop).
+   `issue tree <epicId>` each time control returns to you (see The loop).
 2. Spawn via Cursor Task `subagent_type` for the plugin agents below. Pass
    **only** the fields each spawn stub lists (see Spawn stubs). Never pass the
    workspace — each repo subagent resolves it from its own `issue summary`
@@ -180,7 +180,7 @@ each Story: start it if needed, work its not-`done` Tasks in the sequence
 `issue tree` lists them, then **Close a Story** (specReview gate +
 finish-branch) before moving to Stories nested under it.
 
-**Re-read `issue tree --epic <id>` every time control returns to you** — after
+**Re-read `issue tree <id>` every time control returns to you** — after
 every subagent finishes and before you choose the next action — and re-sync your
 todo list to it. The tree is the live plan, not a one-time snapshot: Stories or
 Tasks can be injected into the in-progress Epic mid-run (for example when
@@ -274,7 +274,7 @@ are owned by subagents — see **Field ownership**. Do not set Task `status` or
 
 Repeat until finish-branch:
 
-1. **Re-sync.** Re-read `issue tree --epic <id>` and re-sync your todo list.
+1. **Re-sync.** Re-read `issue tree <id>` and re-sync your todo list.
 2. **Not-done Tasks.** If any Task on the Story is not `done` (including a
    validator-injected remediation Task), **run** the full Per-Task cycle
    for each in tree order (entry gate + steps there). Then continue from
@@ -316,7 +316,7 @@ PR, `merged` for a merged Story, neither when left for the human).
 ### Phase 2 — Retro gate
 
 Distinct coordinator hook after the Story walk — **not** part of Close-Story.
-Re-read `issue tree --epic <epicId>`. Spawn
+Re-read `issue tree <epicId>`. Spawn
 `issue-tracker-retro` only when **all** of the following hold:
 
 1. The Epic has **at least one** Story (a zero-Story Epic must not spawn
@@ -341,7 +341,7 @@ same Epic re-evaluates Phase 2 once the chips show all merged (an unset
 
 Everything lives on disk and every derived fact is recomputed on read, so the
 loop is **resumable** for unambiguous gates: re-running the skill on the Epic
-re-reads `issue tree --epic <id>`, continues from the first not-`done` Task,
+re-reads `issue tree <id>`, continues from the first not-`done` Task,
 and the Per-Task **entry gate** branches on `needsAttention` / `qa` (`passed`
 → finalize, `reviewing` → resume code-quality, `changes-requested` → revise
 rather than Mode `implement`). Cold-restart windows that disk cannot
@@ -446,7 +446,7 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
   on finish-commit; implementor owns `in-progress` / `fixing`.
 - Work one Epic, one Task at a time, in the Story order `issue tree` prints;
   finish a Story before the Stories stacked on it.
-- Re-read `issue tree --epic <id>` every time control returns to you and re-sync
+- Re-read `issue tree <id>` every time control returns to you and re-sync
   your todo list, so Stories or Tasks injected into the in-progress Epic
   mid-run are picked up. Never act from a cached outline.
 - The implementor leaves work uncommitted; the **git** subagent finalizes per

@@ -19,7 +19,7 @@ edit workspace source.
 Use the `issue` binary. Do not set `ISSUES_DIR`.
 Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
-**Read-only allowlist:** `summary`, `show`, `tree`, `list`, `projects`,
+**Read-only allowlist:** `summary`, `show`, `tree`, `list`,
 `<kind> get`, `attachments`, and `--help`. Do **not** run mutating commands
 (`comment`, `apply`, `set`, `delete`, `create-*`, `add-*`, `attach`, `detach`,
 git-fact verbs, etc.).
@@ -30,7 +30,7 @@ not filesystem-read `issues/**`.
 ## Bootstrap
 
 1. `issue summary <epicId>` for Project → Epic context (and `Workspace:`).
-2. `issue tree --epic <epicId>` for the Story/Task outline.
+2. `issue tree <epicId>` for the Story/Task outline.
 3. `issue show <id>` on the Epic and every Story/Task you review (plus any
    extra `<kind> get` / sibling reads your agent file calls for).
 

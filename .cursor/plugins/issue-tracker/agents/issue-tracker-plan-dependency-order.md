@@ -23,7 +23,7 @@ uniquely flag.
 ## Also load
 
 - `story get <id> stackedOn` / `epic get <id> blockedBy` as needed
-- Sibling Epics in the Project via `tree --project` / `list` when judging
+- Sibling Epics in the Project via `tree <projectId>` / `list <projectId>` when judging
   cross-Epic edges
 
 ## What you flag

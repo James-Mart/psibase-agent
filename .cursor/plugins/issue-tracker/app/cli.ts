@@ -2,23 +2,14 @@
 // One-time setup to invoke this CLI as `issue <verb>` instead of `npx tsx cli.ts <verb>`:
 //   cd .cursor/plugins/issue-tracker/app && npm link
 import { readFileSync } from "fs";
-import { basename } from "path";
 import { Command } from "commander";
 import { parse as parseYaml } from "yaml";
-import {
-  appendMessage,
-  create,
-  list,
-  read,
-  readChat,
-  remove,
-} from "./server/services/issues.js";
+import { list } from "./server/services/issues.js";
 import {
   KINDS,
   type DerivedState,
   type IssueRecord,
 } from "./server/schemas.js";
-import { subtreeIds } from "./server/services/subtree.js";
 import { visibleIssues } from "./server/services/archived-visibility.js";
 import { apply } from "./server/services/apply.js";
 import {
@@ -28,26 +19,21 @@ import {
   type ApplyDoc,
 } from "./server/services/apply-schema.js";
 import { bySequence, buildProjectBoardOf, stackedStoryOrder } from "./server/order.js";
-import { resolveProjectId } from "./server/scope.js";
+import {
+  assertScopeVisible,
+  resolveBoardScope,
+  scopeIssueIds,
+  type BoardScope,
+} from "./server/scope.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
+import { formatSummary, summarize } from "./server/services/summary.js";
+import { hasAttention } from "./server/kind.js";
 import {
-  formatAttachmentsSection,
-  formatSummary,
-  summarize,
-} from "./server/services/summary.js";
-import { assigneeOf } from "./server/assignee.js";
-import { hasAttention, hasPartOf, kindHas } from "./server/kind.js";
-import {
-  attachmentPath,
-  listAttachments,
-  putAttachment,
-  removeAttachment,
-} from "./server/services/attachments.js";
-import {
-  resolveDescription,
-  withCreateDescriptionOptions,
-} from "./cli-io.js";
+  registerKindAdd,
+  registerLegacyCreateCommands,
+} from "./cli-create.js";
 import { registerKindGetSet } from "./cli-kind.js";
+import { registerKindOps, registerLegacyOps } from "./cli-ops.js";
 import { DELETED_FIELD_VERBS } from "./deleted-field-verbs.js";
 
 type EpicRecord = Extract<IssueRecord, { kind: "epic" }>;
@@ -207,55 +193,12 @@ function renderEpic(epic: EpicRecord, indent: number, ctx: TreeContext): string[
   return lines;
 }
 
-// Resolved `tree` scope: positional id and/or --project/--epic flags, after
-// conflict and kind checks. Branch scope carries the record so render does not
-// re-look it up.
-type TreeScope =
-  | { kind: "all" }
-  | { kind: "project"; projectRef: string }
-  | { kind: "epic"; epicId: string }
-  | { kind: "story"; story: StoryRecord };
-
-function resolveTreeScope(
-  id: string | undefined,
-  opts: { project?: string; epic?: string },
-  issues: IssueRecord[],
-): TreeScope {
-  if (id && (opts.project || opts.epic)) {
-    throw new Error("cannot combine tree [id] with --project or --epic");
-  }
-  if (id) {
-    const issue = issues.find((candidate) => candidate.id === id);
-    if (!issue) throw new Error(`unknown issue "${id}"`);
-    switch (issue.kind) {
-      case "project":
-        return { kind: "project", projectRef: issue.id };
-      case "epic":
-        return { kind: "epic", epicId: issue.id };
-      case "story":
-        return { kind: "story", story: issue };
-      case "idea":
-        throw new Error(
-          `cannot scope tree to an idea; pass project "${issue.partOf}" instead`,
-        );
-      case "task":
-        throw new Error(
-          `cannot scope tree to a task; pass story "${issue.partOf}" or its epic instead`,
-        );
-    }
-  }
-  if (opts.epic) return { kind: "epic", epicId: opts.epic };
-  if (opts.project) return { kind: "project", projectRef: opts.project };
-  return { kind: "all" };
-}
-
 function renderProjects(
   issues: IssueRecord[],
   ctx: TreeContext,
-  projectRef?: string,
+  projectId?: string,
 ): string[] {
   const boardOf = buildProjectBoardOf(issues);
-  const projectId = projectRef ? resolveProjectId(issues, projectRef) : undefined;
   const projects = issues
     .filter((issue): issue is Extract<IssueRecord, { kind: "project" }> =>
       issue.kind === "project" && (!projectId || issue.id === projectId),
@@ -270,7 +213,7 @@ function renderProjects(
 }
 
 function renderTreeScope(
-  scope: TreeScope,
+  scope: BoardScope,
   issues: IssueRecord[],
   ctx: TreeContext,
 ): string[] {
@@ -285,7 +228,7 @@ function renderTreeScope(
       return renderEpic(epic, 0, ctx);
     }
     case "project":
-      return renderProjects(issues, ctx, scope.projectRef);
+      return renderProjects(issues, ctx, scope.projectId);
     case "all":
       return renderProjects(issues, ctx);
   }
@@ -328,76 +271,12 @@ async function run(action: () => unknown): Promise<void> {
 }
 
 for (const kind of KINDS) {
-  registerKindGetSet(program, kind, run);
+  const kindCmd = registerKindGetSet(program, kind, run);
+  registerKindAdd(kindCmd, kind, run);
+  registerKindOps(kindCmd, kind, run);
 }
-
-withCreateDescriptionOptions(
-  program.command("create-project").argument("<title>", "project title"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "project",
-      title,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("create-epic")
-    .argument("<title>", "epic title")
-    .requiredOption("--part-of <project>", "parent project id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "epic",
-      title,
-      partOf: opts.partOf,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("add-story")
-    .argument("<title>", "story title")
-    .requiredOption("--part-of <epic>", "parent epic id")
-    .option("--stacked-on <branch>", "fork-point story id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "story",
-      title,
-      partOf: opts.partOf,
-      stackedOn: opts.stackedOn,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
-
-withCreateDescriptionOptions(
-  program
-    .command("add-task")
-    .argument("<title>", "task title")
-    .requiredOption("--part-of <branch>", "parent story id")
-    .option("--assignee <who>", "assignee id"),
-).action((title, opts) =>
-  run(() =>
-    create({
-      kind: "task",
-      title,
-      partOf: opts.partOf,
-      assignee: opts.assignee,
-      description: resolveDescription(opts),
-    }),
-  ),
-);
+registerLegacyCreateCommands(program, run);
+registerLegacyOps(program, run);
 
 program
   .command("apply")
@@ -429,87 +308,6 @@ program
   );
 
 program
-  .command("attach")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .argument("<file>", "path to file to attach")
-  .description(
-    "attach a file; on basename collision keeps the existing file and stores under a unique name; prints the stored basename",
-  )
-  .action((id, file) =>
-    run(async () => {
-      const bytes = readFileSync(file);
-      const meta = await putAttachment(id, basename(file), bytes);
-      console.log(
-        `attached ${meta.name} (${meta.size} bytes) — ${attachmentPath(id, meta.name)}`,
-      );
-    }),
-  );
-
-program
-  .command("attachments")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .description("list attachment names and sizes")
-  .action((id) =>
-    run(() => {
-      const attachments = listAttachments(id);
-      if (attachments.length === 0) {
-        console.log("(no attachments)");
-        return;
-      }
-      for (const att of attachments) {
-        console.log(`${att.name}\t${att.size}`);
-      }
-    }),
-  );
-
-program
-  .command("detach")
-  .argument("<id>", "issue id (epic, story, or task)")
-  .argument("<name>", "attachment basename to remove")
-  .action((id, name) =>
-    run(async () => {
-      await removeAttachment(id, name);
-      console.log(`detached ${name} from ${id}`);
-    }),
-  );
-
-program
-  .command("comment")
-  .argument("<id>", "issue id")
-  .requiredOption("--role <role>", "message author role (e.g. agent, human)")
-  .requiredOption("--body <text>", "message body (Markdown)")
-  .option("--name <name>", "author display name")
-  .action((id, opts) =>
-    run(async () => {
-      const message = await appendMessage(id, {
-        role: opts.role,
-        name: opts.name,
-        body: opts.body,
-      });
-      console.log(`commented on ${id} as ${message.name ?? message.role}`);
-    }),
-  );
-
-program
-  .command("delete")
-  .argument("<id>", "issue id")
-  .description(
-    "delete an issue: cascades to contained children, splices stackedOn, drops blockedBy",
-  )
-  .action((id) =>
-    run(async () => {
-      const result = await remove(id);
-      console.log(`deleted ${result.deleted.join(", ")}`);
-      for (const { id: bid, to } of result.repointed) {
-        console.log(`  repointed ${bid}.stackedOn -> ${to ?? "main"}`);
-      }
-      for (const { id: bid } of result.unblocked) {
-        console.log(`  dropped deleted blocker from ${bid}.blockedBy`);
-      }
-    }),
-  );
-
-program
   .command("summary")
   .argument("<id>", "issue id (task, story, epic, idea, or project)")
   .description(
@@ -522,115 +320,34 @@ program
   );
 
 program
-  .command("show")
-  .argument("<id>", "issue id")
+  .command("list")
   .description(
-    "print an issue's metadata and description (pass --chat for the chat log)",
+    "print issues, derived state, and any problems as JSON (optional id scopes like tree)",
   )
-  .option("--chat", "also print the chat log")
+  .argument(
+    "[id]",
+    "scope by issue id (project/epic/story subtree; idea/task refused; omit for all projects)",
+  )
+  .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
   .action((id, opts) =>
     run(() => {
-      const detail = read(id);
-      const lines = [
-        `id: ${detail.id}`,
-        `kind: ${detail.kind}`,
-        `title: ${detail.title}`,
-      ];
-      if (detail.kind === "project") {
-        lines.push(`mergePolicy: ${detail.mergePolicy}`);
-        if (detail.workspace) {
-          lines.push(`workspace: ${detail.workspace}`);
-        }
-      }
-      if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);
-      if (detail.kind === "epic" && detail.blockedBy.length > 0) {
-        lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
-      }
-      if (detail.kind === "story") {
-        if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
-        lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
-        if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
-        if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
-        lines.push(`merged: ${detail.merged}`);
-        if (detail.specReview) lines.push(`specReview: ${detail.specReview}`);
-      }
-      if (detail.kind === "task") {
-        lines.push(`status: ${detail.status}`);
-        if (detail.qa) lines.push(`qa: ${detail.qa}`);
-        if (detail.commitSha) lines.push(`commitSha: ${detail.commitSha}`);
-        if (detail.noDiff) lines.push(`noDiff: true`);
-      }
-      if (hasPartOf(detail)) {
-        const assignee = assigneeOf(detail);
-        if (assignee) lines.push(`assignee: ${assignee}`);
-        if (hasAttention(detail) && detail.needsAttention) {
-          lines.push(`attention: ${detail.attentionReason ?? "(no reason)"}`);
-        }
-        if (kindHas(detail.kind, "attachments")) {
-          lines.push(...formatAttachmentsSection(id, listAttachments(id)));
-        }
-      }
-      console.log(lines.join("\n"));
-      console.log();
-      console.log(detail.description || "(no description)");
-
-      if (opts.chat) {
-        const { messages, problems } = readChat(id);
-        console.log();
-        console.log("--- chat ---");
-        if (messages.length === 0) console.log("(no messages)");
-        for (const message of messages) {
-          console.log(`[${message.at}] ${message.name ?? message.role}: ${message.body}`);
-        }
-        // Malformed chat lines are surfaced as stderr warnings but deliberately
-        // do not fail the command: like list()'s `problems`, they are data
-        // warnings, not a failure of `show` itself, which still printed the
-        // issue and every parseable message. Only thrown errors (e.g. unknown
-        // id) set a nonzero exit code.
-        for (const problem of problems) {
-          console.error(`chat problem: ${problem.message}`);
-        }
-      }
-    }),
-  );
-
-program
-  .command("projects")
-  .description("print all projects: id<TAB>title")
-  .action(() =>
-    run(() => {
-      const { issues } = list();
-      const projects = issues.filter((issue) => issue.kind === "project");
-      if (projects.length === 0) {
-        console.log("no projects");
-        return;
-      }
-      for (const project of projects) {
-        console.log(`${project.id}\t${project.title}`);
-      }
-    }),
-  );
-
-program
-  .command("list")
-  .description("print a project's issues, derived state, and any problems as JSON")
-  .requiredOption("--project <id|title>", "project id or title to scope the listing to")
-  .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
-  .action((opts) =>
-    run(() => {
       const full = list();
-      const projectId = resolveProjectId(full.issues, opts.project);
-      const scope = subtreeIds(full.issues, projectId);
+      // Resolve scope against the full graph so archived ids remain addressable,
+      // then filter to the visible subset (unless --show-archived).
+      const scope = resolveBoardScope(id, full.issues, "list");
+      const showArchived = Boolean(opts.showArchived);
+      const inScope = scopeIssueIds(scope, full.issues);
       const scopedIssues = visibleIssues(
-        full.issues.filter((issue) => scope.has(issue.id)),
-        Boolean(opts.showArchived),
+        full.issues.filter((issue) => inScope.has(issue.id)),
+        showArchived,
       );
       const visibleIds = new Set(scopedIssues.map((issue) => issue.id));
+      if (!showArchived) assertScopeVisible(scope, visibleIds);
       const scoped = {
         issues: scopedIssues,
         problems: full.problems.filter((problem) => visibleIds.has(problem.id)),
         derived: Object.fromEntries(
-          Object.entries(full.derived).filter(([id]) => visibleIds.has(id)),
+          Object.entries(full.derived).filter(([issueId]) => visibleIds.has(issueId)),
         ),
       };
       console.log(JSON.stringify(scoped, null, 2));
@@ -644,32 +361,19 @@ program
   )
   .argument(
     "[id]",
-    "scope by issue id (project/epic/story subtree; tasks are refused)",
+    "scope by issue id (project/epic/story subtree; idea/task refused; omit for all projects)",
   )
-  .option("--project <id|title>", "scope the outline to a project subtree (id or title)")
-  .option("--epic <id>", "scope the outline to a single epic subtree")
   .option("--show-archived", "include archived Epic / Idea / Story / Task issues")
   .action((id, opts) =>
     run(() => {
       const { issues: allIssues, derived } = list();
       // Resolve scope against the full graph so archived ids remain addressable,
       // then render only the visible subset (unless --show-archived).
-      const scope = resolveTreeScope(id, opts, allIssues);
+      const scope = resolveBoardScope(id, allIssues, "tree");
       const showArchived = Boolean(opts.showArchived);
       const issues = visibleIssues(allIssues, showArchived);
       const visibleIds = new Set(issues.map((issue) => issue.id));
-      if (!showArchived) {
-        if (scope.kind === "epic" && !visibleIds.has(scope.epicId)) {
-          throw new Error(
-            `epic "${scope.epicId}" is archived; pass --show-archived`,
-          );
-        }
-        if (scope.kind === "story" && !visibleIds.has(scope.story.id)) {
-          throw new Error(
-            `story "${scope.story.id}" is archived; pass --show-archived`,
-          );
-        }
-      }
+      if (!showArchived) assertScopeVisible(scope, visibleIds);
       const visibleDerived = Object.fromEntries(
         Object.entries(derived).filter(([issueId]) => visibleIds.has(issueId)),
       );

@@ -1,18 +1,13 @@
 import type { Command } from "commander";
 import { coerceBoolean, coerceEnum, coerceJson } from "./cli-coerce.js";
-import {
-  readCliFileArg,
-  resolveDescription,
-  withCreateDescriptionOptions,
-  type CreateDescriptionOpts,
-} from "./cli-io.js";
+import { readCliFileArg } from "./cli-io.js";
 import {
   isClearableSetField,
   KIND_GET_FIELDS,
   KIND_SET_FIELDS,
   type SetFieldSpec,
 } from "./server/kind-fields.js";
-import { create, list, read, update } from "./server/services/issues.js";
+import { list, read, update } from "./server/services/issues.js";
 import { validateFullCommitSha } from "./server/services/commit-sha.js";
 import type { IssueDetail, IssueKind, IssuePatch } from "./server/schemas.js";
 
@@ -28,7 +23,7 @@ function articleFor(kind: IssueKind): "a" | "an" {
   return kind === "epic" || kind === "idea" ? "an" : "a";
 }
 
-function assertKind(expected: IssueKind, id: string): IssueDetail {
+export function assertKind(expected: IssueKind, id: string): IssueDetail {
   const detail = read(id);
   if (detail.kind !== expected) {
     throw new Error(
@@ -266,32 +261,11 @@ export function kindSet(
   return update(id, patch);
 }
 
-function registerIdeaAdd(
-  kindCmd: Command,
-  run: (action: () => unknown) => Promise<void>,
-): void {
-  withCreateDescriptionOptions(
-    kindCmd
-      .command("add")
-      .argument("<title>", "idea title")
-      .requiredOption("--project <project>", "parent project id"),
-  ).action((title: string, opts: CreateDescriptionOpts & { project: string }) =>
-    run(() =>
-      create({
-        kind: "idea",
-        title,
-        partOf: opts.project,
-        description: resolveDescription(opts),
-      }),
-    ),
-  );
-}
-
 export function registerKindGetSet(
   program: Command,
   kind: IssueKind,
   run: (action: () => unknown) => Promise<void>,
-): void {
+): Command {
   const cmd = program.command(kind);
 
   cmd
@@ -321,7 +295,5 @@ export function registerKindGetSet(
         run(() => kindSet(kind, id, field, value, opts)),
     );
 
-  if (kind === "idea") {
-    registerIdeaAdd(cmd, run);
-  }
+  return cmd;
 }

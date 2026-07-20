@@ -28,7 +28,7 @@ verbs, etc.).
 ## Bootstrap
 
 Run `issue summary <storyId>` for Project → Epic → Story context. Use
-`issue tree --epic <epicId>` and `issue show <id>` on the Story's Tasks for
+`issue tree <epicId>` and `issue show <id>` on the Story's Tasks for
 their full specs (the normative checklist), and on the Story for
 scope/context. That summary also carries the Project **workspace** —
 inspect the Story's tasks, diffs, and files with it as the cwd, and honor
@@ -75,7 +75,7 @@ the unset escalation, per **SPEC § Project workspace**.
 2. Create one remediation Task. Pipe the concrete fix list (multiline
    Markdown) via stdin — do **not** use inline `--description`:
    ```bash
-   issue add-task --part-of <storyId> --description-file - \
+   issue add-task --part-of <storyId> --file - \
      "Address spec-conformance findings for <storyId>" <<'EOF'
    <concrete fix list>
    EOF

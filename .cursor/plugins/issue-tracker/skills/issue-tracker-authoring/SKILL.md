@@ -66,8 +66,8 @@ Field read/write: `issue <kind> get|set …` (`project` | `epic` | `story` |
   for a single field. (`summary`'s `Workspace:` line remains the bootstrap
   contract for Project workspace resolution.)
 - **`needsAttention true` requires `--reason`**.
-- **`description`**: create with `--description` / `--description-file` on the
-  create verbs; update with
+- **`description`**: create with `--description` / `--file` on the create/`add`
+  verbs; update with
   `issue <kind> set <id> description --file <path|->` (omit the positional
   value). Pass `-` for stdin to avoid shell-escaping multiline Markdown. When
   the description introduces or wires an interface, see
@@ -123,26 +123,23 @@ Story/Task only; basename path-safety; 25 MiB cap):
   script.
 - **`summary <id>`** — Project → Epic → Story → Task bootstrap chain; each
   node that has attachments includes the same listing (omitted when empty).
-- **`tree [id]`** — print an indented Project > Epic > Story > Task outline with
-  derived status/stack chips (status, base, branch, PR, merged, sha, blocked).
-  A trailing id scopes by kind: `project` → that Project subtree (same as
-  `--project <id>`), `epic` → that Epic subtree (same as `--epic <id>`),
-  `story` → that Story line plus its Tasks only, `task` → refused (pass
-  the parent Story or Epic). Unknown ids error; do not combine `[id]` with
-  `--project` or `--epic`. `--project <id|title>` or `--epic <id>` still scope
-  when no positional is given. Stories print in **stacked
-  depth-first order** (a Story immediately followed by what forks from it) and
-  Tasks in sequence, so the output *is* the canonical implementation order.
-  Omits archived Epic / Story / Task rows by default; pass `--show-archived`
+- **`tree [id]`** / **`list [id]`** — shared optional positional scope (id only;
+  no title lookup). Omit for all projects. `project` → that Project subtree,
+  `epic` → that Epic subtree, `story` → that Story plus its Tasks only,
+  `idea` / `task` → refused (pass the parent Project / Story or Epic).
+  Unknown ids error. `tree` prints an indented Project > Epic > Story > Task
+  outline with derived status/stack chips (status, base, branch, PR, merged,
+  sha, blocked). Stories print in **stacked depth-first order** (a Story
+  immediately followed by what forks from it) and Tasks in sequence, so the
+  output *is* the canonical implementation order. `list` prints JSON
+  (`issues` / `derived` / `problems`) filtered to the same scope. Both omit
+  archived Epic / Idea / Story / Task rows by default; pass `--show-archived`
   to include them.
 
 ### Other flags
 
-- **project title in place of id** — `list`/`tree` accept `--project` as either
-  a project id **or** a unique project title, so you don't have to run
-  `projects` first (an ambiguous/unknown title errors nonzero).
-- **`--show-archived`** — `list`/`tree` include archived Epic / Story / Task
-  issues (hidden by default). See
+- **`--show-archived`** — `list`/`tree` include archived Epic / Idea / Story /
+  Task issues (hidden by default). See
   [SPEC.md](../../SPEC.md#archived-visibility).
 
 ## Task interface seams
