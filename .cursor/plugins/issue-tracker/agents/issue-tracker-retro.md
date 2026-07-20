@@ -56,6 +56,9 @@ Set `<parentId> = basename(<root>)`; `<root>/<parentId>.jsonl` is **required**
   when the source Epic’s Product project differs.
 - **Evidence:** every confusion Task/Story cites transcript CoT; if thinking
   is `[REDACTED]`, cite behavioral evidence with transcript path + agent id.
+- **Agnostic residuals:** residual Tasks state durable, project-agnostic
+  principles — not project- or content-specific patches. Changes to skills,
+  agents, and SPEC stay generic; transcript is evidence only, not the fix text.
 - **Single Change locus:** each residual Task **Change** names one edit locus
   (file + placement) — no either/or placements.
 - **Epic description opens** with `Source run: [<title>](issue:<sourceEpicId>)`
