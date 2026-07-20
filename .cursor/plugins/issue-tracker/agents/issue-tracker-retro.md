@@ -16,9 +16,8 @@ implement product work, grill the user, or hand a summary back to the coordinato
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR` (default plugin `issues/`).
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`; the global
-`issue` bin must stay linked to the Project workspace plugin app.
+Use the `issue` binary. Do not set `ISSUES_DIR`.
+Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 **Allowed writes:** `comment`, `apply`, `epic set` (for `needsAttention` on the
 source Epic; `--reason` required when true). Do not run any other mutating
 `issue` command.
