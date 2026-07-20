@@ -11,17 +11,16 @@ description: >-
 
 Turn a rough capture into a detailed **Epic > Story > Task** plan. You grill the
 user to shared understanding, propose the tree, get explicit go-ahead, then
-write the tracker via `issue apply` (issue-tracker-authoring /
-issue-tracker-decompose). Do not implement product code; this skill only
-authors the plan artifact.
+write the tracker via `issue apply` (issue-tracker-authoring). Do not implement
+product code; this skill only authors the plan artifact.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
 [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
-Grain, apply doc shape, and parent-prose rules live in issue-tracker-decompose
-and [SPEC.md](../../SPEC.md) — follow those when building the tree; do not
-restate them here.
+Grain, apply doc shape, parent-prose, and prune-by-default rules live in
+issue-tracker-authoring and [SPEC.md](../../SPEC.md) — follow those when
+building the tree; do not restate them here.
 
 ## Argument
 
@@ -101,11 +100,8 @@ Strict flow after shared understanding (exactly two beats — no extra confirm):
 ## Migrate
 
 Both paths use one **epic-form** `apply` (`project: <projectId>` string +
-`epic:` object) — prune-by-default within that Epic root. Ship the **full**
-desired subtree (title, description, Stories/Tasks); omitting children
-**deletes** them. Prefer declarative `apply` over imperative
-`issue epic|story|task add`. Never use a project-root `apply`
-for this migration (a partial project doc would prune sibling Epics/Ideas).
+`epic:` object). Follow issue-tracker-authoring for apply-doc shape and
+prune-by-default scope (never a project-root `apply` for this migration).
 
 | Source | Epic id in the doc | After successful `apply` |
 | --- | --- | --- |

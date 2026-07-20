@@ -1,165 +1,123 @@
 ---
 name: issue-tracker-authoring
 description: >-
-  Drive the issue-tracker CLI to create/update Project > Epic > Story > Task
-  issues and record git facts against a stack. Use when an agent creates/updates
-  issues or works a stack. The authoritative command reference is `cli.ts --help`.
-  Act only through the CLI, never by editing issue.json. Plan a tree:
-  issue-tracker-decompose. Work it: issue-tracker-work.
+  Author a standalone Project > Epic > Story > Task plan in the issue-tracker:
+  grain, vertical slices, blockedBy/diamond, localized prose, and a completeness
+  pass — then write it with one nested YAML doc and `apply`. Use when planning a
+  stack of git PRs, deciding Story vs Task grain, or turning a plan into tracked
+  issues. Glossary and apply-doc shape: SPEC.md. Work it: issue-tracker-work.
 ---
 
-# Issue Tracker — CLI Contract
+# Issue Tracker — Author an Epic Tree
 
-Act **only through the CLI**; never hand-edit `issue.json`. The CLI wraps the one
-validated service layer: it re-validates the whole set on each write and **exits
-nonzero with a message** on any integrity violation (bad/missing
-`partOf`/`stackedOn`, wrong-kind referent, cross-Epic `stackedOn`, cycle).
-Nonzero = refused — read it, fix inputs, don't retry blindly. If `list` reports
-`problems`, resolve them first. Glossary and derived state: [SPEC.md](../../SPEC.md).
-Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+Authoring the tracker is producing a **plan artifact**, so it is permitted in
+**Plan mode** (the tree is the plan). The tree is the **entire design** — it
+must replace any prior plan doc and stand alone. Companion material belongs
+**with the issue that uses it** (prose in `description.md`, or opaque files as
+attachments — [SPEC.md § Attachments](../../SPEC.md#attachments)). Do not
+hand-edit `issue.json`. Cross-cutting CLI invariants:
+[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
-Parent `description.md` prose must not restate the child list
+Localize prose to the tier where it belongs — don't dump the whole spec in the
+Epic and leave children title-only, and don't enumerate in a parent the specific
+work its children each cover
 ([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)).
 
-The tracker is a **plan artifact**, so authoring it via this CLI is permitted in
-**Plan mode** (it is the plan, like editing a plan doc); other system writes are not.
+## Author declaratively: one YAML doc, then `apply`
 
-## Command reference: `--help`
-
-The commander-generated help is the **single source of truth** for the command
-set and every flag — this skill does not restate it (a hand-copied table would
-silently rot against `app/cli.ts`).
+Write the **whole tree as a single nested YAML doc** and `apply` it — do not
+build it up with imperative `issue <kind> add` calls and hand-threaded ids.
 
 ```bash
-cd .cursor/plugins/issue-tracker/app && npx tsx cli.ts --help   # all commands
-npx tsx cli.ts <command> --help                                 # one command's flags
+issue apply plan.yaml
 ```
 
-`ISSUES_DIR=/abs/path` picks the `issues/` dir (default: the plugin's own) —
-match the UI/server so the human sees changes live. After a one-time `npm link`
-in the **workspace** app dir
-(`<workspace>/.cursor/plugins/issue-tracker/app`), the CLI is also invokable as
-`issue <verb>` (the `issue` bin) instead of `npx tsx cli.ts <verb>`. Never
-`npm link` from `/root/.cursor/plugins/local/issue-tracker/` — that retargets
-the global bin away from the authoritative workspace `issues/` store.
+Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-doc-format).
 
-## Semantics (what `--help` doesn't spell out)
+- **Structure at Project vs below Epic.** Under a Project, each `children:`
+  entry declares `kind: epic | idea` so Epics and Ideas can interleave (shared
+  sibling order). Below an Epic, kind comes from child keys (`stories` →
+  `tasks`, and `stacked` for a Story that forks off another Story). `partOf`
+  and `stackedOn` are inferred from the nesting, never written by hand.
+- **Ids are author-chosen and stable.** Every node carries a required kebab `id`
+  you pick (unique, slug-safe, title-independent). Because you choose them up
+  front you can author `issue:<id>` cross-links and Epic-level `blockedBy` ids
+  before anything exists — no create-order dependency, no id capture.
+- **`blockedBy` is the only explicit cross-reference, and it lives on the
+  Epic.** Containment (`partOf`) and the fork point (`stackedOn`) come from
+  nesting; `blockedBy` is an **Epic-level** list of other same-Project Epic ids —
+  the sole edge that crosses an Epic boundary. Model dependencies *within* an
+  Epic as **stacks** (`stackedOn`), not `blockedBy`. When a unit needs code from
+  two parallel Stories at once (a multi-parent / cross-stack dependency that a
+  single fork point can't express), don't reach for a Story-level edge: split it
+  into a **separate Epic that is `blockedBy` the first**, keeping Epics small
+  (see the diamond in SPEC.md — keeps parallel stories parallel instead of
+  linearizing them, at the cost of waiting for the blocking Epic to merge).
+- **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
+  prunes-by-default: nodes you add appear, nodes you drop from the doc are
+  deleted, and unchanged nodes are untouched. It is atomic (a doc that would
+  break integrity changes nothing) and preserves runtime/progress fields and
+  attachment bytes, so re-applying an edited doc mid-implementation is safe
+  ([SPEC.md § Declarative/imperative field seam](../../SPEC.md#declarativeimperative-field-seam)).
+  Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
+  incrementally with `issue <kind> add` or kind `set`.
+- **Scope the doc to a subtree.** Prune-by-default is bounded to the doc's root.
+  To edit one epic or story without touching its siblings, root the doc there
+  and reference the enclosing parents by id: an **epic form** (`project: <id>`
+  string + `epic:` object) reconciles just that epic within the project, and a
+  **story form** (`project: <id>` + `epic: <id>` strings + `story:` object)
+  reconciles just that story and its task list within the epic. Epic/story forms
+  leave Ideas untouched (Ideas are Project children only). A story doc owns only
+  its own tasks (stacked children belong to the epic) and preserves the story's
+  fork point.
 
-- **`add` prints the new id** (`issue project|epic|idea|story|task add …`) on
-  stdout — capture it to link children. `apply` (below) makes this unnecessary
-  for whole-tree authoring, since ids are author-chosen.
-- **`attach` collision may rename** — the stored basename can differ from the
-  source file; stdout prints the stored name (and path).
-- **Updates are partial merges** — only the named field changes; the rest is
-  untouched. Field writes: kind-scoped `set` below.
-- **Nonzero exit = the write was refused** with no on-disk change; read the
-  message and fix the input.
-- Cross-link issues inside any body/description: `[text](issue:<id>)`.
+## Grain: Story vs Task
 
-### Kind-scoped ops
+- **Project** — the top-level container that groups related Epics. Organizational
+  only (no status); its `description.md` is a short overview of the whole product
+  area. Every Epic must belong to a Project.
+- **Epic** — overview + cross-cutting design principles/invariants only (what
+  governs every phase). Not the full spec.
+- **Story** = one PR / shippable unit: scope, approach, and any data-model or
+  interface detail specific to it. Normally several tasks; one task's worth
+  of work is a Task, not a Story.
+- **Task** = one git commit: implementor-resolution detail (what to do + how to
+  verify), no deeper than a good plan section. Must be a standalone vertical
+  slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
+  Tree nesting supplies context, so linking task → epic is unnecessary.
+  **Tasks run in the order they appear in the doc** (top-to-bottom); authors
+  never specify `order` — array position is implementation order.
 
-Single-issue ops are kind-scoped (`project` | `epic` | `idea` | `story` |
-`task`); the CLI kind must equal the stored kind (hard error otherwise). Full
-surface: [SPEC.md](../../SPEC.md#cli-surface).
+**Each Story must be independently mergeable to `main`.** Stories merge to
+`main` (stacked children after their fork-point Story, in stack order), and only
+Stories merge — Tasks are internal steps that ship together as the Story's
+one PR. So never split one cohesive change across Stories such that merging one
+leaves `main` broken (e.g. a schema change in one Story and the code that
+consumes it in another): keep it in a single Story as multiple Tasks. See the
+stacked-PR merge model in [SPEC.md](../../SPEC.md).
 
-```
-issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
-```
+### Task shape: vertical slices, not horizontal layers
 
-- **`add`** — `issue project add <title>` (no `--part-of`); children take
-  `--part-of`. Description: `--description` and/or `--file` (use `-` for
-  stdin). Also: `--assignee` on epic / story / task; `--stacked-on` on story.
-- **`view`** — `issue <kind> view <id>` (pass `--chat` for the chat log).
-- **`delete`** — `issue <kind> delete <id>` (cascades per SPEC).
-- **`comment`** — epic / story / task only:
-  `issue epic|story|task comment <id> --role <role> --body <text>`.
-- **`attach` / `attachments` / `detach`** — epic / idea / story / task only
-  (not project); see [Attachments](#attachments).
+Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Task kind + stacked-PR
+merge model): each Task must leave the Story tip **buildable and testable**.
 
-### Kind-scoped `get` / `set`
+**Prefer** vertical slices — one thin end-to-end cut of a capability (types +
+implementation + a focused test) that stands alone.
 
-Field read/write: `issue <kind> get|set …`. Allowlists, flags, and `--clear`
-semantics: `issue <kind> get|set --help` and
-[SPEC.md](../../SPEC.md#kind-scoped-get--set).
+**Avoid** horizontal layering that does not stand alone:
 
-- **Prefer `get` for scalar reads** — do not parse `view` / `summary` / `tree`
-  for a single field. (`summary`'s `Workspace:` line remains the bootstrap
-  contract for Project workspace resolution.)
-- **`needsAttention true` requires `--reason`**.
-- **`description`**: seed with `--description` / `--file` on `add`; update with
-  `issue <kind> set <id> description --file <path|->` (omit the positional
-  value). Pass `-` for stdin to avoid shell-escaping multiline Markdown. When
-  the description introduces or wires an interface, see
-  [Task interface seams](#task-interface-seams).
-- **Reparent**: `issue <kind> set <id> partOf <parent>` (Task→Story,
-  Story→Epic, Epic→Project).
-- **Epic `blockedBy`**: prefer `--add` / `--remove` for incremental edits; a
-  positional JSON array fully replaces.
+- **Bad:** Task 1 adds types/interfaces only; Task 2 "wires them up"; Task 3
+  adds tests — or a half-migration Task that does not compile. Early Tasks do
+  not prove anything on their own.
+- **Good:** Task 1 adds one complete capability (types, implementation, and a
+  focused test) that builds; Task 2 adds the next capability the same way.
 
-### Declarative apply
-
-- **`apply <file>`** — declarative authoring path for plan shape + prose. Doc
-  format and field seam: [SPEC.md](../../SPEC.md#apply-doc-format). Use via
-  issue-tracker-decompose.
-- **Roots.** Project (whole tree, including Ideas), Epic (one epic in an
-  existing project), or Story (one story + its tasks). Epic/story forms leave
-  Ideas untouched — Ideas are Project children only.
-- **Semantics.** Idempotent upsert; atomic (integrity-checked before any write);
-  prune-by-default within the doc's root subtree.
-- **Output.** Prints `created`/`updated`/`deleted` counts, then echoes the
-  resulting subtree (same outline as `tree`). `blockedBy` is authored on the
-  **Epic** node only. When Task descriptions introduce or wire an interface, see
-  [Task interface seams](#task-interface-seams).
-
-### Attachments
-
-Companion material (Canvas `.tsx`, images, fixtures) belongs **with the issue
-that uses it** as opaque files under `issues/<id>/attachments/` — do not paste
-binary or Canvas bytes into `description.md`. Full model and limits (epic /
-idea / story / task; basename path-safety; 25 MiB cap):
-[SPEC.md](../../SPEC.md#attachments).
-
-- **Links.** Issue-local relative Markdown only: `[foo](foo.tsx)` means that
-  issue's `attachments/foo.tsx`. No `attachment:` prefix and no `attachments/`
-  segment in the link. Arbitrary external workspace paths remain forbidden.
-- **`attach` / `attachments` / `detach`** —
-  `issue epic|idea|story|task attach <id> <file>` /
-  `issue epic|idea|story|task attachments <id>` /
-  `issue epic|idea|story|task detach <id> <name>`. Basename when free; unique
-  suffix on collision (keeps existing file) — see
-  [SPEC.md](../../SPEC.md#attachments). Project ids are refused.
-- **`apply` seam.** `apply` never creates, updates, or deletes attachment
-  bytes (same as `chat.jsonl`). After the tree is applied, use kind-scoped
-  `attach` / `detach` for bytes.
-- **Discovery.** `view` and `summary` list attachments (name, size, on-disk
-  path) when present; omitted when empty.
-
-### Inspection / bootstrap
-
-Global board/bootstrap ops (`apply` is under **Declarative apply**). For a
-single issue's metadata + `description.md`, use `issue <kind> view <id>`
-(**Kind-scoped ops**).
-
-- **`summary <id>`** — Project → Epic → Story → Task bootstrap chain; each
-  node that has attachments includes the same listing (omitted when empty).
-- **`tree [id]`** / **`list [id]`** — shared optional positional scope (id only;
-  no title lookup). Omit for all projects. `project` → that Project subtree,
-  `epic` → that Epic subtree, `story` → that Story plus its Tasks only,
-  `idea` / `task` → refused (pass the parent Project / Story or Epic).
-  Unknown ids error. `tree` prints an indented Project > Epic > Story > Task
-  outline with derived status/stack chips (status, base, branch, PR, merged,
-  sha, blocked). Stories print in **stacked depth-first order** (a Story
-  immediately followed by what forks from it) and Tasks in sequence, so the
-  output *is* the canonical implementation order. `list` prints JSON
-  (`issues` / `derived` / `problems`) filtered to the same scope. Both omit
-  archived Epic / Idea / Story / Task rows by default; pass `--show-archived`
-  to include them.
-
-### Other flags
-
-- **`--show-archived`** — `list`/`tree` include archived Epic / Idea / Story /
-  Task issues (hidden by default). See
-  [SPEC.md](../../SPEC.md#archived-visibility).
+A plan's *phases* are the Story grain, its *todos/steps* the Task grain. Group
+related todos into one Story and land them as tasks; when mapping todos to
+Tasks, reshape horizontal layering into vertical slices (split or merge until
+each Task stands alone as above). Split only a genuinely oversized phase. One
+todo → one Story (a stack of one-task PRs with an empty Task tier) means you
+split at the wrong tier.
 
 ## Task interface seams
 
@@ -183,3 +141,21 @@ the Project `workspace` root. Do not use plugin-root shorthand (`agents/...`,
 - **Bad:** `In agents/issue-tracker-spec-conformance-validator.md`
 - **Good:** `In
   .cursor/plugins/issue-tracker/agents/issue-tracker-spec-conformance-validator.md`
+
+## Completeness pass
+
+Before done:
+
+- Every part of the source design is represented.
+- Companion material follows [SPEC.md § Attachments](../../SPEC.md#attachments)
+  (no external workspace paths).
+- No Story/Task is title-only; no Story holds just one task and the
+  Story count isn't merely the bullet count.
+- **Parent/child prose boundaries** — follow the localize guidance above
+  ([SPEC.md](../../SPEC.md#parent-prose-must-not-restate-descendant-lists)):
+  Epic holds no phase- or task-level detail that belongs in children; no
+  Project/Epic/Story restates its children's per-unit list.
+- Every Task that introduces or wires an interface spells out API shape and
+  field names (see [Task interface seams](#task-interface-seams)).
+- Every Task Change that names file paths uses workspace-relative paths (see
+  [Task Change paths](#task-change-paths)).

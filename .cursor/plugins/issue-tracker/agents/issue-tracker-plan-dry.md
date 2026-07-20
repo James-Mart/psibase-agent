@@ -38,4 +38,4 @@ Do **not** flag:
 - Necessary brief cross-links or one-line scope reminders that are not
   full restatements
 - Unique content parked at the wrong tier with no duplicate elsewhere
-  (authoring-conformance / decompose localization)
+  (authoring-conformance / authoring localization)

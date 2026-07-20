@@ -777,7 +777,7 @@ untouched; only deleting the issue (or apply-pruning it) removes them.
 complementing the imperative one-shot verbs. The doc may be rooted at a Project,
 an Epic, or a Story, so a single `apply` can own a whole project, one epic, or
 one story's task list. Authoring guidance lives in
-[issue-tracker-decompose](skills/issue-tracker-decompose/SKILL.md); this section
+[issue-tracker-authoring](skills/issue-tracker-authoring/SKILL.md); this section
 is the format + semantics reference.
 
 ### Shape

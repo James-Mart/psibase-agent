@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 # Issue Tracker
 
-A local work tracker that replaces the giant "plan" doc: an agent decomposes a
+A local work tracker that replaces the giant "plan" doc: an agent authors a
 spec into a **Project > Epic > Story > Task** tree that maps directly onto git
 stacked PRs, then works the tree while a human watches live in the browser. A
 **Project** is the top-level container (an organizational grouping of Epics); a
@@ -63,11 +63,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 
 ## Agent skills (pick by task)
 
-- **`issue-tracker-decompose`** — turning a spec/plan into a standalone
-  Project > Epic > Story > Task tree declaratively: author the whole tree as
-  one nested YAML doc and `apply` it (idempotent upsert, re-applied as the plan
-  evolves); deciding Story vs Task grain. Companion attachments: defer to
-  issue-tracker-authoring.
+- **`issue-tracker-authoring`** — turn a spec/plan into a standalone
+  Project > Epic > Story > Task tree: Story vs Task grain, vertical slices,
+  blockedBy/diamond, localized prose, and a completeness pass — then author the
+  whole tree as one nested YAML doc and `apply` it. Glossary and apply-doc
+  shape: SPEC.md. Work it: issue-tracker-work.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
   delegating each task to subagents in a per-task QA loop (implementor →
   code-quality gate on `qa` → revise/resume until `passed` or escalate) and
@@ -79,10 +79,6 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   run for tracker/work-loop meta confusion and apply a residual Epic under
   Project `issue-tracker` (or comment clean on the source Epic); not invoked
   directly.
-- **`issue-tracker-authoring`** — kind-scoped `add`/`get`/`set`/`view`/
-  `delete`/`comment`/`attach` semantics, `apply`, and inspection
-  (`view`/`summary`/`tree`), pointing at `cli.ts --help` as the authoritative
-  command reference; the shared tool doc the other skills build on.
 - **`issue-tracker-plan`** — grill an Idea or a pre-implementation (`todo`)
   Epic to shared understanding, then migrate into a detailed Epic tree via
   `apply` (new Epic id + `issue idea delete`, or in-place epic-form rewrite);

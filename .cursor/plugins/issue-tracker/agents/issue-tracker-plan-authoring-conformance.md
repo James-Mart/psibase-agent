@@ -2,7 +2,7 @@
 name: issue-tracker-plan-authoring-conformance
 model: composer-2.5
 description: >-
-  Read-only plan polish check: flag authoring/decompose structural violations
+  Read-only plan polish check: flag authoring structural violations
   (Verify, Change paths, seams, grain, attachments, parent enumeration). Used
   by issue-tracker-plan-polish.
 readonly: true
@@ -28,15 +28,13 @@ After loading the shared contract, also read these workspace-relative paths
 (same cwd):
 
 - `.cursor/plugins/issue-tracker/skills/issue-tracker-authoring/SKILL.md`
-- `.cursor/plugins/issue-tracker/skills/issue-tracker-decompose/SKILL.md`
 
-(and their linked SPEC anchors). Do **not** use plugin-root shorthand
+(and its linked SPEC anchors). Do **not** use plugin-root shorthand
 (`skills/...`) — that resolves under the Project workspace incorrectly.
 
 ## What you flag
 
-Structural / guideline violations of issue-tracker-authoring /
-issue-tracker-decompose:
+Structural / guideline violations of issue-tracker-authoring:
 
 - **Parent enumeration** — Project/Epic/Story restates the per-unit child
   list (enumerates what each child covers)
@@ -50,7 +48,7 @@ issue-tracker-decompose:
   API shape / field names (authoring **Task interface seams**).
 - **Grain problems** — title-only Story/Task; Story that is one Task's worth
   of work with an empty Task tier misuse; horizontal layering that leaves an
-  intermediate tip unbuildable (decompose **Task shape**).
+  intermediate tip unbuildable (authoring **Task shape**).
 - **Companion / attachments** — external workspace paths in prose where
   attachments belong (authoring **Attachments**).
 
