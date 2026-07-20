@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import type {
   IssueDetail,
@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useUpdateIssue } from "../api/mutations";
+import { useMoveStory, useUpdateIssue } from "../api/mutations";
+import { useIssuesQuery } from "../api/queries";
 import { useDescriptionEditorUpload } from "../hooks/use-description-editor-upload";
 import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
@@ -34,6 +35,7 @@ import {
   sanitizeAssignmentIds,
   type CatalogDraft,
 } from "../lib/project-labels";
+import { storyPartOfOptions } from "../lib/story-partof-options";
 import {
   supportingDocsDraftFromIssue,
   supportingDocsEqual,
@@ -43,6 +45,7 @@ import {
 import { AssignmentLabelsEditor } from "./assignment-labels-editor";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
+import { PartOfTargetSelect } from "./part-of-target-select";
 import { ProjectLabelsEditor } from "./project-labels-editor";
 import { SupportingDocsEditor } from "./supporting-docs-editor";
 import { TaskStatusChips } from "./task-status-chips";
@@ -120,11 +123,21 @@ export function IssueDetailEdit({
   upload?: UploadAttachmentMutation;
 }) {
   const update = useUpdateIssue();
+  const moveStory = useMoveStory();
+  const { data } = useIssuesQuery();
   const [form, setForm] = useState<FormState>(() =>
     formStateFromIssue(issue, catalog),
   );
   const [labelsError, setLabelsError] = useState<string | null>(null);
   const { hasConflict, acknowledge } = useExternalEditConflict(issue);
+  const storyParents = useMemo(
+    () =>
+      issue.kind === "story"
+        ? storyPartOfOptions(issue, data?.issues ?? [])
+        : [],
+    [issue, data?.issues],
+  );
+  const saving = update.isPending || moveStory.isPending;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -246,6 +259,20 @@ export function IssueDetailEdit({
       }
     }
 
+    // Story partOf Project↔Epic moves go through move-story so the whole
+    // stackedOn stack reparents under the same integrity rules as DnD/CLI.
+    // Drop stackedOn from the follow-up patch — move-story owns stack topology.
+    if (issue.kind === "story" && typeof patch.partOf === "string") {
+      const target = patch.partOf;
+      delete patch.partOf;
+      delete patch.stackedOn;
+      try {
+        await moveStory.mutateAsync({ id: issue.id, target });
+      } catch {
+        return;
+      }
+    }
+
     if (Object.keys(patch).length === 0) {
       onDone();
       return;
@@ -364,10 +391,19 @@ export function IssueDetailEdit({
 
       {kindHas(issue.kind, "detailPartOf") ? (
         <Field label={FIELD_LABELS.partOf}>
-          <Input
-            value={form.partOf}
-            onChange={(e) => set("partOf", e.target.value)}
-          />
+          {issue.kind === "story" ? (
+            <PartOfTargetSelect
+              value={form.partOf}
+              onValueChange={(value) => set("partOf", value)}
+              options={storyParents}
+              placeholder="Select Project or Epic"
+            />
+          ) : (
+            <Input
+              value={form.partOf}
+              onChange={(e) => set("partOf", e.target.value)}
+            />
+          )}
         </Field>
       ) : null}
 
@@ -440,10 +476,10 @@ export function IssueDetailEdit({
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onDone} disabled={update.isPending}>
+        <Button variant="ghost" onClick={onDone} disabled={saving}>
           Cancel
         </Button>
-        <Button onClick={() => void save()} disabled={update.isPending || hasConflict}>
+        <Button onClick={() => void save()} disabled={saving || hasConflict}>
           Save
         </Button>
       </div>

@@ -204,6 +204,16 @@ export function TreePage() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              onClick={() =>
+                openNew({ presetKind: "story", presetParent: projectId })
+              }
+            >
+              <GitBranch className="h-4 w-4" />
+              New story
+            </Button>
+            <Button
+              size="sm"
               onClick={() =>
                 openNew({ presetKind: "epic", presetParent: projectId })
               }

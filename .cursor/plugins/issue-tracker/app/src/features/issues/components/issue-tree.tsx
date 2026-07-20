@@ -78,6 +78,7 @@ function TreeRowDerivedMeta({
       <StoryAxisChips
         storyStatus={derived?.storyStatus}
         specReview={issue.specReview}
+        retro={issue.retro}
       />
     );
   }

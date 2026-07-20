@@ -46,8 +46,8 @@ function requireIssue(issues: Issue[], id: string): Issue {
  *
  * - Target Story → restack onto it (reparent the stack into the target's
  *   `partOf` parent when that parent differs).
- * - Target Epic → reparent the stack into that Epic; clears the root's
- *   `stackedOn` (unstack when the Epic is already the current one).
+ * - Target Epic or Project → reparent the stack into that container; clears the
+ *   root's `stackedOn` (unstack when the container is already the current one).
  */
 export function moveStory(
   id: string,
@@ -58,10 +58,14 @@ export function moveStory(
     const source = asStory(requireIssue(issues, id), "move-story source");
 
     const target = requireIssue(issues, targetId);
-    if (target.kind !== "story" && target.kind !== "epic") {
+    if (
+      target.kind !== "story" &&
+      target.kind !== "epic" &&
+      target.kind !== "project"
+    ) {
       throw new IssueError(
         "validation",
-        `move-story target must be a story or epic, not a ${target.kind}`,
+        `move-story target must be a story, epic, or project, not a ${target.kind}`,
       );
     }
 

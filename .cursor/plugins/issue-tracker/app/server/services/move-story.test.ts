@@ -183,7 +183,7 @@ describe("moveStory", () => {
     await expect(moveStory("e1", "e2")).rejects.toThrow(/must be a story/);
   });
 
-  it("rejects a commit or project target", async () => {
+  it("rejects a commit target", async () => {
     writeIssue("c1", {
       kind: "task",
       title: "C1",
@@ -194,8 +194,58 @@ describe("moveStory", () => {
       updatedAt: AT,
     });
     const { moveStory } = await load();
-    await expect(moveStory("b", "c1")).rejects.toThrow(/story or epic/);
-    await expect(moveStory("b", "p")).rejects.toThrow(/story or epic/);
+    await expect(moveStory("b", "c1")).rejects.toThrow(
+      /story, epic, or project/,
+    );
+  });
+
+  it("reparents a whole stack onto the project as a project-level stack", async () => {
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("b", "p");
+    expect(result.moved).toEqual(["b", "c"]);
+
+    expect(readJson("b").partOf).toBe("p");
+    expect(readJson("b").stackedOn).toBeUndefined();
+    expect(readJson("c").partOf).toBe("p");
+    expect(readJson("c").stackedOn).toBe("b");
+    // Appends among project board roots (e1=0, e2=1)
+    expect(readJson("b").order).toBe(2);
+    expect(list().problems).toEqual([]);
+  });
+
+  it("reparents a project-level stack onto an epic", async () => {
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo",
+      partOf: "p",
+      order: 2,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("child", {
+      kind: "story",
+      title: "Child",
+      partOf: "p",
+      stackedOn: "solo",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { moveStory } = await load();
+    const { list } = await loadList();
+
+    const result = await moveStory("solo", "e2");
+    expect(result.moved).toEqual(["solo", "child"]);
+
+    expect(readJson("solo").partOf).toBe("e2");
+    expect(readJson("solo").stackedOn).toBeUndefined();
+    expect(readJson("child").partOf).toBe("e2");
+    expect(readJson("child").stackedOn).toBe("solo");
+    // Appends among e2 roots (x at order 0)
+    expect(readJson("solo").order).toBe(1);
+    expect(list().problems).toEqual([]);
   });
 
   it("rejects an unknown source or target", async () => {
