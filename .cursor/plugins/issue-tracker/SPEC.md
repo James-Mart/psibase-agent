@@ -429,7 +429,8 @@ A Project may point at up to three optional supporting documents — **vision**,
 
 Missing or unset keys mean that doc is absent. Agents resolve docs **only**
 through `supportingDocs` (**consult-if-present**): no key or an unreadable
-target → skip; never fail the workflow for a missing doc.
+target → skip; never fail the workflow for a missing doc. Authoring guidance:
+[issue-tracker-project-docs](skills/issue-tracker-project-docs/SKILL.md).
 
 **Well-known attachment basenames** (skill default when choosing attachment
 storage): `vision.md`, `coding-standards.md`, `design-system.md`.
