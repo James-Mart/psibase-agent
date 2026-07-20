@@ -676,3 +676,91 @@ describe("cascade delete + reference repair on remove", () => {
     expect(list().issues).toEqual([]);
   });
 });
+
+describe("project labels catalog and assignments", () => {
+  function readJson(id: string): Record<string, unknown> {
+    return JSON.parse(readFileSync(join(dir, id, "issue.json"), "utf8"));
+  }
+
+  it("refuses assigning a label absent from the Project catalog", async () => {
+    const { update } = await loadService();
+    await update("p", {
+      labels: [{ id: "bug", color: "#ff0000" }],
+    });
+    await expect(update("e", { labels: ["ghost"] })).rejects.toThrow(
+      /unknown catalog id/,
+    );
+  });
+
+  it("accepts a closed-catalog assignment", async () => {
+    const { update } = await loadService();
+    await update("p", {
+      labels: [{ id: "bug", color: "#ff0000" }],
+    });
+    const epic = await update("e", { labels: ["bug"] });
+    expect(epic.kind === "epic" && epic.labels).toEqual(["bug"]);
+  });
+
+  it("strips removed catalog ids from assignments in the same write", async () => {
+    const { update } = await loadService();
+    await update("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    await update("e", { labels: ["bug", "feat"] });
+    await update("a", { labels: ["bug"] });
+
+    await update("p", {
+      labels: [{ id: "feat", color: "#00ff00" }],
+    });
+
+    expect(readJson("e").labels).toEqual(["feat"]);
+    expect(readJson("a").labels).toEqual([]);
+    expect(readJson("p").labels).toEqual([{ id: "feat", color: "#00ff00" }]);
+  });
+
+  it("rewrites assignments on catalog rename and refuses collisions", async () => {
+    const { update, renameProjectLabel } = await loadService();
+    await update("p", {
+      labels: [
+        { id: "bug", color: "#ff0000" },
+        { id: "feat", color: "#00ff00" },
+      ],
+    });
+    await update("e", { labels: ["bug", "feat"] });
+    await update("a", { labels: ["bug"] });
+
+    await renameProjectLabel("p", "bug", "defect");
+    expect(readJson("p").labels).toEqual([
+      { id: "defect", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    ]);
+    expect(readJson("e").labels).toEqual(["defect", "feat"]);
+    expect(readJson("a").labels).toEqual(["defect"]);
+
+    await expect(renameProjectLabel("p", "defect", "feat")).rejects.toThrow(
+      /already exists/,
+    );
+  });
+
+  it("rejects labels on a Task", async () => {
+    writeIssue("t", {
+      kind: "task",
+      title: "T",
+      partOf: "a",
+      order: 0,
+      status: "todo",
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    const { update } = await loadService();
+    await update("p", {
+      labels: [{ id: "bug", color: "#ff0000" }],
+    });
+    await expect(update("t", { labels: ["bug"] })).rejects.toThrow(
+      /not valid for a task/,
+    );
+  });
+});

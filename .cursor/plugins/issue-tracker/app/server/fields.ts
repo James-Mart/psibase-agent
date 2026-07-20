@@ -21,11 +21,11 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
-export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
+export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy", "labels"] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
-export const EPIC_IMPERATIVE_ONLY_KEYS = ["retro"] as const;
+export const EPIC_IMPERATIVE_ONLY_KEYS = ["retro", "labels"] as const;
 
 export const EPIC_RUNTIME_OPTIONAL_KEYS = EPIC_IMPERATIVE_ONLY_KEYS;
 
@@ -38,7 +38,11 @@ export const STORY_FORM_FIELD_KEYS = [
   "merged",
 ] as const;
 
-export const STORY_IMPERATIVE_ONLY_KEYS = ["specReview", "mergeBase"] as const;
+export const STORY_IMPERATIVE_ONLY_KEYS = [
+  "specReview",
+  "mergeBase",
+  "labels",
+] as const;
 
 export const STORY_FIELD_KEYS = [
   ...STORY_FORM_FIELD_KEYS,
@@ -51,7 +55,11 @@ export const STORY_RUNTIME_OPTIONAL_KEYS = [
   "mergeBase",
   "prUrl",
   "specReview",
+  "labels",
 ] as const;
+
+// Idea has no form-owned runtime keys besides imperative label assignments.
+export const IDEA_RUNTIME_OPTIONAL_KEYS = ["labels"] as const;
 
 // Task fields the manual edit form renders. Imperative-only runtime keys
 // (e.g. noDiff) live in TASK_IMPERATIVE_ONLY_KEYS and are excluded.
@@ -74,6 +82,8 @@ export type StoryRuntimeOptionalKey = (typeof STORY_RUNTIME_OPTIONAL_KEYS)[numbe
 export type TaskFieldKey = (typeof TASK_FIELD_KEYS)[number];
 
 export const IDEA_FIELD_KEYS = [] as const;
+
+export type IdeaRuntimeOptionalKey = (typeof IDEA_RUNTIME_OPTIONAL_KEYS)[number];
 
 export const KIND_FIELD_KEYS = {
   project: PROJECT_FIELD_KEYS,
@@ -128,6 +138,7 @@ export const FIELD_LABELS = {
   retro: "Retro",
   commitSha: "Commit SHA",
   noDiff: "No diff",
+  labels: "Labels",
 } as const;
 
 export const MERGE_POLICY_LABELS = {
@@ -146,6 +157,7 @@ export const MERGEABLE_KEYS = [
   ...PROJECT_FIELD_KEYS,
   ...EPIC_FIELD_KEYS,
   ...EPIC_IMPERATIVE_ONLY_KEYS,
+  ...IDEA_RUNTIME_OPTIONAL_KEYS,
   ...STORY_FIELD_KEYS,
   ...TASK_FIELD_KEYS,
 ] as const satisfies readonly (keyof IssuePatch)[];

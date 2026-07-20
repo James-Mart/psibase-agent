@@ -265,6 +265,84 @@ describe("parseIssue - valid per kind", () => {
     const { partOf: _partOf, ...rest } = idea;
     expect(parseIssue(rest).ok).toBe(false);
   });
+
+  it("parses a project catalog label with valid color", () => {
+    const result = parseIssue({
+      ...project,
+      labels: [{ id: "bug", color: "#ff0000", description: "Defects" }],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "project") {
+      expect(result.issue.labels).toEqual([
+        { id: "bug", color: "#ff0000", description: "Defects" },
+      ]);
+    }
+  });
+
+  it("rejects an invalid catalog color", () => {
+    expect(
+      parseIssue({
+        ...project,
+        labels: [{ id: "bug", color: "#fff" }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseIssue({
+        ...project,
+        labels: [{ id: "bug", color: "red" }],
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("rejects a catalog description longer than 120 characters", () => {
+    expect(
+      parseIssue({
+        ...project,
+        labels: [{ id: "bug", color: "#00ff00", description: "x".repeat(121) }],
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("accepts a catalog description of exactly 120 characters", () => {
+    const result = parseIssue({
+      ...project,
+      labels: [{ id: "bug", color: "#00ff00", description: "x".repeat(120) }],
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects a non-kebab catalog id", () => {
+    expect(
+      parseIssue({
+        ...project,
+        labels: [{ id: "Bug Label", color: "#00ff00" }],
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("dedupes assignment labels while preserving order", () => {
+    const result = parseIssue({
+      ...epic,
+      labels: ["bug", "feat", "bug", "chore"],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "epic") {
+      expect(result.issue.labels).toEqual(["bug", "feat", "chore"]);
+    }
+  });
+
+  it("parses idea and story assignment labels", () => {
+    const ideaResult = parseIssue({ ...idea, labels: ["bug"] });
+    expect(ideaResult.ok).toBe(true);
+    if (ideaResult.ok && ideaResult.issue.kind === "idea") {
+      expect(ideaResult.issue.labels).toEqual(["bug"]);
+    }
+    const storyResult = parseIssue({ ...branch, labels: ["feat"] });
+    expect(storyResult.ok).toBe(true);
+    if (storyResult.ok && storyResult.issue.kind === "story") {
+      expect(storyResult.issue.labels).toEqual(["feat"]);
+    }
+  });
 });
 
 describe("parseIssue - malformed is rejected with a message", () => {

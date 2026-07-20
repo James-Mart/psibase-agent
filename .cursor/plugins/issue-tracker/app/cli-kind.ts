@@ -7,9 +7,15 @@ import {
   KIND_SET_FIELDS,
   type SetFieldSpec,
 } from "./server/kind-fields.js";
-import { list, read, update } from "./server/services/issues.js";
+import { list, read, renameProjectLabel, update } from "./server/services/issues.js";
 import { validateFullCommitSha } from "./server/services/commit-sha.js";
-import type { IssueDetail, IssueKind, IssuePatch } from "./server/schemas.js";
+import {
+  projectLabelSchema,
+  type IssueDetail,
+  type IssueKind,
+  type IssuePatch,
+  type ProjectLabel,
+} from "./server/schemas.js";
 
 export type KindSetOptions = {
   clear?: boolean;
@@ -17,6 +23,7 @@ export type KindSetOptions = {
   reason?: string;
   add?: string[];
   remove?: string[];
+  rename?: string[];
 };
 
 function articleFor(kind: IssueKind): "a" | "an" {
@@ -56,6 +63,7 @@ function countSetModes(
   if (opts.clear) modes.push("--clear");
   if (opts.add !== undefined) modes.push("--add");
   if (opts.remove !== undefined) modes.push("--remove");
+  if (opts.rename !== undefined) modes.push("--rename");
   return modes;
 }
 
@@ -69,6 +77,9 @@ function coerceArrayPatch(
   opts: KindSetOptions,
   current: string[] | undefined,
 ): IssuePatch {
+  if (opts.rename !== undefined) {
+    throw new Error("--rename is only valid for project labels");
+  }
   const modes = countSetModes(value, opts);
   if (modes.length === 0) {
     throw new Error(
@@ -114,6 +125,121 @@ function coerceArrayPatch(
   return { [field]: parsed } as IssuePatch;
 }
 
+function parseLabelObject(raw: string): ProjectLabel {
+  const parsed = coerceJson(raw, "labels");
+  const result = projectLabelSchema.safeParse(parsed);
+  if (!result.success) {
+    const message = result.error.issues[0]?.message ?? "expected a label object";
+    throw new Error(`invalid labels: ${message}`);
+  }
+  return result.data;
+}
+
+/**
+ * Resolve the JSON string for a catalog upsert from the mutually compatible
+ * upsert inputs (`--add` object, `--file`/`-`, or positional value).
+ * Returns undefined when no upsert input is present.
+ */
+function resolveCatalogUpsertRaw(
+  value: string | undefined,
+  opts: KindSetOptions,
+): string | undefined {
+  const hasAdd = opts.add !== undefined;
+  const hasFile = opts.file !== undefined;
+  const hasValue = value !== undefined;
+  if (!hasAdd && !hasFile && !hasValue) return undefined;
+
+  if (hasFile && hasValue) {
+    throw new Error("--file cannot be combined with a positional value");
+  }
+  if (hasAdd && hasValue) {
+    throw new Error(
+      "value, --file, --clear, --add, --remove, and --rename are mutually exclusive (got value, --add)",
+    );
+  }
+  if (hasAdd && hasFile && opts.add!.length > 0) {
+    throw new Error("--add JSON cannot be combined with --file");
+  }
+
+  if (hasFile) {
+    return readCliFileArg(opts.file!);
+  }
+  if (hasAdd) {
+    if (opts.add!.length !== 1) {
+      throw new Error("--add for project labels expects a single JSON object");
+    }
+    return opts.add![0];
+  }
+  return value;
+}
+
+export type LabelCatalogSetResult =
+  | { action: "rename"; oldId: string; newId: string }
+  | { action: "patch"; patch: IssuePatch };
+
+/**
+ * Single entry for project `labels` set: exclusive modes are clear, remove,
+ * rename, or upsert (composite of --add / --file / positional).
+ */
+export function resolveLabelCatalogSet(
+  value: string | undefined,
+  opts: KindSetOptions,
+  current: ProjectLabel[],
+): LabelCatalogSetResult {
+  const wantsClear = Boolean(opts.clear);
+  const wantsRemove = opts.remove !== undefined;
+  const wantsRename = opts.rename !== undefined;
+  const wantsUpsert =
+    opts.add !== undefined || opts.file !== undefined || value !== undefined;
+
+  const modes: string[] = [];
+  if (wantsClear) modes.push("--clear");
+  if (wantsRemove) modes.push("--remove");
+  if (wantsRename) modes.push("--rename");
+  if (wantsUpsert) modes.push("upsert");
+
+  if (modes.length === 0) {
+    throw new Error(
+      "provide --add, --file, --remove, --rename, or --clear for labels",
+    );
+  }
+  if (modes.length > 1) {
+    throw new Error(
+      `value, --file, --clear, --add, --remove, and --rename are mutually exclusive (got ${formatModes(modes)})`,
+    );
+  }
+
+  if (wantsClear) {
+    return { action: "patch", patch: { labels: [] } };
+  }
+  if (wantsRemove) {
+    const removeSet = new Set(opts.remove!);
+    return {
+      action: "patch",
+      patch: { labels: current.filter((label) => !removeSet.has(label.id)) },
+    };
+  }
+  if (wantsRename) {
+    if (opts.rename!.length !== 2) {
+      throw new Error("--rename requires <oldId> <newId>");
+    }
+    return { action: "rename", oldId: opts.rename![0], newId: opts.rename![1] };
+  }
+
+  const raw = resolveCatalogUpsertRaw(value, opts);
+  if (raw === undefined) {
+    throw new Error(
+      "provide a JSON object via --add, --file, or a positional value",
+    );
+  }
+  const label = parseLabelObject(raw);
+  const next = [...current];
+  const idx = next.findIndex((entry) => entry.id === label.id);
+  if (idx >= 0) next[idx] = label;
+  else next.push(label);
+  return { action: "patch", patch: { labels: next } };
+}
+
 export function coerceSetPatch(
   kind: IssueKind,
   field: string,
@@ -131,8 +257,15 @@ export function coerceSetPatch(
     return coerceArrayPatch(field, value, opts, currentArray);
   }
 
+  if (spec.type === "labelCatalog") {
+    throw new Error("project labels must be set via kindSet");
+  }
+
   if (opts.add !== undefined || opts.remove !== undefined) {
     throw new Error("--add and --remove are only valid for array fields");
+  }
+  if (opts.rename !== undefined) {
+    throw new Error("--rename is only valid for project labels");
   }
 
   const modes = countSetModes(value, opts);
@@ -239,10 +372,18 @@ export function kindGetValue(
 
 function currentArrayValue(detail: IssueDetail, field: string): string[] {
   const value = storedFieldValue(detail, field);
+  if (value === undefined) return [];
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
     throw new Error(`field "${field}" is not a string array on ${detail.kind}`);
   }
   return value;
+}
+
+function currentCatalogLabels(detail: IssueDetail): ProjectLabel[] {
+  if (detail.kind !== "project") {
+    throw new Error(`labels catalog is only on project (got ${detail.kind})`);
+  }
+  return detail.labels ?? [];
 }
 
 export function kindSet(
@@ -255,8 +396,24 @@ export function kindSet(
   const detail = assertKind(kind, id);
   const tables = KIND_SET_FIELDS[kind] as Record<string, SetFieldSpec>;
   const spec = tables[field];
+  if (!spec) {
+    throw new Error(`unknown or unsettable field "${field}" for ${kind}`);
+  }
+
+  if (spec.type === "labelCatalog") {
+    const result = resolveLabelCatalogSet(
+      value,
+      opts,
+      currentCatalogLabels(detail),
+    );
+    if (result.action === "rename") {
+      return renameProjectLabel(id, result.oldId, result.newId);
+    }
+    return update(id, result.patch);
+  }
+
   const currentArray =
-    spec?.type === "array" ? currentArrayValue(detail, field) : undefined;
+    spec.type === "array" ? currentArrayValue(detail, field) : undefined;
   const patch = coerceSetPatch(kind, field, value, opts, currentArray);
   return update(id, patch);
 }
@@ -288,8 +445,15 @@ export function registerKindGetSet(
     .option("--clear", "clear the field")
     .option("--file <path>", "read value from a file (use - for stdin)")
     .option("--reason <text>", "required when setting needsAttention true")
-    .option("--add <ids...>", "union ids into an array field")
+    .option(
+      "--add [ids...]",
+      "union ids into an array field, or upsert a project label JSON object",
+    )
     .option("--remove <ids...>", "drop ids from an array field")
+    .option(
+      "--rename <ids...>",
+      "rename a project catalog label id (oldId newId)",
+    )
     .action(
       (id: string, field: string, value: string | undefined, opts: KindSetOptions) =>
         run(() => kindSet(kind, id, field, value, opts)),

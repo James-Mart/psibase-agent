@@ -109,12 +109,17 @@ function attentionChip(issue: IssueRecord): string[] {
   return [`attention=${issue.attentionReason ?? "(no reason)"}`];
 }
 
+function labelsChip(issue: { labels?: string[] }): string[] {
+  if (!issue.labels?.length) return [];
+  return [`labels=${issue.labels.join(",")}`];
+}
+
 function epicChips(epic: EpicRecord, derived: Record<string, DerivedState>): string[] {
   const d = derived[epic.id];
   const chips: string[] = [];
   if (d?.epicStatus) chips.push(`status=${d.epicStatus}`);
   if (epic.retro) chips.push(`retro=${epic.retro}`);
-  return [...chips, ...attentionChip(epic)];
+  return [...chips, ...labelsChip(epic), ...attentionChip(epic)];
 }
 
 function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): string[] {
@@ -127,7 +132,7 @@ function storyChips(story: StoryRecord, derived: Record<string, DerivedState>): 
   if (story.prUrl) chips.push(`pr=${story.prUrl}`);
   if (story.merged) chips.push("merged");
   if (d?.blocked) chips.push("blocked");
-  return [...chips, ...attentionChip(story)];
+  return [...chips, ...labelsChip(story), ...attentionChip(story)];
 }
 
 function taskChips(task: TaskRecord, derived: Record<string, DerivedState>): string[] {
@@ -157,7 +162,7 @@ function renderBoardChild(
   ctx: TreeContext,
 ): string[] {
   if (child.kind === "idea") {
-    return [nodeLine(indent, "idea", child.id, child.title, [])];
+    return [nodeLine(indent, "idea", child.id, child.title, labelsChip(child))];
   }
   return renderEpic(child, indent, ctx);
 }

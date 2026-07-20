@@ -304,6 +304,55 @@ describe("checkIntegrity - cycles", () => {
   });
 });
 
+describe("closed-catalog label assignments", () => {
+  it("accepts assignments that exist in the Project catalog", () => {
+    const issues = [
+      {
+        ...project("root"),
+        labels: [{ id: "bug", color: "#ff0000" }],
+      },
+      epic("e1", "root", { labels: ["bug"] }),
+      idea("i1", "root", { order: 1, labels: ["bug"] }),
+      branch("b1", "e1", { labels: ["bug"] }),
+    ];
+    expect(checkIntegrity(issues)).toEqual([]);
+  });
+
+  it("flags an assignment id absent from the Project catalog", () => {
+    const issues = [
+      {
+        ...project("root"),
+        labels: [{ id: "bug", color: "#ff0000" }],
+      },
+      epic("e1", "root", { labels: ["ghost"] }),
+    ];
+    const problems = checkIntegrity(issues);
+    expect(
+      problems.some(
+        (p) =>
+          p.id === "e1" &&
+          p.message.includes('unknown catalog id "ghost"'),
+      ),
+    ).toBe(true);
+  });
+
+  it("flags story assignments against an empty catalog", () => {
+    const issues = [
+      project("root"),
+      epic("e1"),
+      branch("b1", "e1", { labels: ["bug"] }),
+    ];
+    const problems = checkIntegrity(issues);
+    expect(
+      problems.some(
+        (p) =>
+          p.id === "b1" &&
+          p.message.includes('unknown catalog id "bug"'),
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("problemsFor", () => {
   it("returns only problems attributed to the given id", () => {
     const issues = [commit("c1", "ghost"), commit("c2", "ghost2")];

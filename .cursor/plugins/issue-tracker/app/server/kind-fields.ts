@@ -14,6 +14,7 @@ export type FieldCoerce =
   | { type: "enum"; values: readonly string[] }
   | { type: "json" }
   | { type: "array" }
+  | { type: "labelCatalog" }
   | { type: "description" }
   | { type: "needsAttention" }
   | { type: "commitSha" };
@@ -24,6 +25,7 @@ export const PROJECT_SET_FIELDS = {
   title: { type: "string" },
   workspace: { type: "string" },
   mergePolicy: { type: "enum", values: MERGE_POLICIES },
+  labels: { type: "labelCatalog" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -34,6 +36,7 @@ export const EPIC_SET_FIELDS = {
   archived: { type: "boolean" },
   partOf: { type: "string" },
   blockedBy: { type: "array" },
+  labels: { type: "array" },
   retro: { type: "enum", values: RETRO_STATUSES },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
@@ -42,6 +45,7 @@ export const IDEA_SET_FIELDS = {
   title: { type: "string" },
   archived: { type: "boolean" },
   partOf: { type: "string" },
+  labels: { type: "array" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -56,6 +60,7 @@ export const STORY_SET_FIELDS = {
   prUrl: { type: "string" },
   merged: { type: "boolean" },
   specReview: { type: "enum", values: SPEC_REVIEW_STATUSES },
+  labels: { type: "array" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -96,6 +101,7 @@ export const PROJECT_GET_FIELDS = {
   title: STORED,
   workspace: STORED,
   mergePolicy: STORED,
+  labels: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,
@@ -112,6 +118,7 @@ export const EPIC_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   blockedBy: STORED,
+  labels: STORED,
   retro: STORED,
   order: STORED,
   createdAt: STORED,
@@ -127,6 +134,7 @@ export const IDEA_GET_FIELDS = {
   title: STORED,
   partOf: STORED,
   archived: STORED,
+  labels: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,
@@ -148,6 +156,7 @@ export const STORY_GET_FIELDS = {
   prUrl: STORED,
   merged: STORED,
   specReview: STORED,
+  labels: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,

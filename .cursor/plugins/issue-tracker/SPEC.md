@@ -28,24 +28,29 @@ Every issue has a `kind`, one of:
 - **Project** — the top-level container that groups related Epics and Ideas.
   Purely organizational: it carries **no status** (derived or stored) and none
   of the assignee/needs-attention fields — a `title`, a `description.md`
-  overview, and an optional `workspace` (the absolute path to the local git
+  overview, an optional `workspace` (the absolute path to the local git
   checkout this Project covers; repo-touching agents run there — see
-  [workspace](#project-workspace)). Has no `partOf`.
+  [workspace](#project-workspace)), and an optional closed `labels` catalog
+  (see [Project labels](#project-labels)). Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Stories; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
-  in the same Project that must finish first) and an optional `retro` gate
-  (`in-progress` / `done`). Has **no stored status** — its status is fully
-  derived from descendants. Is `partOf` a Project (required).
+  in the same Project that must finish first), an optional `retro` gate
+  (`in-progress` / `done`), and optional `labels` assignments from the Project
+  catalog (see [Project labels](#project-labels)). Has **no stored status** —
+  its status is fully derived from descendants. Is `partOf` a Project
+  (required).
 - **Idea** — a Project-level capture item (title, description, attachments,
-  archive) that agents and humans mine later into real work. Leaf kind: no
-  children, no assignee/needs-attention, no status or git fields, and **no
-  chat** (`appendMessage` / kind-scoped CLI `comment` / chat HTTP refuse
-  Ideas). Is `partOf` a Project (required). Epics and Ideas share one
-  Project-child sibling `order` space. There is no separate Idea Board kind —
-  the "board" is the Project's Ideas in the tree/CLI/UI.
+  archive, and optional `labels` assignments from the Project catalog — see
+  [Project labels](#project-labels)) that agents and humans mine later into
+  real work. Leaf kind: no children, no assignee/needs-attention, no status or
+  git fields, and **no chat** (`appendMessage` / kind-scoped CLI `comment` /
+  chat HTTP refuse Ideas). Is `partOf` a Project (required). Epics and Ideas
+  share one Project-child sibling `order` space. There is no separate Idea
+  Board kind — the "board" is the Project's Ideas in the tree/CLI/UI.
 - **Story** — a unit of work under an Epic. Contains Tasks. Carries
-  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, and `specReview`.
-  Status is derived, never stored.
+  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, `specReview`, and
+  optional `labels` assignments from the containing Project catalog (see
+  [Project labels](#project-labels)). Status is derived, never stored.
 - **Task** — an atomic, story-point-sized unit under a Story. Each Task is a
   **small but standalone cross-section** of the work: after it lands on the
   Story tip, the package must still **build** and tests must remain
@@ -224,7 +229,8 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
   stdin). Also: `--assignee` on epic / story / task; `--stacked-on` on story.
   Prints the new id on stdout.
 - **`view`** — `issue <kind> view <id>` (pass `--chat` for the chat log).
-  Prefer `issue <kind> get <id> <field>` for a single field.
+  Prefer `issue <kind> get <id> <field>` for a single field. Label lines: see
+  [Project labels](#project-labels).
 - **`delete`** — `issue <kind> delete <id>`; cascades per
   [Deletion policy](#deletion-policy).
 - **`comment`** — `issue epic|story|task comment <id> --role <role> --body
@@ -249,7 +255,8 @@ issue apply|tree|summary|list
   scoping (no title lookup). Omitted = all projects; project / epic / story
   scopes the subtree; idea / task refused. `list` keeps JSON shape `issues` /
   `derived` / `problems`, filtered to scope. `--show-archived` unchanged. No
-  kind-scoped `list`.
+  kind-scoped `list`. Label chips / no CLI label filter: see
+  [Project labels](#project-labels).
 
 <a id="kind-scoped-get--set"></a>
 
@@ -258,7 +265,7 @@ issue apply|tree|summary|list
 Field read/write:
 
 - `issue <kind> get <id> <field>`
-- `issue <kind> set <id> <field> [value] [--clear] [--add <ids...>] [--remove <ids...>] [--file <path|->] [--reason <text>]`
+- `issue <kind> set <id> <field> [value] [--clear] [--add <ids...>] [--remove <ids...>] [--rename <oldId> <newId>] [--file <path|->] [--reason <text>]`
 
 Field names are camelCase, identical to schema / `issue.json` keys. There is no
 cross-kind `get`/`set`; shared fields are repeated on each kind that owns them.
@@ -294,24 +301,30 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
 
 | kind | settable fields |
 | --- | --- |
-| project | `title`, `workspace`, `mergePolicy`, `description` |
-| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `description` |
-| idea | `title`, `archived`, `partOf`, `description` |
-| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
+| project | `title`, `workspace`, `mergePolicy`, `labels`, `description` |
+| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `labels`, `description` |
+| idea | `title`, `archived`, `partOf`, `labels`, `description` |
+| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `labels`, `description` |
 | task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
 ##### Value parsing
 
 - Enums: literal strings.
 - Booleans: only `true` / `false`.
-- Arrays (`blockedBy`): full replace takes a positional JSON array; incremental
-  edits use `--add <ids...>` / `--remove <ids...>` (variadic ids). Exactly one
-  mode per call — positional value, `--add`, `--remove`, and `--clear` are
-  mutually exclusive.
-- `--clear` (mutually exclusive with a positional value / `--add` / `--remove`):
+- Arrays (`blockedBy`, assignment `labels` on epic / idea / story): full replace
+  takes a positional JSON array; incremental edits use `--add <ids...>` /
+  `--remove <ids...>` (variadic ids). Exactly one mode per call — positional
+  value, `--add`, `--remove`, and `--clear` are mutually exclusive.
+- **Project `labels` (catalog):** `--add` upserts one JSON object by `id`
+  (object via `--add '{…}'`, `--file <path|->`, or positional JSON);
+  `--remove <ids...>`; `--rename <oldId> <newId>`; `--clear` → `[]`. Modes are
+  mutually exclusive. See [Project labels](#project-labels).
+- `--clear` (mutually exclusive with a positional value / `--add` / `--remove` /
+  `--rename`):
   - **Clearable scalars** (`assignee`, `commitSha`, `branchName`, `stackedOn`,
     `prUrl`, `workspace`, `qa`, `retro`): blanks the field (absent / `null`).
-  - **`blockedBy`**: sets `[]` (empty array, not null).
+  - **`blockedBy`** / assignment **`labels`**: sets `[]` (empty array, not null).
+  - **Project `labels`**: sets `[]` (empty catalog).
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
 - `description`: omit positional value when `--file <path|->` is passed.
@@ -389,6 +402,7 @@ Project — the common-to-every-kind fields plus:
 | --- | --- | --- |
 | `workspace` | string? | absolute path to the local git checkout this Project covers; the cwd repo-touching agents run in (see [Project workspace](#project-workspace)) |
 | `mergePolicy` | `"merge"` \| `"pull-request"` \| `"manual"` | what git `finish-branch` does after a Story's last Task is done; defaults `manual` (see [Project merge policy](#project-merge-policy)) |
+| `labels` | `{ id, color, description? }[]`? | closed catalog of attachable labels; chip text is the kebab `id` (see [Project labels](#project-labels)) |
 
 No `partOf`, no status, no assignee/needs-attention. Its `description.md` is a
 short overview of the Project.
@@ -493,6 +507,48 @@ ref is never left half-merged; but a *completed* local merge whose `push`
 failed is left in place — with `merged` still unset it is exactly the resumable
 state above, so the retry just re-pushes.
 
+### Project labels
+
+A Project owns a **closed catalog** of colorful labels; Epic, Idea, and Story
+issues may carry **assignments** that are ids from that catalog. Tasks and
+Projects never carry assignment arrays (Project holds the catalog only).
+
+**Catalog shape** (Project `labels`):
+
+| field | type | notes |
+| --- | --- | --- |
+| `id` | kebab string | chip text; unique within the Project catalog |
+| `color` | `#RRGGBB` | six hex digits only (case-insensitive) |
+| `description` | string? | optional; max 120 characters when present |
+
+**Assignments** (Epic / Idea / Story `labels`): `string[]` of catalog ids —
+unique, order preserved. Multi-label. Assigning an id absent from the
+containing Project's catalog is refused (labels are never created on the fly
+from an issue edit). Integrity reports unknown assignment ids as problems.
+
+**Catalog mutations** (same write as the catalog change):
+
+- **Remove / clear** — dropping catalog entries strips those ids from every
+  Epic / Idea / Story assignment in the Project.
+- **Rename** (`oldId` → `newId`) — rewrites the catalog entry's `id` and
+  retargets matching assignments; refused if `newId` already exists in the
+  catalog (or is not kebab-safe).
+
+**CLI.** Kind-scoped `get` / `set` only:
+
+- Catalog: `issue project get|set <id> labels` with `--add` (JSON object upsert
+  by `id`), `--remove <ids...>`, `--rename <oldId> <newId>`, `--clear`.
+- Assignments: `issue epic|idea|story get|set <id> labels` with
+  `--add|--remove|--clear` (and positional JSON array replace).
+
+**Readouts.** `issue <kind> view` prints `labels: id1, id2` when non-empty
+(Project: catalog ids; Epic / Idea / Story: assignment ids). `issue tree`
+appends `labels=id1,id2` on Epic / Idea / Story rows when non-empty.
+`issue summary` omits labels. No CLI `--label` (or similar) filter.
+
+**`apply`.** Catalog and assignments are **imperative only**; `apply`
+preserves both (same class as `workspace` / `mergePolicy` / `assignee`).
+
 Epic — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
@@ -500,6 +556,7 @@ Epic — the Epic/Story/Task common fields plus:
 | `partOf` | string | the Project id (required) |
 | `blockedBy` | string[] | other Epic ids in the same Project that must finish first; defaults `[]`; the only cross-Epic edge |
 | `retro` | `"in-progress"` \| `"done"`? | absent until set; machine-readable retro gate |
+| `labels` | string[]? | assignment ids from the Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
 Idea — the common-to-every-kind fields plus:
 
@@ -507,6 +564,7 @@ Idea — the common-to-every-kind fields plus:
 | --- | --- | --- |
 | `partOf` | string | the Project id (required) |
 | `archived` | boolean | defaults `false`; see [Archived visibility](#archived-visibility) |
+| `labels` | string[]? | assignment ids from the Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
 No assignee, needs-attention, status, git fields, or chat. Leaf under a Project;
 shares the Project-child `order` space with Epics.
@@ -522,6 +580,7 @@ Story — the Epic/Story/Task common fields plus:
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
+| `labels` | string[]? | assignment ids from the containing Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
 Task — the Epic/Story/Task common fields plus:
 
@@ -534,7 +593,8 @@ Task — the Epic/Story/Task common fields plus:
 | `noDiff` | boolean? | absent until set; signals an intentional empty implementor diff |
 
 Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
-authored as a separate priority field), `label`, inline
+authored as a separate priority field), freeform per-issue labels outside the
+Project catalog (see [Project labels](#project-labels)), inline
 `description`/`messages` (they are separate files), and status history.
 
 ### Finish commit
@@ -644,9 +704,13 @@ no consumer can persist a broken file.
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
   kind-specific fields (`blockedBy` for an Epic; `status`/`qa`/`commitSha`/`noDiff`
   for a Task; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
-  `specReview` for a Story), and `description` (written to `description.md`).
-  Clearable fields are removed when patched to `null`. A patch that names a
-  field not valid for the issue's kind is rejected.
+  `specReview` for a Story), `labels` (Project catalog; Epic / Idea / Story
+  assignments — see [Project labels](#project-labels)), and `description`
+  (written to `description.md`). Catalog remove/clear cascades strip matching
+  assignment ids project-wide in the same write; catalog rename retargets
+  matching assignments in that same write. Clearable fields are removed
+  when patched to `null`. A patch that names a field not valid for the issue's
+  kind is rejected.
 - `remove(id)` — deletes the issue and its containment subtree, repairing every
   surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
   over HTTP as `DELETE /api/issues/:id` and via `issue <kind> delete`.
@@ -668,9 +732,10 @@ no consumer can persist a broken file.
   bad or missing `partOf`/`stackedOn`/`blockedBy` referent, a referent of the
   wrong kind (a Task's `partOf` must be a Story, a Story's an Epic, an Epic's
   a Project; a `stackedOn` must be a Story, a `blockedBy` entry an Epic), a
-  `stackedOn` in a different Epic, a `blockedBy` Epic in a different Project, or a
-  cycle-inducing `stackedOn`/`blockedBy`. On failure the CLI exits nonzero
-  with a clear message and HTTP returns 4xx with detail.
+  `stackedOn` in a different Epic, a `blockedBy` Epic in a different Project, a
+  cycle-inducing `stackedOn`/`blockedBy`, or an Epic / Idea / Story `labels`
+  id absent from the containing Project catalog. On failure the CLI exits
+  nonzero with a clear message and HTTP returns 4xx with detail.
 - **Read-time validation.** Hand-edited or out-of-band files are still validated
   on read and surfaced as `problems`; they never crash a read. A directory whose
   `issue.json` id disagrees with the directory name is reported as a problem.
@@ -929,6 +994,8 @@ preserves everything else from the existing same-kind issue.
 | `retro` (Epic) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `labels` (Project catalog) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `labels` (Epic / Idea / Story assignments) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |

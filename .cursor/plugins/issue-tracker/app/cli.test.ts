@@ -2025,3 +2025,216 @@ describe("kind-scoped view / delete / comment / attach", () => {
     expect(runCli(["task", "view", "c2"]).status).toBe(1);
   });
 });
+
+describe("project labels catalog and assignments", () => {
+  beforeEach(() => {
+    writeIssue("p", {
+      kind: "project",
+      title: "Proj",
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("e", {
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+      blockedBy: [],
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("idea-a", {
+      kind: "idea",
+      title: "Idea",
+      partOf: "p",
+      order: 1,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("a", {
+      kind: "story",
+      title: "Story A",
+      partOf: "e",
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+  });
+
+  function catalogOf(): Array<{ id: string; color: string; description?: string }> {
+    return issueJsonField("p", "labels") ?? [];
+  }
+
+  function labelsOf(id: string): string[] {
+    return issueJsonField(id, "labels") ?? [];
+  }
+
+  function seedCatalog(
+    ...labels: Array<{ id: string; color: string; description?: string }>
+  ): void {
+    for (const label of labels) {
+      expect(
+        runCli(["project", "set", "p", "labels", "--add", JSON.stringify(label)])
+          .status,
+      ).toBe(0);
+    }
+  }
+
+  it("adds, updates, removes, renames, and clears the project catalog", () => {
+    const bug = JSON.stringify({ id: "bug", color: "#ff0000" });
+    expect(runCli(["project", "set", "p", "labels", "--add", bug]).status).toBe(0);
+    expect(catalogOf()).toEqual([{ id: "bug", color: "#ff0000" }]);
+    expect(runCli(["project", "get", "p", "labels"]).stdout).toBe(
+      '[{"id":"bug","color":"#ff0000"}]\n',
+    );
+
+    const updated = JSON.stringify({
+      id: "bug",
+      color: "#aa0000",
+      description: "Defects",
+    });
+    expect(runCli(["project", "set", "p", "labels", "--add", updated]).status).toBe(
+      0,
+    );
+    expect(catalogOf()).toEqual([
+      { id: "bug", color: "#aa0000", description: "Defects" },
+    ]);
+
+    const featPath = join(dir, "feat.json");
+    writeFileSync(
+      featPath,
+      JSON.stringify({ id: "feat", color: "#00ff00" }),
+    );
+    expect(
+      runCli(["project", "set", "p", "labels", "--add", "--file", featPath]).status,
+    ).toBe(0);
+    expect(catalogOf().map((l) => l.id)).toEqual(["bug", "feat"]);
+
+    expect(
+      runCli(["project", "set", "p", "labels", "--file", "-", "--add"], '{"id":"chore","color":"#0000ff"}')
+        .status,
+    ).toBe(0);
+    expect(catalogOf().map((l) => l.id)).toEqual(["bug", "feat", "chore"]);
+
+    expect(runCli(["project", "set", "p", "labels", "--remove", "chore"]).status).toBe(
+      0,
+    );
+    expect(catalogOf().map((l) => l.id)).toEqual(["bug", "feat"]);
+
+    expect(
+      runCli(["project", "set", "p", "labels", "--rename", "bug", "defect"]).status,
+    ).toBe(0);
+    expect(catalogOf().map((l) => l.id)).toEqual(["defect", "feat"]);
+
+    expect(runCli(["project", "set", "p", "labels", "--clear"]).status).toBe(0);
+    expect(catalogOf()).toEqual([]);
+    expect(runCli(["project", "get", "p", "labels"]).stdout).toBe("[]\n");
+  });
+
+  it("assigns, removes, and clears labels on epic/idea/story", () => {
+    seedCatalog(
+      { id: "bug", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    );
+
+    expect(runCli(["epic", "set", "e", "labels", "--add", "bug", "feat"]).status).toBe(
+      0,
+    );
+    expect(labelsOf("e")).toEqual(["bug", "feat"]);
+    expect(runCli(["epic", "get", "e", "labels"]).stdout).toBe('["bug","feat"]\n');
+
+    expect(runCli(["idea", "set", "idea-a", "labels", "--add", "feat"]).status).toBe(
+      0,
+    );
+    expect(labelsOf("idea-a")).toEqual(["feat"]);
+
+    expect(runCli(["story", "set", "a", "labels", "--add", "bug"]).status).toBe(0);
+    expect(labelsOf("a")).toEqual(["bug"]);
+
+    expect(runCli(["epic", "set", "e", "labels", "--remove", "bug"]).status).toBe(0);
+    expect(labelsOf("e")).toEqual(["feat"]);
+
+    expect(runCli(["story", "set", "a", "labels", "--clear"]).status).toBe(0);
+    expect(labelsOf("a")).toEqual([]);
+    expect(runCli(["story", "get", "a", "labels"]).stdout).toBe("[]\n");
+  });
+
+  it("refuses unknown assignment ids", () => {
+    seedCatalog({ id: "bug", color: "#ff0000" });
+    const refused = runCli(["epic", "set", "e", "labels", "--add", "ghost"]);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/unknown catalog id/);
+    expect(labelsOf("e")).toEqual([]);
+  });
+
+  it("cascades catalog remove and rename onto assignments", () => {
+    seedCatalog(
+      { id: "bug", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    );
+    expect(runCli(["epic", "set", "e", "labels", "--add", "bug", "feat"]).status).toBe(
+      0,
+    );
+    expect(runCli(["story", "set", "a", "labels", "--add", "bug"]).status).toBe(0);
+
+    expect(runCli(["project", "set", "p", "labels", "--remove", "bug"]).status).toBe(
+      0,
+    );
+    expect(labelsOf("e")).toEqual(["feat"]);
+    expect(labelsOf("a")).toEqual([]);
+
+    expect(runCli(["epic", "set", "e", "labels", "--add", "feat"]).status).toBe(0);
+    expect(
+      runCli(["project", "set", "p", "labels", "--rename", "feat", "feature"]).status,
+    ).toBe(0);
+    expect(labelsOf("e")).toEqual(["feature"]);
+    expect(catalogOf().map((l) => l.id)).toEqual(["feature"]);
+  });
+
+  it("prints labels on view and tree chips, and omits them from summary", () => {
+    seedCatalog(
+      { id: "bug", color: "#ff0000" },
+      { id: "feat", color: "#00ff00" },
+    );
+    expect(runCli(["epic", "set", "e", "labels", "--add", "bug", "feat"]).status).toBe(
+      0,
+    );
+    expect(runCli(["idea", "set", "idea-a", "labels", "--add", "feat"]).status).toBe(
+      0,
+    );
+    expect(runCli(["story", "set", "a", "labels", "--add", "bug"]).status).toBe(0);
+
+    const projectView = runCli(["project", "view", "p"]);
+    expect(projectView.status).toBe(0);
+    expect(projectView.stdout).toContain("labels: bug, feat");
+
+    const epicView = runCli(["epic", "view", "e"]);
+    expect(epicView.status).toBe(0);
+    expect(epicView.stdout).toContain("labels: bug, feat");
+
+    const ideaView = runCli(["idea", "view", "idea-a"]);
+    expect(ideaView.status).toBe(0);
+    expect(ideaView.stdout).toContain("labels: feat");
+
+    const storyView = runCli(["story", "view", "a"]);
+    expect(storyView.status).toBe(0);
+    expect(storyView.stdout).toContain("labels: bug");
+
+    expect(runCli(["epic", "set", "e", "labels", "--clear"]).status).toBe(0);
+    const clearedView = runCli(["epic", "view", "e"]);
+    expect(clearedView.status).toBe(0);
+    expect(clearedView.stdout).not.toContain("labels:");
+    expect(runCli(["epic", "set", "e", "labels", "--add", "bug", "feat"]).status).toBe(
+      0,
+    );
+
+    const tree = runCli(["tree", "p"]);
+    expect(tree.status).toBe(0);
+    expect(tree.stdout).toMatch(/^ {2}epic e\b.*\blabels=bug,feat\b/m);
+    expect(tree.stdout).toMatch(/^ {2}idea idea-a\b.*\blabels=feat\b/m);
+    expect(tree.stdout).toMatch(/^ {4}story a\b.*\blabels=bug\b/m);
+
+    const summary = runCli(["summary", "a"]);
+    expect(summary.status).toBe(0);
+    expect(summary.stdout).not.toMatch(/\blabels\b/);
+  });
+});
