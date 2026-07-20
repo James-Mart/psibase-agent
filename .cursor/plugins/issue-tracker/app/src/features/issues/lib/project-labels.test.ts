@@ -5,6 +5,7 @@ import {
   catalogLabelsEqual,
   isLabelAssignableIssue,
   isLabelAssignableKind,
+  issueMatchesLabelFilter,
   labelChipTextColor,
   normalizeCatalogLabel,
   planCatalogLabelsSave,
@@ -107,6 +108,42 @@ describe("assignment helpers", () => {
   it("toggles assignment ids while preserving order", () => {
     expect(toggleAssignmentId(["a"], "b")).toEqual(["a", "b"]);
     expect(toggleAssignmentId(["a", "b"], "a")).toEqual(["b"]);
+  });
+
+  it("matches label filter with OR semantics; empty selection matches all", () => {
+    const story: IssueRecord = {
+      id: "s",
+      kind: "story",
+      title: "s",
+      partOf: "e",
+      order: 0,
+      createdAt: "",
+      updatedAt: "",
+      merged: false,
+      needsAttention: false,
+      attentionReason: null,
+      archived: false,
+      labels: ["bug"],
+    };
+    const task: IssueRecord = {
+      id: "t",
+      kind: "task",
+      title: "t",
+      partOf: "s",
+      order: 0,
+      createdAt: "",
+      updatedAt: "",
+      status: "todo",
+      needsAttention: false,
+      attentionReason: null,
+      archived: false,
+    };
+    expect(issueMatchesLabelFilter(story, [])).toBe(true);
+    expect(issueMatchesLabelFilter(task, [])).toBe(true);
+    expect(issueMatchesLabelFilter(story, ["bug"])).toBe(true);
+    expect(issueMatchesLabelFilter(story, ["feat"])).toBe(false);
+    expect(issueMatchesLabelFilter(story, ["feat", "bug"])).toBe(true);
+    expect(issueMatchesLabelFilter(task, ["bug"])).toBe(false);
   });
 });
 

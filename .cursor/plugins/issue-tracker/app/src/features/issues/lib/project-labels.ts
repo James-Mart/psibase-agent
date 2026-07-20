@@ -69,6 +69,17 @@ export function toggleAssignmentId(current: string[], id: string): string[] {
   return [...current, id];
 }
 
+/** OR across selected catalog ids; empty selection matches everything. */
+export function issueMatchesLabelFilter(
+  issue: IssueRecord,
+  selectedIds: string[],
+): boolean {
+  if (selectedIds.length === 0) return true;
+  if (!isLabelAssignableIssue(issue)) return false;
+  const assigned = issue.labels ?? [];
+  return selectedIds.some((id) => assigned.includes(id));
+}
+
 export type CatalogDraft = {
   key: string;
   originalId: string | null;

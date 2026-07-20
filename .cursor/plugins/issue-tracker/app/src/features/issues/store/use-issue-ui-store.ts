@@ -49,6 +49,9 @@ function saveExpanded(expanded: Record<string, boolean>): void {
 interface IssueUiState {
   search: string;
   setSearch: (value: string) => void;
+  /** Selected Project catalog label ids for the tree OR-filter (in-memory). */
+  labelFilter: string[];
+  setLabelFilter: (ids: string[]) => void;
   boardKindFilter: BoardKindFilter;
   setBoardKindFilter: (value: BoardKindFilter) => void;
   showArchived: boolean;
@@ -69,6 +72,8 @@ interface IssueUiState {
 export const useIssueUiStore = create<IssueUiState>((set) => ({
   search: "",
   setSearch: (value) => set({ search: value }),
+  labelFilter: [],
+  setLabelFilter: (ids) => set({ labelFilter: ids }),
   boardKindFilter: "both",
   setBoardKindFilter: (value) => set({ boardKindFilter: value }),
   showArchived: false,
