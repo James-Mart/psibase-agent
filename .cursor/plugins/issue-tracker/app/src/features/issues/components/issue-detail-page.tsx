@@ -36,6 +36,7 @@ import { IssueDetailEdit } from "./issue-detail-edit";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { SupportingDocsSection } from "./supporting-docs-section";
+import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
 const DETAIL_SHELL_CLASS =
@@ -167,34 +168,60 @@ function IssueDetailBody({
           upload={upload}
         />
       ) : (
-        <>
-          <IssueMetaPanel issue={issue} />
-          {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
-          {issue.kind === "story" || issue.kind === "task" ? (
-            <GitStackPanel issue={issue} />
-          ) : null}
-          <IssueAttachmentsSection issue={issue} upload={upload} />
-          <div className="rounded-lg border bg-card p-6">
-            {issue.description.trim() ? (
-              <Markdown issueId={attach ? issue.id : undefined}>
-                {issue.description}
-              </Markdown>
-            ) : (
-              <p className="text-sm text-muted-foreground">No description.</p>
-            )}
-          </div>
-          {issue.kind === "project" ? (
-            <SupportingDocsSection supportingDocs={issue.supportingDocs} />
-          ) : null}
-          {kindHas(issue.kind, "chat") ? (
-            <ChatPanel
-              id={issue.id}
-              attachmentsIssueId={attach ? issue.id : undefined}
-            />
-          ) : null}
-        </>
+        <IssueDetailView issue={issue} upload={upload} attach={attach} />
       )}
     </>
+  );
+}
+
+function IssueDetailView({
+  issue,
+  upload,
+  attach,
+}: {
+  issue: IssueDetail;
+  upload?: UploadAttachmentMutation;
+  attach: boolean;
+}) {
+  const overview = (
+    <>
+      <IssueMetaPanel issue={issue} />
+      {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
+      {issue.kind === "story" || issue.kind === "task" ? (
+        <GitStackPanel issue={issue} />
+      ) : null}
+      <IssueAttachmentsSection issue={issue} upload={upload} />
+      <div className="rounded-lg border bg-card p-6">
+        {issue.description.trim() ? (
+          <Markdown issueId={attach ? issue.id : undefined}>
+            {issue.description}
+          </Markdown>
+        ) : (
+          <p className="text-sm text-muted-foreground">No description.</p>
+        )}
+      </div>
+      {issue.kind === "project" ? (
+        <SupportingDocsSection supportingDocs={issue.supportingDocs} />
+      ) : null}
+      {kindHas(issue.kind, "chat") ? (
+        <ChatPanel
+          id={issue.id}
+          attachmentsIssueId={attach ? issue.id : undefined}
+        />
+      ) : null}
+    </>
+  );
+
+  if (issue.kind !== "project") {
+    return overview;
+  }
+
+  return (
+    <ProjectDetailTabs
+      projectId={issue.id}
+      supportingDocs={issue.supportingDocs}
+      overview={overview}
+    />
   );
 }
 

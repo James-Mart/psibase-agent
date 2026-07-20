@@ -4,12 +4,83 @@ import {
   type SupportingDocRef,
   type SupportingDocs,
 } from "@server/schemas";
+import { attachmentsApiPath } from "./attachments";
 
 export const SUPPORTING_DOC_KEY_LABELS: Record<SupportingDocKey, string> = {
   vision: "Vision",
   codingStandards: "Coding standards",
   designSystem: "Design system",
 };
+
+export type SupportingDocPreviewFormat = "md" | "html";
+
+export type SupportingDocPreviewTab = {
+  key: SupportingDocKey;
+  label: string;
+  ref: SupportingDocRef;
+  format: SupportingDocPreviewFormat;
+};
+
+/** Basename or path the ref points at (for extension checks). */
+export function supportingDocTarget(ref: SupportingDocRef): string {
+  return ref.type === "attachment" ? ref.name : ref.path;
+}
+
+export function supportingDocPreviewFormat(
+  ref: SupportingDocRef,
+): SupportingDocPreviewFormat | null {
+  const target = supportingDocTarget(ref).toLowerCase();
+  if (target.endsWith(".md")) return "md";
+  if (target.endsWith(".html")) return "html";
+  return null;
+}
+
+/** Preview tabs for set docs whose target ends in `.md` or `.html`. */
+export function previewableSupportingDocs(
+  docs: SupportingDocs | undefined,
+): SupportingDocPreviewTab[] {
+  if (!docs) return [];
+  const tabs: SupportingDocPreviewTab[] = [];
+  for (const key of SUPPORTING_DOC_KEYS) {
+    const ref = docs[key];
+    if (!ref) continue;
+    const format = supportingDocPreviewFormat(ref);
+    if (!format) continue;
+    tabs.push({
+      key,
+      label: SUPPORTING_DOC_KEY_LABELS[key],
+      ref,
+      format,
+    });
+  }
+  return tabs;
+}
+
+/**
+ * Workspace file URL with per-segment encoding so `/` remains a path separator
+ * (needed for iframe-relative assets).
+ */
+export function workspaceFileApiPath(
+  projectId: string,
+  relativePath: string,
+): string {
+  const encoded = relativePath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `/api/projects/${encodeURIComponent(projectId)}/workspace/${encoded}`;
+}
+
+/** HTTP URL used to load a supporting-doc body (md fetch or html iframe src). */
+export function supportingDocContentUrl(
+  projectId: string,
+  ref: SupportingDocRef,
+): string {
+  if (ref.type === "attachment") {
+    return attachmentsApiPath(projectId, ref.name);
+  }
+  return workspaceFileApiPath(projectId, ref.path);
+}
 
 export type SupportingDocMode = "absent" | "attachment" | "workspace";
 

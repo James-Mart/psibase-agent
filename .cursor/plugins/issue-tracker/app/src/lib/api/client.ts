@@ -56,3 +56,26 @@ export async function request<T>(
   }
   return parsed as T;
 }
+
+/** Fetch a plain-text (or other non-JSON) response body. */
+export async function requestText(
+  input: string,
+  init: RequestInit = {},
+): Promise<string> {
+  const res = await fetch(input, init);
+  const text = await res.text();
+  if (!res.ok) {
+    let parsed: unknown = text;
+    try {
+      parsed = JSON.parse(text) as unknown;
+    } catch {
+      // keep raw text as body
+    }
+    throw new ApiError(
+      extractError(parsed, `Request failed with status ${res.status}`),
+      res.status,
+      parsed,
+    );
+  }
+  return text;
+}
