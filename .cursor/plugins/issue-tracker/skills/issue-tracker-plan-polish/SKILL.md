@@ -40,9 +40,12 @@ Never bare `issue list`.
      SKILL files) from disk with cwd = `Workspace:` — there is no
      plan-only fallback (SPEC § Project workspace: unset → escalate, never
      fall back).
-2. `issue tree <epicId>` — full Story/Task outline (implementation
+2. Consult `vision` per
+   [`agents/_issue-tracker-consult-supporting-doc.md`](../../agents/_issue-tracker-consult-supporting-doc.md)
+   using the step-1 summary output.
+3. `issue tree <epicId>` — full Story/Task outline (implementation
    order).
-3. `issue epic view <epicId>` (and children as needed) when preparing the
+4. `issue epic view <epicId>` (and children as needed) when preparing the
    proposal.
 
 ## Parallel check agents
