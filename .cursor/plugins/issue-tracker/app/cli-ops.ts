@@ -3,7 +3,7 @@ import { basename } from "path";
 import type { Command } from "commander";
 import { assigneeOf } from "./server/assignee.js";
 import { hasAttention, hasPartOf, kindHas } from "./server/kind.js";
-import type { IssueKind } from "./server/schemas.js";
+import type { IssueDetail, IssueKind } from "./server/schemas.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import {
   appendMessage,
@@ -26,6 +26,16 @@ type ViewOptions = {
   chat?: boolean;
 };
 
+function labelIdsForView(detail: IssueDetail): string[] {
+  if (detail.kind === "project") {
+    return (detail.labels ?? []).map((label) => label.id);
+  }
+  if (detail.kind === "epic" || detail.kind === "idea" || detail.kind === "story") {
+    return detail.labels ?? [];
+  }
+  return [];
+}
+
 function printIssueView(id: string, opts: ViewOptions = {}): void {
   const detail = read(id);
   const lines = [
@@ -42,6 +52,10 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
   if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);
   if (detail.kind === "epic" && detail.blockedBy.length > 0) {
     lines.push(`blockedBy: ${detail.blockedBy.join(", ")}`);
+  }
+  const labelIds = labelIdsForView(detail);
+  if (labelIds.length > 0) {
+    lines.push(`labels: ${labelIds.join(", ")}`);
   }
   if (detail.kind === "story") {
     if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);

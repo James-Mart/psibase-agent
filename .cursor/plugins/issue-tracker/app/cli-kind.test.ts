@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { coerceSetPatch } from "./cli-kind.js";
+import { coerceSetPatch, resolveLabelCatalogSet } from "./cli-kind.js";
 
 describe("coerceSetPatch", () => {
   let dir: string;
@@ -254,5 +254,89 @@ describe("coerceSetPatch", () => {
     },
   ])("rejects $name", ({ kind, field, value, opts, error }) => {
     expect(() => coerceSetPatch(kind, field, value, opts)).toThrow(error);
+  });
+});
+
+describe("resolveLabelCatalogSet", () => {
+  let dir: string;
+
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("upserts a catalog entry via --add", () => {
+    expect(
+      resolveLabelCatalogSet(
+        undefined,
+        { add: [JSON.stringify({ id: "bug", color: "#ff0000" })] },
+        [{ id: "feat", color: "#00ff00" }],
+      ),
+    ).toEqual({
+      action: "patch",
+      patch: {
+        labels: [
+          { id: "feat", color: "#00ff00" },
+          { id: "bug", color: "#ff0000" },
+        ],
+      },
+    });
+  });
+
+  it("updates an existing catalog entry by id", () => {
+    expect(
+      resolveLabelCatalogSet(
+        undefined,
+        { add: [JSON.stringify({ id: "bug", color: "#aa0000" })] },
+        [{ id: "bug", color: "#ff0000" }],
+      ),
+    ).toEqual({
+      action: "patch",
+      patch: { labels: [{ id: "bug", color: "#aa0000" }] },
+    });
+  });
+
+  it("removes and clears catalog entries", () => {
+    expect(
+      resolveLabelCatalogSet(
+        undefined,
+        { remove: ["bug"] },
+        [
+          { id: "bug", color: "#ff0000" },
+          { id: "feat", color: "#00ff00" },
+        ],
+      ),
+    ).toEqual({
+      action: "patch",
+      patch: { labels: [{ id: "feat", color: "#00ff00" }] },
+    });
+    expect(
+      resolveLabelCatalogSet(
+        undefined,
+        { clear: true },
+        [{ id: "bug", color: "#ff0000" }],
+      ),
+    ).toEqual({ action: "patch", patch: { labels: [] } });
+  });
+
+  it("returns a rename action", () => {
+    expect(
+      resolveLabelCatalogSet(
+        undefined,
+        { rename: ["bug", "defect"] },
+        [{ id: "bug", color: "#ff0000" }],
+      ),
+    ).toEqual({ action: "rename", oldId: "bug", newId: "defect" });
+  });
+
+  it("treats --add + --file as a single upsert mode", () => {
+    dir = mkdtempSync(join(tmpdir(), "cli-kind-"));
+    const path = join(dir, "label.json");
+    writeFileSync(path, JSON.stringify({ id: "feat", color: "#00ff00" }));
+    expect(
+      resolveLabelCatalogSet(undefined, { add: [], file: path }, []),
+    ).toEqual({
+      action: "patch",
+      patch: { labels: [{ id: "feat", color: "#00ff00" }] },
+    });
   });
 });
