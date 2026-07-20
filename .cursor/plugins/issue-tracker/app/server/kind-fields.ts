@@ -1,5 +1,7 @@
 import {
   TASK_STATUSES,
+  QA_STATUSES,
+  RETRO_STATUSES,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type IssueKind,
@@ -32,6 +34,7 @@ export const EPIC_SET_FIELDS = {
   archived: { type: "boolean" },
   partOf: { type: "string" },
   blockedBy: { type: "array" },
+  retro: { type: "enum", values: RETRO_STATUSES },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -63,6 +66,7 @@ export const TASK_SET_FIELDS = {
   archived: { type: "boolean" },
   partOf: { type: "string" },
   status: { type: "enum", values: TASK_STATUSES },
+  qa: { type: "enum", values: QA_STATUSES },
   commitSha: { type: "commitSha" },
   noDiff: { type: "boolean" },
   description: { type: "description" },
@@ -108,6 +112,7 @@ export const EPIC_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   blockedBy: STORED,
+  retro: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,
@@ -162,6 +167,7 @@ export const TASK_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   status: STORED,
+  qa: STORED,
   commitSha: STORED,
   noDiff: STORED,
   order: STORED,

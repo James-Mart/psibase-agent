@@ -630,6 +630,17 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "set", "e", "needsAttention", "false"]).status).toBe(0);
     expect(runCli(["epic", "get", "e", "needsAttention"]).stdout).toBe("false\n");
     expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("");
+
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("in-progress\n");
+    expect(runCli(["epic", "set", "e", "retro", "done"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("done\n");
+    expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("");
+
+    const invalidRetro = runCli(["epic", "set", "e", "retro", "pending"]);
+    expect(invalidRetro.status).toBe(1);
+    expect(invalidRetro.stderr).toMatch(/invalid retro "pending"/);
   });
 
   it("replaces and incrementally edits blockedBy", () => {
@@ -721,6 +732,25 @@ describe("epic get/set", () => {
       updatedAt: AT,
     });
     expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("in-progress\n");
+  });
+
+  it("preserves retro across apply", () => {
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+
+    const applyPath = join(dir, "epic-apply.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic renamed
+  stories: []
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "e", "issue.json"), "utf8"));
+    expect(onDisk.retro).toBe("in-progress");
+    expect(onDisk.title).toBe("Epic renamed");
   });
 
   it("refuses kind mismatch and unknown fields", () => {
@@ -1030,6 +1060,18 @@ describe("task get/set", () => {
     expect(runCli(["task", "set", "c1", "status", "in-progress"]).status).toBe(0);
     expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("in-progress\n");
 
+    expect(runCli(["task", "set", "c1", "status", "fixing"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "status"]).stdout).toBe("fixing\n");
+
+    expect(runCli(["task", "set", "c1", "qa", "reviewing"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "qa"]).stdout).toBe("reviewing\n");
+    expect(runCli(["task", "set", "c1", "qa", "--clear"]).status).toBe(0);
+    expect(runCli(["task", "get", "c1", "qa"]).stdout).toBe("");
+
+    const invalidQa = runCli(["task", "set", "c1", "qa", "pending"]);
+    expect(invalidQa.status).toBe(1);
+    expect(invalidQa.stderr).toMatch(/invalid qa "pending"/);
+
     expect(runCli(["task", "set", "c1", "commitSha", sha1]).status).toBe(0);
     expect(runCli(["task", "get", "c1", "commitSha"]).stdout).toBe(`${sha1}\n`);
     expect(runCli(["task", "set", "c1", "commitSha", "--clear"]).status).toBe(0);
@@ -1136,6 +1178,41 @@ describe("task get/set", () => {
     const badNoDiff = runCli(["task", "set", "c1", "noDiff", "maybe"]);
     expect(badNoDiff.status).toBe(1);
     expect(badNoDiff.stderr).toMatch(/invalid noDiff "maybe"/);
+  });
+
+  it("surfaces qa in show/tree and preserves it across apply", () => {
+    expect(runCli(["show", "c1"]).stdout).not.toContain("qa:");
+
+    expect(runCli(["task", "set", "c1", "status", "fixing"]).status).toBe(0);
+    expect(runCli(["task", "set", "c1", "qa", "passed"]).status).toBe(0);
+    expect(runCli(["show", "c1"]).stdout).toContain("status: fixing");
+    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["tree", "p"]).stdout).toMatch(/^ {6}task c1\b.*\bqa=passed/m);
+
+    const applyPath = join(dir, "task-apply.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic
+  stories:
+    - id: a
+      title: Branch A
+      tasks:
+        - id: c1
+          title: Commit 1 renamed
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "c1", "issue.json"), "utf8"));
+    expect(onDisk.status).toBe("fixing");
+    expect(onDisk.qa).toBe("passed");
+    expect(runCli(["show", "c1"]).stdout).toContain("qa: passed");
+    expect(runCli(["show", "c1"]).stdout).toContain("title: Commit 1 renamed");
+
+    expect(runCli(["task", "set", "c1", "qa", "--clear"]).status).toBe(0);
+    expect(runCli(["tree", "p"]).stdout).not.toMatch(/^ {6}task c1\b.*\bqa=/m);
   });
 
   it("accepts sha256 commitSha and surfaces noDiff in show/summary", () => {
@@ -1307,6 +1384,28 @@ describe("tree", () => {
     const withEpic = runCli(["tree", "a", "--epic", "e"]);
     expect(withEpic.status).toBe(1);
     expect(withEpic.stderr).toContain("cannot combine tree [id] with --project or --epic");
+  });
+
+  it("shows specReview and retro chips on the correct lines only when set", () => {
+    const unset = runCli(["tree", "--project", "p"]);
+    expect(unset.status).toBe(0);
+    expect(unset.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(unset.stdout).not.toMatch(/^ {4}story a\b.*\bspecReview=/m);
+
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["story", "set", "a", "specReview", "passed"]).status).toBe(0);
+
+    const set = runCli(["tree", "--project", "p"]);
+    expect(set.status).toBe(0);
+    expect(set.stdout).toMatch(/^ {2}epic e\b.*\bretro=in-progress\b/m);
+    expect(set.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
+
+    expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+
+    const cleared = runCli(["tree", "--project", "p"]);
+    expect(cleared.status).toBe(0);
+    expect(cleared.stdout).not.toMatch(/^ {2}epic e\b.*\bretro=/m);
+    expect(cleared.stdout).toMatch(/^ {4}story a\b.*\bspecReview=passed\b/m);
   });
 });
 

@@ -378,6 +378,7 @@ describe("apply — update preserves imperative progress state", () => {
     await apply(baseDoc());
 
     // Stamp imperative/runtime state that lives outside the doc.
+    await update("epic-a", { retro: "in-progress" });
     await update("b2", {
       branchName: "feat/b2",
       mergeBase: "custom-base",
@@ -389,7 +390,8 @@ describe("apply — update preserves imperative progress state", () => {
       attentionReason: "waiting on review",
     });
     await update("c1", {
-      status: "done",
+      status: "fixing",
+      qa: "changes-requested",
       commitSha: "deadbeef00000000000000000000000000000000",
       noDiff: true,
       assignee: "bob",
@@ -400,11 +402,16 @@ describe("apply — update preserves imperative progress state", () => {
 
     // Re-apply with changed titles so b2 and c1 actually go through the update path.
     const doc = baseDoc();
+    epicChildren(doc)[0].title = "Epic A renamed";
     epicChildren(doc)[0].stories![1].title = "Branch two renamed";
     epicChildren(doc)[0].stories![0].tasks![0].title = "Commit one renamed";
     const summary = await apply(doc);
-    expect(summary.updated.sort()).toEqual(["b2", "c1"]);
+    expect(summary.updated.sort()).toEqual(["b2", "c1", "epic-a"]);
     expect(summary.deleted).toEqual([]);
+
+    const epicA = readIssue("epic-a");
+    expect(epicA.title).toBe("Epic A renamed");
+    expect(epicA.retro).toBe("in-progress");
 
     const b2 = readIssue("b2");
     expect(b2.title).toBe("Branch two renamed");
@@ -419,7 +426,8 @@ describe("apply — update preserves imperative progress state", () => {
 
     const c1 = readIssue("c1");
     expect(c1.title).toBe("Commit one renamed");
-    expect(c1.status).toBe("done");
+    expect(c1.status).toBe("fixing");
+    expect(c1.qa).toBe("changes-requested");
     expect(c1.commitSha).toBe("deadbeef00000000000000000000000000000000");
     expect(c1.noDiff).toBe(true);
     expect(c1.assignee).toBe("bob");

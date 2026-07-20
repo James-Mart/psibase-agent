@@ -263,6 +263,11 @@ describe("derive - epic rollup", () => {
   it("is todo for an empty epic", () => {
     expect(derive([epic("e")]).byId.e.epicStatus).toBe("todo");
   });
+
+  it("ignores stored retro when computing epicStatus", () => {
+    const issues = [epic("e", "p", 0, { retro: "done" })];
+    expect(derive(issues).byId.e.epicStatus).toBe("todo");
+  });
 });
 
 describe("derive - epic blocked gating", () => {

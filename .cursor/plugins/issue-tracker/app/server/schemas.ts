@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { ClearableKey } from "./fields.js";
 
 export const KINDS = ["project", "epic", "idea", "story", "task"] as const;
-export const TASK_STATUSES = ["todo", "in-progress", "done"] as const;
+export const TASK_STATUSES = ["todo", "in-progress", "fixing", "done"] as const;
+export const QA_STATUSES = ["reviewing", "changes-requested", "passed"] as const;
+export const RETRO_STATUSES = ["in-progress", "done"] as const;
 export const MERGE_POLICIES = ["merge", "pull-request", "manual"] as const;
 export const SPEC_REVIEW_STATUSES = ["passed", "failed"] as const;
 
@@ -57,6 +59,7 @@ export const epicSchema = z.object({
   kind: z.literal("epic"),
   partOf: nonEmpty,
   blockedBy: z.array(z.string()).default([]),
+  retro: z.enum(RETRO_STATUSES).optional(),
   ...mutableCommon,
   ...orderField,
   ...timestamps,
@@ -98,6 +101,7 @@ export const taskSchema = z.object({
   kind: z.literal("task"),
   partOf: nonEmpty,
   status: z.enum(TASK_STATUSES).default("todo"),
+  qa: z.enum(QA_STATUSES).optional(),
   commitSha: z.string().optional(),
   noDiff: z.boolean().optional(),
   ...mutableCommon,
@@ -116,6 +120,8 @@ export const issueSchema = z.discriminatedUnion("kind", [
 export type Issue = z.infer<typeof issueSchema>;
 export type IssueKind = (typeof KINDS)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type QaStatus = (typeof QA_STATUSES)[number];
+export type RetroStatus = (typeof RETRO_STATUSES)[number];
 export type MergePolicy = (typeof MERGE_POLICIES)[number];
 export type SpecReviewStatus = (typeof SPEC_REVIEW_STATUSES)[number];
 

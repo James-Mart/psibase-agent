@@ -25,6 +25,10 @@ export const PROJECT_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
 
+export const EPIC_IMPERATIVE_ONLY_KEYS = ["retro"] as const;
+
+export const EPIC_RUNTIME_OPTIONAL_KEYS = EPIC_IMPERATIVE_ONLY_KEYS;
+
 // Story fields the manual edit form renders. Imperative-only runtime keys
 // (e.g. specReview) live in STORY_IMPERATIVE_ONLY_KEYS and are excluded.
 export const STORY_FORM_FIELD_KEYS = [
@@ -53,15 +57,9 @@ export const STORY_RUNTIME_OPTIONAL_KEYS = [
 // (e.g. noDiff) live in TASK_IMPERATIVE_ONLY_KEYS and are excluded.
 export const TASK_FORM_FIELD_KEYS = ["status", "commitSha"] as const;
 
-export const TASK_IMPERATIVE_ONLY_KEYS = ["noDiff"] as const;
+export const TASK_IMPERATIVE_ONLY_KEYS = ["noDiff", "qa"] as const;
 
-export const TASK_RUNTIME_OPTIONAL_KEYS = TASK_IMPERATIVE_ONLY_KEYS;
-
-// Optional task fields preserved by apply when already set on disk.
-export const TASK_OPTIONAL_PRESERVE_KEYS = [
-  "commitSha",
-  ...TASK_IMPERATIVE_ONLY_KEYS,
-] as const;
+export const TASK_RUNTIME_OPTIONAL_KEYS = ["commitSha", "noDiff", "qa"] as const;
 
 export const TASK_FIELD_KEYS = [
   ...TASK_FORM_FIELD_KEYS,
@@ -92,6 +90,8 @@ export const CLEARABLE_KEYS = [
   "stackedOn",
   "prUrl",
   "workspace",
+  "qa",
+  "retro",
 ] as const;
 
 export type ClearableKey = (typeof CLEARABLE_KEYS)[number];
@@ -124,6 +124,8 @@ export const FIELD_LABELS = {
   merged: "Merged",
   specReview: "Spec review",
   status: "Status",
+  qa: "QA",
+  retro: "Retro",
   commitSha: "Commit SHA",
   noDiff: "No diff",
 } as const;
@@ -143,6 +145,7 @@ export const MERGEABLE_KEYS = [
   ...COMMON_MERGEABLE_KEYS,
   ...PROJECT_FIELD_KEYS,
   ...EPIC_FIELD_KEYS,
+  ...EPIC_IMPERATIVE_ONLY_KEYS,
   ...STORY_FIELD_KEYS,
   ...TASK_FIELD_KEYS,
 ] as const satisfies readonly (keyof IssuePatch)[];

@@ -84,6 +84,30 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses an epic with an optional retro", () => {
+    const inProgress = parseIssue({ ...epic, retro: "in-progress" });
+    expect(inProgress.ok).toBe(true);
+    if (inProgress.ok && inProgress.issue.kind === "epic") {
+      expect(inProgress.issue.retro).toBe("in-progress");
+    }
+
+    const done = parseIssue({ ...epic, retro: "done" });
+    expect(done.ok).toBe(true);
+    if (done.ok && done.issue.kind === "epic") {
+      expect(done.issue.retro).toBe("done");
+    }
+
+    const absent = parseIssue(epic);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "epic") {
+      expect(absent.issue.retro).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown retro value", () => {
+    expect(parseIssue({ ...epic, retro: "pending" }).ok).toBe(false);
+  });
+
   it("rejects an epic missing its partOf project", () => {
     const { partOf: _partOf, ...rest } = epic;
     expect(parseIssue(rest).ok).toBe(false);
@@ -142,6 +166,46 @@ describe("parseIssue - valid per kind", () => {
     if (result.ok && result.issue.kind === "task") {
       expect(result.issue.status).toBe("in-progress");
     }
+
+    const fixing = parseIssue({ ...commit, status: "fixing" });
+    expect(fixing.ok).toBe(true);
+    if (fixing.ok && fixing.issue.kind === "task") {
+      expect(fixing.issue.status).toBe("fixing");
+    }
+  });
+
+  it("parses a commit with an optional qa", () => {
+    const reviewing = parseIssue({ ...commit, qa: "reviewing" });
+    expect(reviewing.ok).toBe(true);
+    if (reviewing.ok && reviewing.issue.kind === "task") {
+      expect(reviewing.issue.qa).toBe("reviewing");
+    }
+
+    const changesRequested = parseIssue({ ...commit, qa: "changes-requested" });
+    expect(changesRequested.ok).toBe(true);
+    if (changesRequested.ok && changesRequested.issue.kind === "task") {
+      expect(changesRequested.issue.qa).toBe("changes-requested");
+    }
+
+    const passed = parseIssue({ ...commit, qa: "passed" });
+    expect(passed.ok).toBe(true);
+    if (passed.ok && passed.issue.kind === "task") {
+      expect(passed.issue.qa).toBe("passed");
+    }
+
+    const absent = parseIssue(commit);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "task") {
+      expect(absent.issue.qa).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown qa value", () => {
+    expect(parseIssue({ ...commit, qa: "pending" }).ok).toBe(false);
+  });
+
+  it("rejects an unknown task status value", () => {
+    expect(parseIssue({ ...commit, status: "reviewing" }).ok).toBe(false);
   });
 
   it("parses a commit with an optional noDiff", () => {
