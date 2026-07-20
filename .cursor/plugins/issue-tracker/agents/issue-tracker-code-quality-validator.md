@@ -28,7 +28,13 @@ Do not run any other mutating `issue` command. Do not edit workspace source file
    `issue task set <taskId> qa reviewing`
 2. Run `issue summary <taskId>` for Project → Epic → Story → Task context,
    then `issue task view <taskId>` for the Task spec when needed.
-3. The summary carries the Project **workspace** — inspect the working-tree
+3. Read
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+   from disk. Consult per that file using the step-2 summary output:
+   - `codingStandards`
+   - `designSystem` when this Task appears UI-related (judgment from Task prose
+     plus paths in the working-tree diff; no Task flag)
+4. The summary carries the Project **workspace** — inspect the working-tree
    diff and read files with it as the cwd, and honor the unset escalation,
    per **SPEC § Project workspace**.
 
@@ -47,7 +53,7 @@ gate state before re-entering `reviewing`.
 
 ## Mode
 
-Complete all of **## Bootstrap** (steps 1–3) before **## What you do**.
+Complete all of **## Bootstrap** (steps 1–4) before **## What you do**.
 
 ## What you do
 

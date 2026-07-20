@@ -27,7 +27,15 @@ Glossary: plugin `SPEC.md`.
    - `revise` → `issue task set <id> status fixing` (on every revise entry)
 2. Run `issue summary <id>` to rebuild Project → Epic → Story → Task
    context. Use `issue task view <id>` when you need the full `description.md`.
-3. The summary carries the Project **workspace** — run all implementation work
+   Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
+3. Read
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+   from disk. Consult per that file using the step-2 summary output:
+   - `vision`
+   - `codingStandards`
+   - `designSystem` when this Task appears UI-related (judgment from Task prose
+     plus expected or changed paths; no Task flag)
+4. The summary carries the Project **workspace** — run all implementation work
    (file edits, builds, tests, browser checks) with it as the cwd, and honor the
    unset escalation, per **SPEC § Project workspace**.
 
@@ -42,7 +50,7 @@ Glossary: plugin `SPEC.md`.
 ## Mode
 
 If Mode is `revise`, follow **## Revise** only. Otherwise follow **## Implement**
-only. Complete all of **## Bootstrap** (steps 1–3) before other mode steps.
+only. Complete all of **## Bootstrap** (steps 1–4) before other mode steps.
 
 ## Implement
 

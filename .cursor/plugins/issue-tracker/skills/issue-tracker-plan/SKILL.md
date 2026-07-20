@@ -49,7 +49,10 @@ Before grilling:
      Codebase lookup during the grill needs cwd = `Workspace:` — there is no
      plan-only fallback (SPEC § Project workspace: unset → escalate, never
      fall back).
-2. Kind / status gates:
+2. Consult `vision` per
+   [`agents/_issue-tracker-consult-supporting-doc.md`](../../agents/_issue-tracker-consult-supporting-doc.md)
+   using the step-1 summary output.
+3. Kind / status gates:
    - **Idea** — proceed.
    - **Epic** — run `issue epic get <id> epicStatus`.
      - `todo` → proceed.
@@ -57,9 +60,9 @@ Before grilling:
        only rewrites pre-implementation Epics; for an existing tree use
        `issue-tracker-plan-polish` (or work it with `issue-tracker-work`).
    - Any other kind → refuse.
-3. `issue <kind> view <id>` — load the full capture (`description.md`), not
-   only the summary blurb (`idea` or `epic` from step 2).
-4. If the source is an **Epic**, also `issue tree <id>` so the existing
+4. `issue <kind> view <id>` — load the full capture (`description.md`), not
+   only the summary blurb (`idea` or `epic` from step 3).
+5. If the source is an **Epic**, also `issue tree <id>` so the existing
    Story/Task subtree is in context before grilling.
 
 ## Grill-me protocol (inline)

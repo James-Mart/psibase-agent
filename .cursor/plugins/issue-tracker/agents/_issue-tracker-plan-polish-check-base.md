@@ -28,8 +28,12 @@ Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
 ## Bootstrap
 
 1. `issue summary <epicId>` for Project → Epic context (and `Workspace:`).
-2. `issue tree <epicId>` for the Story/Task outline.
-3. `issue <kind> view <id>` on the Epic and every Story/Task you review (plus any
+   Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
+2. Read
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+   from disk. Consult `vision` per that file using the step-1 summary output.
+3. `issue tree <epicId>` for the Story/Task outline.
+4. `issue <kind> view <id>` on the Epic and every Story/Task you review (plus any
    extra `<kind> get` / sibling reads your agent file calls for).
 
 ## Inputs (from invoking prompt)
