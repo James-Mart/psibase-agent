@@ -69,12 +69,15 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   evolves); deciding Story vs Task grain. Companion attachments: defer to
   issue-tracker-authoring.
 - **`issue-tracker-work`** — coordinating implementation of one Epic:
-  delegating each task to fresh subagents (implement/validate/revise) and
+  delegating each task to subagents in a per-task QA loop (implementor →
+  code-quality gate on `qa` → revise/resume until `passed` or escalate) and
   recording git progress through the CLI; inspect the stack with `tree`/`show`.
-  Completion spawns **`issue-tracker-retro`** once when every Story in the
-  Epic is `merged` — post-implement confusion retro: mine the work run for
-  tracker/work-loop meta confusion and apply a residual Epic under Project
-  `issue-tracker` (or comment clean on the source Epic); not invoked directly.
+  The coordinator only reads gates and spawns/resumes — it does not write
+  Task `status`/`qa` or count revise rounds. Completion spawns
+  **`issue-tracker-retro`** once when every Story in the Epic is `merged` —
+  post-implement confusion retro: mine the work run for tracker/work-loop
+  meta confusion and apply a residual Epic under Project `issue-tracker` (or
+  comment clean on the source Epic); not invoked directly.
 - **`issue-tracker-authoring`** — create/update/`apply` semantics, kind-scoped
   `get`/`set`, the **Attachments** model + verbs (`attach` / `attachments` /
   `detach`), and inspection (`show`/`summary`/`tree`), pointing at
