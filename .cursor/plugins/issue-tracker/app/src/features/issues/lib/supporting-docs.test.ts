@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   emptySupportingDocDraft,
   formatSupportingDocRef,
+  previewableSupportingDocs,
+  supportingDocContentUrl,
   supportingDocDraftForMode,
   supportingDocDraftFromRef,
+  supportingDocPreviewFormat,
   supportingDocRefFromDraft,
   supportingDocsDraftFromIssue,
   supportingDocsEqual,
   supportingDocsFromDraft,
+  workspaceFileApiPath,
 } from "./supporting-docs";
 
 describe("formatSupportingDocRef", () => {
@@ -94,5 +98,92 @@ describe("supportingDocsEqual", () => {
         { vision: { type: "attachment", name: "b.md" } },
       ),
     ).toBe(false);
+  });
+});
+
+describe("supporting-doc preview tabs", () => {
+  const attachmentMd = { type: "attachment" as const, name: "sample.md" };
+  const attachmentHtml = {
+    type: "attachment" as const,
+    name: "sample-attach.html",
+  };
+  const workspaceHtml = {
+    type: "workspace" as const,
+    path: "workspace/sample.html",
+  };
+
+  it("classifies the three fixture types for preview", () => {
+    expect(supportingDocPreviewFormat(attachmentMd)).toBe("md");
+    expect(supportingDocPreviewFormat(attachmentHtml)).toBe("html");
+    expect(supportingDocPreviewFormat(workspaceHtml)).toBe("html");
+    expect(
+      supportingDocPreviewFormat({
+        type: "workspace",
+        path: "notes.txt",
+      }),
+    ).toBeNull();
+  });
+
+  it("builds content URLs for attachment and workspace fixtures", () => {
+    expect(supportingDocContentUrl("p", attachmentMd)).toBe(
+      "/api/issues/p/attachments/sample.md",
+    );
+    expect(supportingDocContentUrl("p", attachmentHtml)).toBe(
+      "/api/issues/p/attachments/sample-attach.html",
+    );
+    expect(supportingDocContentUrl("p", workspaceHtml)).toBe(
+      "/api/projects/p/workspace/workspace/sample.html",
+    );
+    expect(workspaceFileApiPath("p", "workspace/sample-asset.svg")).toBe(
+      "/api/projects/p/workspace/workspace/sample-asset.svg",
+    );
+    // Path segments stay as `/` so iframe-relative assets resolve beside the HTML.
+    expect(
+      supportingDocContentUrl("p", workspaceHtml).replace(
+        /sample\.html$/,
+        "sample-asset.svg",
+      ),
+    ).toBe("/api/projects/p/workspace/workspace/sample-asset.svg");
+  });
+
+  it("lists preview tabs in key order and skips empty / non-previewable", () => {
+    expect(previewableSupportingDocs(undefined)).toEqual([]);
+    expect(previewableSupportingDocs({})).toEqual([]);
+    expect(
+      previewableSupportingDocs({
+        designSystem: workspaceHtml,
+        vision: attachmentMd,
+        codingStandards: attachmentHtml,
+      }).map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        format: tab.format,
+        url: supportingDocContentUrl("p", tab.ref),
+      })),
+    ).toEqual([
+      {
+        key: "vision",
+        label: "Vision",
+        format: "md",
+        url: "/api/issues/p/attachments/sample.md",
+      },
+      {
+        key: "codingStandards",
+        label: "Coding standards",
+        format: "html",
+        url: "/api/issues/p/attachments/sample-attach.html",
+      },
+      {
+        key: "designSystem",
+        label: "Design system",
+        format: "html",
+        url: "/api/projects/p/workspace/workspace/sample.html",
+      },
+    ]);
+    expect(
+      previewableSupportingDocs({
+        vision: { type: "attachment", name: "notes.txt" },
+      }),
+    ).toEqual([]);
   });
 });
