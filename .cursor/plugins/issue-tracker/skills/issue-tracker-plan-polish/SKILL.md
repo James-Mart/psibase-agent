@@ -113,16 +113,8 @@ After all four return:
    in the proposal.
 3. Build **one** proposal for the user:
    - An **epic-form** `apply` YAML (`project: <projectId>` string + `epic:`
-     object) that is the **full desired Epic subtree after fixes** — every
-     Story/Task that should remain, with corrected prose. `apply` is
-     prune-by-default within that Epic root: a partial doc that omits siblings
-     or tasks **deletes** them. Do not ship a patch-shaped subtree.
-   - `apply` **preserves** runtime/progress fields (`status`, `qa`,
-     `commitSha`, git facts, `specReview`, `retro`, chat, attachments, etc.);
-     the proposal only authors plan-owned shape + prose (see
-     issue-tracker-decompose / authoring **Declarative apply** /
-     [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format) and the
-     declarative/imperative field seam).
+     object) with the corrected prose. Follow issue-tracker-authoring and
+     [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format).
    - Or, only when there are **zero** `error` findings (and you are not
      adopting warning fixes), state explicitly that **no changes are needed**
      (no YAML).
@@ -139,9 +131,8 @@ On approval (the user may edit the YAML in chat):
 3. Show `apply` stdout (created/updated/deleted + subtree outline).
 
 If the user rejects or asks for revisions, revise the proposal in chat and
-wait again — do not apply unapproved docs. Never patch plan-owned fields with
-imperative `issue <kind> add`/`set` for polish outcomes; the approved epic-form
-doc is the write path.
+wait again — do not apply unapproved docs. Write path is the approved
+epic-form `apply` per issue-tracker-authoring (declarative apply).
 
 ## Rules
 

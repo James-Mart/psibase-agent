@@ -22,7 +22,7 @@ Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 Epic, including `retro --clear` on escalation; also `needsAttention` with
 `--reason` required when true). Do not run any other mutating `issue` command.
 Flags: `issue <command> --help`. Glossary: plugin `SPEC.md`. Author the residual
-Epic YAML per `skills/issue-tracker-decompose/SKILL.md`. Use
+Epic YAML per `skills/issue-tracker-authoring/SKILL.md`. Use
 `issue summary <sourceEpicId>` for source context (title, linkage) as needed
 before `apply` / comments.
 
