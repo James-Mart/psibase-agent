@@ -1,19 +1,42 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Archive, Layers, Lightbulb, Plus, Search } from "lucide-react";
-import type { IssueRecord } from "@server/schemas";
+import {
+  AlertTriangle,
+  Archive,
+  Layers,
+  Lightbulb,
+  Plus,
+  Search,
+  Tags,
+} from "lucide-react";
+import type { IssueRecord, ProjectLabel } from "@server/schemas";
 import { visibleIssues } from "@server/services/archived-visibility";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useIssuesQuery } from "../api/queries";
 import { IssueTree } from "./issue-tree";
-import { buildTree, filterToProject, parentOf } from "../lib/build-tree";
+import { buildTree, filterToProject } from "../lib/build-tree";
 import type { BoardKindFilter } from "../lib/board-kind-filter";
+import { filterWithAncestors } from "../lib/filter-with-ancestors";
+import {
+  issueMatchesLabelFilter,
+  toggleAssignmentId,
+} from "../lib/project-labels";
 import { projectBoardRoots } from "../lib/project-board-roots";
 import { issueMatchesSearch } from "../lib/search";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
+import { ProjectLabelChip } from "./project-label-chip";
 
 const BOARD_FILTER_OPTIONS: {
   value: BoardKindFilter;
@@ -25,33 +48,71 @@ const BOARD_FILTER_OPTIONS: {
   { value: "idea", label: "Ideas", icon: Lightbulb },
 ];
 
-function filterWithAncestors(
-  issues: IssueRecord[],
-  query: string,
-): IssueRecord[] {
-  if (!query.trim()) return issues;
+function LabelFilterControl({
+  catalog,
+  selected,
+  onChange,
+}: {
+  catalog: ProjectLabel[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const selectedInCatalog = selected.filter((id) =>
+    catalog.some((label) => label.id === id),
+  );
+  const active = selectedInCatalog.length > 0;
 
-  const byId = new Map(issues.map((issue) => [issue.id, issue]));
-  const keep = new Set<string>();
-  const retain = (issue: IssueRecord): void => {
-    let current: IssueRecord | undefined = issue;
-    while (current && !keep.has(current.id)) {
-      keep.add(current.id);
-      // Retain the containment parent and, for a branch, the branch it forks
-      // from, so a matched nested branch keeps its stack ancestors and nests.
-      if (current.kind === "story" && current.stackedOn) {
-        const base = byId.get(current.stackedOn);
-        if (base) retain(base);
-      }
-      const parent = parentOf(current);
-      current = parent ? byId.get(parent) : undefined;
-    }
-  };
-  for (const issue of issues) {
-    if (!issueMatchesSearch(issue, query)) continue;
-    retain(issue);
-  }
-  return issues.filter((issue) => keep.has(issue.id));
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant={active ? "secondary" : "outline"}
+          size="sm"
+          className="shrink-0"
+          disabled={catalog.length === 0}
+          aria-label="Filter by label"
+          title={
+            catalog.length === 0
+              ? "No labels in project catalog"
+              : "Filter by label"
+          }
+        >
+          <Tags className="h-4 w-4" />
+          Labels
+          {active ? (
+            <span className="ml-1 tabular-nums text-muted-foreground">
+              ({selectedInCatalog.length})
+            </span>
+          ) : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Filter by label (OR)</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {catalog.map((label) => (
+          <DropdownMenuCheckboxItem
+            key={label.id}
+            checked={selected.includes(label.id)}
+            onCheckedChange={() =>
+              onChange(toggleAssignmentId(selected, label.id))
+            }
+            onSelect={(event) => event.preventDefault()}
+          >
+            <ProjectLabelChip label={label} />
+          </DropdownMenuCheckboxItem>
+        ))}
+        {active ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onChange([])}>
+              Clear labels
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function TreePage() {
@@ -61,6 +122,8 @@ export function TreePage() {
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
   const search = useIssueUiStore((s) => s.search);
   const setSearch = useIssueUiStore((s) => s.setSearch);
+  const labelFilter = useIssueUiStore((s) => s.labelFilter);
+  const setLabelFilter = useIssueUiStore((s) => s.setLabelFilter);
   const boardKindFilter = useIssueUiStore((s) => s.boardKindFilter);
   const setBoardKindFilter = useIssueUiStore((s) => s.setBoardKindFilter);
   const showArchived = useIssueUiStore((s) => s.showArchived);
@@ -83,10 +146,20 @@ export function TreePage() {
       ),
     [issues, projectId, showArchived],
   );
-  const filtered = useMemo(
-    () => filterWithAncestors(scoped, search),
-    [scoped, search],
-  );
+  const filtered = useMemo(() => {
+    let next: IssueRecord[] = scoped;
+    if (search.trim()) {
+      next = filterWithAncestors(next, (issue) =>
+        issueMatchesSearch(issue, search),
+      );
+    }
+    if (labelFilter.length > 0) {
+      next = filterWithAncestors(next, (issue) =>
+        issueMatchesLabelFilter(issue, labelFilter),
+      );
+    }
+    return next;
+  }, [scoped, search, labelFilter]);
   const nodes = useMemo(() => {
     const roots = projectBoardRoots(filtered, boardKindFilter);
     return buildTree(filtered, roots);
@@ -161,6 +234,11 @@ export function TreePage() {
                 className="pl-9"
               />
             </div>
+            <LabelFilterControl
+              catalog={catalog}
+              selected={labelFilter}
+              onChange={setLabelFilter}
+            />
             <div
               className="flex shrink-0 items-center rounded-md border p-0.5"
               role="group"
