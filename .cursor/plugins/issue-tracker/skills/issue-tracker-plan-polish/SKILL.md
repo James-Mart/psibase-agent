@@ -14,7 +14,8 @@ read-only check agents, propose a single epic-form `apply` doc from their
 findings, and write the tracker only after the user approves that doc.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`.
+`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
+[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 ## Argument
 
