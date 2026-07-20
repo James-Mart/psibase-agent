@@ -804,6 +804,70 @@ describe("tree / list / summary include Ideas", () => {
     expect(epic).toBeLessThan(ideaB);
   });
 
+  it("interleaves project-level Stories with Epics and Ideas and nests stacked children", () => {
+    // beforeEach: idea-a=0, e=1, idea-b=2 — bump idea-b so solo sits between e and idea-b.
+    writeIssue("idea-b", {
+      kind: "idea",
+      title: "Capture last",
+      partOf: "p",
+      order: 3,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("solo", {
+      kind: "story",
+      title: "Solo Story",
+      partOf: "p",
+      order: 2,
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("solo-t", {
+      kind: "task",
+      title: "Solo task",
+      partOf: "solo",
+      status: "todo",
+      order: 0,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeIssue("stacked", {
+      kind: "story",
+      title: "Stacked Solo",
+      partOf: "p",
+      stackedOn: "solo",
+      order: 0,
+      merged: false,
+      createdAt: nextAt(),
+      updatedAt: nextAt(),
+    });
+    writeFileSync(
+      join(dir, "solo", "description.md"),
+      "# Solo\n\nproject-level story\n",
+    );
+
+    const { stdout, status } = runCli(["tree", "p"]);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/^ {2}story solo {2}Solo Story\b/m);
+    expect(stdout).toMatch(/^ {4}task solo-t {2}Solo task\b/m);
+    expect(stdout).toMatch(/^ {4}story stacked {2}Stacked Solo\b/m);
+    const ideaA = stdout.indexOf("idea idea-a");
+    const epic = stdout.indexOf("epic e");
+    const solo = stdout.indexOf("story solo");
+    const ideaB = stdout.indexOf("idea idea-b");
+    expect(ideaA).toBeLessThan(epic);
+    expect(epic).toBeLessThan(solo);
+    expect(solo).toBeLessThan(ideaB);
+
+    const summary = runCli(["summary", "solo-t"]);
+    expect(summary.status).toBe(0);
+    expect(summary.stdout).toContain("Project: p — Proj");
+    expect(summary.stdout).toContain("Story: solo — Solo Story");
+    expect(summary.stdout).toContain("Task: solo-t — Solo task");
+    expect(summary.stdout).not.toContain("Epic:");
+  });
+
   it("includes Ideas in list JSON for the project", () => {
     const { stdout, status } = runCli(["list", "p"]);
     expect(status).toBe(0);

@@ -6,11 +6,12 @@ design decisions that make the model correct-by-construction. Read it before
 authoring issues or changing tracker code.
 
 The tracker models work as a tree of **Project > Epic > Story > Task** nodes
-that maps onto git stacked PRs, plus **Idea** nodes that sit beside Epics under
-a Project (capture items, not work). A directory per issue on disk is the sole
-source of truth; a validated service layer (`issues.ts` + sibling writers such
-as `attachments.ts`) is the only sanctioned writer; all state that could drift
-is derived, never stored.
+that maps onto git stacked PRs, plus **Idea** nodes and optional **project-level
+Stories** that sit beside Epics under a Project (Ideas are capture items, not
+work; a project-level Story is work without an Epic wrapper). A directory per
+issue on disk is the sole source of truth; a validated service layer
+(`issues.ts` + sibling writers such as `attachments.ts`) is the only sanctioned
+writer; all state that could drift is derived, never stored.
 
 ## Glossary
 
@@ -25,33 +26,40 @@ PR; a Task as one git commit. Git fact field names (`branchName`, `commitSha`,
 
 Every issue has a `kind`, one of:
 
-- **Project** — the top-level container that groups related Epics and Ideas.
-  Purely organizational: it carries **no status** (derived or stored) and none
-  of the assignee/needs-attention fields — a `title`, a `description.md`
-  overview, an optional `workspace` (the absolute path to the local git
-  checkout this Project covers; repo-touching agents run there — see
-  [workspace](#project-workspace)), and an optional closed `labels` catalog
-  (see [Project labels](#project-labels)). Has no `partOf`.
+- **Project** — the top-level container that groups related Epics, Ideas, and
+  project-level Stories. Purely organizational: it carries **no status**
+  (derived or stored) and none of the assignee/needs-attention fields — a
+  `title`, a `description.md` overview, an optional `workspace` (the absolute
+  path to the local git checkout this Project covers; repo-touching agents run
+  there — see [workspace](#project-workspace)), and an optional closed `labels`
+  catalog (see [Project labels](#project-labels)). Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Stories; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
   in the same Project that must finish first), an optional `retro` gate
   (`in-progress` / `done`), and optional `labels` assignments from the Project
   catalog (see [Project labels](#project-labels)). Has **no stored status** —
   its status is fully derived from descendants. Is `partOf` a Project
-  (required).
+  (required). Prefer an Epic when the plan needs sibling root Stories,
+  stacking, or Epic `blockedBy`.
 - **Idea** — a Project-level capture item (title, description, attachments,
   archive, and optional `labels` assignments from the Project catalog — see
   [Project labels](#project-labels)) that agents and humans mine later into
   real work. Leaf kind: no children, no assignee/needs-attention, no status or
   git fields, and **no chat** (`appendMessage` / kind-scoped CLI `comment` /
-  chat HTTP refuse Ideas). Is `partOf` a Project (required). Epics and Ideas
-  share one Project-child sibling `order` space. There is no separate Idea
-  Board kind — the "board" is the Project's Ideas in the tree/CLI/UI.
-- **Story** — a unit of work under an Epic. Contains Tasks. Carries
-  `branchName`, `stackedOn`, `mergeBase`, `prUrl`, `merged`, `specReview`, an
-  optional `retro` gate, and optional `labels` assignments from the containing
-  Project catalog (see [Project labels](#project-labels)). Status is derived,
-  never stored.
+  chat HTTP refuse Ideas). Is `partOf` a Project (required). Epics, Ideas, and
+  *root* project-level Stories share one Project-child sibling `order` space.
+  There is no separate Idea Board kind — the "board" is the Project's board
+  children in the tree/CLI/UI.
+- **Story** — a unit of work that contains Tasks. Is `partOf` an **Epic** or a
+  **Project** (required). A Story under a Project (no Epic) is a
+  *project-level Story* — use it when the plan is a single Story plus its
+  Tasks. Prefer wrapping in an Epic when you need sibling root Stories,
+  stacking, or Epic `blockedBy`. Carries `branchName`, `stackedOn`,
+  `mergeBase`, `prUrl`, `merged`, `specReview`, an optional `retro` gate
+  (`in-progress` / `done`; same enum as Epic; unused by the work loop unless
+  the Story is the top-level work root), and optional `labels` assignments from
+  the containing Project catalog (see [Project labels](#project-labels)).
+  Status is derived, never stored.
 - **Task** — an atomic, story-point-sized unit under a Story. Each Task is a
   **small but standalone cross-section** of the work: after it lands on the
   Story tip, the package must still **build** and tests must remain
@@ -68,13 +76,16 @@ Every issue has a `kind`, one of:
 Three relationships, each with a distinct, non-overlapping role:
 
 - **partOf** — *containment*: the node this one belongs to. A Task is `partOf`
-  a Story; a Story is `partOf` an Epic; an Epic or Idea is `partOf` a Project.
-  It points exactly one tier up and builds the tree. Projects have none.
+  a Story; a Story is `partOf` an Epic **or** a Project; an Epic or Idea is
+  `partOf` a Project. It points exactly one tier up and builds the tree.
+  Projects have none.
 - **stackedOn** — *the single git fork point* of a Story: which one Story it
-  forks from. Story-only, always singular, and strictly within one Epic. Absent
-  means it forks off the Epic's base (`main`). It is the **sole** inter-Story
-  edge, so within an Epic the Stories form a forest of independent stacks — a
-  tree, never a DAG, with no internal merge gate.
+  forks from. Story-only, always singular, and strictly within one container
+  (same Epic, or same Project for project-level Stories). Absent means it forks
+  off the container's base (`main`). It is the **sole** inter-Story edge, so
+  within a container the Stories form a forest of independent stacks — a tree,
+  never a DAG, with no internal merge gate. Authoring preference: stacks belong
+  under an Epic; a lone project-level Story is the usual Project-child form.
 - **blockedBy** — *cross-Epic ordering*: a list of other Epic ids **in the same
   Project** that must finish (all their Stories merged) before this Epic can
   start. Epic-only, and the only edge that crosses an Epic boundary. This is what
@@ -149,9 +160,10 @@ stack still lands bottom-up but never touches a remote PR.
 These are computed by `derive()` and never written to disk (see
 [Derived state](#derived-state)):
 
-- **Stack** — the emergent set of dependent, not-yet-merged Stories under an
-  Epic, induced solely by `stackedOn`: a forest of independent stacks (each a
-  tree), never a cross-Story DAG.
+- **Stack** — the emergent set of dependent, not-yet-merged Stories under one
+  container (an Epic, or a Project for project-level Stories), induced solely by
+  `stackedOn`: a forest of independent stacks (each a tree), never a
+  cross-Story DAG.
 - **blocked** — whether an issue is waiting on a dependency (per-kind rules in
   [Derived state](#derived-state)).
 - **Story status** — `not-started` / `in-progress` / `pr-open` / `merged`.
@@ -249,15 +261,18 @@ issue apply|tree|summary|list
 ```
 
 - **`apply`** — declarative upsert; see [`apply` doc format](#apply-doc-format).
-- **`summary <id>`** — Project → … → target chain for agent bootstrap.
+- **`summary <id>`** — Project → … → target chain for agent bootstrap
+  (including Project → Story → Task for a project-level Story).
   (`summary`'s `Workspace:` line remains the bootstrap contract for
   [Project workspace](#project-workspace) resolution.)
 - **`tree [id]`** / **`list [id]`** — identical optional positional `[id]`
   scoping (no title lookup). Omitted = all projects; project / epic / story
-  scopes the subtree; idea / task refused. `list` keeps JSON shape `issues` /
-  `derived` / `problems`, filtered to scope. `--show-archived` unchanged. No
-  kind-scoped `list`. Label chips / no CLI label filter: see
-  [Project labels](#project-labels).
+  scopes the subtree; idea / task refused. Under a Project, `tree` interleaves
+  Epics, Ideas, and *root* project-level Stories by shared sibling `order`
+  (stacked project-level Stories nest under their fork point). `list` keeps
+  JSON shape `issues` / `derived` / `problems`, filtered to scope.
+  `--show-archived` unchanged. No kind-scoped `list`. Label chips / no CLI
+  label filter: see [Project labels](#project-labels).
 
 <a id="kind-scoped-get--set"></a>
 
@@ -614,15 +629,15 @@ Idea — the common-to-every-kind fields plus:
 | `labels` | string[]? | assignment ids from the Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
 No assignee, needs-attention, status, git fields, or chat. Leaf under a Project;
-shares the Project-child `order` space with Epics.
+shares the Project-child `order` space with Epics and root project-level Stories.
 
 Story — the Epic/Story/Task common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
-| `partOf` | string | the Epic id (required) |
+| `partOf` | string | the Epic id **or** Project id (required) |
 | `branchName` | string? | set once the git branch is created; rename refused while stacked children exist |
-| `stackedOn` | string? | single fork-point Story id (must be in the same Epic); absent => root |
+| `stackedOn` | string? | single fork-point Story id (must be in the same Epic, or same Project for project-level Stories); absent => root |
 | `mergeBase` | string? | stored git ref for start-branch / finish-branch; [shared resolver](#the-stacked-pr-merge-model) on `stackedOn` change, plus first-`branchName` and `merged` cascades |
 | `prUrl` | string? | optional |
 | `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
@@ -668,26 +683,29 @@ revision later lands file changes.
 ### Tree nesting and order
 
 The tree nests a Story under the Story it forks from: a Story renders as a
-child of its `stackedOn` Story (which must be in the same Epic — see below), so
-indentation mirrors the git stack depth. A Story with no `stackedOn` is a
-*root* Story, rendered directly under its Epic. Under a Story, its own Tasks
-render first, then the Stories stacked on it. Story order is therefore **pure
-stacked depth-first** over `stackedOn` alone; `blockedBy` plays no part in it
-(it is an Epic-level edge, surfaced in the Epic's detail panel and used only to
-gate the Epic's derived `blocked` state — not sibling order). Within one
-nesting level, siblings are ordered strictly by stored `order` (never
-`createdAt` or `id`). Root Stories under an Epic are traversed depth-first
-(each root immediately followed by what stacks on it); siblings at every level
-sort by `order`. Epics, Ideas, and Projects sort by `order` (Epics and Ideas
-share one Project-child sibling group). Duplicate `order` within a sibling group
-is an integrity problem.
+child of its `stackedOn` Story (which must be in the same container — Epic, or
+Project for project-level Stories), so indentation mirrors the git stack depth.
+A Story with no `stackedOn` is a *root* Story, rendered directly under its
+Epic, or as a Project board child when `partOf` is the Project. Under a Story,
+its own Tasks render first, then the Stories stacked on it. Story order is
+therefore **pure stacked depth-first** over `stackedOn` alone; `blockedBy`
+plays no part in it (it is an Epic-level edge, surfaced in the Epic's detail
+panel and used only to gate the Epic's derived `blocked` state — not sibling
+order). Within one nesting level, siblings are ordered strictly by stored
+`order` (never `createdAt` or `id`). Root Stories under an Epic (or under a
+Project) are traversed depth-first (each root immediately followed by what
+stacks on it); siblings at every level sort by `order`. Epics, Ideas, root
+project-level Stories, and Projects sort by `order` (Epics, Ideas, and root
+project-level Stories share one Project-child sibling group). Duplicate `order`
+within a sibling group is an integrity problem.
 
-**Projects scope the view.** A Project is the top-level container: every Epic
-and Idea is `partOf` exactly one Project. The web UI lists Projects in a
-sidebar; selecting one scopes the tree to that Project's subtree (its Epics and
-Ideas, and each Epic's Stories/Tasks). Projects themselves are not rendered as
-nodes inside the tree — they are the selectable root. Projects are ordered by
-`order`.
+**Projects scope the view.** A Project is the top-level container: every Epic,
+Idea, and project-level Story is `partOf` exactly one Project. The web UI lists
+Projects in a sidebar; selecting one scopes the tree to that Project's subtree
+(its board children — Epics, Ideas, and root project-level Stories — plus each
+Epic's or project-level Story's descendants). Projects themselves are not
+rendered as nodes inside the tree — they are the selectable root. Projects are
+ordered by `order`.
 
 **Stored `order`.** Every issue carries an integer `order` within its sibling
 group. Authors never write it in an apply doc — `apply` infers it from array
@@ -778,12 +796,13 @@ no consumer can persist a broken file.
 - **Validate-at-write.** `create`/`update` run the integrity checks against the
   *prospective* state and refuse any write that would introduce a `problem` — a
   bad or missing `partOf`/`stackedOn`/`blockedBy` referent, a referent of the
-  wrong kind (a Task's `partOf` must be a Story, a Story's an Epic, an Epic's
-  a Project; a `stackedOn` must be a Story, a `blockedBy` entry an Epic), a
-  `stackedOn` in a different Epic, a `blockedBy` Epic in a different Project, a
-  cycle-inducing `stackedOn`/`blockedBy`, or an Epic / Idea / Story `labels`
-  id absent from the containing Project catalog. On failure the CLI exits
-  nonzero with a clear message and HTTP returns 4xx with detail.
+  wrong kind (a Task's `partOf` must be a Story, a Story's an Epic or a
+  Project, an Epic's or Idea's a Project; a `stackedOn` must be a Story, a
+  `blockedBy` entry an Epic), a `stackedOn` in a different container (Epic or
+  Project), a `blockedBy` Epic in a different Project, a cycle-inducing
+  `stackedOn`/`blockedBy`, or an Epic / Idea / Story `labels` id absent from
+  the containing Project catalog. On failure the CLI exits nonzero with a clear
+  message and HTTP returns 4xx with detail.
 - **Read-time validation.** Hand-edited or out-of-band files are still validated
   on read and surfaced as `problems`; they never crash a read. A directory whose
   `issue.json` id disagrees with the directory name is reported as a problem.
@@ -809,12 +828,15 @@ set"):**
 
 - **Task** — removes only that Task (Tasks have no children).
 - **Story** — removes the Story and every Task `partOf` it.
+- **Idea** — removes only that Idea (Ideas have no children).
 - **Epic** — removes the Epic, every Story `partOf` it, and every Task
-  `partOf` those Stories (transitive).
-- **Project** — removes the Project and its entire subtree: every Epic `partOf`
-  it, every Story `partOf` those Epics, and every Task `partOf` those Stories
-  (transitive). Deleting a Project therefore discards all of its work; the UI
-  gates this behind a confirmation dialog that names the contained-issue count.
+  `partOf` those Stories (transitive). Does **not** remove project-level
+  Stories (they are `partOf` the Project, not the Epic).
+- **Project** — removes the Project and its entire subtree: every Epic, Idea,
+  and project-level Story `partOf` it, every Story `partOf` those Epics, and
+  every Task `partOf` those Stories (transitive). Deleting a Project therefore
+  discards all of its work; the UI gates this behind a confirmation dialog that
+  names the contained-issue count.
 
 **Foreign-reference resolution.** After the delete set is computed, every
 surviving issue (across all Projects, not just descendants) is scanned for edges
@@ -823,7 +845,7 @@ into it, and each edge type resolves deterministically:
 | edge into delete set | resolution |
 | --- | --- |
 | `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
-| `stackedOn` (a deleted Story; always same-Epic) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Recomputes `mergeBase` via the [shared resolver](#the-stacked-pr-merge-model). Preserves the stack minus the removed node. |
+| `stackedOn` (a deleted Story; always same container) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Recomputes `mergeBase` via the [shared resolver](#the-stacked-pr-merge-model). Preserves the stack minus the removed node. |
 | `blockedBy` (a deleted Epic; cross-Epic, same Project) | **Drop**: remove the deleted Epic id from the blocked Epic's list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge that crosses an Epic boundary. |
 | `stackedOn` → a deleted Task/Epic, or `blockedBy` → a deleted Story/Task | Impossible — `stackedOn` only ever references a Story, and `blockedBy` only ever references an Epic. |
 
@@ -896,9 +918,10 @@ is the format + semantics reference.
 ### Shape
 
 The most common doc describes one Project subtree. Under a Project, each
-`children:` entry declares `kind: epic | idea` explicitly so Epics and Ideas can
-interleave in one shared sibling `order` space (array index). Below an Epic,
-kind is implied by **which child key** a node sits under, never written:
+`children:` entry declares `kind: epic | idea | story` explicitly so Epics,
+Ideas, and project-level Stories can interleave in one shared sibling `order`
+space (array index). Below an Epic (or inside a project-level Story), kind is
+implied by **which child key** a node sits under, never written:
 
 ```yaml
 project:
@@ -912,6 +935,14 @@ project:
       title: Future work
       description: |
         Capture item — mined later into an Epic or Story.
+    - kind: story
+      id: solo-story           # project-level Story (partOf the Project)
+      title: Solo Story
+      description: |
+        Single-unit plan — no Epic wrapper.
+      tasks:
+        - id: solo-task
+          title: Solo task
     - kind: epic
       id: my-epic
       title: My Epic
@@ -937,22 +968,25 @@ project:
 ```
 
 - **Kind at Project vs below Epic.** Under a Project, each `children:` entry
-  carries `kind: epic | idea` (Ideas are leaves — no child keys). Below an Epic,
-  `stories` are Stories → their `tasks` are Tasks; a Story's `stacked` entries
-  are Stories that fork off it.
+  carries `kind: epic | idea | story` (Ideas are leaves — no child keys; a
+  `kind: story` child may nest `tasks` / `stacked` like an epic-nested Story,
+  with `partOf` inferred as the Project). Below an Epic, `stories` are Stories
+  → their `tasks` are Tasks; a Story's `stacked` entries are Stories that fork
+  off it. Prefer an Epic when authoring stacks or sibling root Stories.
 - **No dual-key / legacy keys.** Project `epics:` is **not** accepted — use
-  `children:` with `kind: epic | idea` (refused with
-  `project "epics:" is no longer accepted; use "children:" with kind: epic | idea`).
+  `children:` with `kind: epic | idea | story` (refused with
+  `project "epics:" is no longer accepted; use "children:" with kind: epic | idea | story`).
   Nested `branches` / `commits` and a rooted `branch:` are also **not**
   accepted — there is no alias period. Migrate apply docs to `stories` /
   `tasks` and `story:`; rooted `branch:` is refused with an explicit error
   (`"branch:" is no longer accepted; use "story:"`).
 - **Inferred `partOf`.** Each node's containment is its enclosing container (a
-  Task's Story, a Story's Epic, an Epic or Idea's Project). Never written in
-  the doc.
+  Task's Story; a Story's Epic, or the Project for a project-level Story; an
+  Epic or Idea's Project). Never written in the doc.
 - **Inferred `stackedOn`.** A Story nested under another Story's `stacked`
-  forks from it; a Story directly under `stories` is a root Story (forks the
-  Epic's base, `main`). Never written in the doc.
+  forks from it; a Story directly under `stories` (or a root `kind: story`
+  Project child) is a root Story (forks the container's base, `main`). Never
+  written in the doc.
 - **Explicit `blockedBy`.** The one cross-reference authored by hand: on an
   **Epic** node, a list of other Epic ids (same Project) this Epic depends on.
   Uses the same kebab id rule as node ids.
@@ -965,12 +999,12 @@ project:
 
 ### Rooted forms: epic and story scope
 
-A project doc reconciles the whole project, so it prunes every epic and idea the
-doc omits. To edit a single epic or story without disturbing its siblings, root
-the doc at that node and name the enclosing parents by **id** (a reference —
-never upserted, never pruned). Epic- and story-rooted docs never include Ideas
-in scope (Ideas are Project children only), so those forms leave Ideas
-untouched:
+A project doc reconciles the whole project, so it prunes every Epic, Idea, and
+project-level Story the doc omits from `children:`. To edit a single epic or
+story without disturbing its siblings, root the doc at that node and name the
+enclosing parents by **id** (a reference — never upserted, never pruned).
+Epic- and story-rooted docs never include Ideas (or other Project board
+siblings) in scope, so those forms leave them untouched:
 
 ```yaml
 # Epic form: reconciles just my-epic within an existing project.
@@ -983,7 +1017,8 @@ epic:
 ```
 
 ```yaml
-# Story form: reconciles just my-story + its tasks within an existing epic.
+# Story form (Epic child): reconciles just my-story + its tasks within an
+# existing epic.
 project: my-product        # existing project id (reference)
 epic: my-epic              # existing epic id (reference)
 story:
@@ -992,15 +1027,28 @@ story:
   tasks: [ ... ]
 ```
 
+```yaml
+# Story form (project-level): omit `epic:` — Story's partOf is the Project.
+project: my-product        # existing project id (reference)
+story:
+  id: solo-story
+  title: Solo Story
+  tasks: [ ... ]
+```
+
 - **Form by root key.** An object `project` is the project form; a string
-  `project` + object `epic` is the epic form; string `project` + string `epic` +
-  object `story` is the story form.
+  `project` + object `epic` is the epic form; string `project` + object `story`
+  is the story form (optional string `epic` scopes the Story under that Epic;
+  omit `epic` for a project-level Story).
 - **Parents must exist.** The referenced parent(s) must already be on disk with
-  the right kind and containment (the epic must be in the project; a pre-existing
-  root node must already sit under the declared parent), else the doc is refused.
+  the right kind and containment (the epic must be in the project; a
+  pre-existing root node must already sit under the declared parent), else the
+  doc is refused. A story form without `epic:` refuses when the Story's on-disk
+  `partOf` is an Epic (use the epic-scoped form instead).
 - **Story scope is story + tasks only.** A story's `stacked` children are
-  `partOf` the *Epic*, not the story, so they fall outside a story's subtree; a
-  story doc has no `stacked` key and only owns its own task list.
+  `partOf` the *container* (Epic or Project), not the story, so they fall
+  outside a story's subtree; a story doc has no `stacked` key and only owns its
+  own task list.
 - **Fork point preserved.** `stackedOn` is normally inferred from nesting, but a
   story-rooted doc has no parent nesting, so it **preserves the on-disk
   `stackedOn`** rather than clearing it — a story doc never moves the fork point.
@@ -1046,7 +1094,7 @@ preserves everything else from the existing same-kind issue.
 | `supportingDocs` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Project catalog) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Epic / Idea / Story assignments) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |
+| `kind` | explicit on Project `children:` (`kind: epic | idea | story`); inferred from nesting below Epic (or inside a project-level Story) |
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
@@ -1091,11 +1139,12 @@ so cannot drift:
   dependency cycles over `stackedOn`/`blockedBy`; dangling
   `partOf`/`stackedOn`/`blockedBy` ids; a Story whose `stackedOn` entry is not a
   Story, or an Epic whose `blockedBy` entry is not an Epic; a Story whose
-  `stackedOn` is in a different Epic, or an Epic whose `blockedBy` names an Epic
-  in a different Project (`stackedOn` stays within one Epic; `blockedBy` stays
-  within one Project); a Task whose `partOf` is not a Story; a Story whose
-  `partOf` is not an Epic; and an Epic whose `partOf` is not a Project. These are
-  only the *derive-time* problems; the
+  `stackedOn` is in a different container (Epic or Project), or an Epic whose
+  `blockedBy` names an Epic in a different Project (`stackedOn` stays within one
+  container; `blockedBy` stays within one Project); a Task whose `partOf` is not
+  a Story; a Story whose `partOf` is not an Epic or a Project; an Idea whose
+  `partOf` is not a Project; and an Epic whose `partOf` is not a Project. These
+  are only the *derive-time* problems; the
   `problems` array returned by `list()` also includes the *read-time* problems
   raised while loading files (malformed or missing `issue.json`, an id that
   disagrees with its directory name, and malformed `chat.jsonl` lines — see the
@@ -1124,9 +1173,10 @@ what make the tracker a standalone basis for a future implementor. A parent's
 `description.md` MUST NOT enumerate or restate the specific work its children
 individually cover. Parent prose carries scope, approach, cross-cutting
 invariants, and context; the *enumeration of units* is the child list itself
-(Project → its Epics and Ideas, Epic → its Stories, Story → its Tasks) — not a
-mirrored per-child checklist in the parent. Children get pruned or reshaped
-during plan cleanup, so a parent that mirrors them drifts into orphan claims.
+(Project → its Epics, Ideas, and project-level Stories; Epic → its Stories;
+Story → its Tasks) — not a mirrored per-child checklist in the parent. Children
+get pruned or reshaped during plan cleanup, so a parent that mirrors them
+drifts into orphan claims.
 
 **A validated service layer is the only writer.** The CLI (for agents) and the
 HTTP routes (for the UI) are thin adapters over `services/issues.ts` (and
