@@ -70,6 +70,47 @@ describe("parseIssue - valid per kind", () => {
     expect(parseIssue({ ...project, mergePolicy: "rebase" }).ok).toBe(false);
   });
 
+  it("parses optional supportingDocs refs", () => {
+    const result = parseIssue({
+      ...project,
+      supportingDocs: {
+        vision: { type: "attachment", name: "vision.md" },
+        codingStandards: { type: "workspace", path: "docs/cs.md" },
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "project") {
+      expect(result.issue.supportingDocs).toEqual({
+        vision: { type: "attachment", name: "vision.md" },
+        codingStandards: { type: "workspace", path: "docs/cs.md" },
+      });
+    }
+  });
+
+  it("rejects unknown supportingDocs keys and bad refs", () => {
+    expect(
+      parseIssue({
+        ...project,
+        supportingDocs: {
+          vision: { type: "attachment", name: "vision.md" },
+          extra: { type: "attachment", name: "x.md" },
+        },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseIssue({
+        ...project,
+        supportingDocs: { vision: { type: "attachment" } },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseIssue({
+        ...project,
+        supportingDocs: { vision: { type: "workspace", path: "" } },
+      }).ok,
+    ).toBe(false);
+  });
+
   it("parses a project (minimal fields only)", () => {
     const result = parseIssue(project);
     expect(result.ok).toBe(true);

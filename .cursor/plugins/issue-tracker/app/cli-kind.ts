@@ -15,7 +15,11 @@ import {
   type IssueKind,
   type IssuePatch,
   type ProjectLabel,
+  type SupportingDocKey,
+  type SupportingDocRef,
+  type SupportingDocs,
 } from "./server/schemas.js";
+import { isSupportingDocKey } from "./server/services/supporting-docs.js";
 
 export type KindSetOptions = {
   clear?: boolean;
@@ -24,6 +28,10 @@ export type KindSetOptions = {
   add?: string[];
   remove?: string[];
   rename?: string[];
+  doc?: string;
+  attachment?: string;
+  /** Workspace-relative path for `supportingDocs` (`--workspace`). */
+  workspace?: string;
 };
 
 function articleFor(kind: IssueKind): "a" | "an" {
@@ -178,6 +186,75 @@ export type LabelCatalogSetResult =
   | { action: "patch"; patch: IssuePatch };
 
 /**
+ * Resolve a `supportingDocs` patch from CLI flags.
+ * Modes: clear all; clear one `--doc`; set one `--doc` with `--attachment` or
+ * `--workspace`.
+ */
+export function resolveSupportingDocsSet(
+  opts: KindSetOptions,
+  current: SupportingDocs | undefined,
+): IssuePatch {
+  const doc = opts.doc;
+  const hasAttachment = opts.attachment !== undefined;
+  const hasWorkspace = opts.workspace !== undefined;
+  const wantsClear = Boolean(opts.clear);
+
+  if (opts.file !== undefined) {
+    throw new Error("--file is not valid for supportingDocs");
+  }
+  if (opts.add !== undefined || opts.remove !== undefined) {
+    throw new Error("--add and --remove are not valid for supportingDocs");
+  }
+  if (opts.rename !== undefined) {
+    throw new Error("--rename is not valid for supportingDocs");
+  }
+
+  if (wantsClear) {
+    if (hasAttachment || hasWorkspace) {
+      throw new Error(
+        "--clear cannot be combined with --attachment or --workspace",
+      );
+    }
+    if (doc === undefined) {
+      return { supportingDocs: null };
+    }
+    if (!isSupportingDocKey(doc)) {
+      throw new Error(
+        `unknown supportingDocs key "${doc}" (expected vision|codingStandards|designSystem)`,
+      );
+    }
+    const next: SupportingDocs = { ...(current ?? {}) };
+    delete next[doc];
+    return {
+      supportingDocs: Object.keys(next).length === 0 ? null : next,
+    };
+  }
+
+  if (doc === undefined) {
+    throw new Error(
+      "provide --doc <vision|codingStandards|designSystem> (or --clear)",
+    );
+  }
+  if (!isSupportingDocKey(doc)) {
+    throw new Error(
+      `unknown supportingDocs key "${doc}" (expected vision|codingStandards|designSystem)`,
+    );
+  }
+  if (hasAttachment === hasWorkspace) {
+    throw new Error(
+      "provide exactly one of --attachment <name> or --workspace <path>",
+    );
+  }
+
+  const key = doc as SupportingDocKey;
+  const ref: SupportingDocRef = hasAttachment
+    ? { type: "attachment", name: opts.attachment! }
+    : { type: "workspace", path: opts.workspace! };
+  const next: SupportingDocs = { ...(current ?? {}), [key]: ref };
+  return { supportingDocs: next };
+}
+
+/**
  * Single entry for project `labels` set: exclusive modes are clear, remove,
  * rename, or upsert (composite of --add / --file / positional).
  */
@@ -261,11 +338,24 @@ export function coerceSetPatch(
     throw new Error("project labels must be set via kindSet");
   }
 
+  if (spec.type === "supportingDocs") {
+    throw new Error("supportingDocs must be set via kindSet");
+  }
+
   if (opts.add !== undefined || opts.remove !== undefined) {
     throw new Error("--add and --remove are only valid for array fields");
   }
   if (opts.rename !== undefined) {
     throw new Error("--rename is only valid for project labels");
+  }
+  if (
+    opts.doc !== undefined ||
+    opts.attachment !== undefined ||
+    opts.workspace !== undefined
+  ) {
+    throw new Error(
+      "--doc, --attachment, and --workspace are only valid for supportingDocs",
+    );
   }
 
   const modes = countSetModes(value, opts);
@@ -386,6 +476,13 @@ function currentCatalogLabels(detail: IssueDetail): ProjectLabel[] {
   return detail.labels ?? [];
 }
 
+function currentSupportingDocs(detail: IssueDetail): SupportingDocs | undefined {
+  if (detail.kind !== "project") {
+    throw new Error(`supportingDocs is only on project (got ${detail.kind})`);
+  }
+  return detail.supportingDocs;
+}
+
 export function kindSet(
   kind: IssueKind,
   id: string,
@@ -410,6 +507,15 @@ export function kindSet(
       return renameProjectLabel(id, result.oldId, result.newId);
     }
     return update(id, result.patch);
+  }
+
+  if (spec.type === "supportingDocs") {
+    if (value !== undefined) {
+      throw new Error(
+        "supportingDocs does not take a positional value; use --doc with --attachment or --workspace",
+      );
+    }
+    return update(id, resolveSupportingDocsSet(opts, currentSupportingDocs(detail)));
   }
 
   const currentArray =
@@ -453,6 +559,18 @@ export function registerKindGetSet(
     .option(
       "--rename <ids...>",
       "rename a project catalog label id (oldId newId)",
+    )
+    .option(
+      "--doc <key>",
+      "supportingDocs key: vision|codingStandards|designSystem",
+    )
+    .option(
+      "--attachment <name>",
+      "supportingDocs attachment basename already on the Project",
+    )
+    .option(
+      "--workspace <path>",
+      "for supportingDocs: workspace-relative file path",
     )
     .action(
       (id: string, field: string, value: string | undefined, opts: KindSetOptions) =>

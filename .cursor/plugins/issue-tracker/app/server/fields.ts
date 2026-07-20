@@ -27,6 +27,7 @@ export const PROJECT_FORM_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
 export const PROJECT_FIELD_KEYS = [
   ...PROJECT_FORM_FIELD_KEYS,
   "labels",
+  "supportingDocs",
 ] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
@@ -113,6 +114,13 @@ export const CLEARABLE_KEYS = [
 
 export type ClearableKey = (typeof CLEARABLE_KEYS)[number];
 
+// Object-valued mergeable keys cleared with `null` (or `{}`) → field absent.
+export const NULL_CLEARABLE_OBJECT_KEYS = [
+  "supportingDocs",
+] as const satisfies readonly (keyof IssuePatch)[];
+
+export type NullClearableObjectKey = (typeof NULL_CLEARABLE_OBJECT_KEYS)[number];
+
 // Mergeable patch keys cleared when patched with `false` (absent-until-true booleans).
 export const FALSE_CLEARS_KEYS = ["noDiff"] as const satisfies readonly (keyof IssuePatch)[];
 
@@ -146,6 +154,7 @@ export const FIELD_LABELS = {
   commitSha: "Commit SHA",
   noDiff: "No diff",
   labels: "Labels",
+  supportingDocs: "Supporting docs",
 } as const;
 
 export const MERGE_POLICY_LABELS = {

@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "fs";
-import { isAbsolute, join } from "path";
+import { isAbsolute, join, resolve, sep } from "path";
 import type { IssuePatch } from "../schemas.js";
 import { IssueError } from "./errors.js";
 
@@ -30,4 +30,39 @@ export function validateWorkspacePatch(patch: IssuePatch): void {
   if (workspace !== null && workspace !== undefined) {
     validateWorkspacePath(workspace);
   }
+}
+
+export function assertSafeWorkspaceRelPath(relPath: string): void {
+  if (!relPath.trim()) {
+    throw new IssueError(
+      "validation",
+      "workspace-relative path must be non-empty",
+    );
+  }
+  if (isAbsolute(relPath)) {
+    throw new IssueError(
+      "validation",
+      "workspace-relative path must be relative",
+    );
+  }
+  const parts = relPath.split(/[/\\]/);
+  if (parts.some((part) => part === ".." || part === "")) {
+    throw new IssueError(
+      "validation",
+      'workspace-relative path must not contain ".." or empty segments',
+    );
+  }
+}
+
+export function resolveUnderWorkspace(workspace: string, relPath: string): string {
+  assertSafeWorkspaceRelPath(relPath);
+  const root = resolve(workspace);
+  const resolved = resolve(root, relPath);
+  if (resolved !== root && !resolved.startsWith(root + sep)) {
+    throw new IssueError(
+      "validation",
+      "workspace-relative path escapes the Project workspace",
+    );
+  }
+  return resolved;
 }

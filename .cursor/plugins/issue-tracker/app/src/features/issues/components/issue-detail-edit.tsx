@@ -34,10 +34,17 @@ import {
   sanitizeAssignmentIds,
   type CatalogDraft,
 } from "../lib/project-labels";
+import {
+  supportingDocsDraftFromIssue,
+  supportingDocsEqual,
+  supportingDocsFromDraft,
+  type SupportingDocsDraft,
+} from "../lib/supporting-docs";
 import { AssignmentLabelsEditor } from "./assignment-labels-editor";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { MergePolicySelect } from "./merge-policy-select";
 import { ProjectLabelsEditor } from "./project-labels-editor";
+import { SupportingDocsEditor } from "./supporting-docs-editor";
 import { TaskStatusChips } from "./task-status-chips";
 import { WorkspacePathInput } from "./workspace-path-input";
 
@@ -47,6 +54,7 @@ interface FormState {
   workspace: string;
   mergePolicy: MergePolicy;
   labels: CatalogDraft[];
+  supportingDocs: SupportingDocsDraft;
   assignedLabels: string[];
   assignee: string;
   needsAttention: boolean;
@@ -71,6 +79,10 @@ function formStateFromIssue(
     mergePolicy: issue.kind === "project" ? issue.mergePolicy : "manual",
     labels:
       issue.kind === "project" ? catalogDraftsFromIssue(issue.labels) : [],
+    supportingDocs:
+      issue.kind === "project"
+        ? supportingDocsDraftFromIssue(issue.supportingDocs)
+        : supportingDocsDraftFromIssue(undefined),
     assignedLabels: isLabelAssignableIssue(issue)
       ? sanitizeAssignmentIds(issue.labels, catalog)
       : [],
@@ -167,6 +179,10 @@ export function IssueDetailEdit({
       setClearable("workspace", form.workspace, issue.workspace);
       if (form.mergePolicy !== issue.mergePolicy)
         patch.mergePolicy = form.mergePolicy;
+      const nextDocs = supportingDocsFromDraft(form.supportingDocs);
+      if (!supportingDocsEqual(nextDocs, issue.supportingDocs)) {
+        patch.supportingDocs = nextDocs;
+      }
     }
 
     if (issue.kind === "task") {
@@ -218,6 +234,16 @@ export function IssueDetailEdit({
         }
       }
       if (result.plan.finalLabels) patch.labels = result.plan.finalLabels;
+
+      if ("workspace" in patch && "supportingDocs" in patch) {
+        const workspace = patch.workspace ?? null;
+        delete patch.workspace;
+        try {
+          await update.mutateAsync({ id: issue.id, patch: { workspace } });
+        } catch {
+          return;
+        }
+      }
     }
 
     if (Object.keys(patch).length === 0) {
@@ -363,6 +389,14 @@ export function IssueDetailEdit({
             </Field>
           ))}
         </div>
+      ) : null}
+
+      {issue.kind === "project" ? (
+        <SupportingDocsEditor
+          issueId={issue.id}
+          draft={form.supportingDocs}
+          onChange={(supportingDocs) => set("supportingDocs", supportingDocs)}
+        />
       ) : null}
 
       {issue.kind === "project" ? (

@@ -477,6 +477,36 @@ describe("apply — update preserves imperative progress state", () => {
     expect(proj.mergePolicy).toBe("pull-request");
   });
 
+  it("preserves project supportingDocs when the doc updates a project", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    const ws = mkdtempSync(join(tmpdir(), "issue-apply-supporting-docs-"));
+    mkdirSync(join(ws, ".git"));
+    writeFileSync(join(ws, "vision.md"), "# Vision");
+    try {
+      await update("proj", { workspace: ws });
+      await update("proj", {
+        supportingDocs: {
+          vision: { type: "workspace", path: "vision.md" },
+        },
+      });
+
+      const doc = baseDoc();
+      doc.project.title = "Project with docs preserved";
+      const summary = await apply(doc);
+      expect(summary.updated).toContain("proj");
+
+      const proj = readIssue("proj");
+      expect(proj.title).toBe("Project with docs preserved");
+      expect(proj.supportingDocs).toEqual({
+        vision: { type: "workspace", path: "vision.md" },
+      });
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
   it("preserves project catalog and issue label assignments across re-apply", async () => {
     const { apply, update } = await loadService();
     await apply(baseDoc());
