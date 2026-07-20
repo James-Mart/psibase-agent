@@ -84,3 +84,8 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   `detach`), and inspection (`show`/`summary`/`tree`), pointing at
   `cli.ts --help` as the authoritative command reference; the shared tool doc
   the other skills build on.
+- **`issue-tracker-plan-polish`** — polish an existing Epic: spawn four
+  parallel read-only check agents (`plan-no-ambiguity`, `plan-dry`,
+  `plan-authoring-conformance`, `plan-dependency-order`), aggregate findings
+  into one epic-form `apply` proposal, and `issue apply` only after user
+  approval.
