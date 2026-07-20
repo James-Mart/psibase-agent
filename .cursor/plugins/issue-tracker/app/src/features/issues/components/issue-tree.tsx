@@ -42,7 +42,8 @@ import {
   EPIC_STATUS_LABEL,
 } from "../lib/derived";
 import { ArchiveIssueButton } from "./archive-issue-button";
-import { TaskStatusSelect } from "./task-status-select";
+import { AxisChip } from "./axis-chip";
+import { TaskStatusChips } from "./task-status-chips";
 import { IssueBadges } from "./issue-badges";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
@@ -235,9 +236,7 @@ function TreeRow({
         </Link>
         <span className="ml-auto flex items-center gap-2">
           {state?.blocked ? (
-            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              blocked
-            </span>
+            <AxisChip className="text-muted-foreground">blocked</AxisChip>
           ) : null}
           <IssueBadges issue={issue} compact />
           {issue.kind === "story" && issue.prUrl ? (
@@ -245,7 +244,7 @@ function TreeRow({
           ) : null}
           <TreeRowDerivedMeta issue={issue} derived={state} />
           {issue.kind === "task" ? (
-            <TaskStatusSelect id={issue.id} status={issue.status} />
+            <TaskStatusChips status={issue.status} qa={issue.qa} />
           ) : null}
           <RowActions issue={issue} />
         </span>
