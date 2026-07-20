@@ -1,14 +1,16 @@
 ---
 name: issue-tracker-authoring
 description: >-
-  Author a standalone Project > Epic > Story > Task plan in the issue-tracker:
-  grain, vertical slices, blockedBy/diamond, localized prose, and a completeness
-  pass — then write it with one nested YAML doc and `apply`. Use when planning a
-  stack of git PRs, deciding Story vs Task grain, or turning a plan into tracked
-  issues. Glossary and apply-doc shape: SPEC.md. Work it: issue-tracker-work.
+  Author a standalone Project > (Epic|project-level Story) > Task plan in the
+  issue-tracker: Epic grain, Story vs Task grain, vertical slices,
+  blockedBy/diamond, localized prose, and a completeness pass — then write it
+  with one nested YAML doc and `apply`. Use when planning a stack of git PRs,
+  deciding Epic vs project-level Story or Story vs Task grain, or turning a
+  plan into tracked issues. Glossary and apply-doc shape: SPEC.md. Work it:
+  issue-tracker-work.
 ---
 
-# Issue Tracker — Author an Epic Tree
+# Issue Tracker — Author a Plan Tree
 
 Authoring the tracker is producing a **plan artifact**, so it is permitted in
 **Plan mode** (the tree is the plan). The tree is the **entire design** — it
@@ -34,11 +36,13 @@ issue apply plan.yaml
 
 Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-doc-format).
 
-- **Structure at Project vs below Epic.** Under a Project, each `children:`
-  entry declares `kind: epic | idea` so Epics and Ideas can interleave (shared
-  sibling order). Below an Epic, kind comes from child keys (`stories` →
-  `tasks`, and `stacked` for a Story that forks off another Story). `partOf`
-  and `stackedOn` are inferred from the nesting, never written by hand.
+- **Structure at Project vs below Epic or project-level Story.** Under a
+  Project, each `children:` entry declares `kind: epic | idea | story` so
+  Epics, Ideas, and project-level Stories can interleave (shared sibling
+  order). Below an Epic (or inside a project-level Story), kind comes from
+  child keys (`stories` → `tasks`, and `stacked` for a Story that forks off
+  another Story). `partOf` and `stackedOn` are inferred from the nesting,
+  never written by hand.
 - **Ids are author-chosen and stable.** Every node carries a required kebab `id`
   you pick (unique, slug-safe, title-independent). Because you choose them up
   front you can author `issue:<id>` cross-links and Epic-level `blockedBy` ids
@@ -65,22 +69,44 @@ Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-d
   To edit one epic or story without touching its siblings, root the doc there
   and reference the enclosing parents by id: an **epic form** (`project: <id>`
   string + `epic:` object) reconciles just that epic within the project, and a
-  **story form** (`project: <id>` + `epic: <id>` strings + `story:` object)
-  reconciles just that story and its task list within the epic. Epic/story forms
+  **story form** (`project: <id>` string + `story:` object; include `epic: <id>`
+  only when the Story is under an Epic) reconciles that story and its tasks.
+  Omit `epic` for a project-level Story (`partOf` the Project). Epic/story forms
   leave Ideas untouched (Ideas are Project children only). A story doc owns only
-  its own tasks (stacked children belong to the epic) and preserves the story's
-  fork point.
+  its own tasks (stacked children belong to the Story's container — Epic or
+  Project) and preserves the story's fork point.
+
+## Epic grain: project-level Story vs Epic
+
+Choose the top-level work root by shape, not habit:
+
+- **Project-level Story** (`partOf` the Project, no Epic) — the plan is a
+  **single Story plus its Tasks**. Author with Project `children:`
+  `kind: story`, or story-form apply (`project:` + `story:`, no `epic:`).
+- **Epic** — you need **sibling root Stories**, **stacking**, or Epic
+  **`blockedBy`**. Overview + cross-cutting invariants only (not the full
+  spec).
+
+Stacking under a Project is integrity-legal (same-container rule), but
+**authoring prefers an Epic whenever any stacking exists** — soft policy, not
+an integrity error. Polish may warn on a lone single-Story Epic (suggest a
+project-level Story) and on a project-level stack (suggest wrapping in an
+Epic). Do not invent Story-level `blockedBy`; promote to an Epic when you need
+cross-unit deps.
 
 ## Grain: Story vs Task
 
-- **Project** — the top-level container that groups related Epics. Organizational
-  only (no status); its `description.md` is a short overview of the whole product
-  area. Every Epic must belong to a Project.
-- **Epic** — overview + cross-cutting design principles/invariants only (what
-  governs every phase). Not the full spec.
+- **Project** — the top-level container that groups related Epics, Ideas, and
+  project-level Stories. Organizational only (no status); its `description.md`
+  is a short overview of the whole product area.
+- **Epic** — overview + cross-cutting design principles/invariants only
+  (what governs every phase). Not the full spec. When to choose an Epic vs a
+  project-level Story: see
+  [Epic grain](#epic-grain-project-level-story-vs-epic).
 - **Story** = one PR / shippable unit: scope, approach, and any data-model or
-  interface detail specific to it. Normally several tasks; one task's worth
-  of work is a Task, not a Story.
+  interface detail specific to it. May be `partOf` an Epic or the Project
+  (project-level Story). Normally several tasks; one task's worth of work is a
+  Task, not a Story.
 - **Task** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Must be a standalone vertical
   slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
@@ -155,6 +181,9 @@ Before done:
 - Every part of the source design is represented.
 - Companion material follows [SPEC.md § Attachments](../../SPEC.md#attachments)
   (no external workspace paths).
+- **Epic grain** — single-Story plans use a project-level Story; Epics are for
+  sibling roots, stacking, or `blockedBy` (see
+  [Epic grain](#epic-grain-project-level-story-vs-epic)).
 - No Story/Task is title-only; no Story holds just one task and the
   Story count isn't merely the bullet count.
 - **Parent/child prose boundaries** — follow the localize guidance above
