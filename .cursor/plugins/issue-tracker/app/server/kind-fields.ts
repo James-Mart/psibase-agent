@@ -1,6 +1,7 @@
 import {
   TASK_STATUSES,
   QA_STATUSES,
+  RETRO_STATUSES,
   MERGE_POLICIES,
   SPEC_REVIEW_STATUSES,
   type IssueKind,
@@ -33,6 +34,7 @@ export const EPIC_SET_FIELDS = {
   archived: { type: "boolean" },
   partOf: { type: "string" },
   blockedBy: { type: "array" },
+  retro: { type: "enum", values: RETRO_STATUSES },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -110,6 +112,7 @@ export const EPIC_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   blockedBy: STORED,
+  retro: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,

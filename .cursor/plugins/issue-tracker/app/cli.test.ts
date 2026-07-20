@@ -630,6 +630,17 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "set", "e", "needsAttention", "false"]).status).toBe(0);
     expect(runCli(["epic", "get", "e", "needsAttention"]).stdout).toBe("false\n");
     expect(runCli(["epic", "get", "e", "attentionReason"]).stdout).toBe("");
+
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("in-progress\n");
+    expect(runCli(["epic", "set", "e", "retro", "done"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("done\n");
+    expect(runCli(["epic", "set", "e", "retro", "--clear"]).status).toBe(0);
+    expect(runCli(["epic", "get", "e", "retro"]).stdout).toBe("");
+
+    const invalidRetro = runCli(["epic", "set", "e", "retro", "pending"]);
+    expect(invalidRetro.status).toBe(1);
+    expect(invalidRetro.stderr).toMatch(/invalid retro "pending"/);
   });
 
   it("replaces and incrementally edits blockedBy", () => {
@@ -721,6 +732,25 @@ describe("epic get/set", () => {
       updatedAt: AT,
     });
     expect(runCli(["epic", "get", "e", "epicStatus"]).stdout).toBe("in-progress\n");
+  });
+
+  it("preserves retro across apply", () => {
+    expect(runCli(["epic", "set", "e", "retro", "in-progress"]).status).toBe(0);
+
+    const applyPath = join(dir, "epic-apply.yaml");
+    writeFileSync(
+      applyPath,
+      `project: p
+epic:
+  id: e
+  title: Epic renamed
+  stories: []
+`,
+    );
+    expect(runCli(["apply", applyPath]).status).toBe(0);
+    const onDisk = JSON.parse(readFileSync(join(dir, "e", "issue.json"), "utf8"));
+    expect(onDisk.retro).toBe("in-progress");
+    expect(onDisk.title).toBe("Epic renamed");
   });
 
   it("refuses kind mismatch and unknown fields", () => {

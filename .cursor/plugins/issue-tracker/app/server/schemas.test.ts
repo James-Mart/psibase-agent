@@ -84,6 +84,30 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses an epic with an optional retro", () => {
+    const inProgress = parseIssue({ ...epic, retro: "in-progress" });
+    expect(inProgress.ok).toBe(true);
+    if (inProgress.ok && inProgress.issue.kind === "epic") {
+      expect(inProgress.issue.retro).toBe("in-progress");
+    }
+
+    const done = parseIssue({ ...epic, retro: "done" });
+    expect(done.ok).toBe(true);
+    if (done.ok && done.issue.kind === "epic") {
+      expect(done.issue.retro).toBe("done");
+    }
+
+    const absent = parseIssue(epic);
+    expect(absent.ok).toBe(true);
+    if (absent.ok && absent.issue.kind === "epic") {
+      expect(absent.issue.retro).toBeUndefined();
+    }
+  });
+
+  it("rejects an unknown retro value", () => {
+    expect(parseIssue({ ...epic, retro: "pending" }).ok).toBe(false);
+  });
+
   it("rejects an epic missing its partOf project", () => {
     const { partOf: _partOf, ...rest } = epic;
     expect(parseIssue(rest).ok).toBe(false);

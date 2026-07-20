@@ -33,8 +33,9 @@ Every issue has a `kind`, one of:
   [workspace](#project-workspace)). Has no `partOf`.
 - **Epic** — a body of work (replaces a giant plan/spec). Contains Stories; its
   `description.md` holds the spec. Carries `blockedBy` (a list of other Epic ids
-  in the same Project that must finish first). Has **no stored status** — its
-  status is fully derived from descendants. Is `partOf` a Project (required).
+  in the same Project that must finish first) and an optional `retro` gate
+  (`in-progress` / `done`). Has **no stored status** — its status is fully
+  derived from descendants. Is `partOf` a Project (required).
 - **Idea** — a Project-level capture item (title, description, attachments,
   archive) that agents and humans mine later into real work. Leaf kind: no
   children, no assignee/needs-attention, no status or git fields, and **no
@@ -218,7 +219,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
 | kind | settable fields |
 | --- | --- |
 | project | `title`, `workspace`, `mergePolicy`, `description` |
-| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `description` |
+| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `description` |
 | story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `description` |
 | task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
@@ -232,7 +233,7 @@ Kept non-field ops (`apply`, `comment`, attach verbs, create/add, `delete`,
   mutually exclusive.
 - `--clear` (mutually exclusive with a positional value / `--add` / `--remove`):
   - **Clearable scalars** (`assignee`, `commitSha`, `branchName`, `stackedOn`,
-    `prUrl`, `workspace`, `qa`): blanks the field (absent / `null`).
+    `prUrl`, `workspace`, `qa`, `retro`): blanks the field (absent / `null`).
   - **`blockedBy`**: sets `[]` (empty array, not null).
   - **`needsAttention`**: sets `false` and clears `attentionReason` (same as
     `needsAttention false`).
@@ -422,6 +423,7 @@ Epic — the Epic/Story/Task common fields plus:
 | --- | --- | --- |
 | `partOf` | string | the Project id (required) |
 | `blockedBy` | string[] | other Epic ids in the same Project that must finish first; defaults `[]`; the only cross-Epic edge |
+| `retro` | `"in-progress"` \| `"done"`? | absent until set; machine-readable retro gate |
 
 Idea — the common-to-every-kind fields plus:
 
@@ -847,6 +849,7 @@ preserves everything else from the existing same-kind issue.
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
 | `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
+| `retro` (Epic) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergePolicy` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `kind` | explicit on Project `children:` (`kind: epic | idea`); inferred from nesting below Epic |

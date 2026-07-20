@@ -1,6 +1,7 @@
 import { kindHas } from "../kind.js";
 import { parseIssue, type Issue, type IssueKind, type IssuePatch } from "../schemas.js";
 import {
+  EPIC_RUNTIME_OPTIONAL_KEYS,
   PROJECT_FIELD_KEYS,
   STORY_RUNTIME_OPTIONAL_KEYS,
   TASK_RUNTIME_OPTIONAL_KEYS,
@@ -34,7 +35,7 @@ export interface ApplySummary {
 // Build the on-disk issue for a desired doc node. Doc-owned fields (title,
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
-// (status, qa, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
+// (retro, status, qa, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
 // needsAttention, attentionReason, archived, workspace, mergePolicy) and `createdAt` are
 // preserved from a same-kind existing issue; for a brand-new issue they are left off the
 // draft entirely so `parseIssue` fills them from the schema `.default()`s — except
@@ -118,6 +119,12 @@ function buildIssue(
 
   if (desired.kind === "epic") {
     draft.blockedBy = desired.blockedBy ?? [];
+    const prior = existing && existing.kind === "epic" ? existing : undefined;
+    if (prior) {
+      for (const key of EPIC_RUNTIME_OPTIONAL_KEYS) {
+        if (prior[key] !== undefined) draft[key] = prior[key];
+      }
+    }
   }
 
   if (desired.kind === "story") {
