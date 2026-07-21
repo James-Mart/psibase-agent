@@ -57,9 +57,10 @@ Before grilling:
      Codebase lookup during the grill needs cwd = `Workspace:` — there is no
      plan-only fallback (SPEC § Project workspace: unset → escalate, never
      fall back).
-2. Consult `vision` per
-   [`agents/_issue-tracker-consult-supporting-doc.md`](../../agents/_issue-tracker-consult-supporting-doc.md)
-   using the step-1 summary output.
+2. **Read**
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+   from disk (cwd = `Workspace:` from step 1), then consult `vision` per that
+   file using the step-1 summary output.
 3. Kind / status gates:
    - **Idea** — proceed.
    - **Epic** — run `issue epic get <id> epicStatus`.
