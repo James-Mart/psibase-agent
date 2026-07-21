@@ -70,18 +70,18 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   Glossary and apply-doc shape: SPEC.md. Work it: issue-tracker-work.
 - **`issue-tracker-work`** — Implement <epic-or-story-id>: load this skill to coordinate the work.
 - **`issue-tracker-plan`** — grill an Idea, a pre-implementation (`todo`)
-  Epic, or a not-started project-level Story to shared understanding, then
-  migrate into one or more plan trees via `apply` (story-form or epic-form per
-  Epic grain; multi-root when authoring split criteria apply — N applies, mint
-  new root ids, delete source only after all succeed; single-root keeps Idea →
-  new id + delete, or in-place rewrite); offers one yes/no to run
-  `issue-tracker-plan-polish` on every resulting root (no auto-chain).
+  Epic, or a not-started project-level Story to shared understanding, show an
+  outline, then on one post-outline yes migrate into one or more plan trees via
+  `apply` and auto-run `issue-tracker-plan-polish` on every resulting root
+  (story-form or epic-form per Epic grain; multi-root when authoring split
+  criteria apply — N applies, mint new root ids, delete source only after all
+  succeed; single-root keeps Idea → new id + delete, or in-place rewrite).
 - **`issue-tracker-plan-polish`** — polish an existing Epic or
   project-level Story: spawn five parallel read-only check agents
   (`plan-no-ambiguity`, `plan-dry`, `plan-authoring-conformance`,
   `plan-dependency-order`, `plan-internal-consistency`), aggregate findings
-  into one apply proposal (epic-form or story-form by root kind), and
-  `issue apply` only after user approval.
+  into one apply proposal (epic-form or story-form by root kind), auto-apply
+  when safe, summarize after, escalate only when unsafe.
 - **`issue-tracker-project-docs`** — author or revise one Project supporting
   doc (vision, coding standards, or design system) at a time: grill for
   goals/content, write as a Project attachment or workspace file, and record

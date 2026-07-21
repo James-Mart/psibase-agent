@@ -3,19 +3,20 @@ name: issue-tracker-plan-polish
 description: >-
   Polish an existing issue-tracker work root (Epic or project-level Story):
   spawn five parallel read-only check agents, aggregate findings into a
-  retained apply plan (epic-form or story-form), present a short chat summary
-  for approval, and apply the retained YAML only after the user approves. Use
-  when the user asks to polish a plan, clean up an Epic or project-level Story
-  tree, or run plan-polish checks.
+  retained apply plan (epic-form or story-form), auto-apply when safe, then
+  show a short findings/changes summary (or no-changes-needed). Escalate only
+  when auto-apply is unsafe. Use when the user asks to polish a plan, clean
+  up an Epic or project-level Story tree, or run plan-polish checks.
 ---
 
 # Issue Tracker — Plan Polish
 
 Polish one **work root** — an **Epic** or a **project-level Story** — already
 in the tracker. You are the **coordinator**: spawn read-only check agents,
-compose a full apply doc from their findings (keep it internal), present a
-short findings + changes summary in chat, and write the tracker only after the
-user approves that summary.
+compose a full apply doc from their findings (keep it internal), auto-apply
+when safe, then show a short findings + changes summary in chat. Behavioral
+contract: Epic **auto-plan-polish-confirm** invariants (auto-apply +
+post-summary; escalate only when unsafe) — do not restate that list here.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
@@ -52,7 +53,7 @@ Never bare `issue list`.
 3. `issue tree <rootId>` — full Story/Task outline (implementation
    order).
 4. `issue <rootKind> view <rootId>` (and children as needed) when preparing the
-   proposal.
+   retained plan.
 
 ## Parallel check agents
 
@@ -117,21 +118,24 @@ are re-read each spawn while agent injection may be frozen):
 
 > *(Work-root context line.)* *(Findings return line.)*
 
-## Aggregate → proposal
+## Aggregate → apply → summary
 
 After all five return:
 
 1. Parse each result as a JSON findings array per
    [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md).
    Deduplicate overlapping findings.
-2. **Severity:** any unresolved `error` means you **must not** propose “no
-   changes needed”. For every finding, **you** invent concrete remediation
-   from `problem` text plus tree context (`issue tree`, `<kind> view`) and
-   fold fixes for every `error` into the retained apply plan (or ask the user
-   how to resolve conflicting errors). List `warning` findings in the chat
-   summary; include their fixes in the retained plan when the remediation is
-   clear, or call them out as optional for the user to accept/edit. Never
-   treat a clean outcome as OK while errors remain unaddressed in the proposal.
+2. **Severity / remediation:** For every finding, invent concrete remediation
+   from `problem` text plus tree context (`issue tree`, `<kind> view`). Fold
+   clear fixes for every `error` and clear `warning` remediations into the
+   retained apply plan. Any unresolved `error` means you **must not** treat
+   the outcome as “no changes needed”.
+   - **Escalate (do not apply)** when auto-apply is unsafe: conflicting errors
+     or ambiguous fixes. Stop and ask the user how to resolve; do not guess.
+     After the user resolves the escalate, incorporate their resolution,
+     re-compose the retained plan if needed, then continue at step 4
+     (auto-apply when safe) — escalate is not a terminal stop.
+   - Clear error/warning fixes apply without asking.
 3. **Compose and retain** one full apply YAML from the deduplicated findings
    and your invented fixes,
    matching the work-root kind, per issue-tracker-authoring and
@@ -141,35 +145,27 @@ After all five return:
      string + `epic:` object.
    - **project-level Story** (`<rootKind>` = `story`) — story-form:
      `project: <projectId>` string + `story:` object (**no** `epic:` key).
-4. Build **one** user-facing proposal for chat, derived from that retained
-   plan:
-   - A **short summary** of findings (with severities) and the proposed plan
-     changes — not the full apply YAML.
-   - Or, only when there are **zero** `error` findings (and you are not
-     adopting warning fixes), state explicitly that **no changes are needed**
-     (no retained YAML).
-5. Show that summary in chat. Do **not** dump the apply doc into chat. Do
-   **not** `issue apply` yet.
-
-## Approve, then apply
-
-On approval (the user may request revisions to the summary):
-
-1. Apply the **retained** YAML from Aggregate. If the user edited the summary,
-   revise that retained YAML to match those edits first — do not rebuild it
-   from the short summary alone. Write it to a temp file (or stdin).
-2. Run `issue apply <file>` (or equivalent) so tracker writes stay
-   **single-threaded** through this coordinator.
-3. Show `apply` stdout (created/updated/deleted + subtree outline).
-
-If the user rejects or asks for revisions, revise the retained plan and the
-chat summary together, then wait again — do not apply unapproved changes.
-Write path is the approved apply doc per issue-tracker-authoring
-(declarative apply) — epic-form or story-form per Bootstrap `<rootKind>`.
+   - Or, when there are **zero** `error` findings and you are not adopting
+     warning fixes, retain nothing (no apply). Warnings that remain must
+     still appear in the step-5 summary.
+4. **Auto-apply when safe.** When step 2 did not escalate and there is a
+   retained YAML: write it to a temp file (or stdin) and run
+   `issue apply <file>` (or equivalent) so tracker writes stay
+   **single-threaded** through this coordinator. Do **not** ask yes/no to
+   apply. Write path is the retained apply doc per issue-tracker-authoring
+   (declarative apply) — epic-form or story-form per Bootstrap `<rootKind>`.
+5. **Post-apply summary.** After a successful apply, or when there is nothing
+   to apply, show in chat a **short informational** summary. Include **every
+   non-escalated finding** (with severities) — including warnings whose fixes
+   were not adopted — plus the plan changes applied when apply ran. State
+   explicitly that **no changes are needed** only when there are **zero
+   findings** (truly clean). Do **not** dump the apply YAML into chat. Show
+   `apply` stdout (created/updated/deleted + subtree outline) when apply ran.
 
 ## Rules
 
 - Check agents never write the tracker; only this coordinator writes, and only
-  after approval.
+  when auto-apply is safe (or after the user resolves an escalate).
+- Do not ask the user to approve before `issue apply` when fixes are clear.
 - Do not auto-chain into `issue-tracker-work` or other skills.
 - Do not edit workspace source files as part of polish (tracker plan only).
