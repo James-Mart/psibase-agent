@@ -2,11 +2,12 @@
 name: issue-tracker-plan
 description: >-
   Grill an Idea, a pre-implementation (todo) Epic, or a not-started
-  project-level Story until shared understanding, then migrate it into one or
-  more detailed plan trees via apply (story-form or epic-form per Epic grain;
-  multi-root when authoring split criteria apply). Use when the user asks to
-  plan an Idea, flesh out a todo Epic or not-started project-level Story, or
-  run issue-tracker-plan / grill a tracker plan into Stories and Tasks.
+  project-level Story, show an outline, then on one yes migrate into one or
+  more detailed plan trees via apply and auto-run plan-polish on every
+  resulting root (story-form or epic-form per Epic grain; multi-root when
+  authoring split criteria apply). Use when the user asks to plan an Idea,
+  flesh out a todo Epic or not-started project-level Story, or run
+  issue-tracker-plan / grill a tracker plan into Stories and Tasks.
 ---
 
 # Issue Tracker — Plan (grill → plan tree)
@@ -14,10 +15,12 @@ description: >-
 Turn a rough capture into one or more detailed plan trees — each a
 **project-level Story > Task** tree or an **Epic > Story > Task** tree, per
 authoring Epic grain and [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split).
-You grill the user to shared understanding, propose the tree(s), get
-explicit go-ahead, then write the tracker via `issue apply`
-(issue-tracker-authoring). Do not implement product code; this skill only
-authors the plan artifact.
+You grill the user, show the outline, get one explicit-consequence yes, then
+migrate via `issue apply` (issue-tracker-authoring) and auto-chain
+`issue-tracker-plan-polish` on every resulting root. Behavioral contract:
+Epic **auto-plan-polish-confirm** invariants (single post-outline gate +
+auto-chain polish) — do not restate that list here. Do not implement product
+code; this skill only authors the plan artifact.
 
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
@@ -116,26 +119,29 @@ single root, skip this beat and continue grilling that root.
   `Workspace:`), **look it up** rather than asking. Product and dependency
   decisions remain the user's — put each one to them and wait.
 - **Do not enact** the plan (no `apply`, no tracker writes that materialize the
-  tree) until the user confirms you have reached a shared understanding.
+  tree) until the user answers yes at the single post-outline gate below.
+- Do **not** ask a separate pre-outline “shared understanding?” confirm —
+  when the grill is ready, go straight to the outline + gate.
 
 This protocol is **inlined here**. Do **not** add or invoke a separate
 plugin-local grill-me skill.
 
-## Two-beat confirm, then migrate
+## Single post-outline gate, then migrate
 
-Strict flow after shared understanding (exactly two beats — no extra confirm):
+When the grill is ready (no extra pre-outline confirm):
 
-1. **Beat 1 — outline.** Show the proposed tree outline in chat with enough
-   prose that the user can judge scope. Match the chosen migrate shape(s):
+1. **Outline.** Show the proposed tree outline in chat with enough prose that
+   the user can judge scope. Match the chosen migrate shape(s):
    - **Single root** — story-form → root Story title + Task titles; epic-form →
      Epic title + Story/Task hierarchy (implementation order).
    - **Multi-root** — list every resulting root (Epic or project-level Story),
      each with its Story/Task hierarchy and any `blockedBy` edges.
-   Do **not** `apply` yet.
-2. **Beat 2 — go-ahead.** Get an **explicit go-ahead** to write the tracker
-   (e.g. approve the outline / say to apply). The user may edit the proposal
-   in chat first.
-3. Only then **Migrate** (below).
+   Do **not** `apply` yet. The user may edit the outline in chat before
+   answering the gate.
+2. **One gate.** Ask **one** yes/no whose lead-in states that **yes** means:
+   migrate the plan, run `issue-tracker-plan-polish` on every resulting root,
+   and auto-apply polish fixes. No other confirm beats before migrate.
+3. On **yes** → **Migrate** (below). On **no** → stop (do not migrate).
 
 ## Migrate
 
@@ -187,19 +193,19 @@ root id.
 
 ## After success
 
-Offer **one** yes/no to run **`issue-tracker-plan-polish`** on **all**
-resulting roots. Do **not** auto-chain without that yes.
+Always auto-chain **`issue-tracker-plan-polish`** on every resulting root —
+no polish yes/no. Run once per root in `blockedBy` order when deps exist
+among Epic roots; otherwise any order. Polish itself auto-applies when safe
+(see that skill); do not add an approve-before-apply beat here.
 
-- **Single root** — polish that Story or Epic id if yes.
-- **Multi-root** — if yes, run `issue-tracker-plan-polish` once per root in
-  `blockedBy` order when deps exist among Epic roots; otherwise any order.
-
-If no, stop.
+- **Single root** — polish that Story or Epic id.
+- **Multi-root** — polish each resulting root as above.
 
 ## Rules
 
-- Tracker writes for the migration happen only after both confirm beats.
+- Tracker writes for the migration happen only after yes at the single
+  post-outline gate.
 - Do not edit workspace product source as part of planning (plan artifact /
   grill research reads only).
-- Do not auto-start `issue-tracker-work` or polish without the yes/no offer
-  answer.
+- Do not auto-start `issue-tracker-work`. After a successful migrate, always
+  auto-chain polish as in **After success** (no second yes/no).
