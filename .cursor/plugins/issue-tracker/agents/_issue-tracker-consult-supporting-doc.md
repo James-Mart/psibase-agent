@@ -7,7 +7,7 @@ Resolve supporting docs **only** via `supportingDocs` on the Project
 (**consult-if-present**). No key or unreadable target → skip; never fail the
 workflow. No ad-hoc path scans.
 
-Workspace-relative path (cwd = `Workspace:` from `issue summary`):
+Absolute path for this file: join `Workspace:` from `issue summary` with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
 
@@ -29,8 +29,8 @@ references it — a markdown link alone is not enough.
    - `attachment:<name>` — under `Attachments:` on that Project section,
      find the line for `<name>`; Read using the absolute on-disk path after
      `—`.
-   - `workspace:<path>` — Read under Project `Workspace:` at the relative path
-     (cwd = `Workspace:`).
+   - `workspace:<path>` — Read the absolute path formed by joining Project
+     `Workspace:` (from the summary) with `<path>`.
 3. Unreadable or missing on disk → skip.
 
 Use the doc for the caller's stated purpose (e.g. global product context when

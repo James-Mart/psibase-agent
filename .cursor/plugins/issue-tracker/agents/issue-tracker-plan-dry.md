@@ -11,8 +11,8 @@ You are the **plan DRY** checker for issue-tracker plan polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
-`Workspace:`):
+Before other work: `issue summary <rootId>`, then **Read** the absolute path
+formed by joining `Workspace:` from that summary with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 

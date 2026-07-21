@@ -39,17 +39,15 @@ Never bare `issue list`.
    - Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
    - If `Workspace:` is absent, **stop and hand back to the user** to set it
      (`issue project set <projectId> workspace <path>`) before spawning
-     anything. Check agents must read the shared contract (and authoring
-     SKILL files) from disk with cwd = `Workspace:` — there is no
-     plan-only fallback (SPEC § Project workspace: unset → escalate, never
-     fall back).
+     anything. Check agents must Read shared-contract / authoring files via
+     absolute paths under `Workspace:` — there is no plan-only fallback
+     (SPEC § Project workspace: unset → escalate, never fall back).
    - Apply **Work-root kind gates** from
      [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
      § Bootstrap (bind `<rootKind>`; do not restate that block here).
-2. **Read**
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk (cwd = `Workspace:` from step 1), then consult `vision` per that
-   file using the step-1 summary output.
+2. **Read** the absolute path formed by joining `Workspace:` from step 1 with
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+   then consult `vision` per that file using the step-1 summary output.
 3. `issue tree <rootId>` — full Story/Task outline (implementation
    order).
 4. `issue <rootKind> view <rootId>` (and children as needed) when preparing the
