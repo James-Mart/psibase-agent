@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueRecord } from "@server/schemas";
-import { buildTree } from "./build-tree";
+import { buildTree, filterToProject } from "./build-tree";
 import { projectBoardRoots } from "./project-board-roots";
 
 function project(id = "p"): IssueRecord {
@@ -90,6 +90,23 @@ const boardIssues = [
   idea("last", 3),
   story("s1", "middle"),
 ];
+
+describe("filterToProject", () => {
+  it("includes the project so projectBoardRoots can detect project-level stories", () => {
+    const issues = [
+      project(),
+      epic("e", 0),
+      story("solo", "p", 1),
+      story("epic-child", "e"),
+      story("stacked", "p", 0, { stackedOn: "solo" }),
+    ];
+    const scoped = filterToProject(issues, "p");
+    expect(scoped.map((issue) => issue.id)).toContain("p");
+    expect(projectBoardRoots(scoped, "story").map((issue) => issue.id)).toEqual(
+      ["solo"],
+    );
+  });
+});
 
 describe("projectBoardRoots", () => {
   it("interleaves epics, ideas, and project-level stories by order", () => {

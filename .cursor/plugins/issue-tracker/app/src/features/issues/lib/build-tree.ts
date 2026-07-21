@@ -47,9 +47,8 @@ export function issueBelongsToProject(
   return projectIdOf(issueId, byId) === projectId;
 }
 
-// The ids contained by a project: every issue whose `partOf` chain reaches it
-// (its epics, their branches, and those branches' commits), excluding the
-// project node itself.
+// Issues belonging to a project: the project node (when present) plus every
+// issue whose `partOf` chain reaches it (epics, their branches, commits, etc.).
 export function filterToProject(
   issues: IssueRecord[],
   projectId: string | null,
@@ -64,7 +63,12 @@ export function filterToProject(
     childrenOf.set(parent, bucket);
   }
   const kept: IssueRecord[] = [];
-  const queue = [...(childrenOf.get(projectId) ?? [])];
+  const project = issues.find(
+    (issue) => issue.id === projectId && issue.kind === "project",
+  );
+  const queue = project
+    ? [project]
+    : [...(childrenOf.get(projectId) ?? [])];
   while (queue.length > 0) {
     const issue = queue.shift()!;
     kept.push(issue);
