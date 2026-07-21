@@ -85,7 +85,8 @@ instructions here.
 are re-read each spawn while agent injection may be frozen):
 
 > Return only a JSON findings array per
-> `agents/_issue-tracker-plan-polish-check-base.md` (no prose wrapper).
+> `agents/_issue-tracker-plan-polish-check-base.md` (detection-only — no
+> fixes; no prose wrapper).
 
 **No-ambiguity** — `subagent_type: issue-tracker-plan-no-ambiguity`
 (`model: composer-2.5`)
@@ -112,16 +113,19 @@ are re-read each spawn while agent injection may be frozen):
 
 After all four return:
 
-1. Parse each result as a JSON findings array. Deduplicate overlapping
-   findings; prefer concrete `suggestedFix` text.
+1. Parse each result as a JSON findings array per
+   [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md).
+   Deduplicate overlapping findings.
 2. **Severity:** any unresolved `error` means you **must not** propose “no
-   changes needed”. Fold fixes for every `error` into the retained apply plan
-   (or ask the user how to resolve conflicting errors). List `warning`
-   findings in the chat summary; include their fixes in the retained plan when
-   the suggested change is clear, or call them out as optional for the user to
-   accept/edit. Never treat a clean outcome as OK while errors remain
-   unaddressed in the proposal.
-3. **Compose and retain** one full apply YAML from the deduplicated findings,
+   changes needed”. For every finding, **you** invent concrete remediation
+   from `problem` text plus tree context (`issue tree`, `<kind> view`) and
+   fold fixes for every `error` into the retained apply plan (or ask the user
+   how to resolve conflicting errors). List `warning` findings in the chat
+   summary; include their fixes in the retained plan when the remediation is
+   clear, or call them out as optional for the user to accept/edit. Never
+   treat a clean outcome as OK while errors remain unaddressed in the proposal.
+3. **Compose and retain** one full apply YAML from the deduplicated findings
+   and your invented fixes,
    matching the work-root kind, per issue-tracker-authoring and
    [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format). Keep this
    YAML internal — do not paste it into chat.

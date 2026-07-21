@@ -55,22 +55,23 @@ Structural / guideline violations of issue-tracker-authoring:
   1. **Single-Story Epic, no stacks** — only when `<rootKind>` is `epic`. The
      Epic under review has exactly one root Story (`partOf` that Epic, no
      `stackedOn`) and no Story in the Epic has `stackedOn` / is a stack fork
-     point. Suggest dropping the Epic wrapper for a project-level Story. Do
-     **not** flag multi-root Epics or Epics that contain any stacking. Skip
-     this rule entirely when the polish work root is a project-level Story.
+     point. State in `problem` that authoring prefers a project-level Story
+     for this shape. Do **not** flag multi-root Epics or Epics that contain
+     any stacking. Skip this rule entirely when the polish work root is a
+     project-level Story.
   2. **Project-level stack** — only when `<rootKind>` is `story`. The
      project-level Story under review (or another same-Project Story in the
      tree) either has `stackedOn` or is the `stackedOn` target of another
-     same-Project Story. Suggest wrapping the stack in an Epic. Do **not**
-     flag a lone project-level Story with no stack edges. Skip this rule
-     entirely when the polish work root is an Epic.
+     same-Project Story. State in `problem` that authoring prefers wrapping
+     stacks in an Epic. Do **not** flag a lone project-level Story with no
+     stack edges. Skip this rule entirely when the polish work root is an
+     Epic.
 - **Companion / attachments** — external workspace paths in prose where
   attachments belong (authoring **Attachments**).
 
 ### Epic grain finding shape (fixtures)
 
-Check-contract elements only (`severity`, `issueId`, `problem`, optional
-`suggestedFix`). Examples:
+Check-contract elements only (`severity`, `issueId`, `problem`). Examples:
 
 Single-Story Epic (flag the Epic):
 
@@ -78,8 +79,7 @@ Single-Story Epic (flag the Epic):
 {
   "severity": "warning",
   "issueId": "solo-epic",
-  "problem": "Epic has a single root Story and no stacks; authoring prefers a project-level Story for this shape.",
-  "suggestedFix": "Re-apply as a project-level Story (project children kind: story, or story-form apply with no epic:) and remove the Epic wrapper."
+  "problem": "Epic has a single root Story and no stacks; authoring prefers a project-level Story for this shape."
 }
 ```
 
@@ -89,8 +89,7 @@ Project-level stack (flag the stacked Story or stack root under review):
 {
   "severity": "warning",
   "issueId": "stacked-child",
-  "problem": "Project-level Story participates in a stack; authoring prefers wrapping stacks in an Epic.",
-  "suggestedFix": "Move the stack under a new Epic (sibling root Stories with stacked nesting) instead of stacking directly under the Project."
+  "problem": "Project-level Story participates in a stack; authoring prefers wrapping stacks in an Epic."
 }
 ```
 
