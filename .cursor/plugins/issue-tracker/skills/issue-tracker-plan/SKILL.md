@@ -3,11 +3,12 @@ name: issue-tracker-plan
 description: >-
   Grill an Idea, a pre-implementation (todo) Epic, or a not-started
   project-level Story, show an outline, then on one yes migrate into one or
-  more detailed plan trees via apply and auto-run plan-polish on every
-  resulting root (story-form or epic-form per Epic grain; multi-root when
-  authoring split criteria apply). Use when the user asks to plan an Idea,
-  flesh out a todo Epic or not-started project-level Story, or run
-  issue-tracker-plan / grill a tracker plan into Stories and Tasks.
+  more detailed plan trees via apply, auto-run plan-polish on every resulting
+  root, then spawn issue-tracker-retro per root after polish succeeds
+  (story-form or epic-form per Epic grain; multi-root when authoring split
+  criteria apply). Use when the user asks to plan an Idea, flesh out a todo
+  Epic or not-started project-level Story, or run issue-tracker-plan / grill a
+  tracker plan into Stories and Tasks.
 ---
 
 # Issue Tracker — Plan (grill → plan tree)
@@ -16,8 +17,9 @@ Turn a rough capture into one or more detailed plan trees — each a
 **project-level Story > Task** tree or an **Epic > Story > Task** tree, per
 authoring Epic grain and [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split).
 You grill the user, show the outline, get one explicit-consequence yes, then
-migrate via `issue apply` (issue-tracker-authoring) and auto-chain
-`issue-tracker-plan-polish` on every resulting root. Behavioral contract:
+migrate via `issue apply` (issue-tracker-authoring), auto-chain
+`issue-tracker-plan-polish` on every resulting root, then spawn
+`issue-tracker-retro` per root after polish succeeds. Behavioral contract:
 Epic **auto-plan-polish-confirm** invariants (single post-outline gate +
 auto-chain polish) — do not restate that list here. Do not implement product
 code; this skill only authors the plan artifact.
@@ -139,7 +141,8 @@ When the grill is ready (no extra pre-outline confirm):
    answering the gate.
 2. **One gate.** Ask **one** yes/no whose lead-in states that **yes** means:
    migrate the plan, run `issue-tracker-plan-polish` on every resulting root,
-   and auto-apply polish fixes. No other confirm beats before migrate.
+   auto-apply polish fixes, and spawn `issue-tracker-retro` per root after
+   polish succeeds. No other confirm beats before migrate.
 3. On **yes** → **Migrate** (below). On **no** → stop (do not migrate).
 
 ## Migrate
@@ -192,13 +195,33 @@ root id.
 
 ## After success
 
-Always auto-chain **`issue-tracker-plan-polish`** on every resulting root —
-no polish yes/no. Run once per root in `blockedBy` order when deps exist
-among Epic roots; otherwise any order. Polish itself auto-applies when safe
-(see that skill); do not add an approve-before-apply beat here.
+For each resulting root in `blockedBy` order when deps exist among Epic
+roots (otherwise any order):
 
-- **Single root** — polish that Story or Epic id.
-- **Multi-root** — polish each resulting root as above.
+1. Auto-chain **`issue-tracker-plan-polish`** on that root — no polish
+   yes/no. Polish itself auto-applies when safe (see that skill); do not add
+   an approve-before-apply beat here.
+2. After that root's polish finishes its **success path** (retained apply
+   landed, or no-changes-needed — including after the user resolves an
+   escalate and apply proceeds), always spawn **Retro** (Spawn stubs) for
+   that root. Do **not** check whether work-root `retro` is unset before
+   spawning. Wait until the Cursor Task finishes (or raises needsAttention)
+   — do not fire-and-forget. Do **not** mine transcripts yourself, and do
+   **not** expect or relay a retro summary into your context.
+
+Standalone `issue-tracker-plan-polish` does **not** spawn retro — only this
+skill's After-success chain does.
+
+## Spawn stubs
+
+Pass these as the Cursor Task `prompt`. Inline the fields each stub lists.
+Children own static behavior via their `agents/*.md` files — do not paste
+workflow instructions here.
+
+**Retro** — `subagent_type: issue-tracker-retro`
+(`model: cursor-grok-4.5-high-fast`)
+
+> Work root: `<rootId>` (`<title>`). Comment role: `retro`.
 
 ## Rules
 
@@ -207,4 +230,4 @@ among Epic roots; otherwise any order. Polish itself auto-applies when safe
 - Do not edit workspace product source as part of planning (plan artifact /
   grill research reads only).
 - Do not auto-start `issue-tracker-work`. After a successful migrate, always
-  auto-chain polish as in **After success** (no second yes/no).
+  auto-chain polish then retro as in **After success** (no second yes/no).

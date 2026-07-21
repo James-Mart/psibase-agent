@@ -74,10 +74,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 - **`issue-tracker-plan`** — grill an Idea, a pre-implementation (`todo`)
   Epic, or a not-started project-level Story to shared understanding, show an
   outline, then on one post-outline yes migrate into one or more plan trees via
-  `apply` and auto-run `issue-tracker-plan-polish` on every resulting root
-  (story-form or epic-form per Epic grain; multi-root when authoring split
-  criteria apply — N applies, mint new root ids, delete source only after all
-  succeed; single-root keeps Idea → new id + delete, or in-place rewrite).
+  `apply`, auto-run `issue-tracker-plan-polish` on every resulting root, then
+  spawn `issue-tracker-retro` per root after polish succeeds (story-form or
+  epic-form per Epic grain; multi-root when authoring split criteria apply —
+  N applies, mint new root ids, delete source only after all succeed;
+  single-root keeps Idea → new id + delete, or in-place rewrite).
 - **`issue-tracker-plan-polish`** — polish an existing Epic or
   project-level Story: spawn five parallel read-only check agents
   (`plan-no-ambiguity`, `plan-dry`, `plan-authoring-conformance`,
