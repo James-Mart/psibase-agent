@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCatalogLabelsPlan,
   assignmentLabelsEqual,
   catalogDraftsFromIssue,
   catalogLabelsEqual,
@@ -406,5 +407,47 @@ describe("planCatalogLabelsSave", () => {
       },
     ]);
     expect(result).toEqual({ ok: false, error: expect.stringMatching(/#RRGGBB/) });
+  });
+});
+
+describe("applyCatalogLabelsPlan", () => {
+  it("applies staging patches in order and returns finalLabels", async () => {
+    const applied: string[][] = [];
+    const final = await applyCatalogLabelsPlan(
+      {
+        stagingPatches: [
+          [{ id: "a", color: "#111111" }],
+          [
+            { id: "a", color: "#111111" },
+            { id: "b", color: "#222222" },
+          ],
+        ],
+        finalLabels: [
+          { id: "a", color: "#111111" },
+          { id: "b", color: "#222222" },
+          { id: "c", color: "#333333" },
+        ],
+      },
+      async (labels) => {
+        applied.push(labels.map((label) => label.id));
+      },
+    );
+    expect(applied).toEqual([["a"], ["a", "b"]]);
+    expect(final).toEqual([
+      { id: "a", color: "#111111" },
+      { id: "b", color: "#222222" },
+      { id: "c", color: "#333333" },
+    ]);
+  });
+
+  it("returns null finalLabels when already staged", async () => {
+    const final = await applyCatalogLabelsPlan(
+      {
+        stagingPatches: [[{ id: "a", color: "#111111" }]],
+        finalLabels: null,
+      },
+      async () => {},
+    );
+    expect(final).toBeNull();
   });
 });

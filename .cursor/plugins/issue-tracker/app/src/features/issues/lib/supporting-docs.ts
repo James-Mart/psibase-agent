@@ -148,6 +148,13 @@ export function supportingDocRefFromDraft(
   return { type: "workspace", path };
 }
 
+/** True when the draft is absent or has a resolvable pointer. */
+export function isSupportingDocDraftReady(draft: SupportingDocDraft): boolean {
+  return (
+    draft.mode === "absent" || supportingDocRefFromDraft(draft) !== undefined
+  );
+}
+
 /** Build stored `supportingDocs` (or `null` to clear) from edit drafts. */
 export function supportingDocsFromDraft(
   draft: SupportingDocsDraft,
@@ -155,6 +162,28 @@ export function supportingDocsFromDraft(
   const next: SupportingDocs = {};
   for (const key of SUPPORTING_DOC_KEYS) {
     const ref = supportingDocRefFromDraft(draft[key]);
+    if (ref) next[key] = ref;
+  }
+  return Object.keys(next).length === 0 ? null : next;
+}
+
+/**
+ * Like `supportingDocsFromDraft`, but incomplete (non-absent empty) keys keep
+ * their persisted pointer so mid-edit rows do not clear siblings on save.
+ */
+export function supportingDocsFromDraftPreservingIncomplete(
+  draft: SupportingDocsDraft,
+  persisted: SupportingDocs | undefined,
+): SupportingDocs | null {
+  const next: SupportingDocs = {};
+  for (const key of SUPPORTING_DOC_KEYS) {
+    const d = draft[key];
+    if (!isSupportingDocDraftReady(d)) {
+      const prev = persisted?.[key];
+      if (prev) next[key] = prev;
+      continue;
+    }
+    const ref = supportingDocRefFromDraft(d);
     if (ref) next[key] = ref;
   }
   return Object.keys(next).length === 0 ? null : next;

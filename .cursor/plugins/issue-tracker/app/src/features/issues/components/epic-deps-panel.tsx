@@ -1,7 +1,8 @@
+import { FIELD_LABELS } from "@server/fields";
 import type { DerivedState, IssueDetail, IssueRecord } from "@server/schemas";
 import { epicsBlockedBy } from "@server/order";
-import { epicIsDone } from "@server/services/derive";
 import { useIssuesQuery } from "../api/queries";
+import { IssueBlockedByField } from "./issue-blocked-by-field";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
 import { EpicAxisChips, epicAxesVisible } from "./axis-chips";
@@ -42,37 +43,8 @@ function DepsPanel({
         }
       />
       <Row
-        label="Blocked by"
-        value={
-          issue.blockedBy.length > 0 ? (
-            <span className="flex flex-col gap-1">
-              {issue.blockedBy.map((depId) => {
-                const done = epicIsDone(derived[depId]);
-                return (
-                  <span key={depId} className="flex items-center gap-2">
-                    <IssueLink
-                      id={depId}
-                      className="font-mono text-primary hover:underline"
-                    >
-                      {depId}
-                    </IssueLink>
-                    <span
-                      className={
-                        done
-                          ? "text-xs [color:hsl(var(--success))]"
-                          : "text-xs [color:hsl(var(--warning))]"
-                      }
-                    >
-                      {done ? "done" : "pending"}
-                    </span>
-                  </span>
-                );
-              })}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">nothing</span>
-          )
-        }
+        label={FIELD_LABELS.blockedBy}
+        value={<IssueBlockedByField issue={issue} derived={derived} />}
       />
       {blocking.length > 0 ? (
         <Row

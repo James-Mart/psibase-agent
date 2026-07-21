@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   emptySupportingDocDraft,
   formatSupportingDocRef,
+  isSupportingDocDraftReady,
   previewableSupportingDocs,
   supportingDocContentUrl,
   supportingDocDraftForMode,
@@ -11,6 +12,7 @@ import {
   supportingDocsDraftFromIssue,
   supportingDocsEqual,
   supportingDocsFromDraft,
+  supportingDocsFromDraftPreservingIncomplete,
   workspaceFileApiPath,
 } from "./supporting-docs";
 
@@ -80,6 +82,59 @@ describe("supportingDocsFromDraft", () => {
         path: "testdata/supporting-docs/sample.md",
       },
     });
+  });
+});
+
+describe("isSupportingDocDraftReady / supportingDocsFromDraftPreservingIncomplete", () => {
+  it("treats absent and resolvable drafts as ready", () => {
+    expect(isSupportingDocDraftReady({ mode: "absent" })).toBe(true);
+    expect(
+      isSupportingDocDraftReady({ mode: "attachment", name: "vision.md" }),
+    ).toBe(true);
+    expect(
+      isSupportingDocDraftReady({ mode: "workspace", path: "docs/a.md" }),
+    ).toBe(true);
+    expect(isSupportingDocDraftReady({ mode: "attachment", name: "" })).toBe(
+      false,
+    );
+    expect(isSupportingDocDraftReady({ mode: "workspace", path: "  " })).toBe(
+      false,
+    );
+  });
+
+  it("keeps persisted pointers for incomplete keys", () => {
+    const persisted = {
+      vision: { type: "attachment" as const, name: "old.md" },
+      codingStandards: {
+        type: "workspace" as const,
+        path: "docs/standards.md",
+      },
+    };
+    const draft = supportingDocsDraftFromIssue(persisted);
+    draft.vision = { mode: "workspace", path: "" };
+    draft.designSystem = { mode: "attachment", name: "design.md" };
+
+    expect(
+      supportingDocsFromDraftPreservingIncomplete(draft, persisted),
+    ).toEqual({
+      vision: { type: "attachment", name: "old.md" },
+      codingStandards: {
+        type: "workspace",
+        path: "docs/standards.md",
+      },
+      designSystem: { type: "attachment", name: "design.md" },
+    });
+  });
+
+  it("clears a ready absent key even when persisted", () => {
+    const persisted = {
+      vision: { type: "attachment" as const, name: "old.md" },
+    };
+    const draft = supportingDocsDraftFromIssue(persisted);
+    draft.vision = { mode: "absent" };
+    expect(
+      supportingDocsFromDraftPreservingIncomplete(draft, persisted),
+    ).toBeNull();
   });
 });
 

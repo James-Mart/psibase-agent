@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { IssueDetail, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
@@ -24,18 +24,23 @@ import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL, kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
-import { projectCatalogLabels } from "../lib/project-labels";
-import { Markdown } from "./markdown";
+import {
+  isLabelAssignableIssue,
+  projectCatalogLabels,
+} from "../lib/project-labels";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { ProjectLabelChips } from "./project-label-chips";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
-import { IssueDetailEdit } from "./issue-detail-edit";
+import { IssueTitleField } from "./issue-title-field";
+import { IssueDescriptionField } from "./issue-description-field";
+import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
+import { IssueProjectLabelsField } from "./issue-project-labels-field";
+import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
-import { SupportingDocsSection } from "./supporting-docs-section";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
@@ -100,15 +105,11 @@ function DetailShell({
 function IssueDetailBody({
   issue,
   projectId,
-  editing,
-  setEditing,
   upload,
   catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
-  editing: boolean;
-  setEditing: (value: boolean) => void;
   upload?: UploadAttachmentMutation;
   catalog: ProjectLabel[];
 }) {
@@ -123,7 +124,7 @@ function IssueDetailBody({
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
             {KIND_LABEL[issue.kind]}
           </span>
-          <h1 className="break-words text-2xl font-semibold">{issue.title}</h1>
+          <IssueTitleField issue={issue} />
           <div className="mt-0.5 flex items-center gap-0.5">
             <span className="font-mono text-xs text-muted-foreground">
               {issue.id}
@@ -135,73 +136,61 @@ function IssueDetailBody({
             <IssueBadges issue={issue} />
           </div>
         </div>
-        {!editing ? (
-          <div className="flex shrink-0 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
-            <ArchiveIssueButton issue={issue} />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                requestDelete(issue.id);
-                navigate(projectPath(projectId));
-              }}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex shrink-0 gap-2">
+          <ArchiveIssueButton issue={issue} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              requestDelete(issue.id);
+              navigate(projectPath(projectId));
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
       </header>
 
-      {editing ? (
-        <IssueDetailEdit
-          issue={issue}
-          catalog={catalog}
-          onDone={() => setEditing(false)}
-          upload={upload}
-        />
-      ) : (
-        <IssueDetailView issue={issue} upload={upload} attach={attach} />
-      )}
+      <IssueDetailView
+        issue={issue}
+        catalog={catalog}
+        upload={upload}
+        attach={attach}
+      />
     </>
   );
 }
 
 function IssueDetailView({
   issue,
+  catalog,
   upload,
   attach,
 }: {
   issue: IssueDetail;
+  catalog: ProjectLabel[];
   upload?: UploadAttachmentMutation;
   attach: boolean;
 }) {
   const overview = (
     <>
       <IssueMetaPanel issue={issue} />
+      {issue.kind === "project" ? (
+        <IssueProjectLabelsField issue={issue} />
+      ) : null}
+      {isLabelAssignableIssue(issue) ? (
+        <IssueAssignmentLabelsField issue={issue} catalog={catalog} />
+      ) : null}
       {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
       {issue.kind === "story" || issue.kind === "task" ? (
         <GitStackPanel issue={issue} />
       ) : null}
       <IssueAttachmentsSection issue={issue} upload={upload} />
       <div className="rounded-lg border bg-card p-6">
-        {issue.description.trim() ? (
-          <Markdown issueId={attach ? issue.id : undefined}>
-            {issue.description}
-          </Markdown>
-        ) : (
-          <p className="text-sm text-muted-foreground">No description.</p>
-        )}
+        <IssueDescriptionField issue={issue} upload={upload} />
       </div>
       {issue.kind === "project" ? (
-        <SupportingDocsSection supportingDocs={issue.supportingDocs} />
+        <IssueSupportingDocsField issue={issue} />
       ) : null}
       {kindHas(issue.kind, "chat") ? (
         <ChatPanel
@@ -229,15 +218,11 @@ function IssueDetailView({
 function IssueDetailAttachable({
   issue,
   projectId,
-  editing,
-  setEditing,
   backLink,
   catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
-  editing: boolean;
-  setEditing: (value: boolean) => void;
   backLink: ReactNode;
   catalog: ProjectLabel[];
 }) {
@@ -250,8 +235,6 @@ function IssueDetailAttachable({
       <IssueDetailBody
         issue={issue}
         projectId={projectId}
-        editing={editing}
-        setEditing={setEditing}
         upload={upload}
         catalog={catalog}
       />
@@ -261,14 +244,9 @@ function IssueDetailAttachable({
 
 export function IssueDetailPage() {
   const { projectId = "", id = "" } = useParams();
-  const [editing, setEditing] = useState(false);
 
   const { data: issue, isLoading, error } = useIssueDetailQuery(id);
   const { data: list, isLoading: listLoading } = useIssuesQuery();
-
-  useEffect(() => {
-    setEditing(false);
-  }, [id]);
 
   const byId = useMemo(
     () => issuesById(list?.issues ?? []),
@@ -306,8 +284,6 @@ export function IssueDetailPage() {
       <IssueDetailAttachable
         issue={issue}
         projectId={projectId}
-        editing={editing}
-        setEditing={setEditing}
         backLink={backLink}
         catalog={catalog}
       />
@@ -350,8 +326,6 @@ export function IssueDetailPage() {
         <IssueDetailBody
           issue={issue}
           projectId={projectId}
-          editing={editing}
-          setEditing={setEditing}
           catalog={catalog}
         />
       ) : null}

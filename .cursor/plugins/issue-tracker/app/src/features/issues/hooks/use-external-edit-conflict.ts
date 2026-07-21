@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { IssueDetail } from "@server/schemas";
 
 export interface ExternalEditConflict {
@@ -6,10 +6,22 @@ export interface ExternalEditConflict {
   acknowledge: () => void;
 }
 
-export function useExternalEditConflict(issue: IssueDetail): ExternalEditConflict {
+export function useExternalEditConflict(
+  issue: IssueDetail,
+  sessionActive = true,
+): ExternalEditConflict {
   const [baseline, setBaseline] = useState(issue.version);
+  const versionRef = useRef(issue.version);
+  versionRef.current = issue.version;
+
+  useEffect(() => {
+    if (sessionActive) {
+      setBaseline(versionRef.current);
+    }
+  }, [sessionActive]);
+
   return {
-    hasConflict: issue.version !== baseline,
+    hasConflict: sessionActive && issue.version !== baseline,
     acknowledge: () => setBaseline(issue.version),
   };
 }

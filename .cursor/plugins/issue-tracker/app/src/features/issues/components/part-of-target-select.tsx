@@ -14,14 +14,16 @@ export function PartOfTargetSelect({
   onValueChange,
   options,
   placeholder,
+  disabled,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   options: IssueRecord[];
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select value={value} disabled={disabled} onValueChange={onValueChange}>
       <SelectTrigger>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
