@@ -59,6 +59,10 @@ Set `<parentId> = basename(<root>)`; `<root>/<parentId>.jsonl` is **required**
 - **Meta only:** hunt gaps in the issue-tracker plugin’s skills, agents, SPEC,
   CLI, or authoring — not product code quality or project coding conventions.
 - **Remaining gaps only:** skip anything already fixed.
+- **Pinned agent bodies:** A parent run may keep using the
+  `subagent_type` agent body from when that type was first bound in the
+  conversation. Mid-run updates to the agent file are not expected to
+  take effect until a later run — do not flag that as a remaining gap.
 - **One Idea under `issue-tracker`:** each gaps run lands exactly one Idea with
   `--part-of issue-tracker` (even when the source Product project differs) —
   never a residual Epic, project-level Story, or multiple Ideas.
