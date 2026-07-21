@@ -50,7 +50,7 @@ or `branchName` in the prompt.
 | Workspace | `issue summary <id>` → `Workspace:` | all modes |
 | ancestry / titles | `issue summary <id>` | all modes |
 | Project id | `issue summary <id>` → `Project: <id> — …` | finish-branch |
-| Story `mergeBase` | `issue story get <storyId> mergeBase` | start-branch, finish-branch |
+| Story `mergeBase` (derived on read) | `issue story get <storyId> mergeBase` | start-branch, finish-branch |
 | Story `branchName` | `issue story get <storyId> branchName` | finish-branch |
 | Story `prUrl` / `merged` | `issue story get <storyId> prUrl` / `merged` | finish-branch |
 | Project `mergePolicy` | `issue project get <projectId> mergePolicy` | finish-branch |
@@ -107,7 +107,7 @@ For the **dirty + no `noDiff`** row:
 
 ## Finish Branch
 
-`mergePolicy` selects *how* only — merge/PR always targets stored `mergeBase`
+`mergePolicy` selects *how* only — merge/PR always targets derived `mergeBase`
 using the stored `branchName`. Apply the Project's merge policy to a Story,
 per **SPEC § Project merge policy** (the authoritative contract — semantics,
 idempotency, and recovery live there). This section is only the concrete

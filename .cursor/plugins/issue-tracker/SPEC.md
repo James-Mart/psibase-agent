@@ -55,11 +55,11 @@ Every issue has a `kind`, one of:
   *project-level Story* — use it when the plan is a single Story plus its
   Tasks. Prefer wrapping in an Epic when you need sibling root Stories,
   stacking, or Epic `blockedBy`. Carries `branchName`, `stackedOn`,
-  `mergeBase`, `prUrl`, `merged`, `specReview`, an optional `retro` gate
+  `prUrl`, `merged`, `specReview`, an optional `retro` gate
   (`in-progress` / `done`; same enum as Epic; unused by the work loop unless
   the Story is the top-level work root), and optional `labels` assignments from
   the containing Project catalog (see [Project labels](#project-labels)).
-  Status is derived, never stored.
+  Status and `mergeBase` are derived, never stored.
 - **Task** — an atomic, story-point-sized unit under a Story. Each Task is a
   **small but standalone cross-section** of the work: after it lands on the
   Story tip, the package must still **build** and tests must remain
@@ -109,34 +109,25 @@ of stalling a stack mid-flight.
 
 #### The stacked-PR merge model
 
-Every Story has a stored **`mergeBase`**: the git ref that `start-branch`
-checks out from and that `finish-branch` targets for PR/merge. It is **not**
-re-derived from `stackedOn` at git time.
+Every Story has a derived **`mergeBase`**: the git ref that `start-branch`
+checks out from and that `finish-branch` targets for PR/merge. It is
+resolved on read — never stored on disk, never written by cascades, and not
+a public setter. Call sites use `issue story get <storyId> mergeBase`.
 
-- **Shared resolver** — canonical algorithm for a Story's `mergeBase` from its
-  fork point:
-  - **Triggers**: any write that sets or clears `stackedOn` — kind-scoped
-    `add`, `apply` (when the doc changes it), kind
-    [`set`](#kind-scoped-get--set), and delete splice
-    ([foreign-reference resolution](#foreign-reference-resolution)).
-  - **Algorithm**: no `stackedOn` (root or unstack) → `main`; stacked on a
-    merged parent → `parent.mergeBase`; else parent's `branchName` when set;
-    else unset (key absent).
-  - **`apply` preservation**: re-`apply` with unchanged `stackedOn` keeps the
-    on-disk `mergeBase`.
-- **First `branchName` cascade**: when a parent gets its first `branchName`
-  via [`set`](#kind-scoped-get--set), children whose `mergeBase` key is absent
-  get that name in the same command (children that already have a `mergeBase`
-  are left alone).
-- **On `merged` → `true`**: every child with `stackedOn = parent` gets
-  `child.mergeBase = parent.mergeBase` (idempotent). That is how a stack
-  retargets after the parent lands — typically onto `main`. Open GitHub PRs
-  are retargeted by GitHub itself; the tracker does not run PR-base CLI — see
-  [Project merge policy](#project-merge-policy).
-- **Rename guard**: once a Story has a `branchName` and any child is
-  stacked on it, a real `branchName` rename is refused (same-value no-op still
-  allowed). Empty-only cascade on first name is enough because children cannot
-  be left pointing at a stale parent name.
+- **Resolver** — canonical algorithm (same as `derive()` /
+  `issue story get … mergeBase`):
+  - no `stackedOn` (root or unstack) → `main`
+  - stacked on a merged parent → `resolve(parent)` (walk the parent's stack)
+  - else parent's `branchName` when set; else unset
+- **No cascades.** Changing a parent's `branchName` or `merged` does not write
+  child `mergeBase` keys; the next read sees the new topology. After a parent
+  lands (`merged` → `true`), children typically resolve to `main` (or further
+  up the stack). Open GitHub PRs are retargeted by GitHub itself; the tracker
+  does not run PR-base CLI — see [Project merge policy](#project-merge-policy).
+- **Rename guard**: once a Story has a `branchName` and any child is stacked
+  on it, a real `branchName` rename is refused (same-value no-op still
+  allowed), even though tracker metadata would otherwise re-derive. That keeps
+  git branch identity stable for stacked children.
 
 A stack still lands bottom-up: finish the parent first, then each child.
 Consequently **each Story must be independently mergeable** into its
@@ -150,9 +141,9 @@ broken (for example a schema change in one Story and the code that consumes
 it in another): keep it in one Story as multiple Tasks.
 
 Under `pull-request` / `manual` [merge policies](#project-merge-policy), each
-finished Story is planned as a PR against its stored `mergeBase` (after
+finished Story is planned as a PR against its derived `mergeBase` (after
 parent merge, usually `main`). The local `merge` policy integrates each
-finished Story directly into that same stored `mergeBase` with no PR, so a
+finished Story directly into that same derived `mergeBase` with no PR, so a
 stack still lands bottom-up but never touches a remote PR.
 
 ### Derived terms
@@ -168,9 +159,10 @@ These are computed by `derive()` and never written to disk (see
   [Derived state](#derived-state)).
 - **Story status** — `not-started` / `in-progress` / `pr-open` / `merged`.
 - **Epic status** — `todo` / `in-progress` / `done` (rollup of its Stories).
-- **mergeBase** — derived git fork-point ref for a Story (tree chip
-  `mergeBase=<ref>`, or `mergeBase=(unset)` when absent). Resolved from
-  `stackedOn` topology on read; not stored on disk.
+- **mergeBase** — tree chip `mergeBase=<ref>` / `mergeBase=(unset)`;
+  also `issue story get … mergeBase`. Resolution:
+  [stacked-PR merge model](#the-stacked-pr-merge-model). No second name
+  (`base`).
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
@@ -543,15 +535,15 @@ workspace (same cwd rules as above) and applies:
 - **`manual`** — no-op. Nothing is pushed, opened, or merged; a human handles
   the PR later. (Default.)
 - **`pull-request`** — push the Story's git branch and open a **draft** PR
-  against its stored `mergeBase`, then record the url via
+  against its derived `mergeBase`, then record the url via
   `issue story set <storyId> prUrl <url>`. It does **not** wait for merge or
   set `merged`, so the Story derives to `pr-open`.
-- **`merge`** — merge the Story's git branch into its stored `mergeBase`, push
+- **`merge`** — merge the Story's git branch into its derived `mergeBase`, push
   that ref, and set `merged` via `issue story set <storyId> merged true` (Story
   derives to `merged`). This is the local, no-PR integration path. Setting
-  `merged` cascades `child.mergeBase = parent.mergeBase` for stacked children
-  (see [stacked-PR merge model](#the-stacked-pr-merge-model)). When a parent
-  lands, **GitHub retargets** open child PRs; the tracker only updates
+  `merged` does not write child `mergeBase` keys — children re-derive on the
+  next read (see [stacked-PR merge model](#the-stacked-pr-merge-model)). When a
+  parent lands, **GitHub retargets** open child PRs; the tracker only updates
   metadata — finish-branch never runs `gh pr edit --base` (or any PR
   retarget CLI).
 
@@ -638,9 +630,8 @@ Story — the Epic/Story/Task common fields plus:
 | `partOf` | string | the Epic id **or** Project id (required) |
 | `branchName` | string? | set once the git branch is created; rename refused while stacked children exist |
 | `stackedOn` | string? | single fork-point Story id (must be in the same Epic, or same Project for project-level Stories); absent => root |
-| `mergeBase` | string? | stored git ref for start-branch / finish-branch; [shared resolver](#the-stacked-pr-merge-model) on `stackedOn` change, plus first-`branchName` and `merged` cascades |
 | `prUrl` | string? | optional |
-| `merged` | boolean | defaults `false`; setting `true` cascades child `mergeBase` |
+| `merged` | boolean | defaults `false` |
 | `specReview` | `"passed"` \| `"failed"`? | absent until set; machine-readable spec-review gate |
 | `retro` | `"in-progress"` \| `"done"`? | absent until set; machine-readable retro gate |
 | `labels` | string[]? | assignment ids from the containing Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
@@ -769,7 +760,7 @@ no consumer can persist a broken file.
   `attentionReason`, `archived` (Epic / Idea / Story / Task; cascades to
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
   kind-specific fields (`blockedBy` for an Epic; `status`/`qa`/`commitSha`/`noDiff`
-  for a Task; `branchName`/`stackedOn`/`mergeBase`/`prUrl`/`merged`/
+  for a Task; `branchName`/`stackedOn`/`prUrl`/`merged`/
   `specReview` for a Story), `labels` (Project catalog; Epic / Idea / Story
   assignments — see [Project labels](#project-labels)), and `description`
   (written to `description.md`). Catalog remove/clear cascades strip matching
@@ -845,7 +836,7 @@ into it, and each edge type resolves deterministically:
 | edge into delete set | resolution |
 | --- | --- |
 | `partOf` | Cannot survive — the referrer is itself contained, so it is already in the delete set. No repair needed. |
-| `stackedOn` (a deleted Story; always same container) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. Recomputes `mergeBase` via the [shared resolver](#the-stacked-pr-merge-model). Preserves the stack minus the removed node. |
+| `stackedOn` (a deleted Story; always same container) | **Splice**: repoint the surviving Story to the deleted story's own `stackedOn`, walking up until a surviving Story, or absent (forks `main`) if none. The next read re-derives `mergeBase` from the new topology (see [stacked-PR merge model](#the-stacked-pr-merge-model)). Preserves the stack minus the removed node. |
 | `blockedBy` (a deleted Epic; cross-Epic, same Project) | **Drop**: remove the deleted Epic id from the blocked Epic's list, with no inheritance. This is the case that matters for Epic deletion, since `blockedBy` is the only edge that crosses an Epic boundary. |
 | `stackedOn` → a deleted Task/Epic, or `blockedBy` → a deleted Story/Task | Impossible — `stackedOn` only ever references a Story, and `blockedBy` only ever references an Epic. |
 
@@ -1098,7 +1089,8 @@ preserves everything else from the existing same-kind issue.
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `branchName`, `mergeBase`, `prUrl`, `merged`, `specReview`, `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set); `mergeBase` per [stacked-PR merge model](#the-stacked-pr-merge-model) — not a public setter); `apply` preserves `mergeBase` when `stackedOn` is unchanged |
+| `branchName`, `prUrl`, `merged`, `specReview`, `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
+| `mergeBase` (Story) | derived only — never stored, never set via [`set`](#kind-scoped-get--set) or `apply` (see [stacked-PR merge model](#the-stacked-pr-merge-model)) |
 | `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`issue epic|story|task comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP or `issue <kind> attach` / `detach`); `apply` never reads or writes attachment bytes |
@@ -1116,8 +1108,7 @@ so cannot drift:
 - **Task `blocked`** — a `todo` Task is `blocked` unless its Story
   (`partOf`) exists with a `branchName` and is not merged, and all earlier
   sibling Tasks (by sequence) are `done`.
-- **Story mergeBase** — derived fork-point ref for tree/detail chips (see
-  [mergeBase](#derived-terms)).
+- **Story mergeBase** — see [stacked-PR merge model](#the-stacked-pr-merge-model).
 - **Story status** — `merged` if `merged`; else `pr-open` if it has Tasks,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
