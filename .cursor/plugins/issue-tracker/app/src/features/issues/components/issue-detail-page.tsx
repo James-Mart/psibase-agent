@@ -33,6 +33,7 @@ import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
+import { IssueTitleField } from "./issue-title-field";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { SupportingDocsSection } from "./supporting-docs-section";
@@ -123,7 +124,7 @@ function IssueDetailBody({
           <span className="text-xs uppercase tracking-wide text-muted-foreground">
             {KIND_LABEL[issue.kind]}
           </span>
-          <h1 className="break-words text-2xl font-semibold">{issue.title}</h1>
+          <IssueTitleField issue={issue} />
           <div className="mt-0.5 flex items-center gap-0.5">
             <span className="font-mono text-xs text-muted-foreground">
               {issue.id}

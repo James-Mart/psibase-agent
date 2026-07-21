@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
 import type {
   IssueDetail,
   IssuePatch,
@@ -27,6 +26,7 @@ import { useExternalEditConflict } from "../hooks/use-external-edit-conflict";
 import type { UploadAttachmentMutation } from "../hooks/use-issue-detail-file-upload";
 import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
+import { ExternalEditConflictBanner } from "./external-edit-conflict-banner";
 import {
   assignmentLabelsEqual,
   catalogDraftsFromIssue,
@@ -352,24 +352,7 @@ export function IssueDetailEdit({
   return (
     <div className="flex flex-col gap-4">
       {hasConflict ? (
-        <div className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
-          <div className="flex items-center gap-2 font-medium [color:hsl(var(--warning))]">
-            <AlertTriangle className="h-4 w-4" />
-            This issue changed on disk while you were editing.
-          </div>
-          <p className="text-muted-foreground">
-            Reload to discard your edits and load the disk version, or keep your
-            edits (saving will overwrite the disk changes).
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={reload}>
-              Reload from disk
-            </Button>
-            <Button size="sm" variant="ghost" onClick={acknowledge}>
-              Keep my edits
-            </Button>
-          </div>
-        </div>
+        <ExternalEditConflictBanner onReload={reload} onKeep={acknowledge} />
       ) : null}
 
       <Field label={FIELD_LABELS.title}>
