@@ -14,7 +14,7 @@ import {
   type EpicFieldKey,
   type ProjectFormFieldKey,
 } from "@server/fields";
-import { hasAssignee, hasAttention, hasPartOf, kindHas } from "@server/kind";
+import { hasAttention, hasPartOf, kindHas } from "@server/kind";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,9 +44,16 @@ import {
 } from "../lib/supporting-docs";
 import { AssignmentLabelsEditor } from "./assignment-labels-editor";
 import { IssueAttachmentsSection } from "./attachments-panel";
+import { IssueMergedField } from "./issue-merged-field";
+import { IssueStackedOnField } from "./issue-stacked-on-field";
 import { MergePolicySelect } from "./merge-policy-select";
 import { PartOfTargetSelect } from "./part-of-target-select";
 import { ProjectLabelsEditor } from "./project-labels-editor";
+import {
+  BranchNameDisplay,
+  CommitShaDisplay,
+  PrUrlDisplay,
+} from "./readonly-git-fields";
 import { SupportingDocsEditor } from "./supporting-docs-editor";
 import { TaskStatusChips } from "./task-status-chips";
 import { WorkspacePathInput } from "./workspace-path-input";
@@ -63,11 +70,6 @@ interface FormState {
   needsAttention: boolean;
   attentionReason: string;
   partOf: string;
-  commitSha: string;
-  branchName: string;
-  stackedOn: string;
-  prUrl: string;
-  merged: boolean;
   blockedBy: string;
 }
 
@@ -89,15 +91,13 @@ function formStateFromIssue(
     assignedLabels: isLabelAssignableIssue(issue)
       ? sanitizeAssignmentIds(issue.labels, catalog)
       : [],
-    assignee: hasAssignee(issue) ? issue.assignee ?? "" : "",
+    assignee:
+      issue.kind === "epic" || issue.kind === "story"
+        ? issue.assignee ?? ""
+        : "",
     needsAttention: hasAttention(issue) ? issue.needsAttention : false,
     attentionReason: hasAttention(issue) ? issue.attentionReason ?? "" : "",
     partOf: "partOf" in issue ? issue.partOf : "",
-    commitSha: issue.kind === "task" ? issue.commitSha ?? "" : "",
-    branchName: issue.kind === "story" ? issue.branchName ?? "" : "",
-    stackedOn: issue.kind === "story" ? issue.stackedOn ?? "" : "",
-    prUrl: issue.kind === "story" ? issue.prUrl ?? "" : "",
-    merged: issue.kind === "story" ? issue.merged : false,
     blockedBy: blockedByFormValue(issue),
   };
 }
@@ -171,9 +171,11 @@ export function IssueDetailEdit({
     if (form.description !== issue.description)
       patch.description = form.description;
 
-    if (hasAttention(issue)) {
+    if (issue.kind === "epic" || issue.kind === "story") {
       setClearable("assignee", form.assignee, issue.assignee);
+    }
 
+    if (hasAttention(issue)) {
       if (form.needsAttention !== issue.needsAttention)
         patch.needsAttention = form.needsAttention;
       const reason = form.needsAttention
@@ -198,21 +200,10 @@ export function IssueDetailEdit({
       }
     }
 
-    if (issue.kind === "task") {
-      setClearable("commitSha", form.commitSha, issue.commitSha);
-    }
-
     if (issue.kind === "epic") {
       const nextBlocked = parseIds(form.blockedBy);
       if (JSON.stringify(nextBlocked) !== JSON.stringify(issue.blockedBy))
         patch.blockedBy = nextBlocked;
-    }
-
-    if (issue.kind === "story") {
-      setClearable("branchName", form.branchName, issue.branchName);
-      setClearable("stackedOn", form.stackedOn, issue.stackedOn);
-      setClearable("prUrl", form.prUrl, issue.prUrl);
-      if (form.merged !== issue.merged) patch.merged = form.merged;
     }
 
     if (isLabelAssignableIssue(issue)) {
@@ -261,11 +252,9 @@ export function IssueDetailEdit({
 
     // Story partOf Project↔Epic moves go through move-story so the whole
     // stackedOn stack reparents under the same integrity rules as DnD/CLI.
-    // Drop stackedOn from the follow-up patch — move-story owns stack topology.
     if (issue.kind === "story" && typeof patch.partOf === "string") {
       const target = patch.partOf;
       delete patch.partOf;
-      delete patch.stackedOn;
       try {
         await moveStory.mutateAsync({ id: issue.id, target });
       } catch {
@@ -303,28 +292,16 @@ export function IssueDetailEdit({
       issue.kind === "task" ? (
         <TaskStatusChips status={issue.status} qa={issue.qa} />
       ) : null,
-    commitSha: (
-      <Input
-        value={form.commitSha}
-        onChange={(e) => set("commitSha", e.target.value)}
-        className="font-mono"
-      />
-    ),
-    branchName: (
-      <Input
-        value={form.branchName}
-        onChange={(e) => set("branchName", e.target.value)}
-        className="font-mono"
-      />
-    ),
-    stackedOn: (
-      <Input
-        value={form.stackedOn}
-        onChange={(e) => set("stackedOn", e.target.value)}
-        className="font-mono"
-        placeholder="story id"
-      />
-    ),
+    commitSha:
+      issue.kind === "task" ? (
+        <CommitShaDisplay commitSha={issue.commitSha} />
+      ) : null,
+    branchName:
+      issue.kind === "story" ? (
+        <BranchNameDisplay branchName={issue.branchName} />
+      ) : null,
+    stackedOn:
+      issue.kind === "story" ? <IssueStackedOnField issue={issue} /> : null,
     blockedBy: (
       <Input
         value={form.blockedBy}
@@ -333,20 +310,8 @@ export function IssueDetailEdit({
         placeholder="space-separated epic ids"
       />
     ),
-    prUrl: (
-      <Input value={form.prUrl} onChange={(e) => set("prUrl", e.target.value)} />
-    ),
-    merged: (
-      <label className="flex h-9 items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
-          className="h-4 w-4 accent-primary"
-          checked={form.merged}
-          onChange={(e) => set("merged", e.target.checked)}
-        />
-        {form.merged ? "merged" : "not merged"}
-      </label>
-    ),
+    prUrl: issue.kind === "story" ? <PrUrlDisplay prUrl={issue.prUrl} /> : null,
+    merged: issue.kind === "story" ? <IssueMergedField issue={issue} /> : null,
   };
 
   return (
@@ -390,13 +355,21 @@ export function IssueDetailEdit({
         </Field>
       ) : null}
 
-      {hasAssignee(issue) ? (
+      {issue.kind === "epic" || issue.kind === "story" ? (
         <Field label={FIELD_LABELS.assignee}>
           <Input
             value={form.assignee}
             onChange={(e) => set("assignee", e.target.value)}
             placeholder="unassigned"
           />
+        </Field>
+      ) : issue.kind === "task" ? (
+        <Field label={FIELD_LABELS.assignee}>
+          {issue.assignee ? (
+            <span className="text-sm">{issue.assignee}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">unassigned</span>
+          )}
         </Field>
       ) : null}
 

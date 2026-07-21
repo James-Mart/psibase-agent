@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { GitCommitHorizontal, GitPullRequest } from "lucide-react";
+import { GitCommitHorizontal } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { IssueDetail, IssueRecord } from "@server/schemas";
 import { bySequence } from "@server/order";
@@ -7,7 +7,14 @@ import { CHIP_UNSET, FIELD_LABELS } from "@server/fields";
 import { useIssuesQuery } from "../api/queries";
 import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";
+import { IssueMergedField } from "./issue-merged-field";
+import { IssueStackedOnField } from "./issue-stacked-on-field";
 import { MetaRow as Row } from "./meta-row";
+import {
+  BranchNameDisplay,
+  CommitShaDisplay,
+  PrUrlDisplay,
+} from "./readonly-git-fields";
 import { StoryAxisChips, storyAxesVisible } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 
@@ -55,16 +62,8 @@ function BranchPanel({
         }
       />
       <Row
-        label="Stacked on"
-        value={
-          issue.stackedOn ? (
-            <IssueLink id={issue.stackedOn} className="font-mono text-primary hover:underline">
-              {issue.stackedOn}
-            </IssueLink>
-          ) : (
-            <span className="text-muted-foreground">(root)</span>
-          )
-        }
+        label={FIELD_LABELS.stackedOn}
+        value={<IssueStackedOnField issue={issue} />}
       />
       {stackedOnHere.length > 0 ? (
         <Row
@@ -80,25 +79,11 @@ function BranchPanel({
           }
         />
       ) : null}
+      <Row label="PR" value={<PrUrlDisplay prUrl={issue.prUrl} />} />
       <Row
-        label="PR"
-        value={
-          issue.prUrl ? (
-            <a
-              href={issue.prUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-primary hover:underline"
-            >
-              <GitPullRequest className="h-3.5 w-3.5" />
-              {issue.prUrl}
-            </a>
-          ) : (
-            <span className="text-muted-foreground">no PR</span>
-          )
-        }
+        label={FIELD_LABELS.merged}
+        value={<IssueMergedField issue={issue} />}
       />
-      <Row label="Merged" value={issue.merged ? "yes" : "no"} />
       <Row
         label="Commits"
         value={
@@ -153,18 +138,15 @@ function CommitPanel({
         }
       />
       {branch?.kind === "story" && branch.branchName ? (
-        <Row label="Branch name" value={<span className="font-mono">{branch.branchName}</span>} />
+        <Row
+          label="Branch name"
+          value={<BranchNameDisplay branchName={branch.branchName} />}
+        />
       ) : null}
       <Row label="Status" value={<TaskStatusChips status={issue.status} qa={issue.qa} />} />
       <Row
         label="Commit SHA"
-        value={
-          issue.commitSha ? (
-            <span className="font-mono">{issue.commitSha}</span>
-          ) : (
-            <span className="text-muted-foreground">not committed</span>
-          )
-        }
+        value={<CommitShaDisplay commitSha={issue.commitSha} />}
       />
     </div>
   );
