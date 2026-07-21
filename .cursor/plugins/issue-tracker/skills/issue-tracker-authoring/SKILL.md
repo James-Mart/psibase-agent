@@ -37,13 +37,13 @@ issue apply plan.yaml
 
 Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-doc-format).
 
-- **Structure at Project vs below Epic or project-level Story.** Under a
-  Project, each `children:` entry declares `kind: epic | idea | story` so
-  Epics, Ideas, and project-level Stories can interleave (shared sibling
-  order). Below an Epic (or inside a project-level Story), kind comes from
-  child keys (`stories` → `tasks`, and `stacked` for a Story that forks off
-  another Story). `partOf` and `stackedOn` are inferred from the nesting,
-  never written by hand.
+- **Structure: `children:` + `kind` only.** Every nest uses `children:`; every
+  entry declares `kind`. Allow-lists: Project → `epic | idea | story`; Epic →
+  `story`; Story → `task | story`. Under a Story, `kind: story` is a stacked
+  Story (`stackedOn` that Story; `partOf` the same Epic or Project as the fork
+  point). Root nodes omit `kind` (form key implies it). `partOf` and
+  `stackedOn` are inferred from nesting, never written by hand. Legacy nest
+  keys (`stories:` / `tasks:` / `stacked:`) are not accepted.
 - **Ids are author-chosen and stable.** Every node carries a required kebab `id`
   you pick (unique, slug-safe, title-independent). Because you choose them up
   front you can author `issue:<id>` cross-links and Epic-level `blockedBy` ids
@@ -71,11 +71,12 @@ Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-d
   and reference the enclosing parents by id: an **epic form** (`project: <id>`
   string + `epic:` object) reconciles just that epic within the project, and a
   **story form** (`project: <id>` string + `story:` object; include `epic: <id>`
-  only when the Story is under an Epic) reconciles that story and its tasks.
-  Omit `epic` for a project-level Story (`partOf` the Project). Epic/story forms
-  leave Ideas untouched (Ideas are Project children only). A story doc owns only
-  its own tasks (stacked children belong to the Story's container — Epic or
-  Project) and preserves the story's fork point.
+  only when the Story is under an Epic) reconciles that story and its
+  `kind: task` children. Omit `epic` for a project-level Story (`partOf` the
+  Project). Epic/story forms leave Ideas untouched (Ideas are Project children
+  only). A story doc owns only its own tasks (`kind: story` children are
+  refused there — stacked Stories belong to the Story's container apply scope)
+  and preserves the story's fork point.
 
 ## Epic grain: project-level Story vs Epic
 

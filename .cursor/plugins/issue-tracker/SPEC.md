@@ -908,11 +908,12 @@ is the format + semantics reference.
 
 ### Shape
 
-The most common doc describes one Project subtree. Under a Project, each
-`children:` entry declares `kind: epic | idea | story` explicitly so Epics,
-Ideas, and project-level Stories can interleave in one shared sibling `order`
-space (array index). Below an Epic (or inside a project-level Story), kind is
-implied by **which child key** a node sits under, never written:
+The most common doc describes one Project subtree. Every nest uses a single
+key — `children:` — and every `children:` entry carries an explicit `kind`.
+Root nodes omit `kind` (the form key `project` / `epic` / `story` implies it).
+Allow-lists: Project → `epic | idea | story`; Epic → `story`; Story →
+`task | story`. Under a Story, `kind: story` means a stacked Story (`stackedOn`
+that Story, `partOf` the same container as the fork point — Epic or Project).
 
 ```yaml
 project:
@@ -931,8 +932,9 @@ project:
       title: Solo Story
       description: |
         Single-unit plan — no Epic wrapper.
-      tasks:
-        - id: solo-task
+      children:
+        - kind: task
+          id: solo-task
           title: Solo task
     - kind: epic
       id: my-epic
@@ -940,44 +942,50 @@ project:
       description: |
         Cross-cutting invariants.
       blockedBy: [other-epic]  # other Epics (same Project) that must finish first
-      stories:
-        - id: base-story       # a root Story (no `stacked` parent) -> forks main
+      children:
+        - kind: story
+          id: base-story       # root Story (no stackedOn) -> forks main
           title: Base Story
           description: |
             This unit's full prose.
-          tasks:
-            - id: first-task
+          children:
+            - kind: task
+              id: first-task
               title: First task
               description: |
                 Implementor-resolution detail + how to verify.
-          stacked:             # Stories that fork off `base-story`
-            - id: follow-up
+            - kind: story      # stacked on base-story; partOf my-epic
+              id: follow-up
               title: Follow-up
-              tasks:
-                - id: follow-up-task
+              children:
+                - kind: task
+                  id: follow-up-task
                   title: Follow-up task
 ```
 
-- **Kind at Project vs below Epic.** Under a Project, each `children:` entry
-  carries `kind: epic | idea | story` (Ideas are leaves — no child keys; a
-  `kind: story` child may nest `tasks` / `stacked` like an epic-nested Story,
-  with `partOf` inferred as the Project). Below an Epic, `stories` are Stories
-  → their `tasks` are Tasks; a Story's `stacked` entries are Stories that fork
-  off it. Prefer an Epic when authoring stacks or sibling root Stories.
+- **`children:` + `kind` only.** `children:` is the only nest key. Every entry
+  under it declares `kind`. Ideas are leaves (no nested `children`). Prefer an
+  Epic when authoring stacks or sibling root Stories.
 - **No dual-key / legacy keys.** Project `epics:` is **not** accepted — use
   `children:` with `kind: epic | idea | story` (refused with
   `project "epics:" is no longer accepted; use "children:" with kind: epic | idea | story`).
-  Nested `branches` / `commits` and a rooted `branch:` are also **not**
-  accepted — there is no alias period. Migrate apply docs to `stories` /
-  `tasks` and `story:`; rooted `branch:` is refused with an explicit error
-  (`"branch:" is no longer accepted; use "story:"`).
+  Nested `stories:` / `tasks:` / `stacked:`, `branches` / `commits`, and a
+  rooted `branch:` are also **not** accepted — there is no alias period.
+  Legacy nest keys fail as ordinary strict unknown keys. Migrate apply docs to
+  `children:` + `kind` and rooted `story:`; rooted `branch:` is refused with an
+  explicit error (`"branch:" is no longer accepted; use "story:"`).
 - **Inferred `partOf`.** Each node's containment is its enclosing container (a
   Task's Story; a Story's Epic, or the Project for a project-level Story; an
-  Epic or Idea's Project). Never written in the doc.
-- **Inferred `stackedOn`.** A Story nested under another Story's `stacked`
-  forks from it; a Story directly under `stories` (or a root `kind: story`
-  Project child) is a root Story (forks the container's base, `main`). Never
+  Epic or Idea's Project). A stacked Story (`kind: story` under another Story)
+  stays `partOf` that same container — not the fork-point Story. Never written
+  in the doc.
+- **Inferred `stackedOn`.** A Story nested under another Story's `children:`
+  with `kind: story` forks from it; a Story directly under a Project or Epic
+  `children:` list is a root Story (forks the container's base, `main`). Never
   written in the doc.
+- **Order groups stay separate.** Under a Story, Task `order` and stacked-Story
+  `order` renumber independently (YAML interleaving does not create one shared
+  sequence). UI still shows tasks then stacked Stories.
 - **Explicit `blockedBy`.** The one cross-reference authored by hand: on an
   **Epic** node, a list of other Epic ids (same Project) this Epic depends on.
   Uses the same kebab id rule as node ids.
@@ -1004,7 +1012,7 @@ epic:
   id: my-epic
   title: My Epic
   blockedBy: [ ... ]       # other Epic ids (same Project) that must finish first
-  stories: [ ... ]         # same story/task/stacked shape as above
+  children: [ ... ]        # kind: story entries; same nest shape as above
 ```
 
 ```yaml
@@ -1015,7 +1023,7 @@ epic: my-epic              # existing epic id (reference)
 story:
   id: my-story
   title: My Story
-  tasks: [ ... ]
+  children: [ ... ]        # kind: task only
 ```
 
 ```yaml
@@ -1024,7 +1032,7 @@ project: my-product        # existing project id (reference)
 story:
   id: solo-story
   title: Solo Story
-  tasks: [ ... ]
+  children: [ ... ]        # kind: task only
 ```
 
 - **Form by root key.** An object `project` is the project form; a string
@@ -1036,10 +1044,11 @@ story:
   pre-existing root node must already sit under the declared parent), else the
   doc is refused. A story form without `epic:` refuses when the Story's on-disk
   `partOf` is an Epic (use the epic-scoped form instead).
-- **Story scope is story + tasks only.** A story's `stacked` children are
-  `partOf` the *container* (Epic or Project), not the story, so they fall
-  outside a story's subtree; a story doc has no `stacked` key and only owns its
-  own task list.
+- **Story scope is story + tasks only.** Stacked Stories (`kind: story` under a
+  Story) are `partOf` the *container* (Epic or Project), not the story, so they
+  fall outside a story's subtree. A story-rooted doc may nest only `kind: task`
+  children; `kind: story` there is refused. Stacked Stories stay in the parent
+  Epic/Project apply scope.
 - **Fork point preserved.** `stackedOn` is normally inferred from nesting, but a
   story-rooted doc has no parent nesting, so it **preserves the on-disk
   `stackedOn`** rather than clearing it — a story doc never moves the fork point.
@@ -1085,7 +1094,7 @@ preserves everything else from the existing same-kind issue.
 | `supportingDocs` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Project catalog) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `labels` (Epic / Idea / Story assignments) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
-| `kind` | explicit on Project `children:` (`kind: epic | idea | story`); inferred from nesting below Epic (or inside a project-level Story) |
+| `kind` | explicit on every `children:` entry (allow-lists above); omitted on root nodes (form key implies kind) |
 | `partOf`, `stackedOn` | inferred from nesting (a story-rooted doc has no nesting, so it preserves the on-disk `stackedOn`); runtime `partOf`/`stackedOn` edits use kind [`set`](#kind-scoped-get--set) |
 | `id`, `createdAt` | set on create; `apply` preserves them, never rewrites |
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
