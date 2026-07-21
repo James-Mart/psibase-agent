@@ -25,7 +25,6 @@ import { KIND_LABEL, kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
 import { projectCatalogLabels } from "../lib/project-labels";
-import { Markdown } from "./markdown";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { ProjectLabelChips } from "./project-label-chips";
@@ -34,6 +33,7 @@ import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { IssueTitleField } from "./issue-title-field";
+import { IssueDescriptionField } from "./issue-description-field";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { SupportingDocsSection } from "./supporting-docs-section";
@@ -193,13 +193,7 @@ function IssueDetailView({
       ) : null}
       <IssueAttachmentsSection issue={issue} upload={upload} />
       <div className="rounded-lg border bg-card p-6">
-        {issue.description.trim() ? (
-          <Markdown issueId={attach ? issue.id : undefined}>
-            {issue.description}
-          </Markdown>
-        ) : (
-          <p className="text-sm text-muted-foreground">No description.</p>
-        )}
+        <IssueDescriptionField issue={issue} upload={upload} />
       </div>
       {issue.kind === "project" ? (
         <SupportingDocsSection supportingDocs={issue.supportingDocs} />
