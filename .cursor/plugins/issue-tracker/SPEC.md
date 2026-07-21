@@ -66,10 +66,12 @@ Every issue has a `kind`, one of:
   **meaningful** (vertical slices, not horizontal layers such as types-only,
   wire-up-later, or half-migrations that do not compile). The only kind with a
   **stored** `status` (`todo` / `in-progress` / `fixing` / `done`), an optional
-  `qa` gate (`reviewing` / `changes-requested` / `passed`), an optional `commitSha`
-  (set when done with a real git commit), and an optional `noDiff` flag (set via
-  kind [`set`](#kind-scoped-get--set) when the implementor deliberately lands no
-  file changes).
+  `assignee` (Task-only ownership; in the work loop, overloaded as the
+  implementor model slug), an optional `qa` gate (`reviewing` /
+  `changes-requested` / `passed`), an optional `commitSha` (set when done with a
+  real git commit), and an optional `noDiff` flag (set via kind
+  [`set`](#kind-scoped-get--set) when the implementor deliberately lands no file
+  changes).
 
 ### Relationships
 
@@ -164,8 +166,10 @@ These are computed by `derive()` and never written to disk (see
   [stacked-PR merge model](#the-stacked-pr-merge-model). No second name
   (`base`).
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
-  orthogonal to status; any kind can carry it.
-- **assignee** — who currently owns an issue (e.g. `human` or an agent id).
+  orthogonal to status; Epic / Story / Task can carry it (Project and Idea
+  cannot).
+- **assignee** — Task-only. Who currently owns the Task (e.g. `human` or an
+  agent id); in the work loop, overloaded as the implementor model slug.
 - **specReview** — a Story-only machine-readable spec-review gate (`passed` /
   `failed`; absent until set via kind [`set`](#kind-scoped-get--set)). Surfaced
   in the detail panel when set; omitted from the tree outline.
@@ -231,7 +235,7 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
 
 - **`add`** — `issue project add <title>` (no `--part-of`); children take
   `--part-of`. Description: `--description` and/or `--file` (use `-` for
-  stdin). Also: `--assignee` on epic / story / task; `--stacked-on` on story.
+  stdin). Also: `--assignee` on task; `--stacked-on` on story.
   Prints the new id on stdout.
 - **`view`** — `issue <kind> view <id>` (pass `--chat` for the chat log).
   Prefer `issue <kind> get <id> <field>` for a single field. Label lines: see
@@ -310,9 +314,9 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
 | kind | settable fields |
 | --- | --- |
 | project | `title`, `workspace`, `mergePolicy`, `labels`, `supportingDocs`, `description` |
-| epic | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `labels`, `description` |
+| epic | `title`, `needsAttention`, `archived`, `partOf`, `blockedBy`, `retro`, `labels`, `description` |
 | idea | `title`, `archived`, `partOf`, `labels`, `description` |
-| story | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `retro`, `labels`, `description` |
+| story | `title`, `needsAttention`, `archived`, `partOf`, `branchName`, `stackedOn`, `prUrl`, `merged`, `specReview`, `retro`, `labels`, `description` |
 | task | `title`, `assignee`, `needsAttention`, `archived`, `partOf`, `status`, `qa`, `commitSha`, `noDiff`, `description` |
 
 ##### Value parsing
@@ -407,7 +411,6 @@ Common to **Epic / Story / Task** (but **not** Project or Idea):
 
 | field | type | notes |
 | --- | --- | --- |
-| `assignee` | string? | optional |
 | `needsAttention` | boolean | defaults `false` |
 | `attentionReason` | string \| null | defaults `null` |
 
@@ -603,7 +606,7 @@ appends `labels=id1,id2` on Epic / Idea / Story rows when non-empty.
 **`apply`.** Catalog and assignments are **imperative only**; `apply`
 preserves both (same class as `workspace` / `mergePolicy` / `assignee`).
 
-Epic — the Epic/Story/Task common fields plus:
+Epic — the Epic/Story/Task needs-attention common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
@@ -623,7 +626,7 @@ Idea — the common-to-every-kind fields plus:
 No assignee, needs-attention, status, git fields, or chat. Leaf under a Project;
 shares the Project-child `order` space with Epics and root project-level Stories.
 
-Story — the Epic/Story/Task common fields plus:
+Story — the Epic/Story/Task needs-attention common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
@@ -636,10 +639,11 @@ Story — the Epic/Story/Task common fields plus:
 | `retro` | `"in-progress"` \| `"done"`? | absent until set; machine-readable retro gate |
 | `labels` | string[]? | assignment ids from the containing Project catalog; unique, order preserved (see [Project labels](#project-labels)) |
 
-Task — the Epic/Story/Task common fields plus:
+Task — the Epic/Story/Task needs-attention common fields plus:
 
 | field | type | notes |
 | --- | --- | --- |
+| `assignee` | string? | optional; in the work loop, overloaded as the implementor model slug |
 | `partOf` | string | the Story id (required) |
 | `status` | `"todo"` \| `"in-progress"` \| `"fixing"` \| `"done"` | defaults `todo`; the only stored status |
 | `qa` | `"reviewing"` \| `"changes-requested"` \| `"passed"`? | absent until set; machine-readable QA gate |
@@ -756,8 +760,9 @@ no consumer can persist a broken file.
   timestamps, links `partOf`, and writes the dir + `issue.json` +
   `description.md`.
 - `update(id, patch)` — **partial merge**, never a blind overwrite; bumps
-  `updatedAt`. The mergeable fields are `title`, `assignee`, `needsAttention`/
-  `attentionReason`, `archived` (Epic / Idea / Story / Task; cascades to
+  `updatedAt`. The mergeable fields are `title`, `assignee` (Task only),
+  `needsAttention`/`attentionReason`, `archived` (Epic / Idea / Story / Task;
+  cascades to
   descendants — see [Archived visibility](#archived-visibility)), `partOf`, the
   kind-specific fields (`blockedBy` for an Epic; `status`/`qa`/`commitSha`/`noDiff`
   for a Task; `branchName`/`stackedOn`/`prUrl`/`merged`/
@@ -1100,7 +1105,8 @@ preserves everything else from the existing same-kind issue.
 | `status`, `qa`, `commitSha`, `noDiff` (Task) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `branchName`, `prUrl`, `merged`, `specReview`, `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `mergeBase` (Story) | derived only — never stored, never set via [`set`](#kind-scoped-get--set) or `apply` (see [stacked-PR merge model](#the-stacked-pr-merge-model)) |
-| `assignee`, `needsAttention`/`attentionReason` | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
+| `assignee` (Task) | imperative write (kind [`set`](#kind-scoped-get--set)); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
+| `needsAttention`/`attentionReason` (Epic / Story / Task) | imperative write (kind [`set`](#kind-scoped-get--set); `attentionReason` only via `needsAttention` + `--reason`); read via kind [`get`](#kind-scoped-get--set); `apply` preserves |
 | `chat.jsonl` | imperative only (`issue epic|story|task comment`); `apply` never reads or writes it |
 | `attachments/` | imperative only (HTTP or `issue <kind> attach` / `detach`); `apply` never reads or writes attachment bytes |
 
