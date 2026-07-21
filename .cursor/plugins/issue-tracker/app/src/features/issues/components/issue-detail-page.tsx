@@ -24,7 +24,10 @@ import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { KIND_LABEL, kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
-import { projectCatalogLabels } from "../lib/project-labels";
+import {
+  isLabelAssignableIssue,
+  projectCatalogLabels,
+} from "../lib/project-labels";
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueBadges } from "./issue-badges";
 import { ProjectLabelChips } from "./project-label-chips";
@@ -34,9 +37,11 @@ import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDetailEdit } from "./issue-detail-edit";
 import { IssueTitleField } from "./issue-title-field";
 import { IssueDescriptionField } from "./issue-description-field";
+import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
+import { IssueProjectLabelsField } from "./issue-project-labels-field";
+import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
-import { SupportingDocsSection } from "./supporting-docs-section";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
@@ -169,7 +174,12 @@ function IssueDetailBody({
           upload={upload}
         />
       ) : (
-        <IssueDetailView issue={issue} upload={upload} attach={attach} />
+        <IssueDetailView
+          issue={issue}
+          catalog={catalog}
+          upload={upload}
+          attach={attach}
+        />
       )}
     </>
   );
@@ -177,16 +187,24 @@ function IssueDetailBody({
 
 function IssueDetailView({
   issue,
+  catalog,
   upload,
   attach,
 }: {
   issue: IssueDetail;
+  catalog: ProjectLabel[];
   upload?: UploadAttachmentMutation;
   attach: boolean;
 }) {
   const overview = (
     <>
       <IssueMetaPanel issue={issue} />
+      {issue.kind === "project" ? (
+        <IssueProjectLabelsField issue={issue} />
+      ) : null}
+      {isLabelAssignableIssue(issue) ? (
+        <IssueAssignmentLabelsField issue={issue} catalog={catalog} />
+      ) : null}
       {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
       {issue.kind === "story" || issue.kind === "task" ? (
         <GitStackPanel issue={issue} />
@@ -196,7 +214,7 @@ function IssueDetailView({
         <IssueDescriptionField issue={issue} upload={upload} />
       </div>
       {issue.kind === "project" ? (
-        <SupportingDocsSection supportingDocs={issue.supportingDocs} />
+        <IssueSupportingDocsField issue={issue} />
       ) : null}
       {kindHas(issue.kind, "chat") ? (
         <ChatPanel

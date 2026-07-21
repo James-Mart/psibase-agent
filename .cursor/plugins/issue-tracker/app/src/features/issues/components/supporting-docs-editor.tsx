@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { FIELD_LABELS } from "@server/fields";
 import {
   SUPPORTING_DOC_KEYS,
@@ -27,13 +28,17 @@ function DocRow({
   draft,
   attachments,
   attachmentsLoading,
+  disabled,
   onChange,
+  onCommit,
 }: {
   docKey: SupportingDocKey;
   draft: SupportingDocDraft;
   attachments: Attachment[];
   attachmentsLoading: boolean;
+  disabled?: boolean;
   onChange: (draft: SupportingDocDraft) => void;
+  onCommit?: (draft: SupportingDocDraft) => void;
 }) {
   const label = SUPPORTING_DOC_KEY_LABELS[docKey];
 
@@ -43,9 +48,12 @@ function DocRow({
       <div className="grid gap-2 sm:grid-cols-[10rem_1fr]">
         <Select
           value={draft.mode}
-          onValueChange={(value) =>
-            onChange(supportingDocDraftForMode(value as SupportingDocMode))
-          }
+          disabled={disabled}
+          onValueChange={(value) => {
+            const next = supportingDocDraftForMode(value as SupportingDocMode);
+            onChange(next);
+            onCommit?.(next);
+          }}
         >
           <SelectTrigger aria-label={`${label} source`}>
             <SelectValue />
@@ -65,9 +73,12 @@ function DocRow({
           ) : attachments.length > 0 ? (
             <Select
               value={draft.name || undefined}
-              onValueChange={(name) =>
-                onChange({ mode: "attachment", name })
-              }
+              disabled={disabled}
+              onValueChange={(name) => {
+                const next: SupportingDocDraft = { mode: "attachment", name };
+                onChange(next);
+                onCommit?.(next);
+              }}
             >
               <SelectTrigger aria-label={`${label} attachment`}>
                 <SelectValue placeholder="Select attachment" />
@@ -83,8 +94,12 @@ function DocRow({
           ) : (
             <Input
               value={draft.name}
+              disabled={disabled}
               onChange={(e) =>
                 onChange({ mode: "attachment", name: e.target.value })
+              }
+              onBlur={(e) =>
+                onCommit?.({ mode: "attachment", name: e.target.value })
               }
               className="font-mono"
               placeholder="attachment basename"
@@ -97,8 +112,12 @@ function DocRow({
         {draft.mode === "workspace" ? (
           <Input
             value={draft.path}
+            disabled={disabled}
             onChange={(e) =>
               onChange({ mode: "workspace", path: e.target.value })
+            }
+            onBlur={(e) =>
+              onCommit?.({ mode: "workspace", path: e.target.value })
             }
             className="font-mono"
             placeholder="relative/path.md"
@@ -121,20 +140,30 @@ export function SupportingDocsEditor({
   issueId,
   draft,
   onChange,
+  onCommit,
+  disabled,
+  error,
 }: {
   issueId: string;
   draft: SupportingDocsDraft;
   onChange: (draft: SupportingDocsDraft) => void;
+  /** Persist after mode/attachment select or path blur. */
+  onCommit?: (draft: SupportingDocsDraft) => void;
+  disabled?: boolean;
+  error?: string | null;
 }) {
-  const { data, isLoading, error } = useAttachmentsQuery(issueId);
+  const { data, isLoading, error: loadError } = useAttachmentsQuery(issueId);
   const attachments = data ?? [];
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
 
   return (
     <div className="flex flex-col gap-3 rounded-md border p-3">
       <Label>{FIELD_LABELS.supportingDocs}</Label>
-      {error ? (
-        <p className="text-sm text-destructive-foreground">{error.message}</p>
+      {loadError ? (
+        <p className="text-sm text-destructive-foreground">{loadError.message}</p>
       ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <ul className="flex flex-col gap-3">
         {SUPPORTING_DOC_KEYS.map((key) => (
           <DocRow
@@ -143,7 +172,17 @@ export function SupportingDocsEditor({
             draft={draft[key]}
             attachments={attachments}
             attachmentsLoading={isLoading}
-            onChange={(next) => onChange({ ...draft, [key]: next })}
+            disabled={disabled}
+            onChange={(next) => {
+              const updated = { ...draftRef.current, [key]: next };
+              draftRef.current = updated;
+              onChange(updated);
+            }}
+            onCommit={(next) => {
+              const updated = { ...draftRef.current, [key]: next };
+              draftRef.current = updated;
+              onCommit?.(updated);
+            }}
           />
         ))}
       </ul>

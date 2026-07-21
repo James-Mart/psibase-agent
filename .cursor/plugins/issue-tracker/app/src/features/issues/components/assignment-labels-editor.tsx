@@ -8,10 +8,14 @@ export function AssignmentLabelsEditor({
   catalog,
   selected,
   onChange,
+  disabled,
+  error,
 }: {
   catalog: ProjectLabel[];
   selected: string[];
   onChange: (ids: string[]) => void;
+  disabled?: boolean;
+  error?: string | null;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-md border p-3">
@@ -31,6 +35,7 @@ export function AssignmentLabelsEditor({
                     type="checkbox"
                     className="h-4 w-4 accent-primary"
                     checked={checked}
+                    disabled={disabled}
                     onChange={() =>
                       onChange(toggleAssignmentId(selected, label.id))
                     }
@@ -42,6 +47,7 @@ export function AssignmentLabelsEditor({
           })}
         </ul>
       )}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { FIELD_LABELS } from "@server/fields";
 import { LABEL_COLOR_RE } from "@server/schemas";
@@ -14,11 +15,15 @@ import { ProjectLabelChip } from "./project-label-chip";
 function ColorField({
   id,
   value,
+  disabled,
   onChange,
+  onCommit,
 }: {
   id: string;
   value: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
+  onCommit?: () => void;
 }) {
   const pickerValue = LABEL_COLOR_RE.test(value) ? value : "#64748b";
   return (
@@ -27,14 +32,20 @@ function ColorField({
         id={`${id}-picker`}
         type="color"
         value={pickerValue}
-        onChange={(e) => onChange(e.target.value.toLowerCase())}
+        disabled={disabled}
+        onChange={(e) => {
+          onChange(e.target.value.toLowerCase());
+          onCommit?.();
+        }}
         className="h-9 w-10 cursor-pointer rounded border bg-transparent p-1"
         title="Pick color"
       />
       <Input
         id={id}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={() => onCommit?.()}
         className="font-mono"
         placeholder="#rrggbb"
         spellCheck={false}
@@ -46,22 +57,37 @@ function ColorField({
 export function ProjectLabelsEditor({
   drafts,
   onChange,
+  onCommit,
   error,
+  disabled,
 }: {
   drafts: CatalogDraft[];
   onChange: (drafts: CatalogDraft[]) => void;
+  /** Persist after an atomic change (remove, color pick, or text blur). */
+  onCommit?: (drafts: CatalogDraft[]) => void;
   error?: string | null;
+  disabled?: boolean;
 }) {
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+
   const setDraft = (key: string, patch: Partial<CatalogDraft>) => {
-    onChange(
-      drafts.map((draft) =>
-        draft.key === key ? { ...draft, ...patch } : draft,
-      ),
+    const next = draftsRef.current.map((draft) =>
+      draft.key === key ? { ...draft, ...patch } : draft,
     );
+    draftsRef.current = next;
+    onChange(next);
   };
 
   const removeDraft = (key: string) => {
-    onChange(drafts.filter((draft) => draft.key !== key));
+    const next = draftsRef.current.filter((draft) => draft.key !== key);
+    draftsRef.current = next;
+    onChange(next);
+    onCommit?.(next);
+  };
+
+  const commit = () => {
+    onCommit?.(draftsRef.current);
   };
 
   return (
@@ -72,7 +98,12 @@ export function ProjectLabelsEditor({
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => onChange([...drafts, newCatalogDraft()])}
+          disabled={disabled}
+          onClick={() => {
+            const next = [...draftsRef.current, newCatalogDraft()];
+            draftsRef.current = next;
+            onChange(next);
+          }}
         >
           <Plus className="h-3.5 w-3.5" />
           Add label
@@ -107,6 +138,7 @@ export function ProjectLabelsEditor({
                   variant="ghost"
                   size="icon-sm"
                   title="Remove label"
+                  disabled={disabled}
                   onClick={() => removeDraft(draft.key)}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -119,7 +151,9 @@ export function ProjectLabelsEditor({
                   <Input
                     id={`label-id-${draft.key}`}
                     value={draft.id}
+                    disabled={disabled}
                     onChange={(e) => setDraft(draft.key, { id: e.target.value })}
+                    onBlur={commit}
                     className="font-mono"
                     placeholder="kebab-case"
                     spellCheck={false}
@@ -130,7 +164,9 @@ export function ProjectLabelsEditor({
                   <ColorField
                     id={`label-color-${draft.key}`}
                     value={draft.color}
+                    disabled={disabled}
                     onChange={(color) => setDraft(draft.key, { color })}
+                    onCommit={commit}
                   />
                 </div>
               </div>
@@ -142,9 +178,11 @@ export function ProjectLabelsEditor({
                 <Input
                   id={`label-desc-${draft.key}`}
                   value={draft.description}
+                  disabled={disabled}
                   onChange={(e) =>
                     setDraft(draft.key, { description: e.target.value })
                   }
+                  onBlur={commit}
                   maxLength={LABEL_DESCRIPTION_MAX}
                   placeholder="Shown as chip tooltip"
                 />

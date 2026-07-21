@@ -246,6 +246,20 @@ export function planCatalogLabelsSave(
   };
 }
 
+/**
+ * Apply rename staging patches. Returns `finalLabels` for the caller to fold
+ * into a combined PATCH or apply immediately.
+ */
+export async function applyCatalogLabelsPlan(
+  plan: CatalogLabelsSavePlan,
+  apply: (labels: ProjectLabel[]) => Promise<void>,
+): Promise<ProjectLabel[] | null> {
+  for (const labels of plan.stagingPatches) {
+    await apply(labels);
+  }
+  return plan.finalLabels;
+}
+
 /** Dark text on light chips, light text on dark chips. */
 export function labelChipTextColor(color: string): string {
   if (!LABEL_COLOR_RE.test(color)) return "#ffffff";

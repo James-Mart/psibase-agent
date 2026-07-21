@@ -28,6 +28,7 @@ import { DESCRIPTION_EDITOR_ATTR } from "../lib/attachment-files";
 import { blockedByFormValue, parseIds } from "../lib/issue-detail-form";
 import { ExternalEditConflictBanner } from "./external-edit-conflict-banner";
 import {
+  applyCatalogLabelsPlan,
   assignmentLabelsEqual,
   catalogDraftsFromIssue,
   isLabelAssignableIssue,
@@ -227,17 +228,20 @@ export function IssueDetailEdit({
       }
       setLabelsError(null);
 
-      for (const labels of result.plan.stagingPatches) {
-        try {
-          await update.mutateAsync({ id: issue.id, patch: { labels } });
-        } catch (err) {
-          setLabelsError(
-            err instanceof Error ? err.message : "Failed to rename labels",
-          );
-          return;
-        }
+      try {
+        const finalLabels = await applyCatalogLabelsPlan(
+          result.plan,
+          async (labels) => {
+            await update.mutateAsync({ id: issue.id, patch: { labels } });
+          },
+        );
+        if (finalLabels) patch.labels = finalLabels;
+      } catch (err) {
+        setLabelsError(
+          err instanceof Error ? err.message : "Failed to rename labels",
+        );
+        return;
       }
-      if (result.plan.finalLabels) patch.labels = result.plan.finalLabels;
 
       if ("workspace" in patch && "supportingDocs" in patch) {
         const workspace = patch.workspace ?? null;

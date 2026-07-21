@@ -11,7 +11,6 @@ import { IssueMergePolicyField } from "./issue-merge-policy-field";
 import { IssuePartOfField } from "./issue-part-of-field";
 import { IssueWorkspaceField } from "./issue-workspace-field";
 import { MetaRow } from "./meta-row";
-import { ProjectLabelChip } from "./project-label-chip";
 
 export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
   const rows: ReactNode[] = [];
@@ -27,21 +26,6 @@ export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
         key="mergePolicy"
         label={FIELD_LABELS.mergePolicy}
         value={<IssueMergePolicyField issue={issue} />}
-      />,
-      <MetaRow
-        key="labels"
-        label={FIELD_LABELS.labels}
-        value={
-          issue.labels?.length ? (
-            <span className="flex flex-wrap gap-1.5">
-              {issue.labels.map((label) => (
-                <ProjectLabelChip key={label.id} label={label} />
-              ))}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">none</span>
-          )
-        }
       />,
     );
   }
