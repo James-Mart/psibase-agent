@@ -89,13 +89,25 @@ export interface ChatResponse {
   problems: Problem[];
 }
 
-const mutableCommon = {
-  title: nonEmpty,
-  assignee: z.string().optional(),
+const attentionFields = {
   needsAttention: z.boolean().default(false),
   attentionReason: z.string().nullable().default(null),
+};
+
+const archivableFields = {
   // Explicit visibility flag (not auto-derived from Done). Absent parses as false.
   archived: z.boolean().default(false),
+};
+
+const mutableCommon = {
+  title: nonEmpty,
+  ...attentionFields,
+  ...archivableFields,
+};
+
+const taskMutable = {
+  ...mutableCommon,
+  assignee: z.string().optional(),
 };
 const timestamps = {
   createdAt: nonEmpty,
@@ -186,7 +198,7 @@ export const taskSchema = z.object({
   qa: z.enum(QA_STATUSES).optional(),
   commitSha: z.string().optional(),
   noDiff: z.boolean().optional(),
-  ...mutableCommon,
+  ...taskMutable,
   ...orderField,
   ...timestamps,
 });

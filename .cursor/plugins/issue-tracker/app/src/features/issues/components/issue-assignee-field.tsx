@@ -5,7 +5,7 @@ import { InlineField } from "./inline-field";
 export function IssueAssigneeField({
   issue,
 }: {
-  issue: Extract<IssueDetail, { kind: "epic" | "story" }>;
+  issue: Extract<IssueDetail, { kind: "task" }>;
 }) {
   const update = useUpdateIssue();
 

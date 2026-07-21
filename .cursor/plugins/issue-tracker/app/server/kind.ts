@@ -37,7 +37,7 @@ export const KIND_CAPABILITIES = {
     partOf: true,
     detailPartOf: true,
     archived: true,
-    assignee: true,
+    assignee: false,
     attention: true,
     attachments: true,
     chat: true,
@@ -47,7 +47,7 @@ export const KIND_CAPABILITIES = {
     partOf: true,
     detailPartOf: true,
     archived: true,
-    assignee: true,
+    assignee: false,
     attention: true,
     attachments: true,
     chat: true,
@@ -85,7 +85,7 @@ export type ArchivableIssue = Extract<
   Issue,
   { kind: "epic" | "idea" | "story" | "task" }
 >;
-export type AssigneeIssue = AttentionIssue;
+export type AssigneeIssue = Extract<Issue, { kind: "task" }>;
 
 export type KindCapability = keyof (typeof KIND_CAPABILITIES)[IssueKind];
 

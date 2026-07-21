@@ -325,6 +325,26 @@ describe("parseIssue - valid per kind", () => {
     }
   });
 
+  it("parses epic and story without assignee", () => {
+    for (const raw of [epic, branch]) {
+      const result = parseIssue(raw);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect("assignee" in result.issue).toBe(false);
+      }
+    }
+  });
+
+  it("strips assignee on epic and story", () => {
+    for (const raw of [epic, branch]) {
+      const result = parseIssue({ ...raw, assignee: "bot" });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect("assignee" in result.issue).toBe(false);
+      }
+    }
+  });
+
   it("rejects an idea missing its partOf project", () => {
     const { partOf: _partOf, ...rest } = idea;
     expect(parseIssue(rest).ok).toBe(false);

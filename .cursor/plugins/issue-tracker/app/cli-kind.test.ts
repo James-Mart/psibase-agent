@@ -153,6 +153,22 @@ describe("coerceSetPatch", () => {
       error: /unknown or unsettable field "assignee"/,
     },
     {
+      name: "unknown field on epic",
+      kind: "epic" as const,
+      field: "assignee",
+      value: "x",
+      opts: {},
+      error: /unknown or unsettable field "assignee"/,
+    },
+    {
+      name: "unknown field on story",
+      kind: "story" as const,
+      field: "assignee",
+      value: "x",
+      opts: {},
+      error: /unknown or unsettable field "assignee"/,
+    },
+    {
       name: "invalid enum",
       kind: "project" as const,
       field: "mergePolicy",
