@@ -2,11 +2,12 @@
 name: issue-tracker-authoring
 description: >-
   Author a standalone Project > (Epic|project-level Story) > Task plan in the
-  issue-tracker: Epic grain, Story vs Task grain, vertical slices,
-  blockedBy/diamond, localized prose, and a completeness pass — then write it
-  with one nested YAML doc and `apply`. Use when planning a stack of git PRs,
-  deciding Epic vs project-level Story or Story vs Task grain, or turning a
-  plan into tracked issues. Glossary and apply-doc shape: SPEC.md. Work it:
+  issue-tracker: Epic grain, multi-Epic split, Story vs Task grain, vertical
+  slices, blockedBy/diamond, localized prose, and a completeness pass — then
+  write it with one nested YAML doc and `apply`. Use when planning a stack of
+  git PRs, deciding Epic vs project-level Story or Story vs Task grain, when
+  one capture should become multiple top-level roots, or turning a plan into
+  tracked issues. Glossary and apply-doc shape: SPEC.md. Work it:
   issue-tracker-work.
 ---
 
@@ -93,6 +94,26 @@ an integrity error. Polish may warn on a lone single-Story Epic (suggest a
 project-level Story) and on a project-level stack (suggest wrapping in an
 Epic). Do not invent Story-level `blockedBy`; promote to an Epic when you need
 cross-unit deps.
+
+## Multi-Epic split
+
+When one capture might be more than one top-level root, split into multiple
+roots (sibling Epics and/or project-level Stories) when either applies:
+
+- **(a) Diamond / cross-stack dependency** — requires a new Epic with
+  `blockedBy` (mechanism:
+  [Author declaratively](#author-declaratively-one-yaml-doc-then-apply);
+  [SPEC.md § The diamond](../../SPEC.md#the-diamond-why-a-multi-parent-dependency-becomes-a-new-epic)).
+- **(b) Independent topics** — themes are independent under the Project
+  vision, not facets of one super-feature (each theme becomes its own root;
+  choose Epic vs project-level Story per root by Epic grain above).
+
+Keep themes that are facets of one super-feature under a **single** root
+Epic (or one project-level Story when grain allows). **Size alone is not a
+signal** to split.
+
+For each resulting root, still choose Epic vs project-level Story by
+[Epic grain](#epic-grain-project-level-story-vs-epic) above.
 
 ## Grain: Story vs Task
 
@@ -184,6 +205,9 @@ Before done:
 - **Epic grain** — single-Story plans use a project-level Story; Epics are for
   sibling roots, stacking, or `blockedBy` (see
   [Epic grain](#epic-grain-project-level-story-vs-epic)).
+- **Multi-Epic split** — decide single root vs multiple top-level roots by
+  diamond/`blockedBy` and independent-topics criteria; size alone does not
+  force a split (see [Multi-Epic split](#multi-epic-split)).
 - No Story/Task is title-only; no Story holds just one task and the
   Story count isn't merely the bullet count.
 - **Parent/child prose boundaries** — follow the localize guidance above

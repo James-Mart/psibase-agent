@@ -71,9 +71,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 - **`issue-tracker-work`** — Implement <epic-or-story-id>: load this skill to coordinate the work.
 - **`issue-tracker-plan`** — grill an Idea, a pre-implementation (`todo`)
   Epic, or a not-started project-level Story to shared understanding, then
-  migrate into a detailed plan tree via `apply` (story-form or epic-form per
-  Epic grain; new Epic id + `issue idea delete`, or in-place rewrite); offers
-  `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
+  migrate into one or more plan trees via `apply` (story-form or epic-form per
+  Epic grain; multi-root when authoring split criteria apply — N applies, mint
+  new root ids, delete source only after all succeed; single-root keeps Idea →
+  new id + delete, or in-place rewrite); offers one yes/no to run
+  `issue-tracker-plan-polish` on every resulting root (no auto-chain).
 - **`issue-tracker-plan-polish`** — polish an existing Epic or
   project-level Story: spawn five parallel read-only check agents
   (`plan-no-ambiguity`, `plan-dry`, `plan-authoring-conformance`,

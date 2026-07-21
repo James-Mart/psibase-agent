@@ -2,18 +2,19 @@
 name: issue-tracker-plan
 description: >-
   Grill an Idea, a pre-implementation (todo) Epic, or a not-started
-  project-level Story until shared understanding, then migrate it into a
-  detailed plan tree via apply (story-form or epic-form per Epic grain). Use
-  when the user asks to plan an Idea, flesh out a todo Epic or not-started
-  project-level Story, or run issue-tracker-plan / grill a tracker plan into
-  Stories and Tasks.
+  project-level Story until shared understanding, then migrate it into one or
+  more detailed plan trees via apply (story-form or epic-form per Epic grain;
+  multi-root when authoring split criteria apply). Use when the user asks to
+  plan an Idea, flesh out a todo Epic or not-started project-level Story, or
+  run issue-tracker-plan / grill a tracker plan into Stories and Tasks.
 ---
 
 # Issue Tracker — Plan (grill → plan tree)
 
-Turn a rough capture into a detailed plan tree — either a **project-level
-Story > Task** tree or an **Epic > Story > Task** tree, per authoring Epic
-grain. You grill the user to shared understanding, propose the tree, get
+Turn a rough capture into one or more detailed plan trees — each a
+**project-level Story > Task** tree or an **Epic > Story > Task** tree, per
+authoring Epic grain and [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split).
+You grill the user to shared understanding, propose the tree(s), get
 explicit go-ahead, then write the tracker via `issue apply`
 (issue-tracker-authoring). Do not implement product code; this skill only
 authors the plan artifact.
@@ -22,10 +23,12 @@ Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
 [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
-Grain, apply doc shape, parent-prose, and prune-by-default rules live in
-issue-tracker-authoring and [SPEC.md](../../SPEC.md) — when proposing the
-tree, apply those rules yourself; only ask the user when a product
-or dependency choice remains after those rules. Do not restate them here.
+Grain, multi-Epic split, apply doc shape, parent-prose, and prune-by-default
+rules live in issue-tracker-authoring and [SPEC.md](../../SPEC.md) — when
+proposing the tree(s), apply those rules yourself; only ask the user when a
+product or dependency choice remains after those rules. Do not restate them
+here. Reference authoring [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split)
+for when one capture becomes multiple roots; do not duplicate that rule text.
 
 ## Argument
 
@@ -94,6 +97,13 @@ Story grain, or slice decomposition — apply issue-tracker-authoring grain
 yourself. Reserve questions for product and dependency choices that remain
 after those rules.
 
+**Early confirm (multi-root).** Once themes are clear enough to apply
+authoring [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split),
+propose the **root set** in chat: each theme as an Epic or project-level Story
+(per Epic grain), plus any Epic `blockedBy` edges. Get agreement on that set
+**before** drilling into each root's Stories/Tasks. If the capture stays a
+single root, skip this beat and continue grilling that root.
+
 **Rules (mandatory):**
 
 - Ask **one question at a time**, waiting for feedback before continuing.
@@ -116,9 +126,12 @@ plugin-local grill-me skill.
 Strict flow after shared understanding (exactly two beats — no extra confirm):
 
 1. **Beat 1 — outline.** Show the proposed tree outline in chat with enough
-   prose that the user can judge scope. Match the chosen migrate shape:
-   story-form → root Story title + Task titles; epic-form → Epic title +
-   Story/Task hierarchy (implementation order). Do **not** `apply` yet.
+   prose that the user can judge scope. Match the chosen migrate shape(s):
+   - **Single root** — story-form → root Story title + Task titles; epic-form →
+     Epic title + Story/Task hierarchy (implementation order).
+   - **Multi-root** — list every resulting root (Epic or project-level Story),
+     each with its Story/Task hierarchy and any `blockedBy` edges.
+   Do **not** `apply` yet.
 2. **Beat 2 — go-ahead.** Get an **explicit go-ahead** to write the tracker
    (e.g. approve the outline / say to apply). The user may edit the proposal
    in chat first.
@@ -126,9 +139,15 @@ Strict flow after shared understanding (exactly two beats — no extra confirm):
 
 ## Migrate
 
-Choose **story-form** or **epic-form** per issue-tracker-authoring **Epic
-grain** (do not restate that rule here). Follow authoring for apply-doc shape
-and prune-by-default scope (never a project-root `apply` for this migration).
+Never a project-form `apply` for this migration. Follow authoring for
+apply-doc shape and prune-by-default scope. Choose **story-form** or
+**epic-form** per root by issue-tracker-authoring **Epic grain** (do not
+restate that rule here).
+
+### Single root (not splitting)
+
+One epic-form or story-form apply. Keep existing in-place / Idea-delete
+behavior:
 
 **Story-form** — `project: <projectId>` string + `story:` object (no `epic:`):
 
@@ -148,11 +167,34 @@ and prune-by-default scope (never a project-root `apply` for this migration).
 Show `apply` stdout (and delete outcome on the Idea path). Report the
 resulting Story or Epic id.
 
+### Multi-root (splitting)
+
+N separate epic-form / story-form applies — one per resulting root. Roots may
+mix Epics and project-level Stories. **Always mint new root ids** (do not reuse
+the source Idea / Epic / Story id as any new root id).
+
+1. Apply in **`blockedBy` order** when deps exist among the new Epic roots;
+   otherwise any order.
+2. On **first apply failure:** stop. Leave already-written roots in place. Do
+   **not** delete the source. No automatic rollback.
+3. Only after **every** apply in the migrate succeeds: delete the source —
+   `issue idea delete <ideaId>`, `issue epic delete <epicId>` (source was
+   `todo`), or `issue story delete <storyId>` (source was not-started
+   project-level Story), as appropriate.
+
+Show each `apply` stdout and the final delete outcome. Report every resulting
+root id.
+
 ## After success
 
-Offer to run **`issue-tracker-plan-polish`** on the resulting Story or Epic
-id: ask **yes/no**. Do **not** auto-chain. If yes, follow that skill; if no,
-stop.
+Offer **one** yes/no to run **`issue-tracker-plan-polish`** on **all**
+resulting roots. Do **not** auto-chain without that yes.
+
+- **Single root** — polish that Story or Epic id if yes.
+- **Multi-root** — if yes, run `issue-tracker-plan-polish` once per root in
+  `blockedBy` order when deps exist among Epic roots; otherwise any order.
+
+If no, stop.
 
 ## Rules
 
