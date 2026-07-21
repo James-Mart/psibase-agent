@@ -25,8 +25,9 @@ Glossary: plugin `SPEC.md`.
 1. Set Task `status` from Mode (before any other step):
    - `implement` → `issue task set <id> status in-progress` (on first entry)
    - `revise` → `issue task set <id> status fixing` (on every revise entry)
-2. Run `issue summary <id>` to rebuild Project → Epic → Story → Task
-   context. Use `issue task view <id>` when you need the full `description.md`.
+2. Run `issue summary <id>` to rebuild Project → … → Task context (Epic may be
+   absent when the Task's Story / work root is project-level). Use
+   `issue task view <id>` when you need the full `description.md`.
    Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
 3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`

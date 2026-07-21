@@ -26,8 +26,9 @@ Do not run any other mutating `issue` command. Do not edit workspace source file
 
 1. On every entry (review or resume):
    `issue task set <taskId> qa reviewing`
-2. Run `issue summary <taskId>` for Project → Epic → Story → Task context,
-   then `issue task view <taskId>` for the Task spec when needed.
+2. Run `issue summary <taskId>` for Project → … → Task context (Epic may be
+   absent when the Task's Story / work root is project-level), then
+   `issue task view <taskId>` for the Task spec when needed.
 3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
    from disk. Consult per that file using the step-2 summary output:

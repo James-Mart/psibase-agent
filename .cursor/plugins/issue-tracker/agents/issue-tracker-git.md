@@ -23,8 +23,9 @@ Glossary: plugin `SPEC.md`.
 
 ## Bootstrap
 
-Run `issue summary <id>` **before any** `git`/`gh` to rebuild Project → Epic →
-Story → Task context. That summary carries the Project **workspace** — run
+Run `issue summary <id>` **before any** `git`/`gh` to rebuild Project → … →
+Task context (Epic may be absent when the Task's Story / work root is
+project-level). That summary carries the Project **workspace** — run
 every `git`/`gh` with it as the working directory, and honor the unset
 escalation, per **SPEC § Project workspace**. **Never** probe or run git —
 including the first `git status` — in the ambient Cursor cwd.

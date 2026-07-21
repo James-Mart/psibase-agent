@@ -26,8 +26,9 @@ Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
 ## Bootstrap
 
-Run `issue summary <taskId>` for Project → Epic → Story → Task context,
-then `issue task view <taskId>` (and `issue story view` / `issue epic view` when needed) to read the specs
+Run `issue summary <taskId>` for Project → … → Task context (Epic may be
+absent when the Task's Story / work root is project-level), then
+`issue task view <taskId>` (and `issue story view` / `issue epic view` when needed) to read the specs
 you score against. That summary also carries the Project **workspace** — you may
 **read-only peek** it (file reads and greps only) to see whether required
 patterns/APIs already exist and to reason about the implementor's likely approach
