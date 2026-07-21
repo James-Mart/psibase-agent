@@ -31,7 +31,8 @@ Glossary: plugin `SPEC.md`.
    Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
 3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk. Consult per that file using the step-2 summary output:
+   from disk (cwd = `Workspace:` from step 2). Consult per that file using the
+   step-2 summary output:
    - `vision`
    - `codingStandards`
    - `designSystem` when this Task appears UI-related (judgment from Task prose

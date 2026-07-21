@@ -42,7 +42,8 @@ Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
    hands back to the user (does not spawn checks).
 3. Read
    `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk. Consult `vision` per that file using the step-1 summary output.
+   from disk (cwd = `Workspace:` from step 1). Consult `vision` per that file
+   using the step-1 summary output.
 4. `issue tree <rootId>` for the Story/Task outline.
 5. `issue <kind> view <id>` on the work root and every Story/Task you review
    (plus any extra `<kind> get` / sibling reads your agent file calls for).
