@@ -85,15 +85,12 @@ export function derive(issues: Issue[]): DeriveResult {
   };
 
   for (const story of storiesById.values()) {
-    // `mergeBase` is derived from topology; `base` is a temporary same-value
-    // alias until retire-base-surface. When unset, omit both so the tree chip
-    // shows `base=(unset)`.
     const storyStatus = storyStatusOf(story);
     const mergeBase = mergeBaseFor(story.stackedOn);
     state[story.id] = {
       blocked: storyStatus === "not-started" && !parentTipDone(story),
       storyStatus,
-      ...(mergeBase !== undefined ? { mergeBase, base: mergeBase } : {}),
+      ...(mergeBase !== undefined ? { mergeBase } : {}),
     };
   }
 

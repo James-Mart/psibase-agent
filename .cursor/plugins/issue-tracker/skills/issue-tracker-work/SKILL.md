@@ -98,8 +98,8 @@ Run these commands in order (use `<rootId>` throughout):
    (coordinator use):**
    - Walk order and Task sequence — top-to-bottom from this output; do not
      reorder by hand.
-   - `base=<ref>` — human display of the Story's stored `mergeBase` (or
-     `base=(unset)` when empty). Informational only; do not copy into git
+   - `mergeBase=<ref>` — derived git fork-point for the Story (or
+     `mergeBase=(unset)` when empty). Informational only; do not copy into git
      spawn stubs — the git agent reads `mergeBase` from
      `issue story get <storyId> mergeBase`.
    - `branch=<name>` — git branch name once recorded; do not copy into spawn
@@ -397,8 +397,8 @@ code-quality, spec-conformance, and revise stubs:
 > hard-coding it here.)*
 
 Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
-**only** Mode + issue id — no work-root id, tree chips, or git facts (`base`,
-`mergeBase`, `branchName`).
+**only** Mode + issue id — no work-root id, tree chips, or git facts
+(`mergeBase`, `branchName`).
 
 **Start branch** — `subagent_type: issue-tracker-git`
 

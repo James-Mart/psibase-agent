@@ -168,7 +168,6 @@ export const STORY_GET_FIELDS = {
   description: DESCRIPTION,
   storyStatus: DERIVED,
   blocked: DERIVED,
-  base: DERIVED,
 } as const satisfies Record<string, GetFieldSpec>;
 
 export const TASK_GET_FIELDS = {

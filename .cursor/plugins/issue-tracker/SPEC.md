@@ -168,9 +168,9 @@ These are computed by `derive()` and never written to disk (see
   [Derived state](#derived-state)).
 - **Story status** — `not-started` / `in-progress` / `pr-open` / `merged`.
 - **Epic status** — `todo` / `in-progress` / `done` (rollup of its Stories).
-- **base** — display of a Story's stored `mergeBase` (tree chip `base=<ref>`,
-  or `base=(unset)` when `mergeBase` is absent). Never re-derived from
-  `stackedOn`.
+- **mergeBase** — derived git fork-point ref for a Story (tree chip
+  `mergeBase=<ref>`, or `mergeBase=(unset)` when absent). Resolved from
+  `stackedOn` topology on read; not stored on disk.
 - **needs-attention** — an escalation flag (`needsAttention` + `attentionReason`),
   orthogonal to status; any kind can carry it.
 - **assignee** — who currently owns an issue (e.g. `human` or an agent id).
@@ -297,7 +297,7 @@ Prefer `issue <kind> get <id> <field>` for scalar reads — do not parse
   default: an Epic with no blockers prints `[]` (arrays as JSON), not empty
   stdout.
 - Readable surface is **wider than set**: any stored field for that kind plus
-  derived fields (`epicStatus`, `storyStatus`, `blocked`, `base`, …).
+  derived fields (`epicStatus`, `storyStatus`, `blocked`, `mergeBase`, …).
 - Includes `description` and `attentionReason` as readable fields.
 
 #### `set`
@@ -1116,8 +1116,8 @@ so cannot drift:
 - **Task `blocked`** — a `todo` Task is `blocked` unless its Story
   (`partOf`) exists with a `branchName` and is not merged, and all earlier
   sibling Tasks (by sequence) are `done`.
-- **Story base** — same as [base](#derived-terms) (derived display of stored
-  `mergeBase` for the tree/detail chips).
+- **Story mergeBase** — derived fork-point ref for tree/detail chips (see
+  [mergeBase](#derived-terms)).
 - **Story status** — `merged` if `merged`; else `pr-open` if it has Tasks,
   all are `done`, and `prUrl` is set; else `in-progress` if `branchName` is set;
   else `not-started`.
@@ -1186,7 +1186,7 @@ in a broken state regardless of who wrote it. Integrity is enforced at the
 source rather than trusted at each call site.
 
 **Derived, not stored.** Anything that can be computed from the whole set —
-Story/Epic status, `blocked`, base — is computed by the pure `derive()`
+Story/Epic status, `blocked`, `mergeBase` — is computed by the pure `derive()`
 and never written to disk. Stored duplicates of derived facts are the classic
 source of drift; by refusing to store them, the tracker cannot show a status
 that disagrees with reality. A Task's `status` (the one genuine human/agent

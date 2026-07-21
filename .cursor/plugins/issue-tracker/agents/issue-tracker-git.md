@@ -41,7 +41,7 @@ follow **## Escalation** and stop — no fallback discovery.
 - **Mode:** `start-branch`, `finish-commit`, or `finish-branch`
 
 The stub passes **only** Mode + issue id. Do not expect Epic id, `mergeBase`,
-`base`, or `branchName` in the prompt.
+or `branchName` in the prompt.
 
 ## Git facts
 
@@ -57,8 +57,8 @@ The stub passes **only** Mode + issue id. Do not expect Epic id, `mergeBase`,
 | Task `noDiff` | `issue task get <taskId> noDiff` | finish-commit |
 
 Do not invent `mergeBase` or `branchName` from titles, `stackedOn`, or
-tree/list chips (`base=` on the tree is a human display of stored
-`mergeBase` — never copy it from the prompt). If `mergeBase` is unset
+tree/list chips (`mergeBase=` on the tree is derived on read — never copy it
+from the prompt). If `mergeBase` is unset
 (empty stdout), `issue story set <storyId> needsAttention true --reason "..."`
 and stop — do not fall back to `stackedOn`. Any other missing/invalid required
 fact → **## Escalation**.

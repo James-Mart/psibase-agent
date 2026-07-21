@@ -8,7 +8,7 @@ import {
 /** Default git base for a root Story (no `stackedOn`). */
 export const EPIC_BASE = "main";
 
-/** Display token for an unset tree/detail chip (`base=(unset)`, `branch=(unset)`). */
+/** Display token for an unset tree/detail chip (`mergeBase=(unset)`, `branch=(unset)`). */
 export const CHIP_UNSET = "(unset)";
 
 export const COMMON_MERGEABLE_KEYS = [

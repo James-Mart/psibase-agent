@@ -291,8 +291,6 @@ export interface DerivedState {
   epicStatus?: EpicStatus;
   /** Derived git fork-point ref (see resolveMergeBase). */
   mergeBase?: string;
-  /** Temporary same-value alias of `mergeBase` until retire-base-surface. */
-  base?: string;
 }
 
 export interface IssuesResponse {

@@ -3,7 +3,7 @@ import { GitCommitHorizontal, GitPullRequest } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { IssueDetail, IssueRecord } from "@server/schemas";
 import { bySequence } from "@server/order";
-import { CHIP_UNSET } from "@server/fields";
+import { CHIP_UNSET, FIELD_LABELS } from "@server/fields";
 import { useIssuesQuery } from "../api/queries";
 import { issuePath } from "../lib/links";
 import { IssueLink } from "./issue-link";
@@ -47,7 +47,7 @@ function BranchPanel({
         />
       ) : null}
       <Row
-        label="Base branch"
+        label={FIELD_LABELS.mergeBase}
         value={
           <span className="font-mono">
             {state?.mergeBase ?? CHIP_UNSET}
@@ -62,9 +62,7 @@ function BranchPanel({
               {issue.stackedOn}
             </IssueLink>
           ) : (
-            <span className="text-muted-foreground">
-              base ({state?.mergeBase ?? CHIP_UNSET})
-            </span>
+            <span className="text-muted-foreground">(root)</span>
           )
         }
       />
