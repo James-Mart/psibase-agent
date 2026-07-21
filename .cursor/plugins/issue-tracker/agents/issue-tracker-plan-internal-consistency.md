@@ -13,8 +13,8 @@ polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
-`Workspace:`):
+Before other work: `issue summary <rootId>`, then **Read** the absolute path
+formed by joining `Workspace:` from that summary with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 
@@ -25,7 +25,7 @@ uniquely flag.
 ## supportingDocs read seam (consult-if-present)
 
 After the shared-contract bootstrap (which already consults `vision`), **Read**
-from disk (cwd = `Workspace:`):
+the absolute path formed by joining `Workspace:` from the summary with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
 

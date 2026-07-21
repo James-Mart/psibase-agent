@@ -29,10 +29,9 @@ Do not run any other mutating `issue` command. Do not edit workspace source file
 2. Run `issue summary <taskId>` for Project → … → Task context (Epic may be
    absent when the Task's Story / work root is project-level), then
    `issue task view <taskId>` for the Task spec when needed.
-3. Read
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk (cwd = `Workspace:` from step 2). Consult per that file using the
-   step-2 summary output:
+3. Read the absolute path formed by joining `Workspace:` from step 2 with
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+   Consult per that file using the step-2 summary output:
    - `codingStandards`
    - `designSystem` when this Task appears UI-related (judgment from Task prose
      plus paths in the working-tree diff; no Task flag)

@@ -13,8 +13,8 @@ polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **read from disk** (cwd =
-`Workspace:`):
+Before other work: `issue summary <rootId>`, then **Read** the absolute path
+formed by joining `Workspace:` from that summary with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 
@@ -24,8 +24,8 @@ uniquely flag.
 
 ## Normative checklist files
 
-After loading the shared contract, **Read** from disk (cwd = `Workspace:`)
-these workspace-relative paths under `.cursor/plugins/issue-tracker/`:
+After loading the shared contract, **Read** each absolute path formed by
+joining `Workspace:` from the summary with:
 
 - `.cursor/plugins/issue-tracker/skills/issue-tracker-authoring/SKILL.md`
 - `.cursor/plugins/issue-tracker/SPEC.md` — follow anchors linked from the

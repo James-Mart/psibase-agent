@@ -29,10 +29,9 @@ Glossary: plugin `SPEC.md`.
    absent when the Task's Story / work root is project-level). Use
    `issue task view <id>` when you need the full `description.md`.
    Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-3. Read
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk (cwd = `Workspace:` from step 2). Consult per that file using the
-   step-2 summary output:
+3. Read the absolute path formed by joining `Workspace:` from step 2 with
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+   Consult per that file using the step-2 summary output:
    - `vision`
    - `codingStandards`
    - `designSystem` when this Task appears UI-related (judgment from Task prose

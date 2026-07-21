@@ -4,11 +4,11 @@ Not a spawnable agent (no frontmatter). Referenced by the five
 `issue-tracker-plan-*` check agents and by `issue-tracker-plan-polish`
 Bootstrap (work-root kind gates). Used by `issue-tracker-plan-polish`.
 
-Spawnable agents **must** load this file from disk at bootstrap (workspace-
-relative path below) — a markdown link in the agent body is not enough;
-Cursor does not inject linked files into the subagent prompt.
+Spawnable agents **must** load this file from disk at bootstrap (absolute
+path below) — a markdown link in the agent body is not enough; Cursor does
+not inject linked files into the subagent prompt.
 
-Workspace-relative path (cwd = `Workspace:` from `issue summary`):
+Absolute path for this file: join `Workspace:` from `issue summary` with:
 
 `.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 
@@ -40,10 +40,9 @@ Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
    - Any other kind → refuse.
    On refuse: check agents return `[]` and stop; the coordinator stops and
    hands back to the user (does not spawn checks).
-3. Read
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-   from disk (cwd = `Workspace:` from step 1). Consult `vision` per that file
-   using the step-1 summary output.
+3. Read the absolute path formed by joining `Workspace:` from step 1 with
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+   Consult `vision` per that file using the step-1 summary output.
 4. `issue tree <rootId>` for the Story/Task outline.
 5. `issue <kind> view <id>` on the work root and every Story/Task you review
    (plus any extra `<kind> get` / sibling reads your agent file calls for).
