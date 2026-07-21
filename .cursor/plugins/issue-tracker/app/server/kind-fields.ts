@@ -155,7 +155,7 @@ export const STORY_GET_FIELDS = {
   attentionReason: STORED,
   archived: STORED,
   branchName: STORED,
-  mergeBase: STORED,
+  mergeBase: DERIVED,
   stackedOn: STORED,
   prUrl: STORED,
   merged: STORED,

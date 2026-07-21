@@ -3,13 +3,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  assignResolvedMergeBase,
-  resolveMergeBase,
   EPIC_BASE,
   branchNameRenameError,
-  planBranchNameMergeBaseCascade,
-  planMergeBaseCascades,
-  planMergedMergeBaseCascade,
   stackedChildren,
 } from "./merge-base";
 import type { Issue } from "../schemas";
@@ -35,67 +30,7 @@ function branch(
   };
 }
 
-describe("resolveMergeBase", () => {
-  it("defaults a root Branch to main", () => {
-    expect(resolveMergeBase(undefined, [])).toBe(EPIC_BASE);
-  });
-
-  it("uses the parent's branchName when the parent is already named", () => {
-    const issues = [branch("parent", { branchName: "feat/parent" })];
-    expect(resolveMergeBase("parent", issues)).toBe("feat/parent");
-  });
-
-  it("leaves a stacked child unset when the parent has no branchName", () => {
-    const issues = [branch("parent")];
-    expect(resolveMergeBase("parent", issues)).toBeUndefined();
-  });
-
-  it("uses parent.mergeBase when the parent is merged (not branchName)", () => {
-    const issues = [
-      branch("parent", {
-        branchName: "feat/parent",
-        mergeBase: "main",
-        merged: true,
-      }),
-    ];
-    expect(resolveMergeBase("parent", issues)).toBe("main");
-  });
-
-  it("uses branchName when the parent is unmerged even if mergeBase is set", () => {
-    const issues = [
-      branch("parent", {
-        branchName: "feat/parent",
-        mergeBase: "main",
-        merged: false,
-      }),
-    ];
-    expect(resolveMergeBase("parent", issues)).toBe("feat/parent");
-  });
-
-  it("leaves unset when the merged parent has no mergeBase", () => {
-    const issues = [
-      branch("parent", {
-        branchName: "feat/parent",
-        merged: true,
-      }),
-    ];
-    expect(resolveMergeBase("parent", issues)).toBeUndefined();
-  });
-});
-
-describe("assignResolvedMergeBase", () => {
-  it("clears mergeBase when the resolver returns unset", () => {
-    const issues = [branch("parent")];
-    const story = branch("child", {
-      stackedOn: "parent",
-      mergeBase: "stale",
-    }) as Extract<Issue, { kind: "story" }>;
-    assignResolvedMergeBase(story, issues);
-    expect(story.mergeBase).toBeUndefined();
-  });
-});
-
-describe("mergeBase cascades (planning)", () => {
+describe("branchName rename guard", () => {
   it("lists direct stacked children only", () => {
     const issues = [
       branch("parent"),
@@ -108,37 +43,7 @@ describe("mergeBase cascades (planning)", () => {
     ]);
   });
 
-  it("first-time name fills only empty child mergeBases", () => {
-    const issues = [
-      branch("parent"),
-      branch("empty", { stackedOn: "parent" }),
-      branch("kept", { stackedOn: "parent", mergeBase: "already" }),
-    ];
-    expect(
-      planBranchNameMergeBaseCascade("parent", "feat/parent", issues),
-    ).toEqual([{ id: "empty", mergeBase: "feat/parent" }]);
-  });
-
-  it("set-merged retargets every child to the parent's mergeBase", () => {
-    const issues = [
-      branch("parent", { mergeBase: "main" }),
-      branch("a", { stackedOn: "parent", mergeBase: "feat/parent" }),
-      branch("b", { stackedOn: "parent", mergeBase: "main" }),
-    ];
-    expect(planMergedMergeBaseCascade("parent", "main", issues)).toEqual([
-      { id: "a", mergeBase: "main" },
-    ]);
-  });
-
-  it("set-merged is a no-op when parent mergeBase is unset", () => {
-    const issues = [
-      branch("parent"),
-      branch("child", { stackedOn: "parent", mergeBase: "feat/parent" }),
-    ];
-    expect(planMergedMergeBaseCascade("parent", undefined, issues)).toEqual([]);
-  });
-
-  it("rename error allows same-value branchName with stacked children", () => {
+  it("allows same-value branchName with stacked children", () => {
     const existing = branch("parent", { branchName: "feat/parent" });
     const issues = [existing, branch("child", { stackedOn: "parent" })];
     expect(
@@ -146,50 +51,16 @@ describe("mergeBase cascades (planning)", () => {
     ).toBeNull();
   });
 
-  it("rename error refuses a real rename with stacked children", () => {
+  it("refuses a real rename with stacked children", () => {
     const existing = branch("parent", { branchName: "feat/parent" });
     const issues = [existing, branch("child", { stackedOn: "parent" })];
     expect(
       branchNameRenameError(existing, { branchName: "feat/other" }, issues),
     ).toMatch(/cannot change branchName.*"parent".*child/);
   });
-
-  it("planMergeBaseCascades wires first-time name and set-merged triggers", () => {
-    const unnamed = branch("parent");
-    const issues = [
-      unnamed,
-      branch("empty", { stackedOn: "parent" }),
-      branch("kept", { stackedOn: "parent", mergeBase: "already" }),
-    ];
-    const named = { ...unnamed, branchName: "feat/parent" };
-    expect(
-      planMergeBaseCascades(unnamed, { branchName: "feat/parent" }, named, issues),
-    ).toEqual([{ id: "empty", mergeBase: "feat/parent" }]);
-
-    const parent = branch("parent", {
-      branchName: "feat/parent",
-      mergeBase: "main",
-      merged: true,
-    });
-    const stacked = [
-      parent,
-      branch("a", { stackedOn: "parent", mergeBase: "feat/parent" }),
-    ];
-    expect(
-      planMergeBaseCascades(parent, { merged: true }, parent, stacked),
-    ).toEqual([{ id: "a", mergeBase: "main" }]);
-  });
 });
 
-describe("backfill value (resolveMergeBase ?? main)", () => {
-  it("falls back to main when the resolver leaves a stacked child unset", () => {
-    expect(resolveMergeBase("parent", [branch("parent")]) ?? EPIC_BASE).toBe(
-      EPIC_BASE,
-    );
-  });
-});
-
-describe("ensureMergeBaseBackfilled (via list)", () => {
+describe("ensureMergeBaseStripped (via list)", () => {
   let dir: string;
 
   function writeIssue(id: string, body: Record<string, unknown>): void {
@@ -221,12 +92,13 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("backfills missing mergeBase once: root→main, child→parent name or main", async () => {
+  it("strips stored mergeBase once and never writes it again", async () => {
     writeIssue("root", {
       kind: "story",
       title: "Root",
       partOf: "e",
       branchName: "feat/root",
+      mergeBase: "main",
       order: 0,
       createdAt: AT,
       updatedAt: AT,
@@ -236,6 +108,17 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
       title: "Child named parent",
       partOf: "e",
       stackedOn: "root",
+      mergeBase: "feat/root",
+      order: 0,
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    writeIssue("child-unnamed", {
+      kind: "story",
+      title: "Child unnamed parent",
+      partOf: "e",
+      stackedOn: "orphan-parent",
+      mergeBase: "stale",
       order: 0,
       createdAt: AT,
       updatedAt: AT,
@@ -248,57 +131,28 @@ describe("ensureMergeBaseBackfilled (via list)", () => {
       createdAt: AT,
       updatedAt: AT,
     });
-    writeIssue("child-unnamed", {
-      kind: "story",
-      title: "Child unnamed parent",
-      partOf: "e",
-      stackedOn: "orphan-parent",
-      order: 0,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    writeIssue("merged-parent", {
-      kind: "story",
-      title: "Merged parent",
-      partOf: "e",
-      branchName: "feat/merged",
-      mergeBase: "main",
-      merged: true,
-      order: 2,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    writeIssue("child-merged", {
-      kind: "story",
-      title: "Child of merged parent",
-      partOf: "e",
-      stackedOn: "merged-parent",
-      order: 0,
-      createdAt: AT,
-      updatedAt: AT,
-    });
 
     const { list } = await import("./issues.js");
-    list();
+    const first = list();
 
-    expect(readIssue("root").mergeBase).toBe(EPIC_BASE);
-    expect(readIssue("child-named").mergeBase).toBe("feat/root");
-    expect(readIssue("orphan-parent").mergeBase).toBe(EPIC_BASE);
-    // Pre-field children of unnamed parents still get main (legacy formula).
-    expect(readIssue("child-unnamed").mergeBase).toBe(EPIC_BASE);
-    expect(readIssue("child-merged").mergeBase).toBe("main");
+    expect(readIssue("root").mergeBase).toBeUndefined();
+    expect(readIssue("child-named").mergeBase).toBeUndefined();
+    expect(readIssue("child-unnamed").mergeBase).toBeUndefined();
+    expect(first.derived.root?.mergeBase).toBe(EPIC_BASE);
+    expect(first.derived["child-named"]?.mergeBase).toBe("feat/root");
+    expect(first.derived["child-unnamed"]?.mergeBase).toBeUndefined();
 
-    // Second list does not clobber an intentional post-migration clear.
     writeIssue("fresh-child", {
       kind: "story",
       title: "Fresh",
       partOf: "e",
-      stackedOn: "orphan-parent",
+      stackedOn: "root",
       order: 1,
       createdAt: AT,
       updatedAt: AT,
     });
     list();
     expect(readIssue("fresh-child").mergeBase).toBeUndefined();
+    expect(list().derived["fresh-child"]?.mergeBase).toBe("feat/root");
   });
 });

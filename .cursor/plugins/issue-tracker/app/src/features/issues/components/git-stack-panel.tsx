@@ -48,7 +48,11 @@ function BranchPanel({
       ) : null}
       <Row
         label="Base branch"
-        value={<span className="font-mono">{issue.mergeBase ?? CHIP_UNSET}</span>}
+        value={
+          <span className="font-mono">
+            {state?.mergeBase ?? CHIP_UNSET}
+          </span>
+        }
       />
       <Row
         label="Stacked on"
@@ -59,7 +63,7 @@ function BranchPanel({
             </IssueLink>
           ) : (
             <span className="text-muted-foreground">
-              base ({issue.mergeBase ?? CHIP_UNSET})
+              base ({state?.mergeBase ?? CHIP_UNSET})
             </span>
           )
         }

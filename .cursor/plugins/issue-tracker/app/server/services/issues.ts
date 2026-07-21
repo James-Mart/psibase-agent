@@ -38,11 +38,8 @@ import { derive } from "./derive.js";
 import { checkIntegrity, problemsFor } from "./integrity.js";
 import { mergeIssue } from "./merge.js";
 import {
-  assignResolvedMergeBase,
   branchNameRenameError,
-  ensureMergeBaseBackfilled,
-  planMergeBaseCascades,
-  type MergeBaseCascadePatch,
+  ensureMergeBaseStripped,
 } from "./merge-base.js";
 import {
   ensureArchivedBackfilled,
@@ -149,11 +146,11 @@ export function readAll(): { issues: Issue[]; problems: Problem[] } {
   return { issues, problems };
 }
 
-// One-time mergeBase migration. Safe to call from list/create/apply; no-ops
+// One-time mergeBase strip. Safe to call from list/create/apply; no-ops
 // after the marker file exists.
 export function ensureMergeBasesMigrated(): void {
-  ensureMergeBaseBackfilled((branch) => {
-    persist(branch, serializeIssue(branch));
+  ensureMergeBaseStripped((story) => {
+    persist(story, serializeIssue(story));
   });
 }
 
@@ -317,8 +314,6 @@ function assertWritable(target: Issue, all: Issue[]): void {
 
 export function create(input: CreateInput): Promise<IssueRecord> {
   return serialize(() => {
-    // Migrate pre-field Branches before any create so intentional unset on a
-    // new stacked child is not later filled by the one-time backfill.
     ensureMigrations();
     const title = input.title?.trim();
     if (!title) throw new IssueError("validation", "title is required");
@@ -379,9 +374,6 @@ export function create(input: CreateInput): Promise<IssueRecord> {
 
     const parsed = parseIssue(draft);
     if (!parsed.ok) throw new IssueError("validation", parsed.message);
-    if (parsed.issue.kind === "story") {
-      assignResolvedMergeBase(parsed.issue, issues);
-    }
 
     assertWritable(parsed.issue, issues);
     persist(parsed.issue, serializeIssue(parsed.issue));
@@ -395,7 +387,6 @@ export function create(input: CreateInput): Promise<IssueRecord> {
 
 /** Group planned cascade field patches by child and apply one merged write each. */
 function applyCascadePatches(
-  mergeBasePatches: MergeBaseCascadePatch[],
   archivedPatches: ArchivedCascadePatch[],
   labelPatches: LabelCascadePatch[],
   issues: Issue[],
@@ -404,10 +395,6 @@ function applyCascadePatches(
   const byId = new Map(issues.map((issue) => [issue.id, issue]));
   const patchesById = new Map<string, IssuePatch>();
 
-  for (const { id: childId, mergeBase } of mergeBasePatches) {
-    const prior = patchesById.get(childId) ?? {};
-    patchesById.set(childId, { ...prior, mergeBase });
-  }
   for (const { id: childId, archived } of archivedPatches) {
     const prior = patchesById.get(childId) ?? {};
     patchesById.set(childId, { ...prior, archived });
@@ -424,12 +411,6 @@ function applyCascadePatches(
       throw new IssueError(
         "validation",
         `cascade target "${childId}" is missing`,
-      );
-    }
-    if (patch.mergeBase !== undefined && child.kind !== "story") {
-      throw new IssueError(
-        "validation",
-        `mergeBase cascade target "${childId}" is missing or not a story`,
       );
     }
     if (patch.archived !== undefined && child.kind === "project") {
@@ -493,7 +474,7 @@ export function renameProjectLabel(
 
     const now = new Date().toISOString();
     projectParsed.issue.updatedAt = now;
-    const cascaded = applyCascadePatches([], [], assignmentPatches, issues, now);
+    const cascaded = applyCascadePatches([], assignmentPatches, issues, now);
 
     const writes: IssueWrite[] = [
       { issue: projectParsed.issue },
@@ -564,21 +545,6 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       next.order = nextSiblingOrder(issues, next.kind, partOf, stackedOn, id);
     }
 
-    if (
-      existing.kind === "story" &&
-      next.kind === "story" &&
-      "stackedOn" in jsonPatch &&
-      existing.stackedOn !== next.stackedOn
-    ) {
-      assignResolvedMergeBase(next, issues);
-    }
-
-    const mergeBaseCascadePatches = planMergeBaseCascades(
-      existing,
-      jsonPatch,
-      next,
-      issues,
-    );
     const archivedCascadePatches = planArchivedCascade(
       existing,
       jsonPatch,
@@ -601,7 +567,6 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
       JSON.stringify(parsed.issue) === JSON.stringify(existing);
     if (
       jsonUnchanged &&
-      mergeBaseCascadePatches.length === 0 &&
       archivedCascadePatches.length === 0 &&
       labelCascadePatches.length === 0 &&
       description === undefined
@@ -611,7 +576,6 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
 
     const now = new Date().toISOString();
     const cascaded = applyCascadePatches(
-      mergeBaseCascadePatches,
       archivedCascadePatches,
       labelCascadePatches,
       issues,
@@ -737,13 +701,6 @@ export function remove(id: string): Promise<DeletionResult> {
       }
       const parsed = parseIssue(mergeIssue(issue, patch));
       if (!parsed.ok) throw new IssueError("validation", parsed.message);
-      if (
-        issue.kind === "story" &&
-        parsed.issue.kind === "story" &&
-        "stackedOn" in patch
-      ) {
-        assignResolvedMergeBase(parsed.issue, issues);
-      }
       parsed.issue.updatedAt = now;
       survivors.push(parsed.issue);
       toPersist.push(parsed.issue);
