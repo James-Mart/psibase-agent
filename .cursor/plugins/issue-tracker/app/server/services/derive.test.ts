@@ -130,29 +130,38 @@ describe("derive - commit blocked", () => {
   });
 });
 
-describe("derive - branch base resolution", () => {
-  it("uses the stored mergeBase as base", () => {
+describe("derive - branch mergeBase resolution", () => {
+  it("derives mergeBase from a named parent", () => {
     const issues = [
       epic("e"),
-      branch("base", "e", { branchName: "feat/base", mergeBase: EPIC_BASE }),
-      branch("b", "e", { stackedOn: "base", mergeBase: "feat/base" }),
-    ];
-    const { byId } = derive(issues);
-    expect(byId.b.base).toBe("feat/base");
-  });
-
-  it("surfaces a root Branch's stored mergeBase (typically main)", () => {
-    const issues = [epic("e"), branch("b", "e", { mergeBase: EPIC_BASE })];
-    expect(derive(issues).byId.b.base).toBe(EPIC_BASE);
-  });
-
-  it("omits base when mergeBase is unset (does not re-derive from stackedOn)", () => {
-    const issues = [
-      epic("e"),
-      branch("base", "e", { branchName: "feat/base", mergeBase: EPIC_BASE }),
+      branch("base", "e", { branchName: "feat/base" }),
       branch("b", "e", { stackedOn: "base" }),
     ];
-    expect(derive(issues).byId.b.base).toBeUndefined();
+    const { byId } = derive(issues);
+    expect(byId.b.mergeBase).toBe("feat/base");
+  });
+
+  it("surfaces a root Branch's derived mergeBase as main", () => {
+    const issues = [epic("e"), branch("b", "e")];
+    expect(derive(issues).byId.b.mergeBase).toBe(EPIC_BASE);
+  });
+
+  it("omits mergeBase when stacked on an unnamed parent", () => {
+    const issues = [
+      epic("e"),
+      branch("base", "e"),
+      branch("b", "e", { stackedOn: "base" }),
+    ];
+    expect(derive(issues).byId.b.mergeBase).toBeUndefined();
+  });
+
+  it("derives mergeBase from a merged parent's resolve", () => {
+    const issues = [
+      epic("e"),
+      branch("parent", "e", { branchName: "feat/parent", merged: true }),
+      branch("b", "e", { stackedOn: "parent" }),
+    ];
+    expect(derive(issues).byId.b.mergeBase).toBe(EPIC_BASE);
   });
 });
 

@@ -22,7 +22,6 @@ import { checkIntegrity } from "./integrity.js";
 import { nextSiblingOrder } from "../order.js";
 import { IssueError } from "./errors.js";
 import { mergeIssue } from "./merge.js";
-import { resolveMergeBase } from "./merge-base.js";
 import { ancestorIsArchived } from "./archived-visibility.js";
 import { subtreeIds } from "./subtree.js";
 
@@ -36,13 +35,12 @@ export interface ApplySummary {
 // Build the on-disk issue for a desired doc node. Doc-owned fields (title,
 // partOf, stackedOn, and the Epic's blockedBy) come from the doc.
 // Imperative/progress fields
-// (retro, status, qa, commitSha, noDiff, branchName, mergeBase, prUrl, merged, specReview, assignee,
+// (retro, status, qa, commitSha, noDiff, branchName, prUrl, merged, specReview, assignee,
 // needsAttention, attentionReason, archived, workspace, mergePolicy, labels, supportingDocs) and
 // `createdAt` are preserved from a same-kind existing issue; for a brand-new issue they are left
 // off the draft entirely so `parseIssue` fills them from the schema `.default()`s — except
 // `archived`, which is seeded true when any ancestor is archived (matching `create`).
-// Story `mergeBase` is also resolved (not preserved) on create and when `stackedOn`
-// changes; unchanged `stackedOn` keeps the on-disk value. `apply` never reads or writes
+// Story `mergeBase` is derived on read (not stored). `apply` never reads or writes
 // runtime state beyond preserving it, and never touches chat.jsonl. `updatedAt` is set
 // to `now`; callers revert it when nothing actually changed so re-apply does not churn
 // timestamps.
@@ -139,21 +137,11 @@ function buildIssue(
 
   if (desired.kind === "story") {
     const prior = existing && existing.kind === "story" ? existing : undefined;
-    const restacked = prior !== undefined && prior.stackedOn !== stackedOn;
     if (stackedOn !== undefined) draft.stackedOn = stackedOn;
     if (prior) {
       draft.merged = prior.merged;
       for (const key of STORY_RUNTIME_OPTIONAL_KEYS) {
-        if (restacked && key === "mergeBase") continue;
         if (prior[key] !== undefined) draft[key] = prior[key];
-      }
-    }
-    if (!prior || restacked) {
-      const mergeBase = resolveMergeBase(stackedOn, onDisk);
-      if (mergeBase !== undefined) {
-        draft.mergeBase = mergeBase;
-      } else if (restacked) {
-        delete draft.mergeBase;
       }
     }
   }
@@ -277,7 +265,7 @@ function resolveRoot(
 // so it cannot race HTTP/CLI writes.
 export function apply(doc: ApplyDoc): Promise<ApplySummary> {
   return serialize(() => {
-    // Same one-time migrations as list/create — mergeBase before intentional
+    // Same one-time migrations as list/create — strip stored mergeBase before
     // unset on new stacked children; archived before create-under-archived.
     ensureMigrations();
     const now = new Date().toISOString();

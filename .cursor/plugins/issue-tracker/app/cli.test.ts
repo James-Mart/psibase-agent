@@ -1233,13 +1233,14 @@ describe("story get/set", () => {
     expect(runCli(["story", "get", "a", "attentionReason"]).stdout).toBe("");
   });
 
-  it("gets derived storyStatus, base, and blocked", () => {
+  it("gets derived storyStatus, mergeBase, and blocked", () => {
     expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("not-started\n");
-    expect(runCli(["story", "get", "a", "base"]).stdout).toBe("main\n");
+    expect(runCli(["story", "get", "a", "mergeBase"]).stdout).toBe("main\n");
     expect(runCli(["story", "get", "a", "blocked"]).stdout).toBe("false\n");
 
     expect(runCli(["story", "get", "b", "blocked"]).stdout).toBe("true\n");
-    expect(runCli(["story", "get", "b", "base"]).stdout).toBe("main\n");
+    // b is stacked on unnamed a — derived mergeBase unset.
+    expect(runCli(["story", "get", "b", "mergeBase"]).stdout).toBe("");
 
     const add = runCli([
       "story",
@@ -1252,24 +1253,13 @@ describe("story get/set", () => {
     ]);
     expect(add.status).toBe(0);
     const childId = add.stdout.trim();
-    expect(runCli(["story", "get", childId, "base"]).stdout).toBe("");
+    expect(runCli(["story", "get", childId, "mergeBase"]).stdout).toBe("");
 
     expect(runCli(["story", "set", "a", "branchName", "feat/a"]).status).toBe(0);
     expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("in-progress\n");
     expect(runCli(["story", "get", "b", "blocked"]).stdout).toBe("false\n");
-
-    writeIssue("b", {
-      kind: "story",
-      title: "Branch B",
-      partOf: "e",
-      stackedOn: "a",
-      mergeBase: "feat/a",
-      merged: false,
-      order: 1,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    expect(runCli(["story", "get", "b", "base"]).stdout).toBe("feat/a\n");
+    expect(runCli(["story", "get", "b", "mergeBase"]).stdout).toBe("feat/a\n");
+    expect(mergeBaseOf("b")).toBeUndefined();
 
     writeIssue("c1", {
       kind: "task",
@@ -1284,13 +1274,12 @@ describe("story get/set", () => {
     expect(runCli(["story", "get", "a", "storyStatus"]).stdout).toBe("pr-open\n");
   });
 
-  it("cascades mergeBase on merged via kind set", () => {
+  it("does not cascade mergeBase on disk when parent is merged", () => {
     writeIssue("a", {
       kind: "story",
       title: "Branch A",
       partOf: "e",
       branchName: "feat/a",
-      mergeBase: "main",
       merged: false,
       order: 0,
       createdAt: AT,
@@ -1301,7 +1290,6 @@ describe("story get/set", () => {
       title: "Branch B",
       partOf: "e",
       stackedOn: "a",
-      mergeBase: "feat/a",
       merged: false,
       order: 1,
       createdAt: AT,
@@ -1309,7 +1297,8 @@ describe("story get/set", () => {
     });
 
     expect(runCli(["story", "set", "a", "merged", "true"]).status).toBe(0);
-    expect(mergeBaseOf("b")).toBe("main");
+    expect(mergeBaseOf("b")).toBeUndefined();
+    expect(runCli(["story", "get", "b", "mergeBase"]).stdout).toBe("main\n");
     expect(runCli(["story", "get", "a", "merged"]).stdout).toBe("true\n");
   });
 
@@ -1321,6 +1310,10 @@ describe("story get/set", () => {
     const unknownGet = runCli(["story", "get", "a", "blockedBy"]);
     expect(unknownGet.status).toBe(1);
     expect(unknownGet.stderr).toContain('unknown field "blockedBy" for story');
+
+    const removedBase = runCli(["story", "get", "a", "base"]);
+    expect(removedBase.status).toBe(1);
+    expect(removedBase.stderr).toContain('unknown field "base" for story');
 
     const removedReady = runCli(["story", "get", "a", "ready"]);
     expect(removedReady.status).toBe(1);
@@ -1720,21 +1713,21 @@ describe("tree", () => {
     // so adding or reordering a chip doesn't break this indentation test.
     expect(stdout).toMatch(/^ {4}story a {2}Branch A {2}\[.*\]$/m);
     expect(stdout).toMatch(/^ {4}story a\b.*\bstatus=not-started\b/m);
-    expect(stdout).toMatch(/^ {4}story a\b.*\bbase=main\b/m);
+    expect(stdout).toMatch(/^ {4}story a\b.*\bmergeBase=main\b/m);
     expect(stdout).toMatch(/^ {4}story a\b.*\bbranch=\(unset\)/m);
     expect(stdout).toMatch(/^ {6}task c1 {2}C1 {2}\[status=todo\b.*\]$/m);
     // A story stacked on a root sits one level deeper (+6, same as its
-    // sibling task), and carries a base chip.
-    expect(stdout).toMatch(/^ {6}story b {2}Branch B {2}\[.*base=main.*\]$/m);
+    // sibling task). Parent a is unnamed → derived mergeBase=(unset).
+    expect(stdout).toMatch(/^ {6}story b {2}Branch B {2}\[.*mergeBase=\(unset\).*\]$/m);
 
     // Depth-first: the root story and its task precede the stacked story.
     expect(stdout.indexOf("story a")).toBeLessThan(stdout.indexOf("task c1"));
     expect(stdout.indexOf("task c1")).toBeLessThan(stdout.indexOf("story b"));
   });
 
-  it("shows base=(unset) for a stacked child whose mergeBase is not set yet", () => {
-    // Create via the CLI so post-migration semantics apply: child of an
-    // unnamed parent leaves mergeBase unset until branchName cascades.
+  it("shows mergeBase=(unset) for a stacked child whose mergeBase is not set yet", () => {
+    // Create via the CLI: child of an unnamed parent leaves derived mergeBase
+    // unset until the parent gets a branchName.
     const add = runCli([
       "story",
       "add",
@@ -1749,7 +1742,7 @@ describe("tree", () => {
     const { stdout, status } = runCli(["tree", "p"]);
     expect(status).toBe(0);
     expect(stdout).toMatch(
-      new RegExp(`^\\s+story ${childId}\\b.*\\bbase=\\(unset\\)`, "m"),
+      new RegExp(`^\\s+story ${childId}\\b.*\\bmergeBase=\\(unset\\)`, "m"),
     );
   });
 

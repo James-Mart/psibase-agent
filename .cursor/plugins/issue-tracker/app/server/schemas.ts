@@ -167,11 +167,6 @@ export const storySchema = z.object({
   kind: z.literal("story"),
   partOf: nonEmpty,
   branchName: z.string().optional(),
-  // Git ref this Story forks from / merges into. Set at create/apply (root →
-  // `main`; stacked child → parent's `branchName` when known). Absent until the
-  // parent is named for a child created before that. Never silently re-derived
-  // from `stackedOn` at git/spawn time — see stored `mergeBase` / derived `base`.
-  mergeBase: z.string().min(1).optional(),
   stackedOn: z.string().optional(),
   prUrl: z.string().optional(),
   merged: z.boolean().default(false),
@@ -294,7 +289,8 @@ export interface DerivedState {
   blocked: boolean;
   storyStatus?: StoryStatus;
   epicStatus?: EpicStatus;
-  base?: string;
+  /** Derived git fork-point ref (see resolveMergeBase). */
+  mergeBase?: string;
 }
 
 export interface IssuesResponse {

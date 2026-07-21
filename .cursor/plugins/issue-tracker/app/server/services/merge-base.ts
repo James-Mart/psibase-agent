@@ -3,54 +3,17 @@ import { join } from "path";
 import { issuesDir } from "../config.js";
 import type { Issue, IssuePatch } from "../schemas.js";
 import { CHIP_UNSET, EPIC_BASE } from "../fields.js";
+import { resolveMergeBase } from "../resolve-merge-base.js";
 import { forEachOnDiskIssue } from "./scan-disk.js";
 
-// Re-exported from the client-safe `fields` module so browser code can read
-// these pure constants without pulling this fs-backed module into the bundle.
-export { CHIP_UNSET, EPIC_BASE };
+// Re-exported from the client-safe `fields` / resolve modules so callers that
+// already import this service keep a stable surface. Browser code must import
+// the pure helpers from `fields` / `resolve-merge-base` instead.
+export { CHIP_UNSET, EPIC_BASE, resolveMergeBase };
 
-const BACKFILL_FLAG = ".merge-base-backfilled";
+const STRIP_FLAG = ".merge-base-stripped";
 
 type Story = Extract<Issue, { kind: "story" }>;
-
-function storyById(issues: Issue[]): Map<string, Story> {
-  const map = new Map<string, Story>();
-  for (const issue of issues) {
-    if (issue.kind === "story") map.set(issue.id, issue);
-  }
-  return map;
-}
-
-/**
- * Shared parent resolver for Story `mergeBase` on create / apply-new, restack
- * (`stackedOn` change), and backfill. Root → `main`. Merged parent →
- * `parent.mergeBase`. Otherwise parent's `branchName` when set; else unset.
- */
-export function resolveMergeBase(
-  stackedOn: string | undefined,
-  issues: Issue[],
-  storiesById?: Map<string, Story>,
-): string | undefined {
-  if (!stackedOn) return EPIC_BASE;
-  const parent = (storiesById ?? storyById(issues)).get(stackedOn);
-  if (!parent) return undefined;
-  if (parent.merged) return parent.mergeBase;
-  return parent.branchName;
-}
-
-/** Persist resolver result on a Story (overwrite or clear). */
-export function assignResolvedMergeBase(
-  story: Story,
-  issues: Issue[],
-  storiesById?: Map<string, Story>,
-): void {
-  const mergeBase = resolveMergeBase(story.stackedOn, issues, storiesById);
-  if (mergeBase === undefined) {
-    delete story.mergeBase;
-  } else {
-    story.mergeBase = mergeBase;
-  }
-}
 
 /** Branches whose `stackedOn` is `parentId` (direct children only). */
 export function stackedChildren(parentId: string, issues: Issue[]): Story[] {
@@ -59,39 +22,6 @@ export function stackedChildren(parentId: string, issues: Issue[]): Story[] {
       issue.kind === "story" && issue.stackedOn === parentId,
   );
 }
-
-/**
- * First-time `set-branch-name` cascade: children with empty `mergeBase` get
- * the parent's new `branchName`. Children that already have a `mergeBase`
- * (e.g. retargeted by `set-merged`) are left alone.
- */
-export function planBranchNameMergeBaseCascade(
-  parentId: string,
-  branchName: string,
-  issues: Issue[],
-): { id: string; mergeBase: string }[] {
-  return stackedChildren(parentId, issues)
-    .filter((child) => child.mergeBase === undefined)
-    .map((child) => ({ id: child.id, mergeBase: branchName }));
-}
-
-/**
- * `set-merged` cascade: every stacked child retargets to the parent's
- * `mergeBase`. Idempotent when a child already matches. No-op when the parent
- * has no `mergeBase` to propagate.
- */
-export function planMergedMergeBaseCascade(
-  parentId: string,
-  parentMergeBase: string | undefined,
-  issues: Issue[],
-): { id: string; mergeBase: string }[] {
-  if (parentMergeBase === undefined) return [];
-  return stackedChildren(parentId, issues)
-    .filter((child) => child.mergeBase !== parentMergeBase)
-    .map((child) => ({ id: child.id, mergeBase: parentMergeBase }));
-}
-
-export type MergeBaseCascadePatch = { id: string; mergeBase: string };
 
 /**
  * Refuse a real `branchName` change (not a same-value no-op) while any child is
@@ -113,103 +43,42 @@ export function branchNameRenameError(
   return `cannot change branchName on "${existing.id}" while stacked children exist (${ids})`;
 }
 
-/**
- * Decide which stacked children need a `mergeBase` write for this parent update:
- * first-time `branchName` (empty children only) and/or `merged: true` retarget.
- */
-export function planMergeBaseCascades(
-  existing: Issue,
-  jsonPatch: IssuePatch,
-  next: Issue,
-  issues: Issue[],
-): MergeBaseCascadePatch[] {
-  if (existing.kind !== "story" || next.kind !== "story") return [];
-
-  const patches: MergeBaseCascadePatch[] = [];
-  const firstTimeName =
-    !existing.branchName &&
-    "branchName" in jsonPatch &&
-    typeof jsonPatch.branchName === "string" &&
-    jsonPatch.branchName.length > 0;
-  if (firstTimeName && next.branchName) {
-    patches.push(
-      ...planBranchNameMergeBaseCascade(next.id, next.branchName, issues),
-    );
-  }
-  if ("merged" in jsonPatch && next.merged) {
-    patches.push(
-      ...planMergedMergeBaseCascade(next.id, next.mergeBase, issues),
-    );
-  }
-
-  // If both triggers fire for the same child, last write wins.
-  const byId = new Map(patches.map((patch) => [patch.id, patch]));
-  return [...byId.values()];
-}
-
 function flagPath(): string {
-  return join(issuesDir, BACKFILL_FLAG);
+  return join(issuesDir, STRIP_FLAG);
 }
 
-export function mergeBaseBackfillDone(): boolean {
+export function mergeBaseStripDone(): boolean {
   return existsSync(flagPath());
 }
 
-// Mark the issues dir as already migrated so intentional post-migration
-// absences (stacked child of an unnamed parent) are not filled.
-export function markMergeBaseBackfilled(): void {
+export function markMergeBaseStripped(): void {
   mkdirSync(issuesDir, { recursive: true });
   writeFileSync(flagPath(), "");
 }
 
-export interface MergeBaseBackfillResult {
+export interface MergeBaseStripResult {
   updated: string[];
   skipped: boolean;
 }
 
-// Scan on-disk issues for backfill: every parseable issue, plus Story ids whose
-// raw issue.json lacks a `mergeBase` key (intentional post-migration absences
-// keep the key absent after the marker exists).
-export function readStoriesMissingMergeBaseKey(): {
-  issues: Issue[];
-  rawMissingMergeBase: string[];
-} {
-  const issues: Issue[] = [];
-  const rawMissingMergeBase: string[] = [];
-  for (const { id, raw, issue } of forEachOnDiskIssue()) {
-    issues.push(issue);
-    if (
-      issue.kind === "story" &&
-      (!raw || typeof raw !== "object" || !("mergeBase" in raw))
-    ) {
-      rawMissingMergeBase.push(id);
-    }
-  }
-  return { issues, rawMissingMergeBase };
-}
-
-// One-time: for every on-disk Story whose issue.json lacks `mergeBase`, set
-// `resolveMergeBase(...) ?? main` and persist. Subsequent calls are no-ops
-// once the marker file exists (so create's intentional unset survives).
-export function ensureMergeBaseBackfilled(
+// One-time: remove stored `mergeBase` keys from every on-disk Story issue.json.
+// Subsequent calls are no-ops once the marker file exists.
+export function ensureMergeBaseStripped(
   persistStory: (issue: Story) => void,
-): MergeBaseBackfillResult {
-  if (mergeBaseBackfillDone()) return { updated: [], skipped: true };
+): MergeBaseStripResult {
+  if (mergeBaseStripDone()) return { updated: [], skipped: true };
 
-  const { issues, rawMissingMergeBase } = readStoriesMissingMergeBaseKey();
-  const missing = new Set(rawMissingMergeBase);
-  const storiesById = storyById(issues);
   const updated: string[] = [];
-
-  for (const issue of issues) {
-    if (issue.kind !== "story" || !missing.has(issue.id)) continue;
-    const mergeBase =
-      resolveMergeBase(issue.stackedOn, issues, storiesById) ?? EPIC_BASE;
-    const next: Story = { ...issue, mergeBase };
-    persistStory(next);
-    updated.push(issue.id);
+  for (const { id, raw, issue } of forEachOnDiskIssue()) {
+    if (issue.kind !== "story") continue;
+    if (!raw || typeof raw !== "object" || !("mergeBase" in raw)) continue;
+    // Skip id/directory mismatches — persist keys by issue.id and must not
+    // create a sibling directory for a drifted issue.json.
+    if (issue.id !== id) continue;
+    persistStory(issue);
+    updated.push(id);
   }
 
-  markMergeBaseBackfilled();
+  markMergeBaseStripped();
   return { updated, skipped: false };
 }

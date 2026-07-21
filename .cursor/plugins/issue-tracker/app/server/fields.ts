@@ -8,7 +8,7 @@ import {
 /** Default git base for a root Story (no `stackedOn`). */
 export const EPIC_BASE = "main";
 
-/** Display token for an unset tree/detail chip (`base=(unset)`, `branch=(unset)`). */
+/** Display token for an unset tree/detail chip (`mergeBase=(unset)`, `branch=(unset)`). */
 export const CHIP_UNSET = "(unset)";
 
 export const COMMON_MERGEABLE_KEYS = [
@@ -48,7 +48,6 @@ export const STORY_FORM_FIELD_KEYS = [
 export const STORY_IMPERATIVE_ONLY_KEYS = [
   "specReview",
   "retro",
-  "mergeBase",
   "labels",
 ] as const;
 
@@ -60,7 +59,6 @@ export const STORY_FIELD_KEYS = [
 // Optional story runtime state preserved by apply when already set on disk.
 export const STORY_RUNTIME_OPTIONAL_KEYS = [
   "branchName",
-  "mergeBase",
   "prUrl",
   "specReview",
   "retro",

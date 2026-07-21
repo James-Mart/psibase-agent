@@ -7,6 +7,7 @@ import type { IssueDetail, IssueKind } from "./server/schemas.js";
 import { CHIP_UNSET } from "./server/services/merge-base.js";
 import {
   appendMessage,
+  list,
   read,
   readChat,
   remove,
@@ -64,7 +65,8 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
   }
   if (detail.kind === "story") {
     if (detail.stackedOn) lines.push(`stackedOn: ${detail.stackedOn}`);
-    lines.push(`mergeBase: ${detail.mergeBase ?? CHIP_UNSET}`);
+    const mergeBase = list().derived[id]?.mergeBase;
+    lines.push(`mergeBase: ${mergeBase ?? CHIP_UNSET}`);
     if (detail.branchName) lines.push(`branchName: ${detail.branchName}`);
     if (detail.prUrl) lines.push(`prUrl: ${detail.prUrl}`);
     lines.push(`merged: ${detail.merged}`);

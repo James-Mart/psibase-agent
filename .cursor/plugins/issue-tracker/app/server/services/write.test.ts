@@ -93,14 +93,18 @@ describe("validate-at-write on the service layer", () => {
     expect(record.kind === "story" && record.branchName).toBe("feat/a");
   });
 
-  it("defaults mergeBase to main on a root Branch create", async () => {
-    const { create } = await loadService();
+  it("does not persist mergeBase; derive exposes root as main", async () => {
+    const { create, list } = await loadService();
     const record = await create({ kind: "story", title: "Root", partOf: "e" });
-    expect(record.kind === "story" && record.mergeBase).toBe("main");
+    expect(
+      JSON.parse(readFileSync(join(dir, record.id, "issue.json"), "utf8"))
+        .mergeBase,
+    ).toBeUndefined();
+    expect(list().derived[record.id]?.mergeBase).toBe("main");
   });
 
-  it("sets mergeBase from a named parent's branchName on stacked create", async () => {
-    const { create, update } = await loadService();
+  it("derives mergeBase from a named parent's branchName on stacked create", async () => {
+    const { create, update, list } = await loadService();
     await update("a", { branchName: "feat/a" });
     const child = await create({
       kind: "story",
@@ -108,25 +112,28 @@ describe("validate-at-write on the service layer", () => {
       partOf: "e",
       stackedOn: "a",
     });
-    expect(child.kind === "story" && child.mergeBase).toBe("feat/a");
+    expect(
+      JSON.parse(readFileSync(join(dir, child.id, "issue.json"), "utf8"))
+        .mergeBase,
+    ).toBeUndefined();
+    expect(list().derived[child.id]?.mergeBase).toBe("feat/a");
   });
 
-  it("leaves mergeBase unset when stacking on an unnamed parent", async () => {
-    const { create } = await loadService();
+  it("leaves derived mergeBase unset when stacking on an unnamed parent", async () => {
+    const { create, list } = await loadService();
     const child = await create({
       kind: "story",
       title: "Child",
       partOf: "e",
       stackedOn: "a",
     });
-    expect(child.kind === "story" && child.mergeBase).toBeUndefined();
+    expect(list().derived[child.id]?.mergeBase).toBeUndefined();
   });
 
-  it("sets mergeBase from a merged parent's mergeBase (not branchName) on stacked create", async () => {
-    const { create, update } = await loadService();
+  it("derives mergeBase from a merged parent's resolve (not branchName)", async () => {
+    const { create, update, list } = await loadService();
     await update("a", {
       branchName: "feat/a",
-      mergeBase: "main",
       merged: true,
     });
     const child = await create({
@@ -135,17 +142,16 @@ describe("validate-at-write on the service layer", () => {
       partOf: "e",
       stackedOn: "a",
     });
-    expect(child.kind === "story" && child.mergeBase).toBe("main");
+    expect(list().derived[child.id]?.mergeBase).toBe("main");
   });
 
-  it("recomputes mergeBase when stackedOn retargets to a merged parent", async () => {
+  it("re-derives mergeBase when stackedOn retargets to a merged parent", async () => {
     writeIssue("merged-parent", {
       kind: "story",
       title: "Merged",
       partOf: "e",
       order: 1,
       branchName: "feat/merged",
-      mergeBase: "main",
       merged: true,
       createdAt: AT,
       updatedAt: AT,
@@ -156,16 +162,18 @@ describe("validate-at-write on the service layer", () => {
       partOf: "e",
       order: 0,
       stackedOn: "a",
-      mergeBase: "feat/a",
       createdAt: AT,
       updatedAt: AT,
     });
-    const { update } = await loadService();
-    const moved = await update("b", { stackedOn: "merged-parent" });
-    expect(moved.kind === "story" && moved.mergeBase).toBe("main");
+    const { update, list } = await loadService();
+    await update("b", { stackedOn: "merged-parent" });
+    expect(list().derived.b?.mergeBase).toBe("main");
+    expect(
+      JSON.parse(readFileSync(join(dir, "b", "issue.json"), "utf8")).mergeBase,
+    ).toBeUndefined();
   });
 
-  it("recomputes mergeBase to branchName when stackedOn retargets to a named unmerged parent", async () => {
+  it("re-derives mergeBase to branchName when stackedOn retargets to a named unmerged parent", async () => {
     writeIssue("named", {
       kind: "story",
       title: "Named",
@@ -181,16 +189,15 @@ describe("validate-at-write on the service layer", () => {
       partOf: "e",
       order: 0,
       stackedOn: "a",
-      mergeBase: "stale-base",
       createdAt: AT,
       updatedAt: AT,
     });
-    const { update } = await loadService();
-    const moved = await update("b", { stackedOn: "named" });
-    expect(moved.kind === "story" && moved.mergeBase).toBe("feat/named");
+    const { update, list } = await loadService();
+    await update("b", { stackedOn: "named" });
+    expect(list().derived.b?.mergeBase).toBe("feat/named");
   });
 
-  it("clears mergeBase when stackedOn retargets to an unnamed parent", async () => {
+  it("clears derived mergeBase when stackedOn retargets to an unnamed parent", async () => {
     writeIssue("unnamed", {
       kind: "story",
       title: "Unnamed",
@@ -205,79 +212,51 @@ describe("validate-at-write on the service layer", () => {
       partOf: "e",
       order: 0,
       stackedOn: "a",
-      mergeBase: "feat/a",
       createdAt: AT,
       updatedAt: AT,
     });
-    const { update } = await loadService();
-    const moved = await update("b", { stackedOn: "unnamed" });
-    expect(moved.kind === "story" && moved.mergeBase).toBeUndefined();
+    const { update, list } = await loadService();
+    await update("b", { stackedOn: "unnamed" });
+    expect(list().derived.b?.mergeBase).toBeUndefined();
   });
 
-  it("sets mergeBase to main when unstacked (stackedOn cleared)", async () => {
+  it("derives mergeBase to main when unstacked (stackedOn cleared)", async () => {
     writeIssue("b", {
       kind: "story",
       title: "B",
       partOf: "e",
       order: 0,
       stackedOn: "a",
-      mergeBase: "feat/a",
       createdAt: AT,
       updatedAt: AT,
     });
-    const { update } = await loadService();
+    const { update, list } = await loadService();
     const moved = await update("b", { stackedOn: null });
     expect(moved.kind === "story" && moved.stackedOn).toBeUndefined();
-    expect(moved.kind === "story" && moved.mergeBase).toBe("main");
+    expect(list().derived.b?.mergeBase).toBe("main");
   });
 
-  it("does not churn mergeBase on a same-value stackedOn no-op", async () => {
-    writeIssue("b", {
-      kind: "story",
-      title: "B",
-      partOf: "e",
-      order: 0,
-      stackedOn: "a",
-      mergeBase: "custom-stale",
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    const { update } = await loadService();
-    const again = await update("b", { stackedOn: "a" });
-    expect(again.kind === "story" && again.mergeBase).toBe("custom-stale");
-  });
-
-  it("cascades mergeBase to empty stacked children on first set-branch-name", async () => {
-    const { update } = await loadService();
-    // Seed child "b" has no mergeBase; naming "a" should fill it.
+  it("does not write mergeBase on first set-branch-name (derive updates)", async () => {
+    const { update, list } = await loadService();
+    expect(list().derived.b?.mergeBase).toBeUndefined();
     await update("a", { branchName: "feat/a" });
     const child = JSON.parse(
       readFileSync(join(dir, "b", "issue.json"), "utf8"),
     ) as { mergeBase?: string };
-    expect(child.mergeBase).toBe("feat/a");
+    expect(child.mergeBase).toBeUndefined();
+    expect(list().derived.b?.mergeBase).toBe("feat/a");
   });
 
-  it("does not clobber a child mergeBase already set when naming the parent", async () => {
-    writeIssue("kept", {
-      kind: "story",
-      title: "Kept",
-      partOf: "e",
-      stackedOn: "a",
-      mergeBase: "custom-base",
-      order: 1,
-      createdAt: AT,
-      updatedAt: AT,
-    });
-    const { update } = await loadService();
+  it("does not write child mergeBase on set-merged (derive updates)", async () => {
+    const { update, list } = await loadService();
     await update("a", { branchName: "feat/a" });
-    const kept = JSON.parse(
-      readFileSync(join(dir, "kept", "issue.json"), "utf8"),
-    ) as { mergeBase?: string };
-    const empty = JSON.parse(
+    expect(list().derived.b?.mergeBase).toBe("feat/a");
+    await update("a", { merged: true });
+    const child = JSON.parse(
       readFileSync(join(dir, "b", "issue.json"), "utf8"),
     ) as { mergeBase?: string };
-    expect(kept.mergeBase).toBe("custom-base");
-    expect(empty.mergeBase).toBe("feat/a");
+    expect(child.mergeBase).toBeUndefined();
+    expect(list().derived.b?.mergeBase).toBe("main");
   });
 
   it("refuses rename of branchName when stacked children exist", async () => {
@@ -301,28 +280,6 @@ describe("validate-at-write on the service layer", () => {
     await update("a", { branchName: "feat/a" });
     const renamed = await update("a", { branchName: "feat/a2" });
     expect(renamed.kind === "story" && renamed.branchName).toBe("feat/a2");
-  });
-
-  it("retargets child mergeBase to parent.mergeBase on set-merged", async () => {
-    const { update } = await loadService();
-    await update("a", { branchName: "feat/a", mergeBase: "main" });
-    // Child got feat/a from the name cascade; merging retargets to main.
-    await update("a", { merged: true });
-    const child = JSON.parse(
-      readFileSync(join(dir, "b", "issue.json"), "utf8"),
-    ) as { mergeBase?: string };
-    expect(child.mergeBase).toBe("main");
-  });
-
-  it("set-merged mergeBase cascade is idempotent", async () => {
-    const { update } = await loadService();
-    await update("a", { branchName: "feat/a", mergeBase: "main" });
-    await update("a", { merged: true });
-    await update("a", { merged: true });
-    const child = JSON.parse(
-      readFileSync(join(dir, "b", "issue.json"), "utf8"),
-    ) as { mergeBase?: string };
-    expect(child.mergeBase).toBe("main");
   });
 
   it("appends order on create", async () => {
@@ -568,7 +525,6 @@ describe("cascade delete + reference repair on remove", () => {
       partOf: "e",
       order: 0,
       stackedOn: "a",
-      mergeBase: "feat/a",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -582,10 +538,13 @@ describe("cascade delete + reference repair on remove", () => {
     expect(after.problems).toEqual([]);
     const b = after.issues.find((i) => i.id === "b");
     expect(b && b.kind === "story" ? b.stackedOn : "missing").toBeUndefined();
-    expect(b && b.kind === "story" ? b.mergeBase : "missing").toBe("main");
+    expect(after.derived.b?.mergeBase).toBe("main");
+    expect(
+      JSON.parse(readFileSync(join(dir, "b", "issue.json"), "utf8")).mergeBase,
+    ).toBeUndefined();
   });
 
-  it("recomputes mergeBase when delete-repoint splices onto a surviving parent", async () => {
+  it("re-derives mergeBase when delete-repoint splices onto a surviving parent", async () => {
     // a (named root) <- b <- child. Deleting b splices child onto a.
     writeIssue("a", {
       kind: "story",
@@ -593,7 +552,6 @@ describe("cascade delete + reference repair on remove", () => {
       partOf: "e",
       order: 0,
       branchName: "feat/a",
-      mergeBase: "main",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -604,7 +562,6 @@ describe("cascade delete + reference repair on remove", () => {
       order: 0,
       stackedOn: "a",
       branchName: "feat/b",
-      mergeBase: "feat/a",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -614,7 +571,6 @@ describe("cascade delete + reference repair on remove", () => {
       partOf: "e",
       order: 0,
       stackedOn: "b",
-      mergeBase: "feat/b",
       createdAt: AT,
       updatedAt: AT,
     });
@@ -629,9 +585,11 @@ describe("cascade delete + reference repair on remove", () => {
     expect(child && child.kind === "story" ? child.stackedOn : "missing").toBe(
       "a",
     );
-    expect(child && child.kind === "story" ? child.mergeBase : "missing").toBe(
-      "feat/a",
-    );
+    expect(after.derived.child?.mergeBase).toBe("feat/a");
+    expect(
+      JSON.parse(readFileSync(join(dir, "child", "issue.json"), "utf8"))
+        .mergeBase,
+    ).toBeUndefined();
   });
 
   it("drops a deleted epic from another epic's blockedBy", async () => {

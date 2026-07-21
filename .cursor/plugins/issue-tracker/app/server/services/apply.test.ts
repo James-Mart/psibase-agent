@@ -130,20 +130,21 @@ describe("apply — create from empty", () => {
     if (b1?.kind !== "story") throw new Error("b1 missing");
     expect(b1.partOf).toBe("epic-a");
     expect(b1.stackedOn).toBeUndefined();
-    expect(b1.mergeBase).toBe("main");
+    expect("mergeBase" in b1).toBe(false);
+    expect(result.derived.b1?.mergeBase).toBe("main");
 
     const b1s = byId.get("b1s");
     if (b1s?.kind !== "story") throw new Error("b1s missing");
     expect(b1s.partOf).toBe("epic-a");
     expect(b1s.stackedOn).toBe("b1");
-    // Parent has no branchName yet — leave unset for the set-branch-name cascade.
-    expect(b1s.mergeBase).toBeUndefined();
+    // Parent has no branchName yet — derived mergeBase unset.
+    expect(result.derived.b1s?.mergeBase).toBeUndefined();
 
     const b2 = byId.get("b2");
     if (b2?.kind !== "story") throw new Error("b2 missing");
     expect(b2.partOf).toBe("epic-a");
     expect(b2.stackedOn).toBeUndefined();
-    expect(b2.mergeBase).toBe("main");
+    expect(result.derived.b2?.mergeBase).toBe("main");
 
     const c1 = byId.get("c1");
     if (c1?.kind !== "task") throw new Error("c1 missing");
@@ -156,8 +157,8 @@ describe("apply — create from empty", () => {
     );
   });
 
-  it("sets mergeBase from an on-disk named parent when applying a stacked child", async () => {
-    const { apply, update } = await loadService();
+  it("does not persist mergeBase when applying a stacked child of a named parent", async () => {
+    const { apply, update, list } = await loadService();
     await apply(baseDoc());
     await update("b1", { branchName: "feat/b1" });
 
@@ -168,18 +169,17 @@ describe("apply — create from empty", () => {
     });
     const summary = await apply(doc);
     expect(summary.created).toEqual(["b1s2"]);
-    expect(readIssue("b1s2").mergeBase).toBe("feat/b1");
-    // Naming the parent cascaded into the previously-unset child; apply must
-    // preserve that filled mergeBase (not clear it on re-apply).
-    expect(readIssue("b1s").mergeBase).toBe("feat/b1");
+    expect(readIssue("b1s2").mergeBase).toBeUndefined();
+    expect(list().derived.b1s2?.mergeBase).toBe("feat/b1");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBe("feat/b1");
   });
 
-  it("sets mergeBase from a merged parent's mergeBase when applying a stacked child", async () => {
-    const { apply, update } = await loadService();
+  it("derives mergeBase from a merged parent when applying a stacked child", async () => {
+    const { apply, update, list } = await loadService();
     await apply(baseDoc());
     await update("b1", {
       branchName: "feat/b1",
-      mergeBase: "main",
       merged: true,
     });
 
@@ -190,15 +190,15 @@ describe("apply — create from empty", () => {
     });
     const summary = await apply(doc);
     expect(summary.created).toEqual(["b1s2"]);
-    expect(readIssue("b1s2").mergeBase).toBe("main");
+    expect(readIssue("b1s2").mergeBase).toBeUndefined();
+    expect(list().derived.b1s2?.mergeBase).toBe("main");
   });
 
-  it("recomputes mergeBase when apply restacks a story onto a different parent", async () => {
-    const { apply, update } = await loadService();
+  it("re-derives mergeBase when apply restacks a story onto a different parent", async () => {
+    const { apply, update, list } = await loadService();
     await apply(baseDoc());
     await update("b1", { branchName: "feat/b1" });
     await update("b2", { branchName: "feat/b2" });
-    await update("b1s", { mergeBase: "feat/b1" });
 
     const doc = (stackOnB2: boolean): ApplyDoc => {
       const d = baseDoc();
@@ -217,15 +217,17 @@ describe("apply — create from empty", () => {
 
     await apply(doc(false));
     expect(readIssue("b1s").stackedOn).toBe("b1");
-    expect(readIssue("b1s").mergeBase).toBe("feat/b1");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBe("feat/b1");
 
     await apply(doc(true));
     expect(readIssue("b1s").stackedOn).toBe("b2");
-    expect(readIssue("b1s").mergeBase).toBe("feat/b2");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBe("feat/b2");
   });
 
-  it("recomputes mergeBase when apply restacks onto a merged parent", async () => {
-    const { apply, update } = await loadService();
+  it("re-derives mergeBase when apply restacks onto a merged parent", async () => {
+    const { apply, update, list } = await loadService();
     const initial = baseDoc();
     epicChildren(initial)[0].stories![0].stacked = [];
     epicChildren(initial)[0].stories![1].stacked = [
@@ -234,11 +236,10 @@ describe("apply — create from empty", () => {
     await apply(initial);
     await update("b1", {
       branchName: "feat/b1",
-      mergeBase: "main",
       merged: true,
     });
     await update("b2", { branchName: "feat/b2" });
-    expect(readIssue("b1s").mergeBase).toBe("feat/b2");
+    expect(list().derived.b1s?.mergeBase).toBe("feat/b2");
 
     const restacked = baseDoc();
     epicChildren(restacked)[0].stories![0].stacked = [
@@ -248,14 +249,14 @@ describe("apply — create from empty", () => {
 
     await apply(restacked);
     expect(readIssue("b1s").stackedOn).toBe("b1");
-    expect(readIssue("b1s").mergeBase).toBe("main");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBe("main");
   });
 
-  it("clears mergeBase when apply restacks onto an unnamed parent", async () => {
-    const { apply, update } = await loadService();
+  it("clears derived mergeBase when apply restacks onto an unnamed parent", async () => {
+    const { apply, update, list } = await loadService();
     await apply(baseDoc());
     await update("b1", { branchName: "feat/b1" });
-    await update("b1s", { mergeBase: "feat/b1" });
 
     const doc = baseDoc();
     epicChildren(doc)[0].stories![0].stacked = [];
@@ -266,20 +267,21 @@ describe("apply — create from empty", () => {
     await apply(doc);
     expect(readIssue("b1s").stackedOn).toBe("b2");
     expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBeUndefined();
   });
 
-  it("preserves a custom mergeBase on re-apply when stackedOn is unchanged", async () => {
-    const { apply, update } = await loadService();
+  it("does not persist mergeBase on re-apply when stackedOn is unchanged", async () => {
+    const { apply, update, list } = await loadService();
     await apply(baseDoc());
     await update("b1", { branchName: "feat/b1" });
-    await update("b1s", { mergeBase: "custom-stale" });
 
     const doc = baseDoc();
     epicChildren(doc)[0].stories![0].title = "Branch one renamed";
     const summary = await apply(doc);
     expect(summary.updated).toContain("b1");
     expect(readIssue("b1s").stackedOn).toBe("b1");
-    expect(readIssue("b1s").mergeBase).toBe("custom-stale");
+    expect(readIssue("b1s").mergeBase).toBeUndefined();
+    expect(list().derived.b1s?.mergeBase).toBe("feat/b1");
   });
 
   it("resolves a forward epic blockedBy reference to a sibling declared later", async () => {
@@ -381,7 +383,6 @@ describe("apply — update preserves imperative progress state", () => {
     await update("epic-a", { retro: "in-progress" });
     await update("b2", {
       branchName: "feat/b2",
-      mergeBase: "custom-base",
       prUrl: "https://example.test/pr/2",
       merged: true,
       specReview: "failed",
@@ -417,7 +418,7 @@ describe("apply — update preserves imperative progress state", () => {
     const b2 = readIssue("b2");
     expect(b2.title).toBe("Branch two renamed");
     expect(b2.branchName).toBe("feat/b2");
-    expect(b2.mergeBase).toBe("custom-base");
+    expect(b2.mergeBase).toBeUndefined();
     expect(b2.prUrl).toBe("https://example.test/pr/2");
     expect(b2.merged).toBe(true);
     expect(b2.specReview).toBe("failed");

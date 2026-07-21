@@ -40,8 +40,8 @@ Tell the user the UI is available at http://localhost:8060.
   scopes the tree to that Project. Create/rename/delete Projects from the
   sidebar (deleting a Project cascades to all its Epics/Stories/Tasks).
 - **Tree view** — collapsible Epic > Story > Task outline (scoped to the
-  selected Project) with derived status badges, git/stack chips (branch, base,
-  PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
+  selected Project) with derived status badges, git/stack chips (branch,
+  mergeBase, PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
   dimmed. Archived Epic / Story / Task rows are hidden by default; a "Show
   archived" toggle (client preference, next to search) reveals them. Row hover
   offers Archive / Unarchive (same cascade as CLI).

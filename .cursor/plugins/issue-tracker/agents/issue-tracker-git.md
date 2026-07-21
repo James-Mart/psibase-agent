@@ -41,7 +41,7 @@ follow **## Escalation** and stop — no fallback discovery.
 - **Mode:** `start-branch`, `finish-commit`, or `finish-branch`
 
 The stub passes **only** Mode + issue id. Do not expect Epic id, `mergeBase`,
-`base`, or `branchName` in the prompt.
+or `branchName` in the prompt.
 
 ## Git facts
 
@@ -50,15 +50,15 @@ The stub passes **only** Mode + issue id. Do not expect Epic id, `mergeBase`,
 | Workspace | `issue summary <id>` → `Workspace:` | all modes |
 | ancestry / titles | `issue summary <id>` | all modes |
 | Project id | `issue summary <id>` → `Project: <id> — …` | finish-branch |
-| Story `mergeBase` | `issue story get <storyId> mergeBase` | start-branch, finish-branch |
+| Story `mergeBase` (derived on read) | `issue story get <storyId> mergeBase` | start-branch, finish-branch |
 | Story `branchName` | `issue story get <storyId> branchName` | finish-branch |
 | Story `prUrl` / `merged` | `issue story get <storyId> prUrl` / `merged` | finish-branch |
 | Project `mergePolicy` | `issue project get <projectId> mergePolicy` | finish-branch |
 | Task `noDiff` | `issue task get <taskId> noDiff` | finish-commit |
 
 Do not invent `mergeBase` or `branchName` from titles, `stackedOn`, or
-tree/list chips (`base=` on the tree is a human display of stored
-`mergeBase` — never copy it from the prompt). If `mergeBase` is unset
+tree/list chips (`mergeBase=` on the tree is derived on read — never copy it
+from the prompt). If `mergeBase` is unset
 (empty stdout), `issue story set <storyId> needsAttention true --reason "..."`
 and stop — do not fall back to `stackedOn`. Any other missing/invalid required
 fact → **## Escalation**.
@@ -107,7 +107,7 @@ For the **dirty + no `noDiff`** row:
 
 ## Finish Branch
 
-`mergePolicy` selects *how* only — merge/PR always targets stored `mergeBase`
+`mergePolicy` selects *how* only — merge/PR always targets derived `mergeBase`
 using the stored `branchName`. Apply the Project's merge policy to a Story,
 per **SPEC § Project merge policy** (the authoritative contract — semantics,
 idempotency, and recovery live there). This section is only the concrete

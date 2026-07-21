@@ -6,6 +6,7 @@ import type {
   Problem,
 } from "../schemas.js";
 import { bySequence } from "../order.js";
+import { resolveMergeBase } from "../resolve-merge-base.js";
 import { checkIntegrity } from "./integrity.js";
 
 export interface DeriveResult {
@@ -68,14 +69,28 @@ export function derive(issues: Issue[]): DeriveResult {
     return "not-started";
   };
 
-  for (const story of issues.filter((i): i is Story => i.kind === "story")) {
-    // `base` is the stored `mergeBase` only — never re-derived from `stackedOn`.
-    // When unset, omit it so the tree chip shows `base=(unset)`.
+  const storiesById = new Map<string, Story>();
+  for (const issue of issues) {
+    if (issue.kind === "story") storiesById.set(issue.id, issue);
+  }
+  // Cache by fork-point id so siblings sharing a parent don't re-walk chains.
+  const mergeBaseByStackedOn = new Map<string | undefined, string | undefined>();
+  const mergeBaseFor = (stackedOn: string | undefined): string | undefined => {
+    if (mergeBaseByStackedOn.has(stackedOn)) {
+      return mergeBaseByStackedOn.get(stackedOn);
+    }
+    const value = resolveMergeBase(stackedOn, issues, storiesById);
+    mergeBaseByStackedOn.set(stackedOn, value);
+    return value;
+  };
+
+  for (const story of storiesById.values()) {
     const storyStatus = storyStatusOf(story);
+    const mergeBase = mergeBaseFor(story.stackedOn);
     state[story.id] = {
       blocked: storyStatus === "not-started" && !parentTipDone(story),
       storyStatus,
-      ...(story.mergeBase !== undefined ? { base: story.mergeBase } : {}),
+      ...(mergeBase !== undefined ? { mergeBase } : {}),
     };
   }
 
