@@ -34,12 +34,17 @@ export function useInlineEditSession({
   multiline = false,
 }: InlineEditSessionOptions): InlineEditSession {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraftState] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const skipBlurCommit = useRef(false);
   const sessionRef = useRef(0);
   const draftRef = useRef(draft);
+
+  const setDraft = (next: string) => {
+    draftRef.current = next;
+    setDraftState(next);
+  };
   const valueRef = useRef(value);
   const savingRef = useRef(saving);
   const editingRef = useRef(editing);
@@ -60,7 +65,8 @@ export function useInlineEditSession({
 
   useEffect(() => {
     if (!editing) {
-      setDraft(value);
+      draftRef.current = value;
+      setDraftState(value);
       setError(null);
     }
   }, [value, editing]);
@@ -68,7 +74,8 @@ export function useInlineEditSession({
   const exit = () => {
     editingRef.current = false;
     setEditing(false);
-    setDraft(valueRef.current);
+    draftRef.current = valueRef.current;
+    setDraftState(valueRef.current);
     setError(null);
   };
 

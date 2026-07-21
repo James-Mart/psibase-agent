@@ -12,13 +12,19 @@ export function MergePolicySelect({
   id,
   value,
   onChange,
+  disabled,
 }: {
   id?: string;
   value: MergePolicy;
   onChange: (value: MergePolicy) => void;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as MergePolicy)}>
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(v) => onChange(v as MergePolicy)}
+    >
       <SelectTrigger id={id}>
         <SelectValue />
       </SelectTrigger>

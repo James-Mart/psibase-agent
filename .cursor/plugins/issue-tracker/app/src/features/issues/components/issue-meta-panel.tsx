@@ -1,69 +1,96 @@
-import { FIELD_LABELS, KIND_FIELD_KEYS } from "@server/fields";
+import type { ReactNode } from "react";
+import { FIELD_LABELS } from "@server/fields";
 import { kindHas } from "@server/kind";
 import type { IssueDetail } from "@server/schemas";
-import { projectMetaValue } from "../lib/issue-detail-form";
-import { IssueLink } from "./issue-link";
+import {
+  IssueAttentionReasonField,
+  IssueNeedsAttentionField,
+} from "./issue-attention-fields";
+import { IssueAssigneeField } from "./issue-assignee-field";
+import { IssueMergePolicyField } from "./issue-merge-policy-field";
+import { IssuePartOfField } from "./issue-part-of-field";
+import { IssueWorkspaceField } from "./issue-workspace-field";
 import { MetaRow } from "./meta-row";
 import { ProjectLabelChip } from "./project-label-chip";
 
 export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
-  const rows =
-    issue.kind === "project"
-      ? [
-          ...KIND_FIELD_KEYS.project.map((key) => {
-            const meta = projectMetaValue(issue, key);
-            return (
-              <MetaRow
-                key={key}
-                label={FIELD_LABELS[key]}
-                value={
-                  <span
-                    className={
-                      meta.mono
-                        ? "font-mono"
-                        : meta.muted
-                          ? "text-muted-foreground"
-                          : undefined
-                    }
-                  >
-                    {meta.text}
-                  </span>
-                }
-              />
-            );
-          }),
-          <MetaRow
-            key="labels"
-            label={FIELD_LABELS.labels}
-            value={
-              issue.labels?.length ? (
-                <span className="flex flex-wrap gap-1.5">
-                  {issue.labels.map((label) => (
-                    <ProjectLabelChip key={label.id} label={label} />
-                  ))}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">none</span>
-              )
-            }
-          />,
-        ]
-      : kindHas(issue.kind, "detailPartOf") && "partOf" in issue
-        ? [
-            <MetaRow
-              key="partOf"
-              label={FIELD_LABELS.partOf}
-              value={
-                <IssueLink
-                  id={issue.partOf}
-                  className="font-mono text-primary hover:underline"
-                >
-                  {issue.partOf}
-                </IssueLink>
-              }
-            />,
-          ]
-        : [];
+  const rows: ReactNode[] = [];
+
+  if (issue.kind === "project") {
+    rows.push(
+      <MetaRow
+        key="workspace"
+        label={FIELD_LABELS.workspace}
+        value={<IssueWorkspaceField issue={issue} />}
+      />,
+      <MetaRow
+        key="mergePolicy"
+        label={FIELD_LABELS.mergePolicy}
+        value={<IssueMergePolicyField issue={issue} />}
+      />,
+      <MetaRow
+        key="labels"
+        label={FIELD_LABELS.labels}
+        value={
+          issue.labels?.length ? (
+            <span className="flex flex-wrap gap-1.5">
+              {issue.labels.map((label) => (
+                <ProjectLabelChip key={label.id} label={label} />
+              ))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">none</span>
+          )
+        }
+      />,
+    );
+  }
+
+  if (
+    kindHas(issue.kind, "detailPartOf") &&
+    (issue.kind === "epic" || issue.kind === "story" || issue.kind === "task")
+  ) {
+    rows.push(
+      <MetaRow
+        key="partOf"
+        label={FIELD_LABELS.partOf}
+        value={<IssuePartOfField issue={issue} />}
+      />,
+    );
+  }
+
+  if (issue.kind === "epic" || issue.kind === "story") {
+    rows.push(
+      <MetaRow
+        key="assignee"
+        label={FIELD_LABELS.assignee}
+        value={<IssueAssigneeField issue={issue} />}
+      />,
+    );
+  }
+
+  if (
+    issue.kind === "epic" ||
+    issue.kind === "story" ||
+    issue.kind === "task"
+  ) {
+    rows.push(
+      <MetaRow
+        key="needsAttention"
+        label={FIELD_LABELS.needsAttention}
+        value={<IssueNeedsAttentionField issue={issue} />}
+      />,
+    );
+    if (issue.needsAttention) {
+      rows.push(
+        <MetaRow
+          key="attentionReason"
+          label={FIELD_LABELS.attentionReason}
+          value={<IssueAttentionReasonField issue={issue} />}
+        />,
+      );
+    }
+  }
 
   if (rows.length === 0) return null;
 

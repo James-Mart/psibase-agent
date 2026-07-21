@@ -12,8 +12,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
 import type { DescriptionEditorUploadProps } from "../hooks/use-description-editor-upload";
-import { useInlineEditSession } from "../hooks/use-inline-edit-session";
+import {
+  useInlineEditSession,
+  type InlineEditSession,
+} from "../hooks/use-inline-edit-session";
 import { ExternalEditConflictBanner } from "./external-edit-conflict-banner";
+
+export type InlineFieldEditContext = Pick<
+  InlineEditSession,
+  | "draft"
+  | "setDraft"
+  | "saving"
+  | "error"
+  | "hasConflict"
+  | "commit"
+  | "cancel"
+  | "reload"
+  | "acknowledge"
+  | "onKeyDown"
+  | "onBlur"
+>;
 
 export interface InlineFieldProps {
   value: string;
@@ -22,6 +40,7 @@ export interface InlineFieldProps {
   /** Return an error message to reject the draft without calling `onSave`. */
   validate?: (next: string) => string | null;
   emptyLabel?: string;
+  placeholder?: string;
   multiline?: boolean;
   className?: string;
   displayClassName?: string;
@@ -35,6 +54,8 @@ export interface InlineFieldProps {
    * stays valid; clicks on links do not enter edit.
    */
   richDisplay?: boolean;
+  /** Replace the default text input/textarea while editing. */
+  renderEdit?: (ctx: InlineFieldEditContext) => ReactNode;
   /** External textarea ref (e.g. description upload hook); falls back to internal. */
   textareaRef?: RefObject<HTMLTextAreaElement>;
   textareaProps?: DescriptionEditorUploadProps | Record<string, never>;
@@ -46,6 +67,8 @@ export interface InlineFieldProps {
   onDraftChange?: (draft: string) => void;
   /** Let a parent push draft updates into the session (e.g. attachment insert). */
   setDraftRef?: MutableRefObject<((draft: string) => void) | null>;
+  /** Sibling of the display control (e.g. navigate icon); not inside the click target. */
+  trailingDisplay?: ReactNode;
 }
 
 export function InlineField({
@@ -54,6 +77,7 @@ export function InlineField({
   onSave,
   validate,
   emptyLabel = "Unset",
+  placeholder,
   multiline = false,
   className,
   displayClassName,
@@ -61,12 +85,14 @@ export function InlineField({
   renderDisplay,
   renderDisplayContent,
   richDisplay = false,
+  renderEdit,
   textareaRef: textareaRefProp,
   textareaProps,
   textareaAttrs,
   shouldDeferBlurCommit,
   onDraftChange,
   setDraftRef,
+  trailingDisplay,
 }: InlineFieldProps) {
   const {
     editing,
@@ -76,6 +102,8 @@ export function InlineField({
     hasConflict,
     beginEdit,
     setDraft,
+    commit,
+    cancel,
     reload,
     acknowledge,
     onKeyDown,
@@ -99,14 +127,14 @@ export function InlineField({
   }, [setDraft, setDraftRef]);
 
   useEffect(() => {
-    if (!editing) return;
+    if (!editing || renderEdit) return;
     const el = multiline ? textareaRef.current : inputRef.current;
     if (!el) return;
     el.focus();
     if (!multiline && el instanceof HTMLInputElement) {
       el.select();
     }
-  }, [editing, multiline, textareaRef]);
+  }, [editing, multiline, textareaRef, renderEdit]);
 
   if (!editing) {
     const content = renderDisplayContent ? (
@@ -151,11 +179,28 @@ export function InlineField({
     );
 
     return (
-      <div className={cn("min-w-0", className)}>
-        {renderDisplay ? renderDisplay(display) : display}
+      <div className={cn("flex min-w-0 items-start gap-1", className)}>
+        <div className="min-w-0 flex-1">
+          {renderDisplay ? renderDisplay(display) : display}
+        </div>
+        {trailingDisplay}
       </div>
     );
   }
+
+  const editCtx: InlineFieldEditContext = {
+    draft,
+    setDraft,
+    saving,
+    error,
+    hasConflict,
+    commit,
+    cancel,
+    reload,
+    acknowledge,
+    onKeyDown,
+    onBlur,
+  };
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
@@ -163,7 +208,9 @@ export function InlineField({
         <ExternalEditConflictBanner onReload={reload} onKeep={acknowledge} />
       ) : null}
 
-      {multiline ? (
+      {renderEdit ? (
+        renderEdit(editCtx)
+      ) : multiline ? (
         <Textarea
           ref={textareaRef}
           value={draft}
@@ -183,6 +230,7 @@ export function InlineField({
           ref={inputRef}
           value={draft}
           disabled={saving}
+          placeholder={placeholder}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           onBlur={onBlur}
