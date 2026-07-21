@@ -85,14 +85,17 @@ function baseDoc(): ProjectApplyDoc {
           id: "epic-a",
           title: "Epic A",
           blockedBy: ["epic-b"],
-          stories: [
+          children: [
             {
+              kind: "story",
               id: "b1",
               title: "Branch one",
-              tasks: [{ id: "c1", title: "Commit one" }],
-              stacked: [{ id: "b1s", title: "Stacked on one" }],
+              children: [
+                { kind: "task", id: "c1", title: "Commit one" },
+                { kind: "story", id: "b1s", title: "Stacked on one" },
+              ],
             },
-            { id: "b2", title: "Branch two" },
+            { kind: "story", id: "b2", title: "Branch two" },
           ],
         },
         {
@@ -163,7 +166,8 @@ describe("apply — create from empty", () => {
     await update("b1", { branchName: "feat/b1" });
 
     const doc = baseDoc();
-    epicChildren(doc)[0].stories![0].stacked!.push({
+    epicChildren(doc)[0].children![0].children!.push({
+      kind: "story",
       id: "b1s2",
       title: "Second stacked child",
     });
@@ -184,7 +188,8 @@ describe("apply — create from empty", () => {
     });
 
     const doc = baseDoc();
-    epicChildren(doc)[0].stories![0].stacked!.push({
+    epicChildren(doc)[0].children![0].children!.push({
+      kind: "story",
       id: "b1s2",
       title: "Child of merged parent",
     });
@@ -202,15 +207,18 @@ describe("apply — create from empty", () => {
 
     const doc = (stackOnB2: boolean): ApplyDoc => {
       const d = baseDoc();
-      const stories = epicChildren(d)[0].stories!;
+      const stories = epicChildren(d)[0].children!;
       const b1 = stories[0];
       const b2 = stories[1];
       if (stackOnB2) {
-        b1.stacked = [];
-        b2.stacked = [{ id: "b1s", title: "Stacked child" }];
+        b1.children = [{ kind: "task", id: "c1", title: "Commit one" }];
+        b2.children = [{ kind: "story", id: "b1s", title: "Stacked child" }];
       } else {
-        b1.stacked = [{ id: "b1s", title: "Stacked child" }];
-        b2.stacked = [];
+        b1.children = [
+          { kind: "task", id: "c1", title: "Commit one" },
+          { kind: "story", id: "b1s", title: "Stacked child" },
+        ];
+        b2.children = undefined;
       }
       return d;
     };
@@ -229,9 +237,9 @@ describe("apply — create from empty", () => {
   it("re-derives mergeBase when apply restacks onto a merged parent", async () => {
     const { apply, update, list } = await loadService();
     const initial = baseDoc();
-    epicChildren(initial)[0].stories![0].stacked = [];
-    epicChildren(initial)[0].stories![1].stacked = [
-      { id: "b1s", title: "Stacked child" },
+    epicChildren(initial)[0].children![0].children = [{ kind: "task", id: "c1", title: "Commit one" }];
+    epicChildren(initial)[0].children![1].children = [
+      { kind: "story", id: "b1s", title: "Stacked child" },
     ];
     await apply(initial);
     await update("b1", {
@@ -242,10 +250,11 @@ describe("apply — create from empty", () => {
     expect(list().derived.b1s?.mergeBase).toBe("feat/b2");
 
     const restacked = baseDoc();
-    epicChildren(restacked)[0].stories![0].stacked = [
-      { id: "b1s", title: "Stacked child" },
+    epicChildren(restacked)[0].children![0].children = [
+      { kind: "task", id: "c1", title: "Commit one" },
+      { kind: "story", id: "b1s", title: "Stacked child" },
     ];
-    epicChildren(restacked)[0].stories![1].stacked = [];
+    epicChildren(restacked)[0].children![1].children = undefined;
 
     await apply(restacked);
     expect(readIssue("b1s").stackedOn).toBe("b1");
@@ -259,9 +268,9 @@ describe("apply — create from empty", () => {
     await update("b1", { branchName: "feat/b1" });
 
     const doc = baseDoc();
-    epicChildren(doc)[0].stories![0].stacked = [];
-    epicChildren(doc)[0].stories![1].stacked = [
-      { id: "b1s", title: "Stacked child" },
+    epicChildren(doc)[0].children![0].children = [{ kind: "task", id: "c1", title: "Commit one" }];
+    epicChildren(doc)[0].children![1].children = [
+      { kind: "story", id: "b1s", title: "Stacked child" },
     ];
 
     await apply(doc);
@@ -276,7 +285,7 @@ describe("apply — create from empty", () => {
     await update("b1", { branchName: "feat/b1" });
 
     const doc = baseDoc();
-    epicChildren(doc)[0].stories![0].title = "Branch one renamed";
+    epicChildren(doc)[0].children![0].title = "Branch one renamed";
     const summary = await apply(doc);
     expect(summary.updated).toContain("b1");
     expect(readIssue("b1s").stackedOn).toBe("b1");
@@ -405,8 +414,8 @@ describe("apply — update preserves imperative progress state", () => {
     // Re-apply with changed titles so b2 and c1 actually go through the update path.
     const doc = baseDoc();
     epicChildren(doc)[0].title = "Epic A renamed";
-    epicChildren(doc)[0].stories![1].title = "Branch two renamed";
-    epicChildren(doc)[0].stories![0].tasks![0].title = "Commit one renamed";
+    epicChildren(doc)[0].children![1].title = "Branch two renamed";
+    epicChildren(doc)[0].children![0].children![0].title = "Commit one renamed";
     const summary = await apply(doc);
     expect(summary.updated.sort()).toEqual(["b2", "c1", "epic-a"]);
     expect(summary.deleted).toEqual([]);
@@ -598,7 +607,7 @@ describe("apply — prune by default", () => {
             kind: "epic",
             id: "e1",
             title: "E1",
-            stories: [{ id: "b1", title: "B1" }],
+            children: [{ kind: "story", id: "b1", title: "B1" }],
           },
         ],
       },
@@ -678,7 +687,7 @@ describe("apply — interleaved project children", () => {
             kind: "epic",
             id: "e1",
             title: "Epic",
-            stories: [{ id: "b1", title: "B1" }],
+            children: [{ kind: "story", id: "b1", title: "B1" }],
           },
           { kind: "idea", id: "i2", title: "Second idea" },
         ],
@@ -736,7 +745,7 @@ describe("apply — atomic rejection", () => {
       id: "epic-c",
       title: "Epic C",
       blockedBy: ["ghost"],
-      stories: [{ id: "b3", title: "Branch three" }],
+      children: [{ kind: "story", id: "b3", title: "Branch three" }],
     });
 
     await expect(apply(doc)).rejects.toThrow(/unknown issue "ghost"/);
@@ -774,7 +783,7 @@ describe("apply — atomic rejection", () => {
             kind: "epic",
             id: "e1",
             title: "E1",
-            stories: [{ id: "shared", title: "Collision" }],
+            children: [{ kind: "story", id: "shared", title: "Collision" }],
           },
         ],
       },
@@ -808,7 +817,7 @@ describe("apply — epic-scoped doc", () => {
 
     const doc = {
       project: "p1",
-      epic: { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
+      epic: { id: "e1", title: "E1", children: [{ kind: "story", id: "b1", title: "B1" }] },
     } as ApplyDoc;
     const summary = await apply(doc);
 
@@ -835,7 +844,7 @@ describe("apply — epic-scoped doc", () => {
 
     const summary = await apply({
       project: "p1",
-      epic: { id: "e1", title: "E1", stories: [{ id: "b1", title: "B1" }] },
+      epic: { id: "e1", title: "E1", children: [{ kind: "story", id: "b1", title: "B1" }] },
     } as ApplyDoc);
 
     expect(summary.deleted).toEqual(["b-old"]);
@@ -928,7 +937,7 @@ describe("apply — branch-scoped doc", () => {
       story: {
         id: "feat",
         title: "Feat",
-        tasks: [{ id: "feat-new", title: "New commit" }],
+        children: [{ kind: "task", id: "feat-new", title: "New commit" }],
       },
     } as ApplyDoc;
     const summary = await apply(doc);
@@ -989,8 +998,10 @@ describe("apply — project-level stories", () => {
             kind: "story",
             id: "solo",
             title: "Solo",
-            tasks: [{ id: "t1", title: "Task 1" }],
-            stacked: [{ id: "solo-s", title: "Stacked" }],
+            children: [
+              { kind: "task", id: "t1", title: "Task 1" },
+              { kind: "story", id: "solo-s", title: "Stacked" },
+            ],
           },
           { kind: "idea", id: "i1", title: "Idea" },
         ],
@@ -1024,9 +1035,9 @@ describe("apply — project-level stories", () => {
             kind: "story",
             id: "solo",
             title: "Solo renamed",
-            tasks: [
-              { id: "t1", title: "Task 1" },
-              { id: "t2", title: "Task 2" },
+            children: [
+              { kind: "task", id: "t1", title: "Task 1" },
+              { kind: "task", id: "t2", title: "Task 2" },
             ],
           },
           { kind: "idea", id: "i1", title: "Idea" },
@@ -1105,7 +1116,7 @@ describe("apply — project-level stories", () => {
       story: {
         id: "feat",
         title: "Feat",
-        tasks: [{ id: "feat-new", title: "New" }],
+        children: [{ kind: "task", id: "feat-new", title: "New" }],
       },
     });
     expect(summary.created).toEqual(["feat-new"]);
@@ -1156,7 +1167,7 @@ describe("apply — project-level stories", () => {
       story: {
         id: "solo",
         title: "Solo",
-        tasks: [{ id: "t1", title: "T1" }],
+        children: [{ kind: "task", id: "t1", title: "T1" }],
       },
     });
     expect(summary.created.sort()).toEqual(["solo", "t1"].sort());
@@ -1180,13 +1191,14 @@ describe("apply — sibling order", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: [
-                  { id: "first", title: "First" },
-                  { id: "second", title: "Second" },
+                children: [
+                  { kind: "task", id: "first", title: "First" },
+                  { kind: "task", id: "second", title: "Second" },
                 ],
               },
             ],
@@ -1198,9 +1210,9 @@ describe("apply — sibling order", () => {
     expect(readIssue("first").order).toBe(0);
     expect(readIssue("second").order).toBe(1);
 
-    epicChildren(doc)[0].stories![0].tasks = [
-      { id: "second", title: "Second" },
-      { id: "first", title: "First" },
+    epicChildren(doc)[0].children![0].children = [
+      { kind: "task", id: "second", title: "Second" },
+      { kind: "task", id: "first", title: "First" },
     ];
     await apply(doc);
     expect(readIssue("first").order).toBe(1);
@@ -1221,14 +1233,17 @@ project:
     - kind: epic
       id: e
       title: E
-      stories:
-        - id: b
+      children:
+        - kind: story
+          id: b
           title: B
-          tasks:
-            - id: c1
+          children:
+            - kind: task
+              id: c1
               title: C1
               order: 0
-            - id: c2
+            - kind: task
+              id: c2
               title: C2
               order: 0
 `),
@@ -1287,11 +1302,12 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: commitIds.map((id) => ({ id, title: id })),
+                children: commitIds.map((id) => ({ kind: "task" as const, id, title: id })),
               },
             ],
           },
@@ -1325,9 +1341,19 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
-              { id: "b1", title: "B1", tasks: b1.map((id) => ({ id, title: id })) },
-              { id: "b2", title: "B2", tasks: b2.map((id) => ({ id, title: id })) },
+            children: [
+              {
+                kind: "story",
+                id: "b1",
+                title: "B1",
+                children: b1.map((id) => ({ kind: "task" as const, id, title: id })),
+              },
+              {
+                kind: "story",
+                id: "b2",
+                title: "B2",
+                children: b2.map((id) => ({ kind: "task" as const, id, title: id })),
+              },
             ],
           },
         ],
@@ -1359,18 +1385,20 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: [{ id: "c1", title: "c1" }],
-                stacked: [
+                children: [
+                  { kind: "task", id: "c1", title: "c1" },
                   {
+                    kind: "story",
                     id: "nb",
                     title: "New stacked",
-                    tasks: [
-                      { id: "c2", title: "c2" },
-                      { id: "c3", title: "c3" },
+                    children: [
+                      { kind: "task", id: "c2", title: "c2" },
+                      { kind: "task", id: "c3", title: "c3" },
                     ],
                   },
                 ],
@@ -1402,14 +1430,31 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: relocate
-              ? [{ id: "bb", title: "BB", tasks: [
-                  { id: "b1", title: "b1" },
-                  { id: "a1", title: "a1" },
-                ] }]
+            children: relocate
+              ? [
+                  {
+                    kind: "story",
+                    id: "bb",
+                    title: "BB",
+                    children: [
+                      { kind: "task", id: "b1", title: "b1" },
+                      { kind: "task", id: "a1", title: "a1" },
+                    ],
+                  },
+                ]
               : [
-                  { id: "ba", title: "BA", tasks: [{ id: "a1", title: "a1" }] },
-                  { id: "bb", title: "BB", tasks: [{ id: "b1", title: "b1" }] },
+                  {
+                    kind: "story",
+                    id: "ba",
+                    title: "BA",
+                    children: [{ kind: "task", id: "a1", title: "a1" }],
+                  },
+                  {
+                    kind: "story",
+                    id: "bb",
+                    title: "BB",
+                    children: [{ kind: "task", id: "b1", title: "b1" }],
+                  },
                 ],
           },
         ],
@@ -1438,19 +1483,25 @@ describe("apply — arbitrary reorganization via re-authoring", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "base1",
                 title: "Base1",
                 ...(featStackedOnBase2
                   ? {}
-                  : { stacked: [{ id: "feat", title: "Feat" }] }),
+                  : {
+                      children: [{ kind: "story", id: "feat", title: "Feat" }],
+                    }),
               },
               {
+                kind: "story",
                 id: "base2",
                 title: "Base2",
                 ...(featStackedOnBase2
-                  ? { stacked: [{ id: "feat", title: "Feat" }] }
+                  ? {
+                      children: [{ kind: "story", id: "feat", title: "Feat" }],
+                    }
                   : {}),
               },
             ],
