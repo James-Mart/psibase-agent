@@ -56,7 +56,8 @@ only. Complete all of **## Bootstrap** (steps 1–4) before other mode steps.
 
 ## Implement
 
-1. Implement exactly what the Task's `description.md` specifies.
+1. Implement exactly what the Task's `description.md` specifies. Also do anything 
+   that obviously belongs with it for internal consistency.
 2. Edit the working tree; **do not commit or stage**.
 3. Verify as that description requires (tests, build, browser, etc.). When this
    Task builds on a prior Task's tests, keep verification focused on this
