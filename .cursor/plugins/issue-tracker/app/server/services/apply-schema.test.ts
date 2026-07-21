@@ -6,8 +6,8 @@ import {
 } from "./apply-schema";
 
 // A representative doc covering every kind and every inferred relationship:
-// interleaved epic/idea project children, root and stacked branches (nested to
-// depth 2), commits, and an explicit epic-level blockedBy reference
+// interleaved epic/idea/story project children, root and stacked stories
+// (nested to depth 2), tasks, and an explicit epic-level blockedBy reference
 // (epic-empty blocks on epic-billing).
 const doc = {
   project: {
@@ -20,24 +20,26 @@ const doc = {
         id: "epic-billing",
         title: "Billing rework",
         description: "Cross-cutting invariants...",
-        stories: [
+        children: [
           {
+            kind: "story" as const,
             id: "phase-0",
             title: "Extract tx cache",
             description: "Scope + approach.",
-            tasks: [
+            children: [
               {
+                kind: "task" as const,
                 id: "p0-extract-module",
                 title: "Extract tx-cache module",
                 description: "What to do + how to verify.",
               },
-            ],
-            stacked: [
               {
+                kind: "story" as const,
                 id: "phase-1",
                 title: "Stats tables",
-                stacked: [
+                children: [
                   {
+                    kind: "story" as const,
                     id: "phase-2",
                     title: "Deeper stack",
                   },
@@ -46,6 +48,7 @@ const doc = {
             ],
           },
           {
+            kind: "story" as const,
             id: "phase-0b",
             title: "Parallel work",
           },
@@ -128,6 +131,115 @@ describe("parseApplyDoc", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("rejects legacy stories/tasks/stacked keys as unknown", () => {
+    const withStories = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "epic",
+            id: "e",
+            title: "E",
+            stories: [{ kind: "story", id: "b", title: "B" }],
+          },
+        ],
+      },
+    });
+    expect(withStories.ok).toBe(false);
+
+    const withTasks = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "story",
+            id: "s",
+            title: "S",
+            tasks: [{ kind: "task", id: "t", title: "T" }],
+          },
+        ],
+      },
+    });
+    expect(withTasks.ok).toBe(false);
+
+    const withStacked = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "story",
+            id: "s",
+            title: "S",
+            stacked: [{ kind: "story", id: "x", title: "X" }],
+          },
+        ],
+      },
+    });
+    expect(withStacked.ok).toBe(false);
+  });
+
+  it("rejects invalid kinds under each parent allow-list", () => {
+    const taskUnderEpic = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "epic",
+            id: "e",
+            title: "E",
+            children: [{ kind: "task", id: "t", title: "T" }],
+          },
+        ],
+      },
+    });
+    expect(taskUnderEpic.ok).toBe(false);
+
+    const ideaUnderEpic = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "epic",
+            id: "e",
+            title: "E",
+            children: [{ kind: "idea", id: "i", title: "I" }],
+          },
+        ],
+      },
+    });
+    expect(ideaUnderEpic.ok).toBe(false);
+
+    const epicUnderStory = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "story",
+            id: "s",
+            title: "S",
+            children: [{ kind: "epic", id: "e", title: "E" }],
+          },
+        ],
+      },
+    });
+    expect(epicUnderStory.ok).toBe(false);
+
+    const taskUnderProject = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [{ kind: "task", id: "t", title: "T" }],
+      },
+    });
+    expect(taskUnderProject.ok).toBe(false);
+  });
+
   it("rejects a node missing its id", () => {
     const result = parseApplyDoc({
       project: { title: "No id" },
@@ -169,13 +281,14 @@ describe("parseApplyDoc", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: [
-                  { id: "c1", title: "C1", order: 0 },
-                  { id: "c2", title: "C2", order: 0 },
+                children: [
+                  { kind: "task", id: "c1", title: "C1", order: 0 },
+                  { kind: "task", id: "c2", title: "C2", order: 0 },
                 ],
               },
             ],
@@ -196,7 +309,7 @@ describe("parseApplyDoc", () => {
             kind: "idea",
             id: "i",
             title: "I",
-            stories: [{ id: "b", title: "B" }],
+            children: [{ kind: "story", id: "b", title: "B" }],
           },
         ],
       },
@@ -237,11 +350,12 @@ describe("parseApplyDoc", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: [{ id: "b", title: "collides with branch" }],
+                children: [{ kind: "task", id: "b", title: "collides with story" }],
               },
             ],
           },
@@ -275,7 +389,7 @@ describe("flattenApplyDoc", () => {
     );
   });
 
-  it("infers kind from children kind / nesting keys", () => {
+  it("infers kind from children kind", () => {
     expect(map.get("my-project")?.kind).toBe("project");
     expect(map.get("epic-billing")?.kind).toBe("epic");
     expect(map.get("capture-cache")?.kind).toBe("idea");
@@ -291,31 +405,31 @@ describe("flattenApplyDoc", () => {
   it("infers partOf from the enclosing container", () => {
     const epic = map.get("epic-billing");
     const idea = map.get("capture-cache");
-    const branch = map.get("phase-0");
+    const story = map.get("phase-0");
     const commit = map.get("p0-extract-module");
     expect(epic && "partOf" in epic && epic.partOf).toBe("my-project");
     expect(idea && "partOf" in idea && idea.partOf).toBe("my-project");
-    expect(branch && "partOf" in branch && branch.partOf).toBe("epic-billing");
+    expect(story && "partOf" in story && story.partOf).toBe("epic-billing");
     expect(commit && "partOf" in commit && commit.partOf).toBe("phase-0");
   });
 
-  it("keeps a stacked branch in its epic and records the fork point", () => {
+  it("keeps a stacked story in its epic and records the fork point", () => {
     const stacked = map.get("phase-1");
-    if (!stacked || stacked.kind !== "story") throw new Error("missing branch");
+    if (!stacked || stacked.kind !== "story") throw new Error("missing story");
     expect(stacked.partOf).toBe("epic-billing");
     expect(stacked.stackedOn).toBe("phase-0");
   });
 
   it("infers stackedOn through nested stacking", () => {
     const deep = map.get("phase-2");
-    if (!deep || deep.kind !== "story") throw new Error("missing branch");
+    if (!deep || deep.kind !== "story") throw new Error("missing story");
     expect(deep.partOf).toBe("epic-billing");
     expect(deep.stackedOn).toBe("phase-1");
   });
 
-  it("leaves a root branch without a stackedOn", () => {
+  it("leaves a root story without a stackedOn", () => {
     const root = map.get("phase-0");
-    if (!root || root.kind !== "story") throw new Error("missing branch");
+    if (!root || root.kind !== "story") throw new Error("missing story");
     expect(root.stackedOn).toBeUndefined();
   });
 
@@ -346,6 +460,36 @@ describe("flattenApplyDoc", () => {
     expect(map.get("p0-extract-module")?.order).toBe(0);
     expect(map.get("my-project")?.order).toBeUndefined();
   });
+
+  it("keeps task and stacked-story order groups separate under a story", () => {
+    const interleaved = parseApplyDoc({
+      project: {
+        id: "p",
+        title: "P",
+        children: [
+          {
+            kind: "story",
+            id: "solo",
+            title: "Solo",
+            children: [
+              { kind: "task", id: "t1", title: "T1" },
+              { kind: "story", id: "s1", title: "S1" },
+              { kind: "task", id: "t2", title: "T2" },
+              { kind: "story", id: "s2", title: "S2" },
+            ],
+          },
+        ],
+      },
+    });
+    if (!interleaved.ok) throw new Error(interleaved.message);
+    const m = byId(flattenApplyDoc(interleaved.doc));
+    expect(m.get("t1")?.order).toBe(0);
+    expect(m.get("t2")?.order).toBe(1);
+    expect(m.get("s1")?.order).toBe(0);
+    expect(m.get("s2")?.order).toBe(1);
+    expect(m.get("s1")).toMatchObject({ kind: "story", partOf: "p", stackedOn: "solo" });
+    expect(m.get("s2")).toMatchObject({ kind: "story", partOf: "p", stackedOn: "solo" });
+  });
 });
 
 // An epic-rooted doc names its project by id (a reference) and reconciles a
@@ -355,26 +499,29 @@ const epicDoc = {
   epic: {
     id: "epic-a",
     title: "Epic A",
-    stories: [
+    children: [
       {
+        kind: "story" as const,
         id: "b1",
         title: "Branch one",
-        tasks: [{ id: "c1", title: "Commit one" }],
-        stacked: [{ id: "b1s", title: "Stacked on one" }],
+        children: [
+          { kind: "task" as const, id: "c1", title: "Commit one" },
+          { kind: "story" as const, id: "b1s", title: "Stacked on one" },
+        ],
       },
     ],
   },
 };
 
-// A branch-rooted doc names its project and epic by id and reconciles a single
-// branch's own subtree (the branch plus its commits — no stacked children).
-const branchDoc = {
+// A story-rooted doc names its project and epic by id and reconciles a single
+// story's own subtree (the story plus its tasks — no stacked children).
+const storyDoc = {
   project: "my-product",
   epic: "epic-a",
   story: {
     id: "b1",
     title: "Branch one",
-    tasks: [{ id: "c1", title: "Commit one" }],
+    children: [{ kind: "task" as const, id: "c1", title: "Commit one" }],
   },
 };
 
@@ -395,7 +542,7 @@ describe("parseApplyDoc — epic form", () => {
       epic: {
         id: "dupe",
         title: "E",
-        stories: [{ id: "dupe", title: "clash" }],
+        children: [{ kind: "story", id: "dupe", title: "clash" }],
       },
     });
     expect(result.ok).toBe(false);
@@ -403,27 +550,33 @@ describe("parseApplyDoc — epic form", () => {
   });
 });
 
-describe("parseApplyDoc — branch form", () => {
-  it("accepts a branch-rooted doc with project + epic id references", () => {
-    expect(parseApplyDoc(branchDoc).ok).toBe(true);
+describe("parseApplyDoc — story form", () => {
+  it("accepts a story-rooted doc with project + epic id references", () => {
+    expect(parseApplyDoc(storyDoc).ok).toBe(true);
   });
 
-  it("rejects a stacked key on a branch-rooted branch", () => {
+  it("rejects a kind: story child on a story-rooted doc", () => {
     const result = parseApplyDoc({
-      ...branchDoc,
-      story: { ...branchDoc.story, stacked: [{ id: "x", title: "X" }] },
+      ...storyDoc,
+      story: {
+        ...storyDoc.story,
+        children: [
+          { kind: "task", id: "c1", title: "Commit one" },
+          { kind: "story", id: "x", title: "X" },
+        ],
+      },
     });
     expect(result.ok).toBe(false);
   });
 
-  it("detects a duplicate id between the branch and one of its commits", () => {
+  it("detects a duplicate id between the story and one of its tasks", () => {
     const result = parseApplyDoc({
       project: "my-product",
       epic: "epic-a",
       story: {
         id: "b",
         title: "B",
-        tasks: [{ id: "b", title: "collides with branch" }],
+        children: [{ kind: "task", id: "b", title: "collides with story" }],
       },
     });
     expect(result.ok).toBe(false);
@@ -447,41 +600,41 @@ describe("flattenApplyDoc — epic form", () => {
   });
 
   it("still infers containment and the fork point below the epic", () => {
-    const branch = map.get("b1");
+    const story = map.get("b1");
     const commit = map.get("c1");
     const stacked = map.get("b1s");
-    if (branch?.kind !== "story" || stacked?.kind !== "story") {
-      throw new Error("missing branch");
+    if (story?.kind !== "story" || stacked?.kind !== "story") {
+      throw new Error("missing story");
     }
-    expect(branch.partOf).toBe("epic-a");
+    expect(story.partOf).toBe("epic-a");
     expect(commit && "partOf" in commit && commit.partOf).toBe("b1");
     expect(stacked.partOf).toBe("epic-a");
     expect(stacked.stackedOn).toBe("b1");
   });
 });
 
-describe("flattenApplyDoc — branch form", () => {
-  const result = parseApplyDoc(branchDoc);
-  if (!result.ok) throw new Error(`branch doc should parse: ${result.message}`);
+describe("flattenApplyDoc — story form", () => {
+  const result = parseApplyDoc(storyDoc);
+  if (!result.ok) throw new Error(`story doc should parse: ${result.message}`);
   const map = byId(flattenApplyDoc(result.doc));
 
-  it("emits only the branch and its commits", () => {
+  it("emits only the story and its tasks", () => {
     expect(map.has("my-product")).toBe(false);
     expect(map.has("epic-a")).toBe(false);
     expect([...map.keys()].sort()).toEqual(["b1", "c1"]);
   });
 
-  it("roots the branch under the referenced epic without a fork point", () => {
-    const branch = map.get("b1");
-    if (branch?.kind !== "story") throw new Error("missing branch");
-    expect(branch.partOf).toBe("epic-a");
+  it("roots the story under the referenced epic without a fork point", () => {
+    const story = map.get("b1");
+    if (story?.kind !== "story") throw new Error("missing story");
+    expect(story.partOf).toBe("epic-a");
     // stackedOn is preserved from disk by apply, never emitted from the doc.
-    expect(branch.stackedOn).toBeUndefined();
+    expect(story.stackedOn).toBeUndefined();
   });
 });
 
 // Project-level Story as a Project `children:` entry (kind: story) with the
-// same nested tasks/stacked shape as an epic-nested story.
+// same nested children shape as an epic-nested story.
 const projectStoryChildDoc = {
   project: {
     id: "my-project",
@@ -492,15 +645,17 @@ const projectStoryChildDoc = {
         id: "solo",
         title: "Solo story",
         description: "Project-level.",
-        tasks: [{ id: "solo-t1", title: "Task one" }],
-        stacked: [{ id: "solo-stacked", title: "Stacked on solo" }],
+        children: [
+          { kind: "task" as const, id: "solo-t1", title: "Task one" },
+          { kind: "story" as const, id: "solo-stacked", title: "Stacked on solo" },
+        ],
       },
       { kind: "idea" as const, id: "later", title: "Later" },
       {
         kind: "epic" as const,
         id: "epic-a",
         title: "Epic A",
-        stories: [{ id: "epic-story", title: "Under epic" }],
+        children: [{ kind: "story" as const, id: "epic-story", title: "Under epic" }],
       },
     ],
   },
@@ -512,7 +667,7 @@ const projectStoryRootDoc = {
   story: {
     id: "solo",
     title: "Solo story",
-    tasks: [{ id: "solo-t1", title: "Task one" }],
+    children: [{ kind: "task" as const, id: "solo-t1", title: "Task one" }],
   },
 };
 
@@ -577,7 +732,19 @@ describe("parseApplyDoc — project-level story form", () => {
   });
 
   it("still accepts the epic-scoped story form", () => {
-    expect(parseApplyDoc(branchDoc).ok).toBe(true);
+    expect(parseApplyDoc(storyDoc).ok).toBe(true);
+  });
+
+  it("refuses kind: story under project-level story form", () => {
+    const result = parseApplyDoc({
+      project: "my-project",
+      story: {
+        id: "solo",
+        title: "Solo",
+        children: [{ kind: "story", id: "nested", title: "Nested" }],
+      },
+    });
+    expect(result.ok).toBe(false);
   });
 });
 

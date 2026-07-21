@@ -1116,7 +1116,7 @@ describe("epic get/set", () => {
 epic:
   id: e
   title: Epic renamed
-  stories: []
+  children: []
 `,
     );
     expect(runCli(["apply", applyPath]).status).toBe(0);
@@ -1360,8 +1360,9 @@ describe("story get/set", () => {
 epic:
   id: e
   title: Epic
-  stories:
-    - id: a
+  children:
+    - kind: story
+      id: a
       title: Branch A renamed
 `,
     );
@@ -1384,8 +1385,9 @@ epic:
 epic:
   id: e
   title: Epic
-  stories:
-    - id: a
+  children:
+    - kind: story
+      id: a
       title: Branch A renamed
 `,
     );
@@ -1601,11 +1603,13 @@ describe("task get/set", () => {
 epic:
   id: e
   title: Epic
-  stories:
-    - id: a
+  children:
+    - kind: story
+      id: a
       title: Branch A
-      tasks:
-        - id: c1
+      children:
+        - kind: task
+          id: c1
           title: Commit 1 renamed
 `,
     );

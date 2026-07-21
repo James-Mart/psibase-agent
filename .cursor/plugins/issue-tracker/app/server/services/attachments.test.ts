@@ -274,12 +274,14 @@ describe("apply leaves attachment bytes untouched", () => {
             kind: "epic",
             id: "e",
             title: "E",
-            stories: [
+            children: [
               {
+                kind: "story",
                 id: "b",
                 title: "B",
-                tasks: [
+                children: [
                   {
+                    kind: "task",
                     id: "c",
                     title: "C",
                     description: "rewritten by apply\n",
