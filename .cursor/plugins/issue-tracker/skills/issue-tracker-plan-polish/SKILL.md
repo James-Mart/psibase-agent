@@ -45,9 +45,10 @@ Never bare `issue list`.
    - Apply **Work-root kind gates** from
      [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
      § Bootstrap (bind `<rootKind>`; do not restate that block here).
-2. Consult `vision` per
-   [`agents/_issue-tracker-consult-supporting-doc.md`](../../agents/_issue-tracker-consult-supporting-doc.md)
-   using the step-1 summary output.
+2. **Read**
+   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+   from disk (cwd = `Workspace:` from step 1), then consult `vision` per that
+   file using the step-1 summary output.
 3. `issue tree <rootId>` — full Story/Task outline (implementation
    order).
 4. `issue <rootKind> view <rootId>` (and children as needed) when preparing the

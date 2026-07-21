@@ -64,10 +64,10 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 ## Agent skills (pick by task)
 
 - **`issue-tracker-authoring`** — turn a spec/plan into a standalone
-  Project > Epic > Story > Task tree: Story vs Task grain, vertical slices,
-  blockedBy/diamond, localized prose, and a completeness pass — then author the
-  whole tree as one nested YAML doc and `apply` it. Glossary and apply-doc
-  shape: SPEC.md. Work it: issue-tracker-work.
+  Project > (Epic | project-level Story) > Task tree: Epic grain, Story vs Task
+  grain, vertical slices, blockedBy/diamond, localized prose, and a completeness
+  pass — then author the whole tree as one nested YAML doc and `apply` it.
+  Glossary and apply-doc shape: SPEC.md. Work it: issue-tracker-work.
 - **`issue-tracker-work`** — coordinating implementation of one work root
   (Epic or project-level Story): delegating each task to subagents in a
   per-task QA loop (implementor → code-quality gate on `qa` → revise/resume
@@ -79,15 +79,17 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   post-implement confusion retro: mine the work run for tracker/work-loop
   meta confusion and apply a residual Epic under Project `issue-tracker` (or
   comment clean on the source work root); not invoked directly.
-- **`issue-tracker-plan`** — grill an Idea or a pre-implementation (`todo`)
-  Epic to shared understanding, then migrate into a detailed Epic tree via
-  `apply` (new Epic id + `issue idea delete`, or in-place epic-form rewrite);
-  offers `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
-- **`issue-tracker-plan-polish`** — polish an existing Epic: spawn five
-  parallel read-only check agents (`plan-no-ambiguity`, `plan-dry`,
-  `plan-authoring-conformance`, `plan-dependency-order`,
-  `plan-internal-consistency`), aggregate findings into one epic-form
-  `apply` proposal, and `issue apply` only after user approval.
+- **`issue-tracker-plan`** — grill an Idea, a pre-implementation (`todo`)
+  Epic, or a not-started project-level Story to shared understanding, then
+  migrate into a detailed plan tree via `apply` (story-form or epic-form per
+  Epic grain; new Epic id + `issue idea delete`, or in-place rewrite); offers
+  `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
+- **`issue-tracker-plan-polish`** — polish an existing Epic or
+  project-level Story: spawn five parallel read-only check agents
+  (`plan-no-ambiguity`, `plan-dry`, `plan-authoring-conformance`,
+  `plan-dependency-order`, `plan-internal-consistency`), aggregate findings
+  into one apply proposal (epic-form or story-form by root kind), and
+  `issue apply` only after user approval.
 - **`issue-tracker-project-docs`** — author or revise one Project supporting
   doc (vision, coding standards, or design system) at a time: grill for
   goals/content, write as a Project attachment or workspace file, and record
