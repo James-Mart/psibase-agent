@@ -1,13 +1,6 @@
 ---
 name: issue-tracker-work
-description: >-
-  Coordinate implementation of one tracked work root (Epic or project-level
-  Story) without doing the work yourself: walk its `tree <id>` outline
-  top-to-bottom, delegating each task through a per-task QA loop (model
-  discriminator, implementor, code-quality on `qa`, git; revise = implementor
-  resume when `qa=changes-requested`). Use when an agent works a tracked Epic
-  or project-level Story to completion. CLI invariants in SPEC.md § CLI
-  invariants; glossary in SPEC.md.
+description: Implement <epic-or-story-id>: load this skill to coordinate the work.
 ---
 
 # Issue Tracker — Work the Stack
