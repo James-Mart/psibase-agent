@@ -83,11 +83,11 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
   Epic to shared understanding, then migrate into a detailed Epic tree via
   `apply` (new Epic id + `issue idea delete`, or in-place epic-form rewrite);
   offers `issue-tracker-plan-polish` afterward (yes/no, no auto-chain).
-- **`issue-tracker-plan-polish`** — polish an existing Epic: spawn four
+- **`issue-tracker-plan-polish`** — polish an existing Epic: spawn five
   parallel read-only check agents (`plan-no-ambiguity`, `plan-dry`,
-  `plan-authoring-conformance`, `plan-dependency-order`), aggregate findings
-  into one epic-form `apply` proposal, and `issue apply` only after user
-  approval.
+  `plan-authoring-conformance`, `plan-dependency-order`,
+  `plan-internal-consistency`), aggregate findings into one epic-form
+  `apply` proposal, and `issue apply` only after user approval.
 - **`issue-tracker-project-docs`** — author or revise one Project supporting
   doc (vision, coding standards, or design system) at a time: grill for
   goals/content, write as a Project attachment or workspace file, and record

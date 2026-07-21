@@ -2,7 +2,7 @@
 name: issue-tracker-plan-polish
 description: >-
   Polish an existing issue-tracker work root (Epic or project-level Story):
-  spawn four parallel read-only check agents, aggregate findings into a
+  spawn five parallel read-only check agents, aggregate findings into a
   retained apply plan (epic-form or story-form), present a short chat summary
   for approval, and apply the retained YAML only after the user approves. Use
   when the user asks to polish a plan, clean up an Epic or project-level Story
@@ -55,7 +55,7 @@ Never bare `issue list`.
 
 ## Parallel check agents
 
-Spawn **all four** agents **in parallel** (one Cursor Task each) via the
+Spawn **all five** agents **in parallel** (one Cursor Task each) via the
 **Spawn stubs** below. Pass **only** the fields each stub lists — children own
 static behavior in `agents/*.md`; do not paste agent workflow into the prompt.
 
@@ -65,6 +65,7 @@ static behavior in `agents/*.md`; do not paste agent workflow into the prompt.
 | `issue-tracker-plan-dry` | `composer-2.5` |
 | `issue-tracker-plan-authoring-conformance` | `composer-2.5` |
 | `issue-tracker-plan-dependency-order` | `cursor-grok-4.5-high-fast` |
+| `issue-tracker-plan-internal-consistency` | `composer-2.5` |
 
 Each agent template is `readonly: true`. Shared CLI/bootstrap/JSON output
 contract lives only in
@@ -77,7 +78,7 @@ Pass these as the Cursor Task `prompt`. Inline the work-root id/title. Children
 own static behavior via their `agents/*.md` files — do not paste workflow
 instructions here.
 
-**Work-root context line** — shared prefix for all four check stubs:
+**Work-root context line** — shared prefix for all five check stubs:
 
 > Work root: `<rootId>` (`<title>`).
 
@@ -85,7 +86,8 @@ instructions here.
 are re-read each spawn while agent injection may be frozen):
 
 > Return only a JSON findings array per
-> `agents/_issue-tracker-plan-polish-check-base.md` (no prose wrapper).
+> `agents/_issue-tracker-plan-polish-check-base.md` (detection-only — no
+> fixes; no prose wrapper).
 
 **No-ambiguity** — `subagent_type: issue-tracker-plan-no-ambiguity`
 (`model: composer-2.5`)
@@ -108,20 +110,29 @@ are re-read each spawn while agent injection may be frozen):
 
 > *(Work-root context line.)* *(Findings return line.)*
 
+**Internal consistency** —
+`subagent_type: issue-tracker-plan-internal-consistency`
+(`model: composer-2.5`)
+
+> *(Work-root context line.)* *(Findings return line.)*
+
 ## Aggregate → proposal
 
-After all four return:
+After all five return:
 
-1. Parse each result as a JSON findings array. Deduplicate overlapping
-   findings; prefer concrete `suggestedFix` text.
+1. Parse each result as a JSON findings array per
+   [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md).
+   Deduplicate overlapping findings.
 2. **Severity:** any unresolved `error` means you **must not** propose “no
-   changes needed”. Fold fixes for every `error` into the retained apply plan
-   (or ask the user how to resolve conflicting errors). List `warning`
-   findings in the chat summary; include their fixes in the retained plan when
-   the suggested change is clear, or call them out as optional for the user to
-   accept/edit. Never treat a clean outcome as OK while errors remain
-   unaddressed in the proposal.
-3. **Compose and retain** one full apply YAML from the deduplicated findings,
+   changes needed”. For every finding, **you** invent concrete remediation
+   from `problem` text plus tree context (`issue tree`, `<kind> view`) and
+   fold fixes for every `error` into the retained apply plan (or ask the user
+   how to resolve conflicting errors). List `warning` findings in the chat
+   summary; include their fixes in the retained plan when the remediation is
+   clear, or call them out as optional for the user to accept/edit. Never
+   treat a clean outcome as OK while errors remain unaddressed in the proposal.
+3. **Compose and retain** one full apply YAML from the deduplicated findings
+   and your invented fixes,
    matching the work-root kind, per issue-tracker-authoring and
    [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format). Keep this
    YAML internal — do not paste it into chat.

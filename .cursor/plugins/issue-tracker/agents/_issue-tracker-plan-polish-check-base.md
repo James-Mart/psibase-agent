@@ -1,6 +1,6 @@
 # Plan-polish check agent — shared contract
 
-Not a spawnable agent (no frontmatter). Referenced by the four
+Not a spawnable agent (no frontmatter). Referenced by the five
 `issue-tracker-plan-*` check agents and by `issue-tracker-plan-polish`
 Bootstrap (work-root kind gates). Used by `issue-tracker-plan-polish`.
 
@@ -62,14 +62,12 @@ body — no prose wrapper, no Markdown fences. Each element:
 {
   "severity": "error",
   "issueId": "<epic|story|task id>",
-  "problem": "one sentence",
-  "suggestedFix": "concrete prose"
+  "problem": "one sentence"
 }
 ```
 
 - `severity`: `"error"` \| `"warning"` (required)
 - `issueId`: Epic / Story / Task id (required)
 - `problem`: one sentence (required)
-- `suggestedFix`: concrete prose (optional; omit when observational only)
 
 Finish and stop. No tracker writes.
