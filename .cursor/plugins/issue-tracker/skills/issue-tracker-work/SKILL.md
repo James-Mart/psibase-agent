@@ -72,7 +72,7 @@ Before doing anything else, stop and ask the user to confirm they want you to
 coordinate this work root now. State that **Composer 2.5 (`composer-2.5`) is the
 recommended coordinator**. Do not attempt to detect or print the current model
 id. If they do not confirm, have them re-invoke this skill with `composer-2.5`
-instead of continuing.
+instead of continuing. After they confirm, continue with the CLI checks below.
 
 ### CLI checks
 
@@ -117,12 +117,16 @@ Run these commands in order (use `<rootId>` throughout):
      equals `<projectId>`; refuse Epic-child Stories — they are not work roots).
      Set `<rootKind>` = `story`.
    - Any other kind → refuse.
-4. `issue list <projectId>` — read `problems`. If `problems` is
+4. `issue <rootKind> set <rootId> retro --clear` — always run after user
+   confirm. Clears any prior plan-time `retro done` so Completion retro can
+   run for this work invocation. Re-invoking work after a finished work retro
+   will clear and may re-spawn retro.
+5. `issue list <projectId>` — read `problems`. If `problems` is
    non-empty, **stop and hand back to the user** — do not reason about or
    attempt fixes, and do not work a tree with integrity problems. (`list` /
    `tree` hide archived rows by default; pass `--show-archived` when you need
    them — see [SPEC.md](../../SPEC.md#archived-visibility).)
-5. **Epic only** (`<rootKind>` = `epic`): `issue epic get <rootId> blocked` —
+6. **Epic only** (`<rootKind>` = `epic`): `issue epic get <rootId> blocked` —
    if stdout is `true`, the Epic is `blockedBy` a blocker that has not fully
    merged, so — per Argument — it **cannot start**. Stop and hand back to the
    user rather than working any Task. Skip this check when `<rootKind>` is
@@ -157,17 +161,19 @@ dependency is satisfied — and it may proceed — once its parent's Tasks are a
 
 | Role | `subagent_type` | When | Model | Mode |
 |------|-----------------|------|-------|------|
-| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | spawn/CLI only (see Field ownership) |
+| Coordinator (you) | — | Drive the whole run: thin CLI + spawn subagents | Composer 2.5 (`composer-2.5`) | spawn/CLI only; Preflight `retro --clear` (Field ownership) |
 | Git | `issue-tracker-git` | Start a Story; finish a Task after `qa=passed`; finish a Story | Composer 2.5 (pinned in agent frontmatter) | writes |
 | Model discriminator | `issue-tracker-model-discriminator` | Before implement — assigns implementor model onto Task `assignee` | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … assignee` only) |
 | Implementor | `issue-tracker-implementor` | Implement a Task; per-task revise via Cursor Task **resume** | From Task `assignee` (Resolve implementor model) | writes (see Field ownership) |
 | Code-quality validator | `issue-tracker-code-quality-validator` | Per-Task cycle steps 3–4 (canonical spawn/resume on `qa`) | Composer 2.5 (pinned in agent frontmatter) | writes (`issue task set … qa` / `needsAttention`; `issue task comment`) |
 | Spec-conformance validator | `issue-tracker-spec-conformance-validator` | Close-Story when Story `specReview` is unset | Composer 2.5 (pinned in agent frontmatter) | writes (`issue story set … specReview` / `issue task add` / `issue story|task comment`) |
-| Retro | `issue-tracker-retro` | Completion when every Story in the walk is `merged` and work-root `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`issue <rootKind> comment` on source / `apply` / `issue <rootKind> set … retro` / `issue <rootKind> set … needsAttention`) |
+| Retro | `issue-tracker-retro` | Completion when every Story in the walk is `merged` and work-root `retro` is unset | `cursor-grok-4.5-high-fast` (pass as Cursor Task `model`) | writes (`issue <rootKind> comment` on source / `issue idea add` / `issue idea set` labels / `issue idea attach` / `issue <rootKind> set … retro` / `issue <rootKind> set … needsAttention`) |
 
 ### Field ownership
 
-Coordinator writes **none** of Task `status`, Task `qa`, or work-root `retro`.
+Coordinator never sets Task `status`, Task `qa`, or work-root `retro`
+`in-progress` / `done`. Its sole work-root `retro` mutation is Preflight
+`--clear` (CLI check step 4).
 
 | Field | Owner | When |
 |-------|-------|------|
@@ -175,6 +181,7 @@ Coordinator writes **none** of Task `status`, Task `qa`, or work-root `retro`.
 | Task `status` `fixing` | Implementor | on every revise entry |
 | Task `status` `done` | Git (finish-commit) | Task finalize |
 | Task `qa` | Code-quality | on each entry `reviewing`, then terminal `passed` / `changes-requested` (three-strike → `needsAttention`); never the coordinator |
+| Work-root `retro` (clear) | Coordinator | at Preflight after user confirm (`issue <rootKind> set <rootId> retro --clear`) |
 | Work-root `retro` `in-progress` | Retro | after transcript resolution succeeds (`issue <rootKind> set <rootId> retro`) |
 | Work-root `retro` `done` | Retro | after successful terminal comment |
 
@@ -452,8 +459,8 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 - Prefer `issue <kind> get` for scalar field reads — do not parse `view` /
   `summary` / `tree` for a single field (except `summary`'s `Workspace:`
   bootstrap line and `tree` chips for walk order).
-- Never write Task `status`, Task `qa`, or work-root `retro` yourself (Field
-  ownership).
+- Never write Task `status`, Task `qa`, or work-root `retro` (`in-progress` /
+  `done`) yourself. Preflight `retro --clear` only (Field ownership).
 - Never run `git`/`gh` or the git-fact record commands (`issue story set …
   branchName` / `issue task set … commitSha` / `issue story set … prUrl` /
   `issue story set … merged`) yourself — spawn `issue-tracker-git` for Story
