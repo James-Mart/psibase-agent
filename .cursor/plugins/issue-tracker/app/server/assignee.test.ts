@@ -18,16 +18,52 @@ function commit(assignee?: string): IssueRecord {
 }
 
 describe("assigneeOf", () => {
-  it("returns undefined for a project", () => {
-    expect(
-      assigneeOf({
+  it.each([
+    {
+      name: "project",
+      issue: {
         id: "p",
-        kind: "project",
+        kind: "project" as const,
         title: "P",
         createdAt: AT,
         updatedAt: AT,
-      }),
-    ).toBeUndefined();
+      },
+    },
+    {
+      name: "epic",
+      issue: {
+        id: "e",
+        kind: "epic" as const,
+        title: "E",
+        partOf: "p",
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      name: "story",
+      issue: {
+        id: "s",
+        kind: "story" as const,
+        title: "S",
+        partOf: "e",
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+    {
+      name: "idea",
+      issue: {
+        id: "i",
+        kind: "idea" as const,
+        title: "I",
+        partOf: "p",
+        createdAt: AT,
+        updatedAt: AT,
+      },
+    },
+  ])("returns undefined for $name", ({ issue }) => {
+    expect(assigneeOf(issue)).toBeUndefined();
   });
 
   it("returns undefined when assignee is absent", () => {

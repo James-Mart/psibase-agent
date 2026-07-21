@@ -41,15 +41,17 @@ Tell the user the UI is available at http://localhost:8060.
   sidebar (deleting a Project cascades to all its Epics/Stories/Tasks).
 - **Tree view** — collapsible Epic > Story > Task outline (scoped to the
   selected Project) with derived status badges, git/stack chips (branch,
-  mergeBase, PR, merged, sha), `assignee` and `needsAttention` badges, and blocked rows
+  mergeBase, PR, merged, sha), Task `assignee` and Epic/Story/Task
+  `needsAttention` badges, and blocked rows
   dimmed. Archived Epic / Story / Task rows are hidden by default; a "Show
   archived" toggle (client preference, next to search) reveals them. Row hover
   offers Archive / Unarchive (same cascade as CLI).
 - **Detail** — the issue's `description.md` rendered as GFM (with `issue:`
   cross-links and relative links to that issue's `attachments/`), an edit form
-  (`assignee`, `needsAttention`, `status`, git facts), Archive / Unarchive in
-  the header (Epic / Story / Task), attachment list/upload/download, a
-  git/stack panel, `assignee` / `needsAttention` badges (`attentionReason` when
+  (Task `assignee`, Epic/Story/Task `needsAttention`, Task `status`, git facts),
+  Archive / Unarchive in the header (Epic / Story / Task), attachment
+  list/upload/download, a git/stack panel, Task `assignee` and Epic/Story/Task
+  `needsAttention` badges (`attentionReason` when
   set), and (for Stories with `specReview` set) a spec-review chip (`passed` /
   `failed`; omitted when unset), (for Tasks with `noDiff` set) a no-diff chip
   (omitted when unset), and a per-issue chat.

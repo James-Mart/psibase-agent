@@ -438,6 +438,28 @@ describe("idea create / reparent / shared order", () => {
     }
   });
 
+  it("creates epic and story without assignee", async () => {
+    const { create } = await loadService();
+    const epic = await create({
+      kind: "epic",
+      title: "Epic",
+      partOf: "p",
+    });
+    expect(epic.kind).toBe("epic");
+    if (epic.kind === "epic") {
+      expect("assignee" in epic).toBe(false);
+    }
+    const story = await create({
+      kind: "story",
+      title: "Story",
+      partOf: "e",
+    });
+    expect(story.kind).toBe("story");
+    if (story.kind === "story") {
+      expect("assignee" in story).toBe(false);
+    }
+  });
+
   it("shares order with an epic in the same project on create", async () => {
     // Seed epic "e" already holds order 0 under project "p".
     const { create } = await loadService();

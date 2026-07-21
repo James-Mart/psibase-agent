@@ -33,7 +33,6 @@ export const PROJECT_SET_FIELDS = {
 
 export const EPIC_SET_FIELDS = {
   title: { type: "string" },
-  assignee: { type: "string" },
   needsAttention: { type: "needsAttention" },
   archived: { type: "boolean" },
   partOf: { type: "string" },
@@ -53,7 +52,6 @@ export const IDEA_SET_FIELDS = {
 
 export const STORY_SET_FIELDS = {
   title: { type: "string" },
-  assignee: { type: "string" },
   needsAttention: { type: "needsAttention" },
   archived: { type: "boolean" },
   partOf: { type: "string" },
@@ -117,7 +115,6 @@ export const EPIC_GET_FIELDS = {
   kind: STORED,
   title: STORED,
   partOf: STORED,
-  assignee: STORED,
   needsAttention: STORED,
   attentionReason: STORED,
   archived: STORED,
@@ -150,7 +147,6 @@ export const STORY_GET_FIELDS = {
   kind: STORED,
   title: STORED,
   partOf: STORED,
-  assignee: STORED,
   needsAttention: STORED,
   attentionReason: STORED,
   archived: STORED,

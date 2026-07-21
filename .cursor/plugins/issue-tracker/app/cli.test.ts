@@ -620,20 +620,6 @@ describe("kind-scoped add", () => {
 
   it.each([
     {
-      kind: "epic",
-      args: ["epic", "add", "--part-of", "p", "Child Epic", "--assignee", "alice"],
-      id: "child-epic",
-      partOf: "p",
-      assignee: "alice",
-    },
-    {
-      kind: "story",
-      args: ["story", "add", "--part-of", "e", "Child Story", "--assignee", "bob"],
-      id: "child-story",
-      partOf: "e",
-      assignee: "bob",
-    },
-    {
       kind: "task",
       args: ["task", "add", "--part-of", "a", "Child Task", "--assignee", "carol"],
       id: "child-task",
@@ -646,6 +632,21 @@ describe("kind-scoped add", () => {
     expect(result.stdout.trim()).toBe(id);
     expect(issueJsonField(id, "partOf")).toBe(partOf);
     expect(issueJsonField(id, "assignee")).toBe(assignee);
+  });
+
+  it.each([
+    {
+      kind: "epic",
+      args: ["epic", "add", "--part-of", "p", "Child Epic", "--assignee", "alice"],
+    },
+    {
+      kind: "story",
+      args: ["story", "add", "--part-of", "e", "Child Story", "--assignee", "bob"],
+    },
+  ])("rejects $kind add with --assignee", ({ args }) => {
+    const result = runCli(args);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/unknown option '--assignee'/);
   });
 
   it("seeds description from --description and --file without --description-file", () => {
@@ -989,10 +990,14 @@ describe("epic get/set", () => {
     expect(runCli(["epic", "set", "e", "title", "Renamed"]).status).toBe(0);
     expect(runCli(["epic", "get", "e", "title"]).stdout).toBe("Renamed\n");
 
-    expect(runCli(["epic", "set", "e", "assignee", "bot"]).status).toBe(0);
-    expect(runCli(["epic", "get", "e", "assignee"]).stdout).toBe("bot\n");
-    expect(runCli(["epic", "set", "e", "assignee", "--clear"]).status).toBe(0);
-    expect(runCli(["epic", "get", "e", "assignee"]).stdout).toBe("");
+    const unknownAssigneeGet = runCli(["epic", "get", "e", "assignee"]);
+    expect(unknownAssigneeGet.status).toBe(1);
+    expect(unknownAssigneeGet.stderr).toContain('unknown field "assignee" for epic');
+    const unknownAssigneeSet = runCli(["epic", "set", "e", "assignee", "bot"]);
+    expect(unknownAssigneeSet.status).toBe(1);
+    expect(unknownAssigneeSet.stderr).toContain(
+      'unknown or unsettable field "assignee" for epic',
+    );
 
     expect(
       runCli(["epic", "set", "e", "needsAttention", "true", "--reason", "need decision"]).status,
@@ -1218,10 +1223,14 @@ describe("story get/set", () => {
     expect(invalidRetro.status).toBe(1);
     expect(invalidRetro.stderr).toMatch(/invalid retro "pending"/);
 
-    expect(runCli(["story", "set", "a", "assignee", "bot"]).status).toBe(0);
-    expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("bot\n");
-    expect(runCli(["story", "set", "a", "assignee", "--clear"]).status).toBe(0);
-    expect(runCli(["story", "get", "a", "assignee"]).stdout).toBe("");
+    const unknownAssigneeGet = runCli(["story", "get", "a", "assignee"]);
+    expect(unknownAssigneeGet.status).toBe(1);
+    expect(unknownAssigneeGet.stderr).toContain('unknown field "assignee" for story');
+    const unknownAssigneeSet = runCli(["story", "set", "a", "assignee", "bot"]);
+    expect(unknownAssigneeSet.status).toBe(1);
+    expect(unknownAssigneeSet.stderr).toContain(
+      'unknown or unsettable field "assignee" for story',
+    );
 
     expect(
       runCli(["story", "set", "a", "needsAttention", "true", "--reason", "blocked"]).status,

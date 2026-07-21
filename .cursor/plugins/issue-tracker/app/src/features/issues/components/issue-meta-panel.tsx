@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FIELD_LABELS } from "@server/fields";
-import { kindHas } from "@server/kind";
+import { kindHas, hasAssignee, hasAttention } from "@server/kind";
 import type { IssueDetail } from "@server/schemas";
 import {
   IssueAttentionReasonField,
@@ -43,7 +43,7 @@ export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
     );
   }
 
-  if (issue.kind === "epic" || issue.kind === "story") {
+  if (hasAssignee(issue)) {
     rows.push(
       <MetaRow
         key="assignee"
@@ -53,11 +53,7 @@ export function IssueMetaPanel({ issue }: { issue: IssueDetail }) {
     );
   }
 
-  if (
-    issue.kind === "epic" ||
-    issue.kind === "story" ||
-    issue.kind === "task"
-  ) {
+  if (hasAttention(issue)) {
     rows.push(
       <MetaRow
         key="needsAttention"
