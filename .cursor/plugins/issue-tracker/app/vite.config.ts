@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     port: 8060,
     host: "0.0.0.0",
+    allowedHosts: ["issues.martfamily.cc"],
     proxy: {
       "/api": "http://localhost:8061",
     },
