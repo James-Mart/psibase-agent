@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { IssueDetail, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
@@ -34,7 +34,6 @@ import { ProjectLabelChips } from "./project-label-chips";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
-import { IssueDetailEdit } from "./issue-detail-edit";
 import { IssueTitleField } from "./issue-title-field";
 import { IssueDescriptionField } from "./issue-description-field";
 import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
@@ -106,15 +105,11 @@ function DetailShell({
 function IssueDetailBody({
   issue,
   projectId,
-  editing,
-  setEditing,
   upload,
   catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
-  editing: boolean;
-  setEditing: (value: boolean) => void;
   upload?: UploadAttachmentMutation;
   catalog: ProjectLabel[];
 }) {
@@ -141,46 +136,27 @@ function IssueDetailBody({
             <IssueBadges issue={issue} />
           </div>
         </div>
-        {!editing ? (
-          <div className="flex shrink-0 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="h-4 w-4" />
-              Edit
-            </Button>
-            <ArchiveIssueButton issue={issue} />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                requestDelete(issue.id);
-                navigate(projectPath(projectId));
-              }}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex shrink-0 gap-2">
+          <ArchiveIssueButton issue={issue} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              requestDelete(issue.id);
+              navigate(projectPath(projectId));
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
       </header>
 
-      {editing ? (
-        <IssueDetailEdit
-          issue={issue}
-          catalog={catalog}
-          onDone={() => setEditing(false)}
-          upload={upload}
-        />
-      ) : (
-        <IssueDetailView
-          issue={issue}
-          catalog={catalog}
-          upload={upload}
-          attach={attach}
-        />
-      )}
+      <IssueDetailView
+        issue={issue}
+        catalog={catalog}
+        upload={upload}
+        attach={attach}
+      />
     </>
   );
 }
@@ -242,15 +218,11 @@ function IssueDetailView({
 function IssueDetailAttachable({
   issue,
   projectId,
-  editing,
-  setEditing,
   backLink,
   catalog,
 }: {
   issue: IssueDetail;
   projectId: string;
-  editing: boolean;
-  setEditing: (value: boolean) => void;
   backLink: ReactNode;
   catalog: ProjectLabel[];
 }) {
@@ -263,8 +235,6 @@ function IssueDetailAttachable({
       <IssueDetailBody
         issue={issue}
         projectId={projectId}
-        editing={editing}
-        setEditing={setEditing}
         upload={upload}
         catalog={catalog}
       />
@@ -274,14 +244,9 @@ function IssueDetailAttachable({
 
 export function IssueDetailPage() {
   const { projectId = "", id = "" } = useParams();
-  const [editing, setEditing] = useState(false);
 
   const { data: issue, isLoading, error } = useIssueDetailQuery(id);
   const { data: list, isLoading: listLoading } = useIssuesQuery();
-
-  useEffect(() => {
-    setEditing(false);
-  }, [id]);
 
   const byId = useMemo(
     () => issuesById(list?.issues ?? []),
@@ -319,8 +284,6 @@ export function IssueDetailPage() {
       <IssueDetailAttachable
         issue={issue}
         projectId={projectId}
-        editing={editing}
-        setEditing={setEditing}
         backLink={backLink}
         catalog={catalog}
       />
@@ -363,8 +326,6 @@ export function IssueDetailPage() {
         <IssueDetailBody
           issue={issue}
           projectId={projectId}
-          editing={editing}
-          setEditing={setEditing}
           catalog={catalog}
         />
       ) : null}

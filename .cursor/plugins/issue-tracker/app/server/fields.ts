@@ -1,6 +1,5 @@
 import {
   MERGE_POLICIES,
-  type IssueKind,
   type IssuePatch,
   type MergePolicy,
 } from "./schemas.js";
@@ -21,7 +20,7 @@ export const COMMON_MERGEABLE_KEYS = [
   "order",
 ] as const;
 
-// Form/meta grid fields (labels has a dedicated catalog editor).
+// Project mergeable meta keys (labels has a dedicated catalog editor).
 export const PROJECT_FORM_FIELD_KEYS = ["workspace", "mergePolicy"] as const;
 
 export const PROJECT_FIELD_KEYS = [
@@ -36,7 +35,7 @@ export const EPIC_IMPERATIVE_ONLY_KEYS = ["retro", "labels"] as const;
 
 export const EPIC_RUNTIME_OPTIONAL_KEYS = EPIC_IMPERATIVE_ONLY_KEYS;
 
-// Story fields the manual edit form renders. Imperative-only runtime keys
+// Story mergeable keys that are not imperative-only. Imperative-only keys
 // (e.g. specReview) live in STORY_IMPERATIVE_ONLY_KEYS and are excluded.
 export const STORY_FORM_FIELD_KEYS = [
   "branchName",
@@ -65,10 +64,10 @@ export const STORY_RUNTIME_OPTIONAL_KEYS = [
   "labels",
 ] as const;
 
-// Idea has no form-owned runtime keys besides imperative label assignments.
+// Idea has no mergeable runtime keys besides imperative label assignments.
 export const IDEA_RUNTIME_OPTIONAL_KEYS = ["labels"] as const;
 
-// Task fields the manual edit form renders. Imperative-only runtime keys
+// Task mergeable keys that are not imperative-only. Imperative-only keys
 // (e.g. noDiff) live in TASK_IMPERATIVE_ONLY_KEYS and are excluded.
 export const TASK_FORM_FIELD_KEYS = ["status", "commitSha"] as const;
 
@@ -83,23 +82,10 @@ export const TASK_FIELD_KEYS = [
 
 export type ProjectFormFieldKey = (typeof PROJECT_FORM_FIELD_KEYS)[number];
 export type ProjectFieldKey = (typeof PROJECT_FIELD_KEYS)[number];
-export type EpicFieldKey = (typeof EPIC_FIELD_KEYS)[number];
-export type StoryFormFieldKey = (typeof STORY_FORM_FIELD_KEYS)[number];
 export type StoryFieldKey = (typeof STORY_FIELD_KEYS)[number];
 export type StoryRuntimeOptionalKey = (typeof STORY_RUNTIME_OPTIONAL_KEYS)[number];
-export type TaskFieldKey = (typeof TASK_FIELD_KEYS)[number];
-
-export const IDEA_FIELD_KEYS = [] as const;
 
 export type IdeaRuntimeOptionalKey = (typeof IDEA_RUNTIME_OPTIONAL_KEYS)[number];
-
-export const KIND_FIELD_KEYS = {
-  project: PROJECT_FORM_FIELD_KEYS,
-  epic: EPIC_FIELD_KEYS,
-  idea: IDEA_FIELD_KEYS,
-  story: STORY_FORM_FIELD_KEYS,
-  task: TASK_FORM_FIELD_KEYS,
-} as const satisfies Record<IssueKind, readonly string[]>;
 
 export const CLEARABLE_KEYS = [
   "assignee",
