@@ -2,7 +2,7 @@
 name: issue-tracker-plan-polish
 description: >-
   Polish an existing issue-tracker work root (Epic or project-level Story):
-  spawn four parallel read-only check agents, aggregate findings into a
+  spawn five parallel read-only check agents, aggregate findings into a
   retained apply plan (epic-form or story-form), present a short chat summary
   for approval, and apply the retained YAML only after the user approves. Use
   when the user asks to polish a plan, clean up an Epic or project-level Story
@@ -55,7 +55,7 @@ Never bare `issue list`.
 
 ## Parallel check agents
 
-Spawn **all four** agents **in parallel** (one Cursor Task each) via the
+Spawn **all five** agents **in parallel** (one Cursor Task each) via the
 **Spawn stubs** below. Pass **only** the fields each stub lists — children own
 static behavior in `agents/*.md`; do not paste agent workflow into the prompt.
 
@@ -65,6 +65,7 @@ static behavior in `agents/*.md`; do not paste agent workflow into the prompt.
 | `issue-tracker-plan-dry` | `composer-2.5` |
 | `issue-tracker-plan-authoring-conformance` | `composer-2.5` |
 | `issue-tracker-plan-dependency-order` | `cursor-grok-4.5-high-fast` |
+| `issue-tracker-plan-internal-consistency` | `composer-2.5` |
 
 Each agent template is `readonly: true`. Shared CLI/bootstrap/JSON output
 contract lives only in
@@ -77,7 +78,7 @@ Pass these as the Cursor Task `prompt`. Inline the work-root id/title. Children
 own static behavior via their `agents/*.md` files — do not paste workflow
 instructions here.
 
-**Work-root context line** — shared prefix for all four check stubs:
+**Work-root context line** — shared prefix for all five check stubs:
 
 > Work root: `<rootId>` (`<title>`).
 
@@ -109,9 +110,15 @@ are re-read each spawn while agent injection may be frozen):
 
 > *(Work-root context line.)* *(Findings return line.)*
 
+**Internal consistency** —
+`subagent_type: issue-tracker-plan-internal-consistency`
+(`model: composer-2.5`)
+
+> *(Work-root context line.)* *(Findings return line.)*
+
 ## Aggregate → proposal
 
-After all four return:
+After all five return:
 
 1. Parse each result as a JSON findings array per
    [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md).
