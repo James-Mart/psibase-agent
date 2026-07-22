@@ -154,25 +154,25 @@ restate that rule here).
 
 ### Single root (not splitting)
 
-One epic-form or story-form apply. Keep existing in-place / Idea-delete
+One epic-form or story-form apply. Keep existing in-place / Idea-archive
 behavior:
 
 **Story-form** — `project: <projectId>` string + `story:` object (no `epic:`):
 
 | Source | Story id in the doc | After successful `apply` |
 | --- | --- | --- |
-| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea delete <ideaId>` |
+| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea set <ideaId> archived true` |
 | **project-level Story** (`not-started`) | **Keep** the existing Story id | (none) |
 
 **Epic-form** — `project: <projectId>` string + `epic:` object:
 
 | Source | Epic id in the doc | After successful `apply` |
 | --- | --- | --- |
-| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea delete <ideaId>` |
+| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea set <ideaId> archived true` |
 | **Epic** (`todo`) | **Keep** the existing Epic id | (none) |
 | **project-level Story** (`not-started`) | Mint a **new** kebab Epic id; **keep** the existing Story id as a child under that Epic | (none) |
 
-Show `apply` stdout (and delete outcome on the Idea path). Report the
+Show `apply` stdout (and archive outcome on the Idea path). Report the
 resulting Story or Epic id.
 
 ### Multi-root (splitting)
@@ -185,13 +185,13 @@ the source Idea / Epic / Story id as any new root id).
    otherwise any order.
 2. On **first apply failure:** stop. Leave already-written roots in place. Do
    **not** delete the source. No automatic rollback.
-3. Only after **every** apply in the migrate succeeds: delete the source —
-   `issue idea delete <ideaId>`, `issue epic delete <epicId>` (source was
-   `todo`), or `issue story delete <storyId>` (source was not-started
-   project-level Story), as appropriate.
+3. Only after **every** apply in the migrate succeeds: archive or delete the
+   source — `issue idea set <ideaId> archived true`, `issue epic delete
+   <epicId>` (source was `todo`), or `issue story delete <storyId>` (source
+   was not-started project-level Story), as appropriate.
 
-Show each `apply` stdout and the final delete outcome. Report every resulting
-root id.
+Show each `apply` stdout and the final archive/delete outcome. Report every
+resulting root id.
 
 ## After success
 
