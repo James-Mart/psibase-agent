@@ -20,7 +20,7 @@ and follow it. Below is only what you uniquely flag.
 
 After the shared-contract bootstrap (which already consults `vision`), **Read**
 `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
-and consult `vision`, `codingStandards`, and `designSystem` per that file
+and consult `vision` and `codingStandards` per that file
 (reuse vision if already loaded). Missing key or unreadable target → skip.
 
 ## What you flag
@@ -35,8 +35,8 @@ and consult `vision`, `codingStandards`, and `designSystem` per that file
 **supportingDocs cohesion** (when present and readable):
 
 - Compare the tree against `vision` whenever that key is set and readable
-- Compare against `codingStandards` / `designSystem` only when tree prose
-  makes claims those docs would govern
+- Compare against `codingStandards` only when tree prose makes claims that
+  doc would govern
 - Unset or unreadable keys → skip (never fail)
 
 **Severity.** Every finding is `"error"`.
