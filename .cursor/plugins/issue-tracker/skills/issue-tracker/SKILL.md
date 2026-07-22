@@ -66,27 +66,21 @@ PRs. Agents themselves do **not** use this UI — they drive the CLI.
 
 ## Agent skills (pick by task)
 
-- **`issue-tracker-authoring`** — turn a spec/plan into a standalone
-  Project > (Epic | project-level Story) > Task tree: Epic grain, Story vs Task
-  grain, vertical slices, blockedBy/diamond, localized prose, and a completeness
-  pass — then author the whole tree as one nested YAML doc and `apply` it.
-  Glossary and apply-doc shape: SPEC.md. Work it: issue-tracker-work.
-- **`issue-tracker-work`** — Implement <epic-or-story-id>: load this skill to coordinate the work.
-- **`issue-tracker-plan`** — grill an Idea, a pre-implementation (`todo`)
-  Epic, or a not-started project-level Story to shared understanding, show an
-  outline, then on one post-outline yes migrate into one or more plan trees via
-  `apply`, auto-run `issue-tracker-plan-polish` on every resulting root, then
-  spawn `issue-tracker-retro` per root after polish succeeds (story-form or
-  epic-form per Epic grain; multi-root when authoring split criteria apply —
-  N applies, mint new root ids, delete source only after all succeed;
-  single-root keeps Idea → new id + delete, or in-place rewrite).
-- **`issue-tracker-plan-polish`** — polish an existing Epic or
-  project-level Story: spawn five parallel read-only check agents
-  (`plan-no-ambiguity`, `plan-dry`, `plan-authoring-conformance`,
-  `plan-dependency-order`, `plan-internal-consistency`), aggregate findings
-  into one apply proposal (epic-form or story-form by root kind), auto-apply
-  when safe, summarize after, escalate only when unsafe.
-- **`issue-tracker-project-docs`** — author or revise one Project supporting
-  doc (vision, coding standards, or design system) at a time: grill for
-  goals/content, write as a Project attachment or workspace file, and record
-  its location in `supportingDocs`.
+- **`issue-tracker-authoring`** — author a standalone issue-tracker plan tree as
+  one nested YAML doc and `apply` it; use when planning git PR stacks,
+  Epic/Story/Task grain, multi-root splits, or turning a plan into tracked
+  issues.
+- **`issue-tracker-work`** — coordinate implementation of an Epic or
+  project-level Story by spawning plugin subagents — do not implement yourself;
+  use when implementing or working a tracker Epic/Story.
+- **`issue-tracker-plan`** — grill an Idea, todo Epic, or not-started
+  project-level Story into a plan tree via apply, then auto-chain polish and
+  retro; use when planning an Idea, fleshing out a tracker plan, or running
+  issue-tracker-plan.
+- **`issue-tracker-plan-polish`** — polish an existing Epic or project-level
+  Story plan tree with parallel check agents, then auto-apply when safe; use
+  when polishing a plan, cleaning up a tracker tree, or running plan-polish.
+- **`issue-tracker-project-docs`** — author or revise one Project supporting doc
+  (vision, coding standards, or design system) and record it in
+  `supportingDocs`; use when writing or updating project vision, coding
+  standards, design system, or supporting docs.
