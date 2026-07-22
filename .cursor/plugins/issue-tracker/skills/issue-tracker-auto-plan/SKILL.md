@@ -140,11 +140,19 @@ specifics and stop; otherwise proceed to Flow.
 
 ## Flow
 
-1. **Discriminator.** Spawn `issue-tracker-auto-plan-discriminator`
-   (`subagent_type: issue-tracker-auto-plan-discriminator`) with **only the
-   source issue id** in the prompt. Its entire final message is the planner
-   model slug — capture it as `<plannerModel>`. Unusable / errored → escalate
-   per **## Refusals & escalations**.
+1. **Discriminator.** Before spawning, decide three labelled scope
+   statements from bootstrap context + PM heuristics:
+   - `Includes:` — what the idea covers
+   - `Excludes:` — what it deliberately leaves out
+   - `Blast radius:` — breadth of independent design surfaces the idea
+     spans (discriminator blast-radius axis; not effort or time)
+
+   Spawn `issue-tracker-auto-plan-discriminator`
+   (`subagent_type: issue-tracker-auto-plan-discriminator`) with a prompt
+   that is the source issue id followed by those three labelled statements.
+   Its entire final message is the planner model slug — capture it as
+   `<plannerModel>`. Unusable / errored → escalate per **## Refusals &
+   escalations**.
 2. **Vanilla planner.** Spawn a planner subagent (`subagent_type:
    generalPurpose`, `model: <plannerModel>`) with a minimal prompt, e.g.:
 

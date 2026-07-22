@@ -37,10 +37,17 @@ to the tracker.
 ## Inputs (from invoking prompt)
 
 - **Source issue id** (+ title / context from the auto-plan skill prompt)
+- **Scope envelope** (optional) — labelled `Includes:`, `Excludes:`, and
+  `Blast radius:` statements after the source issue id when the caller
+  supplies them
 
 ## Scoring (2 axes)
 
-Score each axis **low / high** (intuitive judgment; no rubric math):
+Score each axis **low / high** (intuitive judgment; no rubric math). When the
+prompt carries a scope envelope, factor `Includes:`, `Excludes:`, and
+`Blast radius:` into both axes — use the envelope's `Blast radius:` as the
+stakeholder reading of axis 2. When those labelled statements are absent,
+score from the **## Bootstrap** CLI context alone (unchanged).
 
 1. **Novelty** — extends existing infrastructure/patterns (low) vs introduces
    brand-new features, capabilities, or infrastructure (high).
