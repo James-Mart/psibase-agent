@@ -39,7 +39,7 @@ Never `npm link` from `/root/.cursor/plugins/local/...`.
 
 ## Inputs (from invoking prompt)
 
-- **Source issue id** (+ title / context from the stakeholder prompt)
+- **Source issue id** (+ title / context from the auto-plan skill prompt)
 
 ## Scoring (2 axes)
 
