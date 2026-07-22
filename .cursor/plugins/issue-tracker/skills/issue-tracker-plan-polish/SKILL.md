@@ -16,35 +16,26 @@ when safe, then show a short findings + changes summary in chat. Behavioral
 contract: Epic **auto-plan-polish-confirm** invariants (auto-apply +
 post-summary; escalate only when unsafe) — do not restate that list here.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 ## Argument
 
 An **Epic** id (any `epicStatus` — not limited to `todo`) or a
 **project-level Story** id (`partOf` the Project). If none is given:
 
-1. Run `issue tree` (no-arg: all projects).
-2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
-3. Run `issue tree <projectId>` and ask which Epic or project-level Story.
-
-Never bare `issue list`.
+1. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-resolve-project.md`
+   and follow it. Never bare `issue list`.
+2. Run `issue tree <projectId>` and ask which Epic or project-level Story.
 
 ## Bootstrap
 
 1. `issue summary <rootId>` — read `Project:` and `Workspace:`.
-   - Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-   - If `Workspace:` is absent, **stop and hand back to the user** to set it
-     (`issue project set <projectId> workspace <path>`) before spawning
-     anything. Check agents must Read shared-contract / authoring files via
-     absolute paths under `Workspace:` — there is no plan-only fallback
-     (SPEC § Project workspace: unset → escalate, never fall back).
-   - Apply **Work-root kind gates** from
-     [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
-     § Bootstrap (bind `<rootKind>`; do not restate that block here).
-2. **Read** the absolute path formed by joining `Workspace:` from step 1 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+   **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using this summary output (before spawning anything).
+   Apply **Work-root kind gates** from
+   [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
+   § Bootstrap (bind `<rootKind>`; do not restate that block here).
+2. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult `vision` per that file using the step-1 summary output.
 3. `issue tree <rootId>` — full Story/Task outline (implementation
    order).

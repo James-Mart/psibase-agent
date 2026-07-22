@@ -20,9 +20,7 @@ Epic **auto-plan-polish-confirm** invariants (single post-outline gate +
 auto-chain polish) — do not restate that list here. Do not implement product
 code; this skill only authors the plan artifact.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 Grain, multi-Epic split, apply doc shape, parent-prose, and prune-by-default
 rules live in issue-tracker-authoring and [SPEC.md](../../SPEC.md) — when
@@ -39,30 +37,24 @@ whose derived `issue story get <id> storyStatus` is `not-started`.
 
 If none is given:
 
-1. Run `issue tree` (no-arg: all projects).
-2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
-3. Run `issue tree <projectId>`. Offer only **Ideas**, Epics whose status
+1. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-resolve-project.md`
+   and follow it. Never bare `issue list`.
+2. Run `issue tree <projectId>`. Offer only **Ideas**, Epics whose status
    chip is `todo` (or confirm with `issue epic get <id> epicStatus`), and
    **project-level** Stories whose status chip is `not-started` (or confirm
    with `issue story get <id> storyStatus`; project-level = `partOf` is the
    Project). **Do not offer** `in-progress` / `done` Epics, or Stories at
    `in-progress` / `pr-open` / `merged` — they fail §Bootstrap gates.
 
-Never bare `issue list`.
-
 ## Bootstrap
 
 Before grilling:
 
 1. `issue summary <id>` — confirm kind; read `Project:` and `Workspace:`.
-   - Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-   - If `Workspace:` is absent, **stop and hand back to the user** to set it
-     (`issue project set <projectId> workspace <path>`) before continuing.
-     Codebase lookup during the grill needs cwd = `Workspace:` — there is no
-     plan-only fallback (SPEC § Project workspace: unset → escalate, never
-     fall back).
-2. **Read** the absolute path formed by joining `Workspace:` from step 1 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+   **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using this summary output (codebase lookup during the grill
+   needs cwd = `Workspace:`).
+2. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult `vision` per that file using the step-1 summary output.
 3. Kind / status gates:
    - **Idea** — proceed.

@@ -23,9 +23,7 @@ This skill is meant to be invoked **manually on opus 4.8
 (`claude-opus-4-8-thinking-high`)**. All judgment happens in this agent plus
 the spawned discriminator / planner.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never `npm link` from
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Allowed writes:** finalize `attach` + `comment` only, target per
 **## Finalize** — (a) **Idea source:** `issue idea attach` and
@@ -54,12 +52,11 @@ there is nothing to resume.
    `Workspace:`, `supportingDocs:`, `inspirationApps:` (if present), and the
    issue's kind / status. Reuse this output for every later bootstrap step;
    do **not** re-run `summary`.
-2. **Workspace gate** — if `Workspace:` is absent, stop and hand back to the
-   user to set it (`issue project set <projectId> workspace <path>`). Per
-   [SPEC § Project workspace](../../SPEC.md#project-workspace) this is an
-   escalation, never a silent fallback — codebase lookup needs cwd =
-   `Workspace:`. Checked first because it is already visible in step 1, so
-   refuse before spending any kind/status `get` round-trips.
+2. **Workspace gate** — **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using the step-1 summary (checked first because it is already
+   visible in step 1, so refuse before spending any kind/status `get`
+   round-trips). Treat a stop here as a **preflight-gate refusal**.
 3. **Vision-present gate** — on the step-1 Project section, check
    `supportingDocs:` for a `vision=` entry. **Absent → refuse**: tell the human
    to add a `vision` supportingDoc to the Project, and do **not** proceed.
@@ -72,9 +69,8 @@ there is nothing to resume.
    not plan's plan-polish / work redirect.
 5. `issue <kind> view <issueId>` — the full source `description.md` (not just
    the summary blurb).
-6. The Project **vision** doc via the shared consult mechanism: Read the
-   absolute path formed by joining `Workspace:` with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+6. The Project **vision** doc via the shared consult mechanism: **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult key `vision` per that file using the step-1 summary output.
 7. The Project's **`inspirationApps`** field (consult-if-present): use the
    `inspirationApps:` line already on the step-1 summary's Project section — a

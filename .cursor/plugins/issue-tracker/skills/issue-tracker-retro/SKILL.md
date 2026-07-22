@@ -17,7 +17,7 @@ not require promoting a Story to an Epic. Transcript resolution is in
 `agents/issue-tracker-retro.md` **## Transcript resolution**. Do not expect a
 confusion summary return value.
 
-Cross-cutting CLI invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 Static behavior (CLI allowlist, invariants, transcript resolution, clean-run
 comment, gaps path via **## Residual Idea**, kind-scoped source `comment` /
