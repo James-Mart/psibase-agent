@@ -1,14 +1,11 @@
 ---
 name: issue-tracker-authoring
+disable-model-invocation: true
 description: >-
-  Author a standalone Project > (Epic|project-level Story) > Task plan in the
-  issue-tracker: Epic grain, multi-Epic split, Story vs Task grain, vertical
-  slices, blockedBy/diamond, localized prose, and a completeness pass — then
-  write it with one nested YAML doc and `apply`. Use when planning a stack of
-  git PRs, deciding Epic vs project-level Story or Story vs Task grain, when
-  one capture should become multiple top-level roots, or turning a plan into
-  tracked issues. Glossary and apply-doc shape: SPEC.md. Work it:
-  issue-tracker-work.
+  Author a standalone issue-tracker plan tree as one nested YAML doc and
+  `apply` it. Use when planning a stack of git PRs, deciding Epic/Story/Task
+  grain, splitting captures into multiple roots, or turning a plan into
+  tracked issues.
 ---
 
 # Issue Tracker — Author a Plan Tree
@@ -18,8 +15,9 @@ Authoring the tracker is producing a **plan artifact**, so it is permitted in
 must replace any prior plan doc and stand alone. Companion material belongs
 **with the issue that uses it** (prose in `description.md`, or opaque files as
 attachments — [SPEC.md § Attachments](../../SPEC.md#attachments)). Do not
-hand-edit `issue.json`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+hand-edit `issue.json`. Glossary and apply-doc shape: [SPEC.md](../../SPEC.md).
+Work the resulting tree with `issue-tracker-work`. Cross-cutting CLI
+invariants: [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
 Localize prose to the tier where it belongs — don't dump the whole spec in the
 Epic and leave children title-only, and don't enumerate in a parent the specific

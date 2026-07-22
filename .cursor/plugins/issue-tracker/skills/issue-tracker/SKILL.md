@@ -1,22 +1,23 @@
 ---
 name: issue-tracker
-description: >-
-  Launch the issue-tracker web UI: a dark shadcn app over a file-backed
-  Project > Epic > Story > Task work tracker that maps onto git stacked PRs,
-  with Markdown specs, per-issue chat, and derived blocked/status state. Use
-  when the user asks to open the issue tracker, launch the tracker UI, see the
-  Project/Epic/Story/Task tree, or watch agents work a stack of PRs live.
 disable-model-invocation: true
+description: >-
+  Launch the issue-tracker web UI for the file-backed Project > Epic >
+  Story > Task work tracker. Use when the user asks to open the issue
+  tracker, launch the tracker UI, see the tree, or watch agents work a
+  stack of PRs live.
 ---
 
 # Issue Tracker
 
-A local work tracker that replaces the giant "plan" doc: an agent authors a
-spec into a **Project > Epic > Story > Task** tree that maps directly onto git
-stacked PRs, then works the tree while a human watches live in the browser. A
-**Project** is the top-level container (an organizational grouping of Epics); a
-directory per issue on disk is the source of truth; the CLI (for agents) and
-HTTP/SSE (for the UI) are thin adapters over one validated service layer.
+A local work tracker (dark shadcn/ui web app) that replaces the giant "plan"
+doc: an agent authors a spec into a **Project > Epic > Story > Task** tree
+that maps directly onto git stacked PRs, then works the tree while a human
+watches live in the browser. A **Project** is the top-level container (an
+organizational grouping of Epics); a directory per issue on disk is the
+source of truth; the CLI (for agents) and HTTP/SSE (for the UI) are thin
+adapters over one validated service layer. Markdown specs, per-issue chat,
+and derived blocked/status state live in that UI.
 
 Read [SPEC.md](../../SPEC.md) for the full glossary (Kinds, relationships,
 derived state) and design rationale.

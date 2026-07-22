@@ -2,12 +2,9 @@
 name: issue-tracker-auto-plan
 disable-model-invocation: true
 description: >-
-  Autonomously plan an issue as a directly-invoked premium stakeholder-planner:
-  answer the grill from product intent, drive the vanilla planner
-  (discriminator + generalPurpose planner), and finalize with a
-  decision-summary report (archived Idea or each plan root, by source kind).
-  Use when the user runs auto-plan or wants hands-off planning of a single
-  issue id on opus 4.8.
+  Autonomously plan a single issue as a hands-off stakeholder-planner on
+  opus 4.8. Use when the user runs auto-plan or wants hands-off planning of
+  an issue id.
 ---
 
 # Issue Tracker — Auto-plan (stakeholder-planner)

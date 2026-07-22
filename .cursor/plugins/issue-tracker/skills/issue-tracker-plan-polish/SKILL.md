@@ -1,12 +1,10 @@
 ---
 name: issue-tracker-plan-polish
+disable-model-invocation: true
 description: >-
-  Polish an existing issue-tracker work root (Epic or project-level Story):
-  spawn five parallel read-only check agents, aggregate findings into a
-  retained apply plan (epic-form or story-form), auto-apply when safe, then
-  show a short findings/changes summary (or no-changes-needed). Escalate only
-  when auto-apply is unsafe. Use when the user asks to polish a plan, clean
-  up an Epic or project-level Story tree, or run plan-polish checks.
+  Polish an existing Epic or project-level Story plan tree with parallel
+  check agents, then auto-apply when safe. Use when the user asks to polish
+  a plan, clean up a tracker tree, or run plan-polish.
 ---
 
 # Issue Tracker — Plan Polish
