@@ -518,6 +518,36 @@ describe("apply — update preserves imperative progress state", () => {
     }
   });
 
+  it("preserves project inspirationApps when the doc updates a project", async () => {
+    const { apply, update } = await loadService();
+    await apply(baseDoc());
+
+    await update("proj", {
+      inspirationApps: [
+        {
+          name: "Notion",
+          url: "https://notion.so",
+          description: "Notes",
+        },
+      ],
+    });
+
+    const doc = baseDoc();
+    doc.project.title = "Project with apps preserved";
+    const summary = await apply(doc);
+    expect(summary.updated).toContain("proj");
+
+    const proj = readIssue("proj");
+    expect(proj.title).toBe("Project with apps preserved");
+    expect(proj.inspirationApps).toEqual([
+      {
+        name: "Notion",
+        url: "https://notion.so",
+        description: "Notes",
+      },
+    ]);
+  });
+
   it("preserves project catalog and issue label assignments across re-apply", async () => {
     const { apply, update } = await loadService();
     await apply(baseDoc());

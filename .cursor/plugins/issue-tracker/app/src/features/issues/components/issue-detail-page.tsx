@@ -39,6 +39,7 @@ import { IssueDescriptionField } from "./issue-description-field";
 import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
 import { IssueProjectLabelsField } from "./issue-project-labels-field";
 import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
+import { IssueInspirationAppsField } from "./issue-inspiration-apps-field";
 import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { ProjectDetailTabs } from "./project-detail-tabs";
@@ -190,7 +191,10 @@ function IssueDetailView({
         <IssueDescriptionField issue={issue} upload={upload} />
       </div>
       {issue.kind === "project" ? (
-        <IssueSupportingDocsField issue={issue} />
+        <>
+          <IssueSupportingDocsField issue={issue} />
+          <IssueInspirationAppsField issue={issue} />
+        </>
       ) : null}
       {kindHas(issue.kind, "chat") ? (
         <ChatPanel

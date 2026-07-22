@@ -19,6 +19,7 @@ import {
   removeAttachment,
 } from "./server/services/attachments.js";
 import { formatAttachmentsSection } from "./server/services/summary.js";
+import { formatInspirationAppsLine } from "./server/services/inspiration-apps.js";
 import { formatSupportingDocsLine } from "./server/services/supporting-docs.js";
 import { assertKind } from "./cli-kind.js";
 
@@ -53,6 +54,10 @@ function printIssueView(id: string, opts: ViewOptions = {}): void {
     if (detail.supportingDocs) {
       const line = formatSupportingDocsLine(detail.supportingDocs);
       if (line) lines.push(`supportingDocs: ${line}`);
+    }
+    if (detail.inspirationApps && detail.inspirationApps.length > 0) {
+      const line = formatInspirationAppsLine(detail.inspirationApps);
+      if (line) lines.push(`inspirationApps: ${line}`);
     }
   }
   if (hasPartOf(detail)) lines.push(`partOf: ${detail.partOf}`);

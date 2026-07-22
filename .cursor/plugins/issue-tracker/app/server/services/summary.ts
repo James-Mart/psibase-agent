@@ -1,9 +1,10 @@
-import type { Issue, IssueKind, SupportingDocs } from "../schemas.js";
+import type { Issue, IssueKind, InspirationApps, SupportingDocs } from "../schemas.js";
 import { KIND_LABEL, kindHas } from "../kind.js";
 import { attachmentPath, listAttachments } from "./attachments.js";
 import { IssueError } from "./errors.js";
 import { readAll, readDescription } from "./issues.js";
 import { ancestorChain } from "./subtree.js";
+import { formatInspirationAppsLine } from "./inspiration-apps.js";
 import { formatSupportingDocsLine } from "./supporting-docs.js";
 
 /** Name + size as rendered by show/summary; not full Attachment metadata. */
@@ -29,6 +30,7 @@ export interface IssueSummary {
   nodes: SummaryNode[];
   workspace?: string;
   supportingDocs?: SupportingDocs;
+  inspirationApps?: InspirationApps;
 }
 
 /** First non-empty paragraph after any leading `#` headings. */
@@ -93,6 +95,9 @@ export function buildSummary(
     ...(root?.kind === "project" && root.supportingDocs
       ? { supportingDocs: root.supportingDocs }
       : {}),
+    ...(root?.kind === "project" && root.inspirationApps
+      ? { inspirationApps: root.inspirationApps }
+      : {}),
     nodes: chain.map((issue) => {
       const attachments = attachmentsOf(issue.id, issue.kind);
       return {
@@ -143,6 +148,10 @@ export function formatSummary(summary: IssueSummary): string {
     if (node.kind === "project" && summary.supportingDocs) {
       const line = formatSupportingDocsLine(summary.supportingDocs);
       if (line) lines.push(`  supportingDocs: ${line}`);
+    }
+    if (node.kind === "project" && summary.inspirationApps) {
+      const line = formatInspirationAppsLine(summary.inspirationApps);
+      if (line) lines.push(`  inspirationApps: ${line}`);
     }
     if (node.descriptionSummary) {
       lines.push(`  Description: ${node.descriptionSummary}`);

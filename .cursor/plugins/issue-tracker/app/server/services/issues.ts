@@ -54,6 +54,7 @@ import { validateNonClearablePatch } from "./patch.js";
 import { validateCommitShaPatch } from "./commit-sha.js";
 import { validateWorkspacePatch, validateWorkspacePath } from "./workspace.js";
 import { validateSupportingDocsPatch } from "./supporting-docs.js";
+import { validateInspirationAppsPatch } from "./inspiration-apps.js";
 import {
   planLabelCatalogCascade,
   planLabelCatalogRename,
@@ -506,6 +507,7 @@ export function update(id: string, patch: IssuePatch): Promise<IssueDetail> {
     const { description, ...jsonPatch } = patch;
     validateWorkspacePatch(jsonPatch);
     validateSupportingDocsPatch(existing, jsonPatch);
+    validateInspirationAppsPatch(existing, jsonPatch);
     validateCommitShaPatch(jsonPatch);
     validateNonClearablePatch(jsonPatch);
 

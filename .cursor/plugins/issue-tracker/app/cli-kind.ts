@@ -15,9 +15,13 @@ import {
   type IssueKind,
   type IssuePatch,
   type ProjectLabel,
+  type InspirationAppEntry,
   type SupportingDocKey,
   type SupportingDocRef,
   type SupportingDocs,
+  formatZodError,
+  inspirationAppEntrySchema,
+  inspirationAppsSchema,
 } from "./server/schemas.js";
 import { isSupportingDocKey } from "./server/services/supporting-docs.js";
 
@@ -143,6 +147,28 @@ function parseLabelObject(raw: string): ProjectLabel {
   return result.data;
 }
 
+function parseInspirationAppObject(raw: string): InspirationAppEntry {
+  const parsed = coerceJson(raw, "inspirationApps");
+  const result = inspirationAppEntrySchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error(
+      `invalid inspirationApps: ${formatZodError(result.error, "expected an inspiration app object")}`,
+    );
+  }
+  return result.data;
+}
+
+function parseInspirationAppsValue(raw: string): InspirationAppEntry[] {
+  const parsed = coerceJson(raw, "inspirationApps");
+  const result = inspirationAppsSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error(
+      `invalid inspirationApps: ${formatZodError(result.error, "expected a JSON array")}`,
+    );
+  }
+  return result.data;
+}
+
 /**
  * Resolve the JSON string for a catalog upsert from the mutually compatible
  * upsert inputs (`--add` object, `--file`/`-`, or positional value).
@@ -255,6 +281,76 @@ export function resolveSupportingDocsSet(
 }
 
 /**
+ * Resolve an `inspirationApps` patch from CLI flags.
+ * Modes: clear all; remove by `--remove <name>`; upsert one entry via
+ * `--add` JSON `{name,url,description}`; or replace the full array via
+ * positional value / `--file`.
+ */
+export function resolveInspirationAppsSet(
+  value: string | undefined,
+  opts: KindSetOptions,
+  current: InspirationAppEntry[],
+): IssuePatch {
+  if (opts.doc !== undefined || opts.attachment !== undefined) {
+    throw new Error(
+      "--doc and --attachment are not valid for inspirationApps",
+    );
+  }
+  if (opts.rename !== undefined) {
+    throw new Error("--rename is not valid for inspirationApps");
+  }
+
+  const modes = countSetModes(value, opts);
+  if (modes.length === 0) {
+    throw new Error(
+      "provide --add, --file, --remove, --clear, or a positional value for inspirationApps",
+    );
+  }
+  if (modes.length > 1) {
+    throw new Error(
+      `value, --file, --clear, --add, and --remove are mutually exclusive (got ${formatModes(modes)})`,
+    );
+  }
+
+  if (opts.clear) {
+    return { inspirationApps: [] };
+  }
+  if (opts.remove !== undefined) {
+    const removeSet = new Set(opts.remove);
+    return {
+      inspirationApps: current.filter((entry) => !removeSet.has(entry.name)),
+    };
+  }
+  if (opts.add !== undefined) {
+    if (opts.add.length !== 1) {
+      throw new Error(
+        "--add for inspirationApps expects a single JSON object with name, url, and description",
+      );
+    }
+    const entry = parseInspirationAppObject(opts.add[0]);
+    const next = [...current];
+    const idx = next.findIndex((item) => item.name === entry.name);
+    if (idx >= 0) next[idx] = entry;
+    else next.push(entry);
+    const validated = inspirationAppsSchema.safeParse(next);
+    if (!validated.success) {
+      throw new Error(
+        `invalid inspirationApps: ${formatZodError(validated.error, "invalid inspirationApps")}`,
+      );
+    }
+    return { inspirationApps: validated.data };
+  }
+
+  const raw = resolveFileOrValue(value, opts.file);
+  if (raw === undefined) {
+    throw new Error(
+      "provide a JSON array via --file or a positional value for inspirationApps",
+    );
+  }
+  return { inspirationApps: parseInspirationAppsValue(raw) };
+}
+
+/**
  * Single entry for project `labels` set: exclusive modes are clear, remove,
  * rename, or upsert (composite of --add / --file / positional).
  */
@@ -340,6 +436,10 @@ export function coerceSetPatch(
 
   if (spec.type === "supportingDocs") {
     throw new Error("supportingDocs must be set via kindSet");
+  }
+
+  if (spec.type === "inspirationApps") {
+    throw new Error("inspirationApps must be set via kindSet");
   }
 
   if (opts.add !== undefined || opts.remove !== undefined) {
@@ -483,6 +583,13 @@ function currentSupportingDocs(detail: IssueDetail): SupportingDocs | undefined 
   return detail.supportingDocs;
 }
 
+function currentInspirationApps(detail: IssueDetail): InspirationAppEntry[] {
+  if (detail.kind !== "project") {
+    throw new Error(`inspirationApps is only on project (got ${detail.kind})`);
+  }
+  return detail.inspirationApps ?? [];
+}
+
 export function kindSet(
   kind: IssueKind,
   id: string,
@@ -516,6 +623,13 @@ export function kindSet(
       );
     }
     return update(id, resolveSupportingDocsSet(opts, currentSupportingDocs(detail)));
+  }
+
+  if (spec.type === "inspirationApps") {
+    return update(
+      id,
+      resolveInspirationAppsSet(value, opts, currentInspirationApps(detail)),
+    );
   }
 
   const currentArray =

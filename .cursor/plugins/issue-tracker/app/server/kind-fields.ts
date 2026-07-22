@@ -16,6 +16,7 @@ export type FieldCoerce =
   | { type: "array" }
   | { type: "labelCatalog" }
   | { type: "supportingDocs" }
+  | { type: "inspirationApps" }
   | { type: "description" }
   | { type: "needsAttention" }
   | { type: "commitSha" };
@@ -28,6 +29,7 @@ export const PROJECT_SET_FIELDS = {
   mergePolicy: { type: "enum", values: MERGE_POLICIES },
   labels: { type: "labelCatalog" },
   supportingDocs: { type: "supportingDocs" },
+  inspirationApps: { type: "inspirationApps" },
   description: { type: "description" },
 } as const satisfies Record<string, SetFieldSpec>;
 
@@ -104,6 +106,7 @@ export const PROJECT_GET_FIELDS = {
   mergePolicy: STORED,
   labels: STORED,
   supportingDocs: STORED,
+  inspirationApps: STORED,
   order: STORED,
   createdAt: STORED,
   updatedAt: STORED,
