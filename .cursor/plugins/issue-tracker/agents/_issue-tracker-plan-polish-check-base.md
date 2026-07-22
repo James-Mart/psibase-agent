@@ -8,18 +8,16 @@ Spawnable agents **must** load this file from disk at bootstrap (absolute
 path below) — a markdown link in the agent body is not enough; Cursor does
 not inject linked files into the subagent prompt.
 
-Absolute path for this file: join `Workspace:` from `issue summary` with:
+Absolute path for this file (Read this exact path):
 
-`.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
 
 You only read the work-root tree and return findings. Do not write the
 tracker or edit workspace source.
 
 ## CLI
 
-Invoke the installed `issue` CLI as `issue <subcommand> …`. Flags:
-`issue --help` / `issue <subcommand> --help`. Glossary:
-`.cursor/plugins/issue-tracker/SPEC.md#cli-invariants`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Read-only allowlist:** `summary`, `tree`, `list`,
 `<kind> get`, `<kind> view`, `<kind> attachments`, and `--help`.
@@ -40,8 +38,8 @@ Load issue specs via `issue <kind> view <id>` (and `<kind> get` for scalars).
    - Any other kind → refuse.
    On refuse: check agents return `[]` and stop; the coordinator stops and
    hands back to the user (does not spawn checks).
-3. Read the absolute path formed by joining `Workspace:` from step 1 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+3. **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
    Consult `vision` per that file using the step-1 summary output.
 4. `issue tree <rootId>` for the Story/Task outline.
 5. `issue <kind> view <id>` on the work root and every Story/Task you review

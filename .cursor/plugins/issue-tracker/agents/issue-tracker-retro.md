@@ -15,14 +15,13 @@ coordinator.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
+
 **Allowed writes:** `issue <kind> comment` and `issue <kind> set` on the
 **source** id with `kind` matching the source (`epic` or `story`) — for `retro`
 (including `retro --clear` on escalation) and `needsAttention` (`--reason`
 required when true); plus `issue idea add`, `issue idea set` (labels only),
-and `issue idea attach`. Do not run any other mutating `issue` command.
-Flags: `issue <command> --help`. Glossary: plugin `SPEC.md`. Use
+and `issue idea attach`. Do not run any other mutating `issue` command. Use
 `issue summary <sourceRootId>` for source context (title, linkage) as needed
 before Idea creation / comments.
 
@@ -32,36 +31,17 @@ before Idea creation / comments.
   or project-level Story; do not require promoting a Story to an Epic)
 - **Comment role** — pass as `--role <role>` on every
   `issue <kind> comment` on the source
-- Transcripts — resolve per **## Transcript resolution**; mine with your own live CoT
+- Transcripts — resolve per Transcript resolution include; mine with your own
+  live CoT
 
 Resolve `<sourceKind>` once from `issue summary <sourceRootId>` (`epic` or
 `story`). Use that kind for every source-scoped `comment` / `set` below.
 
 ## Transcript resolution
 
-`$CURSOR_CONVERSATION_ID` may be the parent implement-run id or a Cursor Task
-subagent id. Resolve the parent tree.
-
-A directory `D` is a **Source-run root** when `D/<basename(D)>.jsonl` exists.
-
-1. Let `direct = $AGENT_TRANSCRIPTS/$CURSOR_CONVERSATION_ID`. If `direct` is a
-   Source-run root, `<root> = direct`.
-2. Otherwise set `currentId = $CURSOR_CONVERSATION_ID` and maintain a `visited`
-   set of candidate directories; loop:
-   - Find matches for `$AGENT_TRANSCRIPTS/*/subagents/<currentId>.jsonl`.
-   - Zero matches → escalate per **## Escalation** — absence is not a clean run.
-   - More than one match → escalate per **## Escalation** — do not pick a
-     winner.
-   - One match → `candidate` = directory containing that `subagents/`.
-   - If `candidate` was already visited → escalate per **## Escalation**
-     (cycle).
-   - If `candidate` is a Source-run root → `<root> = candidate`; stop.
-   - Add `candidate` to `visited`; set `currentId = basename(candidate)` and
-     continue.
-
-Set `<parentId> = basename(<root>)`. Mine `<root>/<parentId>.jsonl` (required —
-escalate per **## Escalation** if unreadable) plus any `<root>/subagents/*.jsonl`
-(optional). Use `<parentId>` as the Source-run conversation id in evidence.
+**Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-retro-transcript-resolution.md`
+and follow it.
 
 ## Invariants
 
@@ -85,43 +65,10 @@ escalate per **## Escalation** if unreadable) plus any `<root>/subagents/*.jsonl
 
 ## Fix upstream, prefer deletion
 
-Diagnose the **upstream cause**, not the symptom. Do not propose fixes that
-paper over confusion — find what actually misled the agent and remove it.
-
-Confusion usually comes from overly complicated agent-template prose, not from
-missing instructions. So when the fix touches an agent template, **prefer
-deleting the line that confused the agent** over adding another "do not do X"
-restriction. Deletions beat additions. Only add prose when no deletion or
+Diagnose the **upstream cause**, not the symptom. When the fix touches an agent
+template, **prefer deleting the line that confused the agent** over adding
+another "do not do X" restriction. Only add prose when no deletion or
 simplification can eliminate the confusion.
-
-## Residual Idea
-
-Create exactly one Idea for remaining gaps:
-
-1. Short human-readable confusion headline (not `retro-…` id noise):
-
-```bash
-issue idea add "<headline>" --part-of issue-tracker --description "<body>"
-```
-
-   `<body>` = concise plain-language confusion summary **plus** a concise
-   suggested fix (honor **## Invariants** / **## Fix upstream, prefer
-   deletion**). Capture the printed Idea id as `<ideaId>`.
-
-2. Write a temp file basename `evidence.md` (transcript paths, agent ids,
-   CoT/behavioral citations, Source run `[<title>](issue:<sourceRootId>)` +
-   conversation id `<parentId>`), then:
-
-```bash
-issue idea attach <ideaId> <path-to-evidence.md>
-```
-
-3. Label from the existing Project catalog (do **not** create labels; do not
-   upsert the catalog from Retro):
-
-```bash
-issue idea set <ideaId> labels --add meta-confusion
-```
 
 ## Flow
 
@@ -142,8 +89,10 @@ issue <sourceKind> set <sourceRootId> retro done
 
 then stop. If the comment fails, escalate per **## Escalation** and stop.
 
-4. **Gaps remain:** execute **## Residual Idea**, then post the terminal
-   comment (**## Terminal comment**). On success:
+4. **Gaps remain:** **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-retro-residual-idea.md`
+   and follow it, then post the terminal comment (**## Terminal comment**). On
+   success:
 
 ```bash
 issue <sourceKind> set <sourceRootId> retro done

@@ -15,8 +15,7 @@ here — the implementor sets `status in-progress` on first implement entry
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Allowed writes:** `issue task set <taskId> assignee <modelId>` (Task
 `assignee` is overloaded as the model slug); confirm with
@@ -28,15 +27,14 @@ Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
 
 Run `issue summary <taskId>` for Project → … → Task context (Epic may be
 absent when the Task's Story / work root is project-level), then
-`issue task view <taskId>` (and `issue story view` / `issue epic view` when needed) to read the specs
-you score against. That summary also carries the Project **workspace** — you may
-**read-only peek** it (file reads and greps only) to see whether required
-patterns/APIs already exist and to reason about the implementor's likely approach
-**only to score** difficulty. Use the `Workspace:` line as cwd for those peeks
-and honor the unset escalation, per **SPEC § Project workspace**. Heavy
-exploration (many reads across the tree) is normal when verification difficulty
-depends on what exists in the workspace — exploration volume is not itself
-out of bounds.
+`issue task view <taskId>` (and `issue story view` / `issue epic view` when needed)
+to read the specs you score against. That summary also carries the Project
+**workspace** — you may **read-only peek** it (file reads and greps only) to see
+whether required patterns/APIs already exist and to reason about the
+implementor's likely approach **only to score** difficulty. Use the
+`Workspace:` line as cwd for those peeks and honor the unset escalation, per
+**SPEC § Project workspace**. Heavy exploration is normal when verification
+difficulty depends on what exists in the workspace.
 
 ## Inputs (from invoking prompt)
 
@@ -61,19 +59,11 @@ Map to a single model id; persist and confirm per **Allowed writes**:
 | **Mid judgment**  | `cursor-grok-4.5-high-fast`     | `cursor-grok-4.5-high-fast`     | `claude-opus-4-8-thinking-high` |
 | **High judgment** | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` | `claude-opus-4-8-thinking-high` |
 
-Mid-tier is Grok 4.5 High Fast — slug `cursor-grok-4.5-high-fast`. High tier:
-`claude-opus-4-8-thinking-high`.
-
 ## What you do
 
-1. Read the Task (and Story/Epic as needed) specs; peek the Project workspace
-   read-only when scoring verification difficulty requires it (see Bootstrap).
-2. Score judgment and verification difficulty; pick the model from the matrix.
-3. Persist the chosen model per **Allowed writes**.
-4. Confirm the get stdout matches the chosen model id.
-5. Finish and stop. Do not implement, write code, choose libraries for the
-   implementor beyond what scoring needs, validate, spawn other agents, or explore
-   outside the Project workspace.
+Score per **## Scoring** (peek workspace when needed — see Bootstrap), persist
+and confirm per **Allowed writes**, then finish and stop. Do not implement,
+validate, spawn other agents, or explore outside the Project workspace.
 
 ## Escalation
 

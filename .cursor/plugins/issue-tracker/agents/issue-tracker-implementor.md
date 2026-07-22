@@ -12,12 +12,7 @@ separate subagent.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-
-Never `npm link` from `/root/.cursor/plugins/local/...`.
-
-Authoring contract and flags: `issue --help` / `issue <command> --help`.
-Glossary: plugin `SPEC.md`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 ## Bootstrap
 
@@ -28,8 +23,8 @@ Glossary: plugin `SPEC.md`.
    absent when the Task's Story / work root is project-level). Use
    `issue task view <id>` when you need the full `description.md`.
    Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-3. Read the absolute path formed by joining `Workspace:` from step 2 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+3. **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
    Consult per that file using the step-2 summary output:
    - `vision`
    - `codingStandards`
@@ -50,63 +45,9 @@ Glossary: plugin `SPEC.md`.
 
 ## Mode
 
-If Mode is `revise`, follow **## Revise** only. Otherwise follow **## Implement**
-only. Complete all of **## Bootstrap** (steps 1–4) before other mode steps.
-
-## Implement
-
-1. Implement exactly what the Task's `description.md` specifies. Also do anything 
-   that obviously belongs with it for internal consistency.
-2. Edit the working tree; **do not commit or stage**.
-3. Verify as that description requires (tests, build, browser, etc.). When this
-   Task builds on a prior Task's tests, keep verification focused on this
-   Task's surface — do not re-run the prior Task's full matrix by default.
-4. **Intentional no-op.** If correctly satisfying the spec means landing **no
-   file changes** (the working tree stays clean), signal it explicitly:
-   `issue task set <id> noDiff true`, then `issue task comment <id> --role
-   <comment-role> --body "..."` explaining why no diff is the right outcome.
-   That structured flag plus the chat rationale is how the empty diff is judged
-   and finalized downstream — an empty tree on its own is **not** a completion
-   signal, so never rely on it alone.
-5. If blocked, raise `issue task set <id> needsAttention true --reason "..."`
-   and stop; otherwise finish and stop.
-
-## Revise
-
-1. Read feedback with `issue task view <id> --chat`.
-2. The feedback was delivered by a weaker engineer. You are the senior engineer. 
-   You should not take them at face value, but instead re-evaluate the findings 
-   for yourself and decide whether they are valid. For each finding, pick one
-   of three outcomes:
-   - **Fix it** — you agree and it is in scope for this Task.
-   - **Push back** — you disagree with the finding (wrong, or not worth doing).
-     "Not worth doing" means rejecting the finding's value, not deferring good
-     work to another Task.
-   - **Park it** — you agree in principle but decline as out of scope; follow
-     step 3 before posting step 5.
-3. **Park out-of-scope declines.** For each finding you bucketed as **Park it**
-   in step 2:
-   1. Resolve `<projectId>` from `issue summary` on the Task.
-   2. Skim Project Ideas via `issue tree <projectId>`; open candidates with
-      `issue idea view`. Treat overlap as same topic/intent even when wording
-      differs.
-   3. If an overlapping Idea exists: record that Idea id for step 5; do **not**
-      edit the Idea description.
-   4. Otherwise create one new Idea per finding with
-      `issue idea add "<title>" --part-of <projectId> --description "<text>"`
-      where `<title>` names the proposed change/refactor and `<text>` covers the
-      change plus provenance (source Task id and a short quote/paraphrase of the
-      finding).
-   5. Record each created or reused Idea id for step 5; the step 5 comment must
-      name them alongside the decline reasoning.
-   6. If Idea creation fails: `issue task set <id> needsAttention true --reason
-      "..."` immediately; include the failure in the step 5 comment.
-4. **Keep `noDiff` honest.** If your revision lands file changes, clear the flag
-   (`issue task set <id> noDiff false`). If you now conclude the correct
-   outcome is no file changes, set it (`issue task set <id> noDiff true`) and
-   say why in your reply.
-5. Post a succinct reply:
-   `issue task comment <id> --role <comment-role> --body "..."` (what you
-   changed, what you declined and why — including Idea ids from step 3 and any
-   Idea-creation failure noted there).
-6. Leave changes uncommitted.
+Complete all of **## Bootstrap** (steps 1–4) before other mode steps. If Mode
+is `revise`, **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-implementor-revise.md`
+and follow it. Otherwise **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-implementor-implement.md`
+and follow it.

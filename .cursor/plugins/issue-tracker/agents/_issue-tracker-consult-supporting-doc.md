@@ -7,9 +7,9 @@ Resolve supporting docs **only** via `supportingDocs` on the Project
 (**consult-if-present**). No key or unreadable target → skip; never fail the
 workflow. No ad-hoc path scans.
 
-Absolute path for this file: join `Workspace:` from `issue summary` with:
+Absolute path for this file (Read this exact path):
 
-`.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
 
 Spawnable agents **must** read this file from disk when a bootstrap step
 references it — a markdown link alone is not enough.
