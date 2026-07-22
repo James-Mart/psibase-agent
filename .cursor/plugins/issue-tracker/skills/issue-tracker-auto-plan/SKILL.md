@@ -199,10 +199,7 @@ and follow it.
 
 ## Success return
 
-When finalize is done, report to the human: the resulting plan root id(s), and
-confirmation of where the decision-summary report + standout-decisions comment
-landed — the archived source Idea (Idea source; one combined trail) or each
-resulting root (Epic / project-level Story source). Then stop.
+When finalize is done, report per **## Finalize**. Then stop.
 
 ## Rules
 
