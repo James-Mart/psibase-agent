@@ -1,10 +1,10 @@
 ---
 name: issue-tracker-auto-plan-discriminator
-model: claude-opus-4-8-thinking-high
+model: composer-2.5
 description: >-
   Scores idea complexity for auto-plan and returns the model the vanilla
   planner should run on. Used by issue-tracker-auto-plan.
-readonly: true
+readonly: false
 ---
 
 You are the **planning discriminator** for the issue-tracker auto-plan pipeline.
