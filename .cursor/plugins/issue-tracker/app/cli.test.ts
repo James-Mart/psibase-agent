@@ -395,6 +395,90 @@ describe("project get/set", () => {
     }
   });
 
+  it("sets, gets, clears, and surfaces inspirationApps", () => {
+    expect(
+      runCli([
+        "project",
+        "set",
+        "p",
+        "inspirationApps",
+        "--add",
+        JSON.stringify({
+          name: "Notion",
+          url: "https://notion.so",
+          description: "Note-taking app",
+        }),
+      ]).status,
+    ).toBe(0);
+    expect(
+      runCli([
+        "project",
+        "set",
+        "p",
+        "inspirationApps",
+        "--add",
+        JSON.stringify({
+          name: "Figma",
+          url: "https://figma.com",
+          description: "Design tool",
+        }),
+      ]).status,
+    ).toBe(0);
+
+    const got = runCli(["project", "get", "p", "inspirationApps"]);
+    expect(got.status).toBe(0);
+    expect(JSON.parse(got.stdout)).toEqual([
+      {
+        name: "Notion",
+        url: "https://notion.so",
+        description: "Note-taking app",
+      },
+      {
+        name: "Figma",
+        url: "https://figma.com",
+        description: "Design tool",
+      },
+    ]);
+
+    const line =
+      "inspirationApps: Notion — https://notion.so — Note-taking app, Figma — https://figma.com — Design tool";
+    expect(runCli(["project", "view", "p"]).stdout).toContain(line);
+    expect(runCli(["summary", "p"]).stdout).toContain(line);
+
+    expect(
+      runCli(["project", "set", "p", "inspirationApps", "--remove", "Notion"])
+        .status,
+    ).toBe(0);
+    expect(JSON.parse(runCli(["project", "get", "p", "inspirationApps"]).stdout)).toEqual([
+      {
+        name: "Figma",
+        url: "https://figma.com",
+        description: "Design tool",
+      },
+    ]);
+
+    expect(runCli(["project", "set", "p", "inspirationApps", "--clear"]).status).toBe(0);
+    expect(JSON.parse(runCli(["project", "get", "p", "inspirationApps"]).stdout)).toEqual([]);
+    expect(runCli(["project", "view", "p"]).stdout).not.toContain("inspirationApps:");
+  });
+
+  it("refuses inspirationApps on non-project kinds", () => {
+    const set = runCli([
+      "epic",
+      "set",
+      "e",
+      "inspirationApps",
+      "--add",
+      JSON.stringify({
+        name: "Notion",
+        url: "https://notion.so",
+        description: "Notes",
+      }),
+    ]);
+    expect(set.status).toBe(1);
+    expect(set.stderr).toContain('unknown or unsettable field "inspirationApps" for epic');
+  });
+
   it("refuses invalid supportingDocs sets", () => {
     const ws = makeGitWorkspace();
     try {

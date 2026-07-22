@@ -4,6 +4,7 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   coerceSetPatch,
+  resolveInspirationAppsSet,
   resolveLabelCatalogSet,
   resolveSupportingDocsSet,
 } from "./cli-kind.js";
@@ -422,5 +423,84 @@ describe("resolveSupportingDocsSet", () => {
       ),
     ).toThrow(/exactly one/);
     expect(() => resolveSupportingDocsSet({}, undefined)).toThrow(/--doc/);
+  });
+});
+
+describe("resolveInspirationAppsSet", () => {
+  const notion = {
+    name: "Notion",
+    url: "https://notion.so",
+    description: "Notes",
+  };
+  const figma = {
+    name: "Figma",
+    url: "https://figma.com",
+    description: "Design",
+  };
+
+  it("adds and upserts entries", () => {
+    expect(
+      resolveInspirationAppsSet(undefined, { add: [JSON.stringify(notion)] }, []),
+    ).toEqual({ inspirationApps: [notion] });
+    expect(
+      resolveInspirationAppsSet(
+        undefined,
+        {
+          add: [
+            JSON.stringify({
+              ...notion,
+              description: "Updated",
+            }),
+          ],
+        },
+        [notion],
+      ),
+    ).toEqual({
+      inspirationApps: [{ ...notion, description: "Updated" }],
+    });
+    expect(
+      resolveInspirationAppsSet(
+        undefined,
+        { add: [JSON.stringify(figma)] },
+        [notion],
+      ),
+    ).toEqual({ inspirationApps: [notion, figma] });
+  });
+
+  it("removes by name and clears all", () => {
+    expect(
+      resolveInspirationAppsSet(undefined, { remove: ["Notion"] }, [notion, figma]),
+    ).toEqual({ inspirationApps: [figma] });
+    expect(resolveInspirationAppsSet(undefined, { clear: true }, [notion])).toEqual({
+      inspirationApps: [],
+    });
+  });
+
+  it("replaces the full array from a positional value", () => {
+    expect(
+      resolveInspirationAppsSet(JSON.stringify([notion, figma]), {}, []),
+    ).toEqual({ inspirationApps: [notion, figma] });
+  });
+
+  it("rejects invalid modes and payloads", () => {
+    expect(() =>
+      resolveInspirationAppsSet(undefined, { add: ["{}", "{}"] }, []),
+    ).toThrow(/single JSON object/);
+    expect(() =>
+      resolveInspirationAppsSet(undefined, { add: [JSON.stringify({ name: "" })] }, []),
+    ).toThrow(/invalid inspirationApps/);
+    expect(() =>
+      resolveInspirationAppsSet(undefined, { clear: true, remove: ["X"] }, []),
+    ).toThrow(/mutually exclusive/);
+    expect(() =>
+      resolveInspirationAppsSet(
+        JSON.stringify([
+          { name: "A", url: "https://a", description: "a" },
+          { name: "A", url: "https://b", description: "b" },
+        ]),
+        {},
+        [],
+      ),
+    ).toThrow(/duplicate inspiration app name/);
   });
 });

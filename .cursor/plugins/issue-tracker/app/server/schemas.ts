@@ -132,6 +132,34 @@ export type SupportingDocKey = (typeof SUPPORTING_DOC_KEYS)[number];
 export type SupportingDocRef = z.infer<typeof supportingDocRefSchema>;
 export type SupportingDocs = z.infer<typeof supportingDocsSchema>;
 
+export const inspirationAppEntrySchema = z
+  .object({
+    name: nonEmpty,
+    url: nonEmpty,
+    description: z.string(),
+  })
+  .strict();
+
+export const inspirationAppsSchema = z
+  .array(inspirationAppEntrySchema)
+  .superRefine((apps, ctx) => {
+    const seen = new Set<string>();
+    for (let i = 0; i < apps.length; i += 1) {
+      const name = apps[i].name;
+      if (seen.has(name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `duplicate inspiration app name "${name}"`,
+          path: [i, "name"],
+        });
+      }
+      seen.add(name);
+    }
+  });
+
+export type InspirationAppEntry = z.infer<typeof inspirationAppEntrySchema>;
+export type InspirationApps = z.infer<typeof inspirationAppsSchema>;
+
 // A Project is a minimal organizational container: no status, no assignee, and
 // no needs-attention. Deliberately does not spread `mutableCommon`.
 export const projectSchema = z.object({
@@ -144,6 +172,8 @@ export const projectSchema = z.object({
   labels: projectLabelsSchema,
   // Imperative pointers to vision / coding standards / design system docs.
   supportingDocs: supportingDocsSchema.optional(),
+  // Imperative ordered list of reference apps (name, url, description).
+  inspirationApps: inspirationAppsSchema.optional(),
   ...orderField,
   ...timestamps,
 });

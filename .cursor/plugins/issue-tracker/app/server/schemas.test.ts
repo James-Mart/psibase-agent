@@ -111,6 +111,55 @@ describe("parseIssue - valid per kind", () => {
     ).toBe(false);
   });
 
+  it("parses optional inspirationApps entries", () => {
+    const result = parseIssue({
+      ...project,
+      inspirationApps: [
+        {
+          name: "Notion",
+          url: "https://notion.so",
+          description: "Notes",
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok && result.issue.kind === "project") {
+      expect(result.issue.inspirationApps).toEqual([
+        {
+          name: "Notion",
+          url: "https://notion.so",
+          description: "Notes",
+        },
+      ]);
+    }
+  });
+
+  it("rejects bad inspirationApps entries", () => {
+    expect(
+      parseIssue({
+        ...project,
+        inspirationApps: [{ name: "", url: "https://x", description: "x" }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseIssue({
+        ...project,
+        inspirationApps: [
+          { name: "X", url: "https://x", description: "x", extra: true },
+        ],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseIssue({
+        ...project,
+        inspirationApps: [
+          { name: "Notion", url: "https://a", description: "a" },
+          { name: "Notion", url: "https://b", description: "b" },
+        ],
+      }).ok,
+    ).toBe(false);
+  });
+
   it("parses a project (minimal fields only)", () => {
     const result = parseIssue(project);
     expect(result.ok).toBe(true);

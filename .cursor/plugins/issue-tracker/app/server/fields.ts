@@ -27,6 +27,7 @@ export const PROJECT_FIELD_KEYS = [
   ...PROJECT_FORM_FIELD_KEYS,
   "labels",
   "supportingDocs",
+  "inspirationApps",
 ] as const;
 
 export const EPIC_FIELD_KEYS = ["blockedBy"] as const;
@@ -141,6 +142,7 @@ export const FIELD_LABELS = {
   noDiff: "No diff",
   labels: "Labels",
   supportingDocs: "Supporting docs",
+  inspirationApps: "Inspiration apps",
 } as const;
 
 export const MERGE_POLICY_LABELS = {
