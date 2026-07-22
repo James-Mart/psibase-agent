@@ -147,7 +147,9 @@ and follow it. Then continue at **## After success**.
 ## After success
 
 For each resulting root in `blockedBy` order when deps exist among Epic
-roots (otherwise any order):
+roots (otherwise any order) — **serially**: finish that root's polish and
+retro before starting the next; never parallelize polish across roots (each
+polish spawns parallel check agents; concurrent polish runs overload CPU):
 
 1. Auto-chain **`issue-tracker-plan-polish`** on that root — no polish
    yes/no. Polish itself auto-applies when safe (see that skill); do not add
