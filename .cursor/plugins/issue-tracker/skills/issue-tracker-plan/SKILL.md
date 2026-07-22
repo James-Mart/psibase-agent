@@ -107,8 +107,11 @@ single root, skip this beat and continue grilling that root.
 - When a **focused** codebase question or fact needs answering (cwd =
   Project `Workspace:`), **delegate** research rather than reading widely
   yourself — spawn **Focused codebase research** (Spawn stubs); wait for its
-  summary, then continue the grill. Product and dependency decisions remain
-  the user's — put each one to them and wait.
+  summary, then continue the grill.
+- Product and dependency decisions remain the **stakeholder's** — the user who
+  launched the planner and controls the vision — including questions that impact
+  **user or developer experience** (UX/DX). When unsure about any of these, do
+  not resolve product direction yourself; put each decision to them and wait.
 - **Do not enact** the plan (no `apply`, no tracker writes that materialize the
   tree) until the user answers yes at the single post-outline gate below.
 - Do **not** ask a separate pre-outline “shared understanding?” confirm —
