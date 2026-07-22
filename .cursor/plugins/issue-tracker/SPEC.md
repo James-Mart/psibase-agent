@@ -463,6 +463,27 @@ already present; workspace file on disk under the Project workspace).
 `labels`. `apply` preserves `supportingDocs` and never reads or writes it from
 the YAML doc.
 
+**Doc roles.**
+
+- `vision` — product direction the plan should align with.
+- `codingStandards` — a specification the plan must honor when tree prose makes
+  claims it governs.
+- `designSystem` — UI guidelines and inspiration, not a verbatim plan spec.
+  Adherence is enforced during implementation (implementor / code-quality
+  validator when the Task is UI-related), not by plan-polish
+  internal-consistency.
+
+**Consultation map.**
+
+| Doc key | Who consults |
+| --- | --- |
+| `vision` | `issue-tracker-plan`, plan-polish check agents (shared bootstrap + internal-consistency cohesion), implementor bootstrap |
+| `codingStandards` | implementor, code-quality validator; plan-polish internal-consistency when tree prose makes claims the doc governs |
+| `designSystem` | implementor + code-quality validator when the Task appears UI-related (judgment from prose + paths; no Task flag) |
+
+Agents load these at bootstrap; coordinators do not pass doc paths in Task
+prompts.
+
 ### Project workspace
 
 A Project's optional `workspace` is the absolute path to the local git checkout
