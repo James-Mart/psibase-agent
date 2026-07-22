@@ -16,6 +16,7 @@ import {
   useInlineEditSession,
   type InlineEditSession,
 } from "../hooks/use-inline-edit-session";
+import { shouldBeginInlineEdit } from "../lib/inline-field-display-click";
 import { ExternalEditConflictBanner } from "./external-edit-conflict-banner";
 
 export type InlineFieldEditContext = Pick<
@@ -152,7 +153,14 @@ export function InlineField({
     );
 
     const onDisplayClick = (event: MouseEvent<HTMLElement>) => {
-      if (richDisplay && (event.target as HTMLElement).closest("a")) return;
+      const targetIsLink =
+        richDisplay && Boolean((event.target as HTMLElement).closest("a"));
+      const hasTextSelection = window.getSelection()?.isCollapsed === false;
+      if (
+        !shouldBeginInlineEdit({ richDisplay, targetIsLink, hasTextSelection })
+      ) {
+        return;
+      }
       beginEdit();
     };
 
