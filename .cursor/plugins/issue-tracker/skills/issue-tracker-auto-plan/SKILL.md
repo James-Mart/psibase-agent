@@ -162,11 +162,13 @@ specifics and stop; otherwise proceed to Flow.
 
    **Terse grill answers.** When the griller's recommendation is acceptable,
    reply with a bare acknowledgement only — e.g. "I agree" or "agreed with your
-   rec". Do not restate the recommendation it just made. Add substance only when
-   you diverge from the recommendation, the decision is PM-only (product scope,
-   dependency, or priority only the human can settle), or the griller lacks
-   context you hold. Regardless of how terse each resume reply is, keep the
-   running decision-summary draft complete (see below).
+   rec". Do not restate the recommendation it just made. When you reject a
+   recommendation, give an extremely concise reason only — do not cite the vision
+   document; the griller does not consult it. Add substance only when the
+   decision is PM-only (product scope, dependency, or priority only the human
+   can settle) or the griller lacks context you hold. Regardless of how terse
+   each resume reply is, keep the running decision-summary draft complete (see
+   below).
 
    As you answer, **append each resolved decision to a running draft** — one
    entry per decision: the decision, the answer you chose, and the rationale
