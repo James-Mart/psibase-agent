@@ -65,13 +65,9 @@ and follow it.
 
 ## Fix upstream, prefer deletion
 
-Diagnose the **upstream cause**, not the symptom. Do not propose fixes that
-paper over confusion — find what actually misled the agent and remove it.
-
-Confusion usually comes from overly complicated agent-template prose, not from
-missing instructions. So when the fix touches an agent template, **prefer
-deleting the line that confused the agent** over adding another "do not do X"
-restriction. Deletions beat additions. Only add prose when no deletion or
+Diagnose the **upstream cause**, not the symptom. When the fix touches an agent
+template, **prefer deleting the line that confused the agent** over adding
+another "do not do X" restriction. Only add prose when no deletion or
 simplification can eliminate the confusion.
 
 ## Flow

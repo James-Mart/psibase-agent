@@ -12,23 +12,16 @@ polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **Read**
-`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`.
-
-Follow that file for CLI allowlist, bootstrap, inputs, and JSON findings
-output. A markdown link alone is not sufficient. Below is only what you
-uniquely flag.
+**Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
+and follow it. Below is only what you uniquely flag.
 
 ## supportingDocs read seam (consult-if-present)
 
 After the shared-contract bootstrap (which already consults `vision`), **Read**
-`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
-
-Consult `vision`, `codingStandards`, and `designSystem` per that algorithm,
-using the step-1 `issue summary` output only — do **not** re-fetch via
-`issue project get` / `issue project view`. Missing key or unreadable target
-→ skip that doc (never fail). Shared-contract bootstrap may already have
-loaded `vision`; reuse it and still consult the other two keys the same way.
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+and consult `vision`, `codingStandards`, and `designSystem` per that file
+(reuse vision if already loaded). Missing key or unreadable target → skip.
 
 ## What you flag
 

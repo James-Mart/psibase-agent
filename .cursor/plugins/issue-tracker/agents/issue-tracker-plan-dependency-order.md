@@ -11,12 +11,9 @@ You are the **plan dependency-order** checker for issue-tracker plan polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **Read**
-`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`.
-
-Follow that file for CLI allowlist, bootstrap, inputs, and JSON findings
-output. A markdown link alone is not sufficient. Below is only what you
-uniquely flag.
+**Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
+and follow it. Below is only what you uniquely flag.
 
 ## Also load
 

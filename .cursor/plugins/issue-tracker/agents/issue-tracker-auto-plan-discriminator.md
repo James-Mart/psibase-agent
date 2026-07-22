@@ -31,10 +31,8 @@ to the tracker.
    **SPEC § Project workspace**: never peek from the ambient cwd. When
    `Workspace:` is absent, skip the peek and score from issue text only — unset
    workspace is not a block and must not trigger the Escalation default by
-   itself. Intuitive judgment only: do **not** count files or layers, and do
-   **not** preemptively enumerate design decisions the griller will traverse.
-   Contrast the implementation discriminator's heavy exploration — keep peeks
-   minimal.
+   itself. Keep peeks minimal: do **not** count files or layers, and do **not**
+   preemptively enumerate design decisions the griller will traverse.
 
 ## Inputs (from invoking prompt)
 
@@ -55,19 +53,12 @@ Score each axis **low / high** (intuitive judgment; no rubric math):
 ## Decision rule
 
 Return `claude-opus-4-8-thinking-high` if novelty is **high** OR blast radius
-is **broad**; otherwise return `cursor-grok-4.5-high-fast`. On genuine doubt,
-escalate to `claude-opus-4-8-thinking-high`.
-
-Only two planner models exist — never return any other slug.
+is **broad**; otherwise return `cursor-grok-4.5-high-fast`. On genuine doubt
+or when blocked (cannot read the issue via CLI), return
+`claude-opus-4-8-thinking-high`. Only these two planner models — never any
+other slug.
 
 ## What you do
 
 Return **only** the chosen model slug as your entire final message — no prose,
-no JSON, no explanation. Do not spawn subagents, author a plan, or write to the
-tracker. Finish and stop.
-
-## Escalation
-
-If blocked (cannot read the issue via CLI), return
-`claude-opus-4-8-thinking-high` (safe default on doubt). Do not guess a lower
-tier when information is missing.
+no JSON, no explanation. Finish and stop.
