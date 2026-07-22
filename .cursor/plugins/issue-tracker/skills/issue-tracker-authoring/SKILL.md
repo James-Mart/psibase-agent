@@ -123,10 +123,11 @@ For each resulting root, still choose Epic vs project-level Story by
   (what governs every phase). Not the full spec. When to choose an Epic vs a
   project-level Story: see
   [Epic grain](#epic-grain-project-level-story-vs-epic).
-- **Story** = one PR / shippable unit: scope, approach, and any data-model or
+- **Story** = one shippable unit: scope, approach, and any data-model or
   interface detail specific to it. May be `partOf` an Epic or the Project
   (project-level Story). Normally several tasks; one task's worth of work is a
-  Task, not a Story.
+  Task, not a Story. Phrase how the Story lands per
+  [Merge-policy delivery prose](#merge-policy-delivery-prose).
 - **Task** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Must be a standalone vertical
   slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
@@ -136,15 +137,15 @@ For each resulting root, still choose Epic vs project-level Story by
 
 **Each Story must be independently mergeable to `main`.** Stories merge to
 `main` (stacked children after their fork-point Story, in stack order), and only
-Stories merge — Tasks are internal steps that ship together as the Story's
-one PR. So never split one cohesive change across Stories such that merging one
-leaves `main` broken (e.g. a schema change in one Story and the code that
-consumes it in another): keep it in a single Story as multiple Tasks. See the
-stacked-PR merge model in [SPEC.md](../../SPEC.md).
+Stories merge — Tasks are internal steps that ship together as one Story. So
+never split one cohesive change across Stories such that merging one leaves
+`main` broken (e.g. a schema change in one Story and the code that consumes it
+in another): keep it in a single Story as multiple Tasks. See the stacked merge
+model in [SPEC.md](../../SPEC.md).
 
 ### Task shape: vertical slices, not horizontal layers
 
-Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Task kind + stacked-PR
+Normative rule lives in [SPEC.md](../../SPEC.md#kinds) (Task kind + stacked
 merge model): each Task must leave the Story tip **buildable and testable**.
 
 **Prefer** vertical slices — one thin end-to-end cut of a capability (types +
@@ -162,8 +163,8 @@ A plan's *phases* are the Story grain, its *todos/steps* the Task grain. Group
 related todos into one Story and land them as tasks; when mapping todos to
 Tasks, reshape horizontal layering into vertical slices (split or merge until
 each Task stands alone as above). Split only a genuinely oversized phase. One
-todo → one Story (a stack of one-task PRs with an empty Task tier) means you
-split at the wrong tier.
+todo → one Story (a stack of one-task Stories with an empty Task tier) means
+you split at the wrong tier.
 
 ## Task interface seams
 
@@ -194,6 +195,17 @@ When a Task Change updates content, you must update every place that still
 describes or depends on the prior version of that content so it stays
 consistent with the new version.
 
+## Merge-policy delivery prose
+
+Phrase delivery and merge language in issue prose according to the Project's
+`mergePolicy` ([SPEC.md § Project merge policy](../../SPEC.md#project-merge-policy);
+read with `issue project get <projectId> mergePolicy`):
+
+- **`pull-request`** — PR phrasing is correct ("in the PR", "open a PR", etc.).
+- **`merge`** or **`manual`** — no pull request exists at Story finish. Do not
+  write "in the PR" or other pull-request-assuming language; phrase in terms of
+  merging or delivery instead (e.g. "merge to main", "land the Story").
+
 ## Completeness pass
 
 Before done:
@@ -220,3 +232,5 @@ Before done:
 - Every Task Change that updates content also updates every place that still
   describes or depends on the prior version (see
   [Prior-content consistency](#prior-content-consistency)).
+- Delivery/merge phrasing matches the Project's `mergePolicy` (see
+  [Merge-policy delivery prose](#merge-policy-delivery-prose)).
