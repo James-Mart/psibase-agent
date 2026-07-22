@@ -80,9 +80,9 @@ there is nothing to resume.
 8. Apply the **PM decision heuristics** below (baked into this skill).
 
 You **may** optionally consult other supporting docs (e.g. `designSystem`) at
-your discretion via the same consult mechanism. You are **discouraged from
-reading product code** — code answers what IS implemented, not what the product
-SHOULD be. Answer as the human PM would.
+your discretion via the same consult mechanism. You are **NOT ALLOWED** to read
+code itself under any circumstance — code answers what IS implemented, not what
+the product SHOULD be. Answer as the human PM would.
 
 ### PM decision heuristics
 
