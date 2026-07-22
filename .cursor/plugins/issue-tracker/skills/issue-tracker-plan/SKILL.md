@@ -152,6 +152,21 @@ apply-doc shape and prune-by-default scope. Choose **story-form** or
 **epic-form** per root by issue-tracker-authoring **Epic grain** (do not
 restate that rule here).
 
+### Idea source backlink
+
+When the source is an **Idea**, each new root authored in the migrate apply
+doc must begin its root `description` (written to `description.md`) with this
+line — no text before it:
+
+    Source idea: [<idea title>](issue:<ideaId>)
+
+Use the source Idea's real title and id. **Non-Idea** sources (**Epic**,
+**project-level Story**) get no such line. The link is a freeform `issue:`
+cross-link; the archived Idea stays reachable via `--show-archived`.
+
+This applies to **single-root** and **multi-root** Idea migrations alike —
+every new Epic or project-level Story root gets the line.
+
 ### Single root (not splitting)
 
 One epic-form or story-form apply. Keep existing in-place / Idea-archive
