@@ -104,9 +104,11 @@ single root, skip this beat and continue grilling that root.
 - Recommended answers must **not** be part of the question text. Express them
   only via a `(recommended)` prefix in the **list of answers** (not inside the
   question).
-- If a fact can be found by exploring the codebase (cwd = Project
-  `Workspace:`), **look it up** rather than asking. Product and dependency
-  decisions remain the user's — put each one to them and wait.
+- When a **focused** codebase question or fact needs answering (cwd =
+  Project `Workspace:`), **delegate** research rather than reading widely
+  yourself — spawn **Focused codebase research** (Spawn stubs); wait for its
+  summary, then continue the grill. Product and dependency decisions remain
+  the user's — put each one to them and wait.
 - **Do not enact** the plan (no `apply`, no tracker writes that materialize the
   tree) until the user answers yes at the single post-outline gate below.
 - Do **not** ask a separate pre-outline “shared understanding?” confirm —
@@ -163,6 +165,12 @@ skill's After-success chain does.
 Pass these as the Cursor Task `prompt`. Inline the fields each stub lists.
 Children own static behavior via their `agents/*.md` files — do not paste
 workflow instructions here.
+
+**Focused codebase research** — `subagent_type: generalPurpose`
+(`model: composer-2.5`)
+
+> Research: `<focused question>`. Workspace: `<absolute workspace path>`.
+> Seed paths (if any): `<paths>`. Return a concise factual summary only.
 
 **Retro** — `subagent_type: issue-tracker-retro`
 (`model: cursor-grok-4.5-high-fast`)
