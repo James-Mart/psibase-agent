@@ -38,3 +38,10 @@ there is no Idea to write to).
    ```bash
    issue <kind> comment <id> --role stakeholder --body "<body>"
    ```
+
+### Report to the invoking user
+
+On success, print the full `decision-summary.md` body to the invoking user —
+not only where it was attached — so they can review each decision and iterate
+immediately. Also report the resulting plan root id(s) and where the
+decision-summary report and standout-decisions comment landed on each target.

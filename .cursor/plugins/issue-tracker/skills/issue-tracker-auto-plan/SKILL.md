@@ -3,8 +3,8 @@ name: issue-tracker-auto-plan
 disable-model-invocation: true
 description: >-
   Autonomously plan a single issue as a hands-off stakeholder-planner on
-  opus 4.8. Use when the user runs auto-plan or wants hands-off planning of
-  an issue id.
+  opus 4.8. Use when the user runs auto-plan or auto plan or wants hands-off
+  planning of an issue id.
 ---
 
 # Issue Tracker — Auto-plan (stakeholder-planner)
@@ -199,10 +199,7 @@ and follow it.
 
 ## Success return
 
-When finalize is done, report to the human: the resulting plan root id(s), and
-confirmation of where the decision-summary report + standout-decisions comment
-landed — the archived source Idea (Idea source; one combined trail) or each
-resulting root (Epic / project-level Story source). Then stop.
+When finalize is done, report per **## Finalize**. Then stop.
 
 ## Rules
 
