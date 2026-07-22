@@ -15,8 +15,7 @@ here — the implementor sets `status in-progress` on first implement entry
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Allowed writes:** `issue task set <taskId> assignee <modelId>` (Task
 `assignee` is overloaded as the model slug); confirm with

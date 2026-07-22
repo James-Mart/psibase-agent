@@ -14,8 +14,7 @@ to the tracker.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never `npm link` from `/root/.cursor/plugins/local/...`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **No tracker writes.** Read-only `issue` commands only (`summary`, `view`,
 `tree`, `get`). Do not run any mutating `issue` command.

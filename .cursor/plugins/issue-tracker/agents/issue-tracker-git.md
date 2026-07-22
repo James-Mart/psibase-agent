@@ -13,11 +13,7 @@ plan, mark Tasks in-progress, or spawn other agents.
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
-
-Authoring contract and flags: `issue --help` / `issue <command> --help`.
-Glossary: plugin `SPEC.md`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 ## Bootstrap
 
@@ -30,8 +26,7 @@ including the first `git status` — in the ambient Cursor cwd.
 
 Summary is for ancestry, titles, and Project id only. Load git facts via kind
 get per **## Git facts** below — never from the spawn prompt, `issue tree`,
-`issue list`, or product-repo `issues/` trees. If checkout or merge fails,
-follow **## Escalation** and stop — no fallback discovery.
+`issue list`, or product-repo `issues/` trees.
 
 ## Inputs (from invoking prompt)
 
@@ -59,84 +54,25 @@ Do not invent `mergeBase` or `branchName` from titles, `stackedOn`, or
 tree/list chips (`mergeBase=` on the tree is derived on read — never copy it
 from the prompt). If `mergeBase` is unset
 (empty stdout), `issue story set <storyId> needsAttention true --reason "..."`
-and stop — do not fall back to `stackedOn`. Any other missing/invalid required
-fact → **## Escalation**.
+and stop — do not fall back to `stackedOn`.
 
 ## Mode
 
-Follow exactly one section below (mode name = section heading). First load the
-**## Git facts** rows required for that mode; on missing/invalid facts or any
-blocked condition, follow **## Escalation**.
+Follow exactly one include below (mode name selects the file). First load the
+**## Git facts** rows required for that mode.
 
-| Mode | Section | Operates on |
-|------|---------|-------------|
-| `start-branch` | ## Start Branch | Story |
-| `finish-commit` | ## Finish Commit | Task |
-| `finish-branch` | ## Finish Branch | Story |
+| Mode | Include |
+|------|---------|
+| `start-branch` | `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-git-start-branch.md` |
+| `finish-commit` | `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-git-finish-commit.md` |
+| `finish-branch` | `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-git-finish-branch.md` |
 
-## Start Branch
-
-1. `git checkout <mergeBase>`
-2. `git checkout -b <storyId>`
-3. `issue story set <storyId> branchName <storyId>` (git branch name = Story
-   issue id; never invent a name from titles)
-4. Finish and stop. Do not start Tasks or spawn other agents.
-
-## Finish Commit
-
-Decide from exactly two facts: the Task's `noDiff` flag (from
-`issue task get <taskId> noDiff`) and the working-tree state (`git status`).
-Never parse chat.
-
-| `noDiff` | Tree | Action |
-|----------|------|--------|
-| true | clean (empty) | `issue task set <taskId> status done` only — no `git commit`, no `commitSha`; leave `noDiff` set. Then finish and stop. |
-| true | dirty | `issue task set <taskId> needsAttention true --reason "..."` — the flag contradicts a non-empty tree. Then stop. |
-| absent/false | clean (empty) | `issue task set <taskId> needsAttention true --reason "..."` — an empty tree without `noDiff` is not a completion signal. Then stop. |
-| absent/false | dirty | Stage, commit, and record — steps below. |
-
-For the **dirty + no `noDiff`** row:
-
-1. Stage **all** uncommitted changes (`git add -A`). Do not pick paths —
-   the implementor left everything unstaged for this finalize step.
-2. `git commit -m "<Task title>"` (message = the Task issue's title).
-3. `issue task set <taskId> status done`
-4. `issue task set <taskId> commitSha $(git rev-parse HEAD)`
-5. Finish and stop.
-
-## Finish Branch
-
-`mergePolicy` selects *how* only — merge/PR always targets derived `mergeBase`
-using the stored `branchName`. Apply the Project's merge policy to a Story,
-per **SPEC § Project merge policy** (the authoritative contract — semantics,
-idempotency, and recovery live there). This section is only the concrete
-`git`/`gh` steps; all run in the workspace cwd.
-
-1. **Idempotent no-op:** if the policy's end state already holds — for
-   `merge`, `issue story get <storyId> merged` stdout is exactly `true`; for
-   `pull-request`, `issue story get <storyId> prUrl` stdout is non-empty —
-   do nothing and stop (success).
-2. Otherwise run the policy's steps:
-   - **manual** — nothing.
-   - **pull-request** — `git push -u origin <branchName>`, then
-     `gh pr create --draft --base <mergeBase> --head <branchName> --title
-     "<Story title>" --body "<body>"`, where `<body>` is the Story's
-     rendered `description.md` (`issue story view <storyId>`; a one-line default if
-     empty). Record it: `issue story set <storyId> prUrl <url>`.
-   - **merge** — `git checkout <mergeBase>`, `git merge --no-ff <branchName>`,
-     `git push origin <mergeBase>`, `issue story set <storyId> merged true`.
-3. Finish and stop. Do not start Tasks, finish other Stories, or spawn agents.
+**Read** the include for the Mode and follow it.
 
 ## Escalation
 
-Raise attention and stop — do not guess:
-
-| Scenario | Command |
-|----------|---------|
-| start-branch / finish-branch blocked (checkout failure, missing required Story facts, push rejection, PR-create failure, merge conflict, CLI refusal) | `issue story set <storyId> needsAttention true --reason "..."` |
-| finish-commit blocked (other than the two matrix rows that already inline the command) | `issue task set <taskId> needsAttention true --reason "..."` |
-
-For finish-branch recovery follow SPEC § Project merge policy: abort a `merge`
-**conflict** (`git merge --abort`) so the `mergeBase` ref is never
-half-merged, but leave a *completed* local merge whose push failed in place
-(the retry re-pushes).
+On any blocked condition (checkout/merge failure, missing/invalid required
+git facts other than the unset-`mergeBase` row above, push/PR/merge refusal,
+CLI refusal), **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-git-escalation.md`
+and follow it — no fallback discovery.

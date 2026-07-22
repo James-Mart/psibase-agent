@@ -11,5 +11,8 @@ Absolute path for this file (Read this exact path):
 Use the `issue` binary. Do not set `ISSUES_DIR`. Never `npm link` from
 `/root/.cursor/plugins/local/...`.
 
+Authoring contract and flags: `issue --help` / `issue <command> --help`.
+Glossary: plugin `SPEC.md`.
+
 Cross-cutting CLI invariants:
 `/root/.cursor/plugins/local/issue-tracker/SPEC.md#cli-invariants`.

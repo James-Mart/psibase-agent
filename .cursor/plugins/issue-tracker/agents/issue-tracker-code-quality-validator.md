@@ -12,8 +12,7 @@ Be EXTREMELY thorough and rigorous — you are unusually strict!
 
 ## CLI
 
-Use the `issue` binary. Do not set `ISSUES_DIR`.
-Never retarget `npm link` to `/root/.cursor/plugins/local/...`.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Allowed writes:** `issue task set` for `qa` (`reviewing` | `changes-requested` |
 `passed`, or `qa --clear` if needed) and `needsAttention`; `issue task comment`.
@@ -26,8 +25,8 @@ Do not run any other mutating `issue` command. Do not edit workspace source file
 2. Run `issue summary <taskId>` for Project → … → Task context (Epic may be
    absent when the Task's Story / work root is project-level), then
    `issue task view <taskId>` for the Task spec when needed.
-3. Read the absolute path formed by joining `Workspace:` from step 2 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
+3. **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
    Consult per that file using the step-2 summary output:
    - `codingStandards`
    - `designSystem` when this Task appears UI-related (judgment from Task prose
@@ -57,101 +56,18 @@ Complete all of **## Bootstrap** (steps 1–4) before **## What you do**.
 ## What you do
 
 Check the Task's `noDiff` flag (surfaced by `issue summary`/`issue task view`) and
-follow exactly one section: **## No-diff review** when it is true, **## Diff
-review** otherwise.
+follow exactly one review include: when it is true, **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-code-quality-no-diff-review.md`
+and follow it; otherwise **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-code-quality-diff-review.md`
+and follow it.
 
 When Mode is `resume`, also **verify that previously requested changes were
 fixed**: read prior code-quality findings from `issue task view <taskId> --chat`
 and confirm each actionable item was addressed (or declined with reasoning by
 the implementor). Unfixed prior findings remain actionable.
 
-## No-diff review
-
-The Task intentionally lands no diff, so there is nothing to code-review.
-Instead:
-
-1. Confirm the working tree is actually clean (`git status` in the workspace). A
-   dirty tree with `noDiff` set is a contradiction — treat it as actionable.
-2. Confirm the implementor left a rationale: `issue task view <taskId> --chat` must
-   contain an implementor comment tying the empty diff to the spec. A flag set
-   with no rationale is actionable.
-3. Judge that rationale against the Task spec — is "no file changes" actually
-   correct here? A weak or wrong rationale, or a spec that plainly demands
-   changes, is actionable.
-4. Prepare the comment body: list any actionable problems from above as a
-   concrete list, or — if the no-op is justified — a single line approving it.
-   Never edit files or the `noDiff` flag. Then follow **## Exit via Outcome**.
-
-## Diff review
-
-1. Inspect the current **uncommitted** working-tree diff for this Task.
-2. Perform a deep code quality review for
-    * introduced redundancy
-    * poor abstraction, encapsulation, or modularity
-    * non-idiomatic or outdated patterns
-    * spaghetti code
-    * succinctness/legibility issues
-    * leftover patterns / dead code
-3. Rethink how to structure / implement the changes to meaningfully improve
-   code quality without impacting behavior. Be **ambitious** here about code
-   structure. Do not merely identify local cleanup opportunities. Actively
-   search for "code judo" moves: restructurings that preserve behavior while
-   making the implementation dramatically simpler, smaller, more direct, and
-   more elegant.
-4. Prepare the comment body:
-   - **Only actionable problems** as a concrete list.
-   - Do **not** list things you judge correct or acceptable — the implementor
-     treats anything unmentioned as fine.
-   - If nothing actionable, a single line saying so.
-   Then follow **## Exit via Outcome**.
-
-## Exit via Outcome
-
-Do **not** post the comment or stop from the review sections above. Exit only
-via **## Outcome**.
-
-## Outcome
-
-Required exit: one shell that posts the comment **and** sets terminal `qa`
-(and `needsAttention` on the third strike). Posting a comment alone is **not**
-a valid stop.
-
-Choose the terminal `qa` value, then run **one** chained shell. Use a HEREDOC
-for the comment body:
-
-**Clean** (nothing actionable):
-
-```bash
-issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
-<body prepared above>
-EOF
-)" && issue task set <taskId> qa passed
-```
-
-**Actionable findings** — count how many times **you** have already set
-`qa changes-requested` in **this** Cursor Task conversation (including the
-outcome you are about to write). Count from your own resumed history / prior
-turns in this session — there is no stored counter field; the coordinator
-does not count.
-
-- **1st or 2nd** `changes-requested`:
-
-```bash
-issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
-<body prepared above>
-EOF
-)" && issue task set <taskId> qa changes-requested
-```
-
-- **3rd** `changes-requested` (include a short concrete summary in the
-  reason). Do **not** leave a normal revise gate for the coordinator to loop
-  again:
-
-```bash
-issue task comment <taskId> --role <comment-role> --body "$(cat <<'EOF'
-<body prepared above>
-EOF
-)" && issue task set <taskId> qa changes-requested && issue task set <taskId> needsAttention true --reason "code-quality: 3rd changes-requested in this QA session — <short summary>"
-```
-
-Never edit workspace source. Finish and stop.
+Do **not** post the comment or stop from the review include. After the review
+include prepares the comment body, **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-code-quality-outcome.md`
+and follow it (exit only via that Outcome).

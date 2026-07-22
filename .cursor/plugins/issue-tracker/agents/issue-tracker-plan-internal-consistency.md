@@ -12,10 +12,8 @@ polish.
 
 ## Load shared contract
 
-Before other work: `issue summary <rootId>`, then **Read** the absolute path
-formed by joining `Workspace:` from that summary with:
-
-`.cursor/plugins/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`
+Before other work: `issue summary <rootId>`, then **Read**
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-plan-polish-check-base.md`.
 
 Follow that file for CLI allowlist, bootstrap, inputs, and JSON findings
 output. A markdown link alone is not sufficient. Below is only what you
@@ -24,9 +22,7 @@ uniquely flag.
 ## supportingDocs read seam (consult-if-present)
 
 After the shared-contract bootstrap (which already consults `vision`), **Read**
-the absolute path formed by joining `Workspace:` from the summary with:
-
-`.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`
+`/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`.
 
 Consult `vision`, `codingStandards`, and `designSystem` per that algorithm,
 using the step-1 `issue summary` output only — do **not** re-fetch via
