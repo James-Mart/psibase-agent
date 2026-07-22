@@ -2,9 +2,8 @@
 name: issue-tracker-spec-conformance-validator
 model: composer-2.5
 description: >-
-  Per-story spec-conformance review for the issue-tracker work loop. Sets
-  Story specReview; on gaps appends a remediation Task and links it from
-  Story chat. Used by issue-tracker-work.
+  Per-story spec-conformance review; owns Story specReview. Used by
+  issue-tracker-work.
 readonly: false
 ---
 

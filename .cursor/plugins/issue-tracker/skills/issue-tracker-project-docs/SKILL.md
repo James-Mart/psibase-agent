@@ -1,11 +1,11 @@
 ---
 name: issue-tracker-project-docs
+disable-model-invocation: true
 description: >-
   Author or revise one Project supporting doc (vision, coding standards, or
-  design system) at a time: grill for goals/content, write as a Project
-  attachment or workspace file, and record its location in supportingDocs.
-  Use when the user asks to write/update project vision, coding standards,
-  design system, or supporting docs, or mentions issue-tracker-project-docs.
+  design system) and record it in supportingDocs. Use when the user asks to
+  write or update project vision, coding standards, design system, or
+  supporting docs.
 ---
 
 # Issue Tracker — Project supporting docs

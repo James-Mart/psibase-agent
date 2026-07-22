@@ -27,10 +27,11 @@ selects one Project and scopes the tree and Ready view to it.
   - `app/src/features/issues/` — the React UI (tree / ready / detail, git-stack
     panel, chat, live SSE updates).
 - `issues/` — one directory per issue; the on-disk source of truth.
-- `skills/issue-tracker/SKILL.md` — the launch skill (how to start the UI).
-- `skills/issue-tracker-authoring/SKILL.md` — planning skill for turning a
-  spec into a Project > Epic > Story > Task tree (grain, vertical slices,
-  declarative `apply`).
+- `skills/issue-tracker/SKILL.md` — launch the issue-tracker web UI for the
+  file-backed Project > Epic > Story > Task work tracker.
+- `skills/issue-tracker-authoring/SKILL.md` — author a standalone issue-tracker
+  plan tree as one nested YAML doc and `apply` it (git PR stacks,
+  Epic/Story/Task grain, multi-root splits, turning a plan into tracked issues).
 - `SPEC.md` — the canonical glossary + design rationale, referenced by both
   skills.
 
@@ -75,8 +76,10 @@ refresh.
 
 - [SPEC.md](./SPEC.md) — glossary (Kinds, relationships, the diamond, derived
   state) and design rationale. Read this before changing tracker code.
-- [skills/issue-tracker/SKILL.md](./skills/issue-tracker/SKILL.md) — launching
-  the UI.
+- [skills/issue-tracker/SKILL.md](./skills/issue-tracker/SKILL.md) — launch the
+  issue-tracker web UI for the file-backed Project > Epic > Story > Task work
+  tracker.
 - [skills/issue-tracker-authoring/SKILL.md](./skills/issue-tracker-authoring/SKILL.md)
-  — planning a Project > Epic > Story > Task tree (grain, vertical slices,
-  declarative `apply`).
+  — author a standalone issue-tracker plan tree as one nested YAML doc and
+  `apply` it (git PR stacks, Epic/Story/Task grain, multi-root splits, turning a
+  plan into tracked issues).

@@ -2,8 +2,8 @@
 name: issue-tracker-plan-no-ambiguity
 model: composer-2.5
 description: >-
-  Read-only plan polish check: flag multiple approaches or unresolved choices
-  in Epic/Story/Task prose. Used by issue-tracker-plan-polish.
+  Read-only plan polish check for multiple approaches or unresolved choices.
+  Used by issue-tracker-plan-polish.
 readonly: true
 ---
 

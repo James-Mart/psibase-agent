@@ -2,10 +2,7 @@
 name: issue-tracker-code-quality-validator
 model: composer-2.5
 description: >-
-  Per-task code-quality review for the issue-tracker work loop. Owns Task qa
-  writes; exits only by posting findings via issue task comment and setting terminal
-  qa in one shell; escalates on the third changes-requested in one resumed
-  session. Used by issue-tracker-work.
+  Per-task code-quality review; owns Task qa. Used by issue-tracker-work.
 readonly: false
 ---
 

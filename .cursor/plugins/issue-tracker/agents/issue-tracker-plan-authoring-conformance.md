@@ -2,9 +2,8 @@
 name: issue-tracker-plan-authoring-conformance
 model: composer-2.5
 description: >-
-  Read-only plan polish check: flag authoring structural violations
-  (Verify, Change paths, seams, grain, attachments, parent enumeration). Used
-  by issue-tracker-plan-polish.
+  Read-only plan polish check for authoring structural violations. Used by
+  issue-tracker-plan-polish.
 readonly: true
 ---
 

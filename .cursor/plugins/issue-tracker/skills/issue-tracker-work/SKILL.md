@@ -1,6 +1,11 @@
 ---
 name: issue-tracker-work
-description: Implement <epic-or-story-id>: load this skill to coordinate the work.
+disable-model-invocation: true
+description: >-
+  Coordinate implementation of an Epic or project-level Story by spawning
+  plugin subagents — do not implement yourself. Use when the user asks to
+  implement or work a tracker Epic/Story, or load issue-tracker-work with
+  `<epic-or-story-id>`.
 ---
 
 # Issue Tracker — Work the Stack

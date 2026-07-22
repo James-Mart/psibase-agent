@@ -1,14 +1,10 @@
 ---
 name: issue-tracker-plan
+disable-model-invocation: true
 description: >-
-  Grill an Idea, a pre-implementation (todo) Epic, or a not-started
-  project-level Story, show an outline, then on one yes migrate into one or
-  more detailed plan trees via apply, auto-run plan-polish on every resulting
-  root, then spawn issue-tracker-retro per root after polish succeeds
-  (story-form or epic-form per Epic grain; multi-root when authoring split
-  criteria apply). Use when the user asks to plan an Idea, flesh out a todo
-  Epic or not-started project-level Story, or run issue-tracker-plan / grill a
-  tracker plan into Stories and Tasks.
+  Grill an Idea, todo Epic, or not-started project-level Story into a plan
+  tree via apply, then auto-chain polish and retro. Use when the user asks
+  to plan an Idea, flesh out a tracker plan, or run issue-tracker-plan.
 ---
 
 # Issue Tracker — Plan (grill → plan tree)

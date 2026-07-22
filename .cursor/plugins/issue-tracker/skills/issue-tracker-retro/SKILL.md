@@ -1,11 +1,11 @@
 ---
 name: issue-tracker-retro
+disable-model-invocation: true
 description: >-
-  Mine an invoking run's transcripts (issue-tracker-work Completion or
-  issue-tracker-plan post-polish) for remaining tracker / work-loop meta
-  confusion and land one meta-confusion Idea under Project issue-tracker (or
-  comment clean on the source work root — Epic or project-level Story).
-  Contract lives in agents/issue-tracker-retro.md — do not duplicate it here.
+  Mine an invoking run's transcripts for tracker/work-loop meta-confusion
+  and land one Idea (or comment clean on the source work root). Use when
+  spawned after work Completion or plan post-polish, or when running
+  issue-tracker-retro.
 ---
 
 # Issue Tracker — Confusion Retro
