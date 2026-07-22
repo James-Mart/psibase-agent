@@ -30,8 +30,8 @@ export const KIND_CAPABILITIES = {
     assignee: false,
     attention: false,
     attachments: true,
-    chat: false,
-    comment: false,
+    chat: true,
+    comment: true,
   },
   epic: {
     partOf: true,

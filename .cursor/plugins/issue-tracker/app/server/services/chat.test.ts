@@ -80,7 +80,7 @@ describe("appendMessage", () => {
     ).rejects.toThrow(/unknown issue/);
   });
 
-  it("refuses Ideas and does not create chat.jsonl", async () => {
+  it("appends chat on an Idea and creates chat.jsonl", async () => {
     writeIssue("idea-1", {
       kind: "idea",
       title: "Capture",
@@ -91,11 +91,19 @@ describe("appendMessage", () => {
       updatedAt: AT,
     });
     const { appendMessage, readChat } = await loadService();
-    await expect(
-      appendMessage("idea-1", { role: "agent", body: "nope" }),
-    ).rejects.toThrow(/chat is not allowed on an Idea/);
-    expect(existsSync(join(dir, "idea-1", "chat.jsonl"))).toBe(false);
-    expect(readChat("idea-1")).toEqual({ messages: [], problems: [] });
+    const message = await appendMessage("idea-1", {
+      role: "stakeholder",
+      body: "audit note",
+    });
+
+    expect(message.role).toBe("stakeholder");
+    expect(message.body).toBe("audit note");
+    expect(existsSync(join(dir, "idea-1", "chat.jsonl"))).toBe(true);
+
+    const chat = readChat("idea-1");
+    expect(chat.messages).toHaveLength(1);
+    expect(chat.messages[0]?.body).toBe("audit note");
+    expect(chat.problems).toHaveLength(0);
   });
 
   it("does not interleave concurrent appends", async () => {

@@ -2306,9 +2306,10 @@ describe("kind-scoped view / delete / comment / attach", () => {
     expect(stderr).toContain(error);
   });
 
-  it("comments on epic/story/task via kind-scoped comment", () => {
+  it("comments on epic/idea/story/task via kind-scoped comment", () => {
     for (const [kind, id] of [
       ["epic", "e"],
+      ["idea", "idea-1"],
       ["story", "a"],
       ["task", "c1"],
     ] as const) {
@@ -2329,23 +2330,21 @@ describe("kind-scoped view / delete / comment / attach", () => {
     }
   });
 
-  it("does not register comment under project or idea", () => {
-    for (const kind of ["project", "idea"]) {
-      const help = runCli([kind, "--help"]);
-      expect(help.status).toBe(0);
-      expect(help.stdout).not.toMatch(/\n {2}comment\b/);
-      const { stderr, status } = runCli([
-        kind,
-        "comment",
-        kind === "project" ? "p" : "idea-1",
-        "--role",
-        "agent",
-        "--body",
-        "nope",
-      ]);
-      expect(status).not.toBe(0);
-      expect(stderr).toMatch(/unknown command 'comment'/);
-    }
+  it("does not register comment under project", () => {
+    const help = runCli(["project", "--help"]);
+    expect(help.status).toBe(0);
+    expect(help.stdout).not.toMatch(/\n {2}comment\b/);
+    const { stderr, status } = runCli([
+      "project",
+      "comment",
+      "p",
+      "--role",
+      "agent",
+      "--body",
+      "nope",
+    ]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/unknown command 'comment'/);
   });
 
   it("attaches on idea/epic/story/task via kind-scoped attach", () => {
