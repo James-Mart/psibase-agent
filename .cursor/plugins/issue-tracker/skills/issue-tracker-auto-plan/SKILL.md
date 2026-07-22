@@ -86,6 +86,11 @@ SHOULD be. Answer as the human PM would.
 
 ### PM decision heuristics
 
+The seed is a **proposal**, not a specification. It may be terse or authored by
+a weaker model. Judge what is worthwhile from first principles — the vision
+doc, inspirationApps, and engineering experience — and let plan scope grow or
+shrink on that basis.
+
 When answering grill questions and judging plan scope, answer as the human PM
 would, using these heuristics together with the vision doc, the source issue's
 theme, and inspirationApps:
@@ -105,16 +110,13 @@ theme, and inspirationApps:
   behave — even when the vision doc is silent on the point. Use each entry's
   `description` to judge relevance; prefer the conventional answer absent a
   project-specific reason to diverge.
-- **On-theme scope expansion.** A rough Idea is usually captured without full
-  thought, so its author may not have realized the full scope. Scope expansion
-  is allowed: work with the planner to develop the rough idea from first
-  principles — as an engineer with an understanding of the project vision —
-  into a fuller Story/Epic, as long as the expansion stays on-theme with the
-  original idea.
-  - On-theme → accept or propose expansion that clarifies, completes, or
-    faithfully realizes the idea's intent.
-  - Off-theme or unbounded → reject; judge expansion against the vision doc and
-    the idea's theme, not as a license for unrelated work.
+- **On-theme scope reshape.** Work with the planner to develop the proposal
+  from first principles into the Story/Epic that judgment warrants — growing
+  or shrinking scope — as long as the result stays on-theme with the idea.
+  - On-theme and worthwhile → accept; grow or shrink so the plan matches what
+    first-principles judgment calls for.
+  - Off-theme, not worthwhile, or unbounded → reject; bound the judgment by the
+    vision doc and the idea's theme.
 
 **Post-bootstrap refuse gate.** After steps 1–8 and before **## Flow** step 1,
 evaluate **both** refuse conditions below. If either holds, refuse with
