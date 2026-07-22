@@ -4,9 +4,10 @@ disable-model-invocation: true
 description: >-
   Autonomously plan an issue as a directly-invoked premium stakeholder-planner:
   answer the grill from product intent, drive the vanilla planner
-  (discriminator + generalPurpose planner), and finalize each plan root with a
-  decision-summary report. Use when the user runs auto-plan or wants hands-off
-  planning of a single issue id on opus 4.8.
+  (discriminator + generalPurpose planner), and finalize with a
+  decision-summary report (archived Idea or each plan root, by source kind).
+  Use when the user runs auto-plan or wants hands-off planning of a single
+  issue id on opus 4.8.
 ---
 
 # Issue Tracker — Auto-plan (stakeholder-planner)
@@ -15,10 +16,11 @@ Turn a seed issue into a polished plan tree with no further human interaction,
 leaving an audit trail the human reviews afterward. You are the **stakeholder /
 PM stand-in**: you answer the vanilla planner's grill from product intent
 (never from what code already does), own the "shared understanding reached"
-and post-outline gate calls, resolve polish escalations, and finalize each
-resulting plan root with an audit report. You do **not** author the plan tree
-yourself — the vanilla planner does (`issue-tracker-plan` unchanged; Story
-*"Reuse over reinvention"* invariant).
+and post-outline gate calls, resolve polish escalations, and finalize with an
+audit report (on the archived source Idea when the seed was an Idea; otherwise
+on each resulting plan root). You do **not** author the plan tree yourself —
+the vanilla planner does (`issue-tracker-plan` unchanged; Story *"Reuse over
+reinvention"* invariant).
 
 This skill is meant to be invoked **manually on opus 4.8
 (`claude-opus-4-8-thinking-high`)**. All judgment happens in this agent plus
@@ -28,11 +30,14 @@ Use the `issue` binary. Do not set `ISSUES_DIR`. Never `npm link` from
 `/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
 [SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
 
-**Allowed writes:** on each resulting plan root (kind `epic` or `story`, per
-that root's `issue summary`) only — `issue <rootKind> attach` (the
-decision-summary report) and `issue <rootKind> comment` (standout decisions,
-`--role stakeholder`). Everything else is read-only `issue` (`summary`,
-`view`, `tree`, `get`). Do not write to the source issue or set any status.
+**Allowed writes:** finalize `attach` + `comment` only, target per
+**## Finalize** — (a) **Idea source:** `issue idea attach` and
+`issue idea comment` on the archived source Idea (the seed after migration);
+(b) **Epic / project-level Story source:** `issue <rootKind> attach` and
+`issue <rootKind> comment` on each resulting plan root (kind `epic` or
+`story`, per that root's `issue summary`). Standout-decisions comments use
+`--role stakeholder`. Everything else is read-only `issue` (`summary`,
+`view`, `tree`, `get`). Do not set any status.
 
 ## Argument
 
@@ -164,28 +169,47 @@ specifics and stop; otherwise proceed to Flow.
    (distilled, not the raw transcript). Do not defer this to the end; across
    many planner resumes, reconstructing it later is lossy. This draft is the
    decision-summary attached at **## Finalize**.
-4. **Finalize** each returned root (**## Finalize**).
+4. **Finalize** per **## Finalize** (target depends on source kind).
 
 ## Finalize
 
-For **each** resulting root id the planner returned:
+Write the running draft accumulated during the relay loop (Flow step 3) to a
+temp file `decision-summary.md` — one entry per grill decision (decision,
+chosen answer, rationale; the distilled audit trail, **not** the raw
+back-and-forth transcript). Then resolve finalize target(s) from the **source
+kind** (known from Bootstrap):
 
-1. Resolve `<rootKind>` (`epic` or `story`) from `issue summary <rootId>`.
-2. **Decision-summary report.** Write the running draft accumulated during the
-   relay loop (Flow step 3) to a temp file `decision-summary.md` — one entry per
-   grill decision (decision, chosen answer, rationale; the distilled audit
-   trail, **not** the raw back-and-forth transcript). Attach it:
+### Idea source
+
+The seed Idea is archived after migration — use the Bootstrap `<issueId>`.
+Write a **single** combined audit trail onto that archived Idea (one target),
+even when the Idea migrated into multiple roots; the resulting roots get
+neither the attachment nor the comment.
+
+- **Target list:** one entry — kind `idea`, id `<issueId>`.
+
+### Epic / project-level Story source
+
+Unchanged from the prior per-root behavior (these sources are not archived, so
+there is no Idea to write to).
+
+- **Target list:** for each resulting root id the planner returned, resolve
+  `<rootKind>` (`epic` or `story`) from `issue summary <rootId>` — kind
+  `<rootKind>`, id `<rootId>`.
+
+### For each target
+
+1. **Decision-summary report.**
 
    ```bash
-   issue <rootKind> attach <rootId> <path-to-decision-summary.md>
+   issue <kind> attach <id> <path-to-decision-summary.md>
    ```
 
-3. **Standout-decisions comment.** Leave a comment flagging any standout /
-   uncertain decisions for the human to double-check (empty of standouts → say
-   so briefly):
+2. **Standout-decisions comment.** Flag any standout / uncertain decisions for
+   the human to double-check (empty of standouts → say so briefly):
 
    ```bash
-   issue <rootKind> comment <rootId> --role stakeholder --body "<body>"
+   issue <kind> comment <id> --role stakeholder --body "<body>"
    ```
 
 ## Refusals & escalations
@@ -215,9 +239,10 @@ default a model — surface the gap directly to the human.
 
 ## Success return
 
-When every root is finalized, report to the human: the resulting plan root
-id(s), and confirmation that each got a decision-summary report +
-standout-decisions comment. Then stop.
+When finalize is done, report to the human: the resulting plan root id(s), and
+confirmation of where the decision-summary report + standout-decisions comment
+landed — the archived source Idea (Idea source; one combined trail) or each
+resulting root (Epic / project-level Story source). Then stop.
 
 ## Rules
 
@@ -225,8 +250,9 @@ standout-decisions comment. Then stop.
   discriminator + planner spawns, finalize. Do not author the plan tree
   yourself — the vanilla planner owns authoring / polish / retro via
   `issue-tracker-plan`.
-- Honor the intro **Allowed writes** contract (per-root `attach` / `comment`
-  only; no source-issue writes or status changes).
+- Honor the intro **Allowed writes** contract (Idea source → archived-Idea
+  `attach` / `comment`; non-Idea source → per-root `attach` / `comment`; no
+  status changes).
 - **Deploy** changes to this plugin by mirroring the whole directory to
   `/root/.cursor/plugins/local/issue-tracker` per the `update-cursor-plugin`
   flow (a runtime deploy step, not a git commit).
