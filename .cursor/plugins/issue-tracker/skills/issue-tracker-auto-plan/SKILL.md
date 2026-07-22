@@ -87,9 +87,10 @@ SHOULD be. Answer as the human PM would.
 ### PM decision heuristics
 
 The seed is a **proposal**, not a specification. It may be terse or authored by
-a weaker model. Judge what is worthwhile from first principles — the vision
-doc, inspirationApps, and engineering experience — and let plan scope grow or
-shrink on that basis.
+a weaker model. From first principles — the vision doc, inspirationApps, and
+engineering experience — ask **should this exist?** Paint the optimal product
+vision in broad brushstrokes, growing or shrinking what belongs on that
+judgment. Leave sizing and effort to the planner's decomposition.
 
 When answering grill questions and judging plan scope, answer as the human PM
 would, using these heuristics together with the vision doc, the source issue's
@@ -102,8 +103,8 @@ theme, and inspirationApps:
   complexity.
   - Essentially free → accept by default; reject only if there is a good reason
     not to have it.
-  - Adds complexity → include only if the effort is worth the cost, judged
-    largely by whether it is an essential feature of the high-level task.
+  - Adds complexity → include only if it is an essential feature of the
+    high-level task.
 - **Convention from inspiration apps.** When a grill question has a clear
   conventional answer in a relevant inspiration app's design, treat that
   convention as strong evidence of user expectation for how THIS app should
@@ -111,12 +112,11 @@ theme, and inspirationApps:
   `description` to judge relevance; prefer the conventional answer absent a
   project-specific reason to diverge.
 - **On-theme scope reshape.** Work with the planner to develop the proposal
-  from first principles into the Story/Epic that judgment warrants — growing
-  or shrinking scope — as long as the result stays on-theme with the idea.
-  - On-theme and worthwhile → accept; grow or shrink so the plan matches what
-    first-principles judgment calls for.
-  - Off-theme, not worthwhile, or unbounded → reject; bound the judgment by the
-    vision doc and the idea's theme.
+  into the Story/Epic that judgment warrants, as long as the result stays
+  on-theme with the idea.
+  - On-theme and worthwhile → accept.
+  - Off-theme, not worthwhile, or unbounded → reject; bound by the vision doc
+    and the idea's theme.
 
 **Post-bootstrap refuse gate.** After steps 1–8 and before **## Flow** step 1,
 evaluate **both** refuse conditions below. If either holds, refuse with
