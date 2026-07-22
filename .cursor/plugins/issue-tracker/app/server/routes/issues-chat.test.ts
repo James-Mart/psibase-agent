@@ -63,16 +63,16 @@ afterEach(async () => {
 });
 
 describe("chat HTTP API", () => {
-  it("rejects messages on an Idea with 4xx and does not create chat.jsonl", async () => {
+  it("accepts messages on an Idea and creates chat.jsonl", async () => {
     const res = await fetch(`${baseUrl}/api/issues/idea-1/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: "agent", body: "nope" }),
+      body: JSON.stringify({ role: "stakeholder", body: "audit note" }),
     });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: "chat is not allowed on an Idea",
-    });
-    expect(existsSync(join(dir, "idea-1", "chat.jsonl"))).toBe(false);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.role).toBe("stakeholder");
+    expect(body.body).toBe("audit note");
+    expect(existsSync(join(dir, "idea-1", "chat.jsonl"))).toBe(true);
   });
 });

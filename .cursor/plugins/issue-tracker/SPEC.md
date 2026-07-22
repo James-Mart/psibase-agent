@@ -45,8 +45,8 @@ Every issue has a `kind`, one of:
   archive, and optional `labels` assignments from the Project catalog — see
   [Project labels](#project-labels)) that agents and humans mine later into
   real work. Leaf kind: no children, no assignee/needs-attention, no status or
-  git fields, and **no chat** (`appendMessage` / kind-scoped CLI `comment` /
-  chat HTTP refuse Ideas). Is `partOf` a Project (required). Epics, Ideas, and
+  git fields. Supports chat and kind-scoped CLI `comment` (same path as other
+  kinds). Is `partOf` a Project (required). Epics, Ideas, and
   *root* project-level Stories share one Project-child sibling `order` space.
   There is no separate Idea Board kind — the "board" is the Project's board
   children in the tree/CLI/UI.
@@ -230,7 +230,7 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
 | verb | kinds |
 | --- | --- |
 | `add` / `get` / `set` / `view` / `delete` | every kind |
-| `comment` | epic / story / task (not project / idea) |
+| `comment` | epic / idea / story / task (not project) |
 | `attach` / `attachments` / `detach` | every kind |
 
 - **`add`** — `issue project add <title>` (no `--part-of`); children take
@@ -242,7 +242,7 @@ issue <kind> add|get|set|view|delete|comment|attach|attachments|detach
   [Project labels](#project-labels).
 - **`delete`** — `issue <kind> delete <id>`; cascades per
   [Deletion policy](#deletion-policy).
-- **`comment`** — `issue epic|story|task comment <id> --role <role> --body
+- **`comment`** — `issue epic|idea|story|task comment <id> --role <role> --body
   <text>` (optional `--name`); see [Service layer](#service-layer).
 - **`attach` / `attachments` / `detach`** —
   `issue <kind> attach <id> <file>` /
@@ -366,14 +366,13 @@ truth (no database).
 issues/<id>/
   issue.json        # metadata + relationships (machine-readable)
   description.md    # the spec/description (for an Epic, the plan). GFM; may contain issue: links
-  chat.jsonl        # append-only per-issue chat (not Ideas), one message object per line
+  chat.jsonl        # append-only per-issue chat, one message object per line
   attachments/      # optional; opaque files for any kind with attachments
 ```
 
 - `description.md` and `chat.jsonl` are discovered **by convention** from `<id>`
   (there are no path fields, so there can be no dangling file refs). Both are
-  optional; absent means empty. Ideas refuse chat writes — see
-  [`appendMessage`](#service-layer).
+  optional; absent means empty.
 - `attachments/` is likewise by convention: no manifest; scan the directory.
   Allowed on every kind with the attachments capability. See
   [Attachments](#attachments).
@@ -777,12 +776,10 @@ no consumer can persist a broken file.
   surviving reference into it (see [Deletion policy](#deletion-policy)). Exposed
   over HTTP as `DELETE /api/issues/:id` and via `issue <kind> delete`.
 - `appendMessage(id, {role, name?, body})` — appends one JSONL line to
-  `chat.jsonl` with a server-stamped `at`. Refused with a validation error for
-  Ideas (`issue epic|story|task comment` and chat HTTP share this path); does
-  not create `chat.jsonl`.
+  `chat.jsonl` with a server-stamped `at` (`issue epic|idea|story|task comment`
+  and chat HTTP share this path).
 - `readChat(id)` — reads/parses `chat.jsonl`, skipping malformed lines into
-  `problems`. An Idea with no chat file returns empty messages (same as any
-  other kind without `chat.jsonl`).
+  `problems`. An issue with no chat file returns empty messages.
 - Attachment bytes (`attachments.ts`): `listAttachments` / `getAttachment` /
   `putAttachment` (unique name on collision) / `removeAttachment` — see
   [Attachments](#attachments). Not part of `read(id)` payloads.
