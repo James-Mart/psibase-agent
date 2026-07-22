@@ -61,6 +61,14 @@ contract lives only in
 [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
 — do not restate the findings schema here.
 
+**Internal-consistency supportingDocs scope.** That check compares the tree
+against `vision` (when set) and `codingStandards` only when tree prose makes
+claims that doc governs. It does **not** compare against `designSystem` —
+design-system adherence is enforced at implementation time, not during plan
+polish. Details:
+[`agents/issue-tracker-plan-internal-consistency.md`](../../agents/issue-tracker-plan-internal-consistency.md)
+and SPEC § Project supporting docs.
+
 ## Spawn stubs
 
 Pass these as the Cursor Task `prompt`. Inline the work-root id/title. Children

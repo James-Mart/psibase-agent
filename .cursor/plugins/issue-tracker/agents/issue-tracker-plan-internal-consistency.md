@@ -55,5 +55,6 @@ and consult `vision` and `codingStandards` per that file
   `problem` quotes the doc key and both excerpts.
 
 **Out of scope for this agent.** Cross-Epic consistency other than via
-supporting docs; what other check agents uniquely flag; inventing fixes
+supporting docs; `designSystem` (guidelines — enforced at implementation time,
+not plan polish); what other check agents uniquely flag; inventing fixes
 (detection-only — coordinator remediates).
