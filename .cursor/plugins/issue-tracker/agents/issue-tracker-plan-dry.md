@@ -2,8 +2,8 @@
 name: issue-tracker-plan-dry
 model: composer-2.5
 description: >-
-  Read-only plan polish check: flag near-verbatim repeated prose blocks across
-  siblings or tiers. Used by issue-tracker-plan-polish.
+  Read-only plan polish check for near-verbatim repeated prose. Used by
+  issue-tracker-plan-polish.
 readonly: true
 ---
 

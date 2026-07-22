@@ -2,10 +2,8 @@
 name: issue-tracker-retro
 model: cursor-grok-4.5-high-fast
 description: >-
-  Mines an invoking run's transcripts (issue-tracker-work Completion or
-  issue-tracker-plan post-polish) for remaining tracker / work-loop meta
-  confusion and lands one meta-confusion Idea under Project issue-tracker (or
-  comments clean on the source work root — Epic or project-level Story).
+  Mines invoking-run transcripts for tracker meta-confusion and lands one Idea
+  (or comments clean). Used by issue-tracker-work, issue-tracker-plan.
 readonly: false
 ---
 

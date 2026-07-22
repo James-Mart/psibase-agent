@@ -2,8 +2,7 @@
 name: issue-tracker-implementor
 model: inherit
 description: >-
-  Implements one issue-tracker Task (uncommitted), and revises after
-  validators via Cursor Task resume. Used by the issue-tracker-work skill.
+  Implements and revises one Task (uncommitted). Used by issue-tracker-work.
 readonly: false
 ---
 

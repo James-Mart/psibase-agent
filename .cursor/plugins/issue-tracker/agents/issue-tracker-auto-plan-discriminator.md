@@ -2,8 +2,8 @@
 name: issue-tracker-auto-plan-discriminator
 model: composer-2.5
 description: >-
-  Scores idea complexity for auto-plan and returns the model the vanilla
-  planner should run on. Used by issue-tracker-auto-plan.
+  Scores idea complexity for auto-plan and returns the planner model. Used by
+  issue-tracker-auto-plan.
 readonly: false
 ---
 

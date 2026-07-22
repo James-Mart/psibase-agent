@@ -2,9 +2,8 @@
 name: issue-tracker-plan-internal-consistency
 model: composer-2.5
 description: >-
-  Read-only plan polish check: flag hard contradictions and cohesion gaps
-  across Epic/Story/Task prose, and cohesion with Project supportingDocs when
-  present. Used by issue-tracker-plan-polish.
+  Read-only plan polish check for contradictions and cohesion gaps. Used by
+  issue-tracker-plan-polish.
 readonly: true
 ---
 

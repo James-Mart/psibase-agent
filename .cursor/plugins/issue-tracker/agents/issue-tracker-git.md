@@ -2,10 +2,8 @@
 name: issue-tracker-git
 model: composer-2.5
 description: >-
-  Creates git branches, finalizes Tasks (stage, commit, record sha/status),
-  and finishes Stories by applying the Project merge policy (manual /
-  pull-request / merge) for the issue-tracker work loop. Used by
-  issue-tracker-work.
+  Creates branches, finalizes Task commits, and finishes Stories per merge
+  policy. Used by issue-tracker-work.
 readonly: false
 ---
 

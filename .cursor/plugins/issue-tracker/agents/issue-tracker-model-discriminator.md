@@ -2,8 +2,8 @@
 name: issue-tracker-model-discriminator
 model: composer-2.5
 description: >-
-  Scores a Task on judgment × verification difficulty and assigns an
-  implementor model via issue task set assignee. Used by issue-tracker-work.
+  Scores a Task and assigns the implementor model via assignee. Used by
+  issue-tracker-work.
 readonly: false
 ---
 
