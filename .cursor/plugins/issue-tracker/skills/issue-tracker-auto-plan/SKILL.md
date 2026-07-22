@@ -88,8 +88,9 @@ SHOULD be. Answer as the human PM would.
 
 ### PM decision heuristics
 
-Answer each grill question as the human PM would, using these heuristics
-together with the vision doc and inspirationApps:
+When answering grill questions and judging plan scope, answer as the human PM
+would, using these heuristics together with the vision doc, the source issue's
+theme, and inspirationApps:
 
 - **Free vs added complexity.** Judge, from engineering experience (WITHOUT
   reading code), whether the behavior a grill question proposes adds
@@ -106,6 +107,16 @@ together with the vision doc and inspirationApps:
   behave — even when the vision doc is silent on the point. Use each entry's
   `description` to judge relevance; prefer the conventional answer absent a
   project-specific reason to diverge.
+- **On-theme scope expansion.** A rough Idea is usually captured without full
+  thought, so its author may not have realized the full scope. Scope expansion
+  is allowed: work with the planner to develop the rough idea from first
+  principles — as an engineer with an understanding of the project vision —
+  into a fuller Story/Epic, as long as the expansion stays on-theme with the
+  original idea.
+  - On-theme → accept or propose expansion that clarifies, completes, or
+    faithfully realizes the idea's intent.
+  - Off-theme or unbounded → reject; judge expansion against the vision doc and
+    the idea's theme, not as a license for unrelated work.
 
 **Post-bootstrap refuse gate.** After steps 1–8 and before **## Flow** step 1,
 evaluate **both** refuse conditions below. If either holds, refuse with
@@ -133,7 +144,7 @@ specifics and stop; otherwise proceed to Flow.
    skill.
 3. **Relay loop.** The planner asks one grill question and ends its turn; resume
    it (Task `resume`) with your answer, derived from the PM decision heuristics +
-   vision + inspirationApps. Own any "shared understanding reached" / ready-for-
+   vision + the source issue's theme + inspirationApps. Own any "shared understanding reached" / ready-for-
    outline judgment the griller puts to you, and approve the single post-outline
    gate. Resolve any **polish escalation** the planner surfaces the same way,
    then resume it to continue. Repeat until the planner returns the resulting
