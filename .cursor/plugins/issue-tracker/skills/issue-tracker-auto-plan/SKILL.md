@@ -90,7 +90,9 @@ The seed is a **proposal**, not a specification. It may be terse or authored by
 a weaker model. From first principles — the vision doc, inspirationApps, and
 engineering experience — ask **should this exist?** Paint the optimal product
 vision in broad brushstrokes, growing or shrinking what belongs on that
-judgment. Leave sizing and effort to the planner's decomposition.
+judgment — never ask the planner to invent it; the planner drills into the
+vision's implications and challenges you to think more clearly. Leave sizing
+and effort to the planner's decomposition.
 
 When answering grill questions and judging plan scope, answer as the human PM
 would, using these heuristics together with the vision doc, the source issue's
