@@ -86,6 +86,14 @@ SHOULD be. Answer as the human PM would.
 
 ### PM decision heuristics
 
+The seed is a **proposal**, not a specification. It may be terse or authored by
+a weaker model. From first principles — the vision doc, inspirationApps, and
+engineering experience — ask **should this exist?** Paint the optimal product
+vision in broad brushstrokes, growing or shrinking what belongs on that
+judgment — never ask the planner to invent it; the planner drills into the
+vision's implications and challenges you to think more clearly. Leave sizing
+and effort to the planner's decomposition.
+
 When answering grill questions and judging plan scope, answer as the human PM
 would, using these heuristics together with the vision doc, the source issue's
 theme, and inspirationApps:
@@ -97,24 +105,20 @@ theme, and inspirationApps:
   complexity.
   - Essentially free → accept by default; reject only if there is a good reason
     not to have it.
-  - Adds complexity → include only if the effort is worth the cost, judged
-    largely by whether it is an essential feature of the high-level task.
+  - Adds complexity → include only if it is an essential feature of the
+    high-level task.
 - **Convention from inspiration apps.** When a grill question has a clear
   conventional answer in a relevant inspiration app's design, treat that
   convention as strong evidence of user expectation for how THIS app should
   behave — even when the vision doc is silent on the point. Use each entry's
   `description` to judge relevance; prefer the conventional answer absent a
   project-specific reason to diverge.
-- **On-theme scope expansion.** A rough Idea is usually captured without full
-  thought, so its author may not have realized the full scope. Scope expansion
-  is allowed: work with the planner to develop the rough idea from first
-  principles — as an engineer with an understanding of the project vision —
-  into a fuller Story/Epic, as long as the expansion stays on-theme with the
-  original idea.
-  - On-theme → accept or propose expansion that clarifies, completes, or
-    faithfully realizes the idea's intent.
-  - Off-theme or unbounded → reject; judge expansion against the vision doc and
-    the idea's theme, not as a license for unrelated work.
+- **On-theme scope reshape.** Work with the planner to develop the proposal
+  into the Story/Epic that judgment warrants, as long as the result stays
+  on-theme with the idea.
+  - On-theme and worthwhile → accept.
+  - Off-theme, not worthwhile, or unbounded → reject; bound by the vision doc
+    and the idea's theme.
 
 **Post-bootstrap refuse gate.** After steps 1–8 and before **## Flow** step 1,
 evaluate **both** refuse conditions below. If either holds, refuse with
