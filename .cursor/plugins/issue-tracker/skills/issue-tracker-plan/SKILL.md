@@ -20,9 +20,7 @@ Epic **auto-plan-polish-confirm** invariants (single post-outline gate +
 auto-chain polish) — do not restate that list here. Do not implement product
 code; this skill only authors the plan artifact.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 Grain, multi-Epic split, apply doc shape, parent-prose, and prune-by-default
 rules live in issue-tracker-authoring and [SPEC.md](../../SPEC.md) — when
@@ -39,30 +37,24 @@ whose derived `issue story get <id> storyStatus` is `not-started`.
 
 If none is given:
 
-1. Run `issue tree` (no-arg: all projects).
-2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
-3. Run `issue tree <projectId>`. Offer only **Ideas**, Epics whose status
+1. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-resolve-project.md`
+   and follow it. Never bare `issue list`.
+2. Run `issue tree <projectId>`. Offer only **Ideas**, Epics whose status
    chip is `todo` (or confirm with `issue epic get <id> epicStatus`), and
    **project-level** Stories whose status chip is `not-started` (or confirm
    with `issue story get <id> storyStatus`; project-level = `partOf` is the
    Project). **Do not offer** `in-progress` / `done` Epics, or Stories at
    `in-progress` / `pr-open` / `merged` — they fail §Bootstrap gates.
 
-Never bare `issue list`.
-
 ## Bootstrap
 
 Before grilling:
 
 1. `issue summary <id>` — confirm kind; read `Project:` and `Workspace:`.
-   - Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-   - If `Workspace:` is absent, **stop and hand back to the user** to set it
-     (`issue project set <projectId> workspace <path>`) before continuing.
-     Codebase lookup during the grill needs cwd = `Workspace:` — there is no
-     plan-only fallback (SPEC § Project workspace: unset → escalate, never
-     fall back).
-2. **Read** the absolute path formed by joining `Workspace:` from step 1 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+   **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using this summary output (codebase lookup during the grill
+   needs cwd = `Workspace:`).
+2. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult `vision` per that file using the step-1 summary output.
 3. Kind / status gates:
    - **Idea** — proceed.
@@ -143,66 +135,9 @@ When the grill is ready (no extra pre-outline confirm):
 
 ## Migrate
 
-Never a project-form `apply` for this migration. Follow authoring for
-apply-doc shape and prune-by-default scope. Choose **story-form** or
-**epic-form** per root by issue-tracker-authoring **Epic grain** (do not
-restate that rule here).
-
-### Idea source backlink
-
-When the source is an **Idea**, each new root authored in the migrate apply
-doc must begin its root `description` (written to `description.md`) with this
-line — no text before it:
-
-    Source idea: [<idea title>](issue:<ideaId>)
-
-Use the source Idea's real title and id. **Non-Idea** sources (**Epic**,
-**project-level Story**) get no such line. The link is a freeform `issue:`
-cross-link; the archived Idea stays reachable via `--show-archived`.
-
-This applies to **single-root** and **multi-root** Idea migrations alike —
-every new Epic or project-level Story root gets the line.
-
-### Single root (not splitting)
-
-One epic-form or story-form apply. Keep existing in-place / Idea-archive
-behavior:
-
-**Story-form** — `project: <projectId>` string + `story:` object (no `epic:`):
-
-| Source | Story id in the doc | After successful `apply` |
-| --- | --- | --- |
-| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea set <ideaId> archived true` |
-| **project-level Story** (`not-started`) | **Keep** the existing Story id | (none) |
-
-**Epic-form** — `project: <projectId>` string + `epic:` object:
-
-| Source | Epic id in the doc | After successful `apply` |
-| --- | --- | --- |
-| **Idea** | Mint a **new** kebab id — **do not reuse the Idea id** | `issue idea set <ideaId> archived true` |
-| **Epic** (`todo`) | **Keep** the existing Epic id | (none) |
-| **project-level Story** (`not-started`) | Mint a **new** kebab Epic id; **keep** the existing Story id as a child under that Epic | (none) |
-
-Show `apply` stdout (and archive outcome on the Idea path). Report the
-resulting Story or Epic id.
-
-### Multi-root (splitting)
-
-N separate epic-form / story-form applies — one per resulting root. Roots may
-mix Epics and project-level Stories. **Always mint new root ids** (do not reuse
-the source Idea / Epic / Story id as any new root id).
-
-1. Apply in **`blockedBy` order** when deps exist among the new Epic roots;
-   otherwise any order.
-2. On **first apply failure:** stop. Leave already-written roots in place. Do
-   **not** delete the source. No automatic rollback.
-3. Only after **every** apply in the migrate succeeds: archive or delete the
-   source — `issue idea set <ideaId> archived true`, `issue epic delete
-   <epicId>` (source was `todo`), or `issue story delete <storyId>` (source
-   was not-started project-level Story), as appropriate.
-
-Show each `apply` stdout and the final archive/delete outcome. Report every
-resulting root id.
+On **yes** at the single post-outline gate, **Read**
+`/root/.cursor/plugins/local/issue-tracker/skills/issue-tracker-plan/references/migrate.md`
+and follow it. Then continue at **## After success**.
 
 ## After success
 

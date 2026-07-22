@@ -23,9 +23,7 @@ This skill is meant to be invoked **manually on opus 4.8
 (`claude-opus-4-8-thinking-high`)**. All judgment happens in this agent plus
 the spawned discriminator / planner.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never `npm link` from
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 **Allowed writes:** finalize `attach` + `comment` only, target per
 **## Finalize** — (a) **Idea source:** `issue idea attach` and
@@ -54,12 +52,11 @@ there is nothing to resume.
    `Workspace:`, `supportingDocs:`, `inspirationApps:` (if present), and the
    issue's kind / status. Reuse this output for every later bootstrap step;
    do **not** re-run `summary`.
-2. **Workspace gate** — if `Workspace:` is absent, stop and hand back to the
-   user to set it (`issue project set <projectId> workspace <path>`). Per
-   [SPEC § Project workspace](../../SPEC.md#project-workspace) this is an
-   escalation, never a silent fallback — codebase lookup needs cwd =
-   `Workspace:`. Checked first because it is already visible in step 1, so
-   refuse before spending any kind/status `get` round-trips.
+2. **Workspace gate** — **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using the step-1 summary (checked first because it is already
+   visible in step 1, so refuse before spending any kind/status `get`
+   round-trips). Treat a stop here as a **preflight-gate refusal**.
 3. **Vision-present gate** — on the step-1 Project section, check
    `supportingDocs:` for a `vision=` entry. **Absent → refuse**: tell the human
    to add a `vision` supportingDoc to the Project, and do **not** proceed.
@@ -72,9 +69,8 @@ there is nothing to resume.
    not plan's plan-polish / work redirect.
 5. `issue <kind> view <issueId>` — the full source `description.md` (not just
    the summary blurb).
-6. The Project **vision** doc via the shared consult mechanism: Read the
-   absolute path formed by joining `Workspace:` with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+6. The Project **vision** doc via the shared consult mechanism: **Read**
+   `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult key `vision` per that file using the step-1 summary output.
 7. The Project's **`inspirationApps`** field (consult-if-present): use the
    `inspirationApps:` line already on the step-1 summary's Project section — a
@@ -170,69 +166,15 @@ specifics and stop; otherwise proceed to Flow.
 
 ## Finalize
 
-Write the running draft accumulated during the relay loop (Flow step 3) to a
-temp file `decision-summary.md` — one entry per grill decision (decision,
-chosen answer, rationale; the distilled audit trail, **not** the raw
-back-and-forth transcript). Then resolve finalize target(s) from the **source
-kind** (known from Bootstrap):
-
-### Idea source
-
-The seed Idea is archived after migration — use the Bootstrap `<issueId>`.
-Write a **single** combined audit trail onto that archived Idea (one target),
-even when the Idea migrated into multiple roots; the resulting roots get
-neither the attachment nor the comment.
-
-- **Target list:** one entry — kind `idea`, id `<issueId>`.
-
-### Epic / project-level Story source
-
-Unchanged from the prior per-root behavior (these sources are not archived, so
-there is no Idea to write to).
-
-- **Target list:** for each resulting root id the planner returned, resolve
-  `<rootKind>` (`epic` or `story`) from `issue summary <rootId>` — kind
-  `<rootKind>`, id `<rootId>`.
-
-### For each target
-
-1. **Decision-summary report.**
-
-   ```bash
-   issue <kind> attach <id> <path-to-decision-summary.md>
-   ```
-
-2. **Standout-decisions comment.** Flag any standout / uncertain decisions for
-   the human to double-check (empty of standouts → say so briefly):
-
-   ```bash
-   issue <kind> comment <id> --role stakeholder --body "<body>"
-   ```
+At the end of the relay loop, **Read**
+`/root/.cursor/plugins/local/issue-tracker/skills/issue-tracker-auto-plan/references/finalize.md`
+and follow it.
 
 ## Refusals & escalations
 
-Refusal and escalation are **resumable** (Story *"Refusal & escalation are
-resumable"* invariant). Recovery differs by kind. Never guess, fall back, or
-default a model — surface the gap directly to the human.
-
-- **Preflight gate** — any **## Bootstrap** steps 2–4 refusal, raised before
-  the discriminator is spawned. Nothing to resume: report the specific gap to
-  the human; they fix the condition and **re-invoke** auto-plan.
-- **Post-bootstrap refuse** — either of the **Two refuse conditions** under
-  **## Bootstrap**. Report the specific gap to the human and stop. Once the
-  human addresses the gap, **resume this same agent** — never a fresh spawn.
-  On resume: re-read ALL mandatory sources (source issue + vision +
-  inspirationApps) and re-run **both** refuse checks. Proceed only if the gap
-  is closed; otherwise refuse again with specifics.
-- **Subagent-failure escalation** (a discriminator / planner errored or returned
-  an unusable result) — report which subagent failed and how to the human with
-  no silent fallback and no model-defaulting. Once the human addresses the
-  cause, **resume this same agent**; then re-spawn the failed subagent and
-  continue.
-- **Other blocked states** — cannot read the source issue / mandatory sources,
-  unset `Workspace:` when file work is required, or a finalize `attach` /
-  `comment` refusal — same contract: report the block to the human and stop.
-  On resume after the human addresses it, continue from the blocked step.
+On any refusal or escalation, **Read**
+`/root/.cursor/plugins/local/issue-tracker/skills/issue-tracker-auto-plan/references/refusals-and-escalations.md`
+and follow it.
 
 ## Success return
 

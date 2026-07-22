@@ -16,35 +16,26 @@ when safe, then show a short findings + changes summary in chat. Behavioral
 contract: Epic **auto-plan-polish-confirm** invariants (auto-apply +
 post-summary; escalate only when unsafe) — do not restate that list here.
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 ## Argument
 
 An **Epic** id (any `epicStatus` — not limited to `todo`) or a
 **project-level Story** id (`partOf` the Project). If none is given:
 
-1. Run `issue tree` (no-arg: all projects).
-2. Resolve `<projectId>` from the `project <id>` lines (one → use it; many → ask which; none → stop).
-3. Run `issue tree <projectId>` and ask which Epic or project-level Story.
-
-Never bare `issue list`.
+1. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-resolve-project.md`
+   and follow it. Never bare `issue list`.
+2. Run `issue tree <projectId>` and ask which Epic or project-level Story.
 
 ## Bootstrap
 
 1. `issue summary <rootId>` — read `Project:` and `Workspace:`.
-   - Take `<projectId>` from the id token on `Project: <projectId> — <title>`.
-   - If `Workspace:` is absent, **stop and hand back to the user** to set it
-     (`issue project set <projectId> workspace <path>`) before spawning
-     anything. Check agents must Read shared-contract / authoring files via
-     absolute paths under `Workspace:` — there is no plan-only fallback
-     (SPEC § Project workspace: unset → escalate, never fall back).
-   - Apply **Work-root kind gates** from
-     [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
-     § Bootstrap (bind `<rootKind>`; do not restate that block here).
-2. **Read** the absolute path formed by joining `Workspace:` from step 1 with
-   `.cursor/plugins/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
+   **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+   and apply it using this summary output (before spawning anything).
+   Apply **Work-root kind gates** from
+   [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md)
+   § Bootstrap (bind `<rootKind>`; do not restate that block here).
+2. **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-consult-supporting-doc.md`,
    then consult `vision` per that file using the step-1 summary output.
 3. `issue tree <rootId>` — full Story/Task outline (implementation
    order).
@@ -116,47 +107,9 @@ are re-read each spawn while agent injection may be frozen):
 
 ## Aggregate → apply → summary
 
-After all five return:
-
-1. Parse each result as a JSON findings array per
-   [`agents/_issue-tracker-plan-polish-check-base.md`](../../agents/_issue-tracker-plan-polish-check-base.md).
-   Deduplicate overlapping findings.
-2. **Severity / remediation:** For every finding, invent concrete remediation
-   from `problem` text plus tree context (`issue tree`, `<kind> view`). Fold
-   clear fixes for every `error` and clear `warning` remediations into the
-   retained apply plan. Any unresolved `error` means you **must not** treat
-   the outcome as “no changes needed”.
-   - **Escalate (do not apply)** when auto-apply is unsafe: conflicting errors
-     or ambiguous fixes. Stop and ask the user how to resolve; do not guess.
-     After the user resolves the escalate, incorporate their resolution,
-     re-compose the retained plan if needed, then continue at step 4
-     (auto-apply when safe) — escalate is not a terminal stop.
-   - Clear error/warning fixes apply without asking.
-3. **Compose and retain** one full apply YAML from the deduplicated findings
-   and your invented fixes,
-   matching the work-root kind, per issue-tracker-authoring and
-   [SPEC.md § apply doc format](../../SPEC.md#apply-doc-format). Keep this
-   YAML internal — do not paste it into chat.
-   - **Epic** (`<rootKind>` = `epic`) — epic-form: `project: <projectId>`
-     string + `epic:` object.
-   - **project-level Story** (`<rootKind>` = `story`) — story-form:
-     `project: <projectId>` string + `story:` object (**no** `epic:` key).
-   - Or, when there are **zero** `error` findings and you are not adopting
-     warning fixes, retain nothing (no apply). Warnings that remain must
-     still appear in the step-5 summary.
-4. **Auto-apply when safe.** When step 2 did not escalate and there is a
-   retained YAML: write it to a temp file (or stdin) and run
-   `issue apply <file>` (or equivalent) so tracker writes stay
-   **single-threaded** through this coordinator. Do **not** ask yes/no to
-   apply. Write path is the retained apply doc per issue-tracker-authoring
-   (declarative apply) — epic-form or story-form per Bootstrap `<rootKind>`.
-5. **Post-apply summary.** After a successful apply, or when there is nothing
-   to apply, show in chat a **short informational** summary. Include **every
-   non-escalated finding** (with severities) — including warnings whose fixes
-   were not adopted — plus the plan changes applied when apply ran. State
-   explicitly that **no changes are needed** only when there are **zero
-   findings** (truly clean). Do **not** dump the apply YAML into chat. Show
-   `apply` stdout (created/updated/deleted + subtree outline) when apply ran.
+After all five check agents return, **Read**
+`/root/.cursor/plugins/local/issue-tracker/skills/issue-tracker-plan-polish/references/aggregate-apply-summary.md`
+and follow it.
 
 ## Rules
 

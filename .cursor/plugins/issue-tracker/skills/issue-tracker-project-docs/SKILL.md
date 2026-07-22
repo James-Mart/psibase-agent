@@ -15,9 +15,7 @@ Author or revise **one** Project supporting document per run and point
 this skill only creates or revises them. Glossary and field shape:
 [SPEC.md § Project supporting docs](../../SPEC.md#project-supporting-docs).
 
-Use the `issue` binary. Do not set `ISSUES_DIR`. Never retarget `npm link` to
-`/root/.cursor/plugins/local/...`. Cross-cutting CLI invariants:
-[SPEC.md § CLI invariants](../../SPEC.md#cli-invariants).
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
 ## Argument
 
@@ -30,8 +28,8 @@ Optional: a **Project** id and/or a doc key
 
 - If a Project id was given, use it.
 - Otherwise resolve from context (`issue summary <id>` → `Project:` line) or
-  ask: `issue tree` (no-arg), then pick among `project <id>` lines (one → use
-  it; many → ask which; none → stop).
+  **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-resolve-project.md`
+  and follow it.
 - Confirm with `issue project view <projectId>` (or `issue summary
   <projectId>`). Take `<projectId>` from the id token on
   `Project: <projectId> — <title>`. Note the `Workspace:` /
@@ -81,11 +79,9 @@ For a new workspace path, ask for a workspace-relative path (no absolute
 paths, no `..`).
 
 **Workspace gate.** After the user selects or keeps **workspace** storage:
-if the Project has no `Workspace:` / `workspace:` line, **stop and hand
-back to the user** to set it
-(`issue project set <projectId> workspace <path>`) before continuing — no
-fallback (SPEC § Project workspace). Attachment storage does not require a
-workspace.
+**Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-workspace-gate.md`
+and apply it (use `issue summary <projectId>` / step-1 Project lines as the
+summary parameter). Attachment storage does not require a workspace.
 
 ### 4. Load current content (revise only)
 
