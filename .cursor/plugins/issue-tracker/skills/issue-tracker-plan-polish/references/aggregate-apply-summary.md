@@ -27,17 +27,37 @@ After all five return:
      `project: <projectId>` string + `story:` object (**no** `epic:` key).
    - Or, when there are **zero** `error` findings and you are not adopting
      warning fixes, retain nothing (no apply). Warnings that remain must
-     still appear in the step-5 summary.
+     still appear in the step-6 summary.
 4. **Auto-apply when safe.** When step 2 did not escalate and there is a
    retained YAML: write it to a temp file (or stdin) and run
    `issue apply <file>` (or equivalent) so tracker writes stay
    **single-threaded** through this coordinator. Do **not** ask yes/no to
    apply. Write path is the retained apply doc per issue-tracker-authoring
    (declarative apply) — epic-form or story-form per Bootstrap `<rootKind>`.
-5. **Post-apply summary.** After a successful apply, or when there is nothing
-   to apply, show in chat a **short informational** summary. Include **every
-   non-escalated finding** (with severities) — including warnings whose fixes
-   were not adopted — plus the plan changes applied when apply ran. State
-   explicitly that **no changes are needed** only when there are **zero
-   findings** (truly clean). Do **not** dump the apply YAML into chat. Show
-   `apply` stdout (created/updated/deleted + subtree outline) when apply ran.
+5. **Re-check until clean.** Enter this step only when the preceding step 4
+   successfully applied a retained YAML. Then:
+   - **Resume flagging agents.** Resume (Cursor Task `resume`) each check
+     agent that returned one or more findings in the round whose fixes
+     were just applied — the same Task instances. Do not resume agents
+     that returned an empty array; do not spawn a second instance of any
+     check agent. Prompt each resumed agent to revalidate its prior
+     concerns against the updated tree and return only a JSON findings
+     array per
+     [`agents/_issue-tracker-plan-polish-check-base.md`](../../../agents/_issue-tracker-plan-polish-check-base.md).
+   - **Re-check.** When those resumed agents return, parse their JSON
+     findings arrays (same schema as step 1). Deduplicate overlapping
+     findings among them.
+   - **Exit or continue.** When every resumed agent returned an empty
+     findings array, continue to step 6. When findings remain, continue
+     from step 2 through step 4. Repeat this step from **Resume flagging
+     agents** only when that step 4 applied a retained YAML; otherwise
+     continue to step 6 (remaining findings, including warnings retained
+     per step 3, appear in the summary).
+6. **Post-apply summary.** After step 5 finishes or was not entered, show
+   in chat a **short informational** summary. Include **every
+   non-escalated finding** (with severities) — including warnings whose
+   fixes were not adopted — plus the plan changes applied when apply ran.
+   State explicitly that **no changes are needed** only when there are
+   **zero findings** (truly clean). Do **not** dump the apply YAML into
+   chat. Show `apply` stdout (created/updated/deleted + subtree outline)
+   when apply ran.
