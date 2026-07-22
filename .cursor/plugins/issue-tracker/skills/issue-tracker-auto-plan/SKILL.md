@@ -3,8 +3,8 @@ name: issue-tracker-auto-plan
 disable-model-invocation: true
 description: >-
   Autonomously plan a single issue as a hands-off stakeholder-planner on
-  opus 4.8. Use when the user runs auto-plan or wants hands-off planning of
-  an issue id.
+  opus 4.8. Use when the user runs auto-plan or auto plan or wants hands-off
+  planning of an issue id.
 ---
 
 # Issue Tracker — Auto-plan (stakeholder-planner)
