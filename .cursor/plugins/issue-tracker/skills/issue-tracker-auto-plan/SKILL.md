@@ -160,14 +160,13 @@ specifics and stop; otherwise proceed to Flow.
    then resume it to continue. Repeat until the planner returns the resulting
    plan root id(s) (it has already migrated / polished / spawned retro).
 
-   **Terse grill answers.** When the griller's recommended answer is acceptable,
-   reply tersely — e.g. "agreed with your rec" — instead of restating its
-   reasoning. Verbose in-loop replies waste your output tokens and the
-   griller's input tokens. Add substance only when it is meaningful: you diverge
-   from the recommendation, the decision is PM-only (product scope, dependency,
-   or priority only the human can settle), or the griller lacks context you hold.
-   Regardless of how terse each resume reply is, keep the running decision-summary
-   draft complete (see below).
+   **Terse grill answers.** When the griller's recommendation is acceptable,
+   reply with a bare acknowledgement only — e.g. "I agree" or "agreed with your
+   rec". Do not restate the recommendation it just made. Add substance only when
+   you diverge from the recommendation, the decision is PM-only (product scope,
+   dependency, or priority only the human can settle), or the griller lacks
+   context you hold. Regardless of how terse each resume reply is, keep the
+   running decision-summary draft complete (see below).
 
    As you answer, **append each resolved decision to a running draft** — one
    entry per decision: the decision, the answer you chose, and the rationale
