@@ -3,6 +3,7 @@ import type { DerivedState, IssueRecord } from "@server/schemas";
 import { issuesById } from "./build-tree";
 import {
   depGraphModel,
+  epicDependencyNeighborhood,
   filterFlowBuckets,
   flowBuckets,
   flowFiltersActive,
@@ -450,6 +451,45 @@ describe("projectEpics", () => {
   });
 });
 
+describe("epicDependencyNeighborhood", () => {
+  it("returns the focus epic plus direct blockedBy and blocking neighbors", () => {
+    // Diamond: D ← B,C ← A. Neighborhood of B is A, B, D (not C).
+    const issues = [
+      epic("A", "p"),
+      epic("B", "p", t0, ["A"]),
+      epic("C", "p", t0, ["A"]),
+      epic("D", "p", t0, ["B", "C"]),
+      story("S", "B"),
+    ];
+
+    expect(
+      epicDependencyNeighborhood("B", issues)
+        .map((e) => e.id)
+        .sort(),
+    ).toEqual(["A", "B", "D"]);
+  });
+
+  it("returns only the focus epic when it has no neighbors", () => {
+    const issues = [epic("solo", "p"), epic("other", "p")];
+    expect(epicDependencyNeighborhood("solo", issues).map((e) => e.id)).toEqual(
+      ["solo"],
+    );
+  });
+
+  it("returns empty for a missing or non-epic id", () => {
+    const issues = [epic("E", "p"), story("S", "E")];
+    expect(epicDependencyNeighborhood("missing", issues)).toEqual([]);
+    expect(epicDependencyNeighborhood("S", issues)).toEqual([]);
+  });
+
+  it("omits dangling blockedBy ids that are not epics in the issue list", () => {
+    const issues = [epic("E", "p", t0, ["ghost"])];
+    expect(epicDependencyNeighborhood("E", issues).map((e) => e.id)).toEqual([
+      "E",
+    ]);
+  });
+});
+
 describe("depGraphModel", () => {
   it("maps diamond DAG node states, prerequisite→dependent edges, and satisfied flags", () => {
     // C blocks A and B; A and B block D (diamond).
@@ -516,5 +556,25 @@ describe("depGraphModel", () => {
     const model = depGraphModel(issues, derived);
     expect(model.nodes).toEqual([{ id: "E", label: "E", state: "ready" }]);
     expect(model.edges).toEqual([]);
+  });
+
+  it("omits edges whose prerequisite is outside the supplied epic set", () => {
+    // Neighborhood of B: A,B,D — D also lists C, which is out of set.
+    const neighborhood = [
+      epic("A", "p"),
+      epic("B", "p", t0, ["A"]),
+      epic("D", "p", t0, ["B", "C"]),
+    ];
+    const derived: Record<string, DerivedState> = {
+      A: { blocked: false, epicStatus: "todo" },
+      B: { blocked: true, epicStatus: "todo" },
+      D: { blocked: true, epicStatus: "todo" },
+    };
+
+    const model = depGraphModel(neighborhood, derived);
+    expect(model.edges).toEqual([
+      { from: "A", to: "B", satisfied: false },
+      { from: "B", to: "D", satisfied: false },
+    ]);
   });
 });

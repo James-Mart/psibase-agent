@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { FIELD_LABELS } from "@server/fields";
 import { LABEL_COLOR_RE } from "@server/schemas";
+import { ShellInlineFault } from "@/app/shell-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import {
   newCatalogDraft,
   type CatalogDraft,
 } from "../lib/project-labels";
+import { DetailEyebrow } from "./detail-section";
 import { ProjectLabelChip } from "./project-label-chip";
 
 function ColorField({
@@ -37,7 +39,7 @@ function ColorField({
           onChange(e.target.value.toLowerCase());
           onCommit?.();
         }}
-        className="h-9 w-10 cursor-pointer rounded border bg-transparent p-1"
+        className="h-9 w-10 cursor-pointer rounded border border-border bg-transparent p-1"
         title="Pick color"
       />
       <Input
@@ -91,9 +93,9 @@ export function ProjectLabelsEditor({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <Label>{FIELD_LABELS.labels}</Label>
+    <section className="rounded-lg border border-border bg-card p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <DetailEyebrow>{FIELD_LABELS.labels}</DetailEyebrow>
         <Button
           type="button"
           variant="outline"
@@ -111,13 +113,15 @@ export function ProjectLabelsEditor({
       </div>
 
       {drafts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No labels in catalog.</p>
+        <p className="text-sm text-muted-foreground">
+          No labels in the catalog. Add a label to assign on issues.
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {drafts.map((draft) => (
             <li
               key={draft.key}
-              className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3"
+              className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 {LABEL_COLOR_RE.test(draft.color.trim()) && draft.id.trim() ? (
@@ -131,7 +135,9 @@ export function ProjectLabelsEditor({
                     }}
                   />
                 ) : (
-                  <span className="text-xs text-muted-foreground">Preview</span>
+                  <span className="text-xs text-muted-foreground">
+                    Preview appears after id and color are set.
+                  </span>
                 )}
                 <Button
                   type="button"
@@ -186,7 +192,7 @@ export function ProjectLabelsEditor({
                   maxLength={LABEL_DESCRIPTION_MAX}
                   placeholder="Shown as chip tooltip"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
                   {draft.description.length}/{LABEL_DESCRIPTION_MAX}
                 </p>
               </div>
@@ -195,7 +201,13 @@ export function ProjectLabelsEditor({
         </ul>
       )}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-    </div>
+      {error ? (
+        <ShellInlineFault
+          className="mt-3"
+          message={error}
+          hint="Fix the label fields, then save again."
+        />
+      ) : null}
+    </section>
   );
 }

@@ -39,7 +39,7 @@ export function ProjectDetailTabs({
       <div
         role="tablist"
         aria-label="Project detail"
-        className="flex flex-wrap gap-1 border-b"
+        className="flex flex-wrap gap-1 border-b border-border"
       >
         <TabButton
           selected={overviewSelected}
@@ -97,9 +97,9 @@ function TabButton({
       aria-selected={selected}
       onClick={onClick}
       className={cn(
-        "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+        "-mb-px border-b-2 px-3 py-2 font-display text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors",
         selected
-          ? "border-foreground text-foreground"
+          ? "border-[hsl(var(--current))] text-[hsl(var(--current))]"
           : "border-transparent text-muted-foreground hover:text-foreground",
       )}
     >

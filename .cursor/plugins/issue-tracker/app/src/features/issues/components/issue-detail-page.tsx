@@ -6,7 +6,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
 } from "lucide-react";
-import type { IssueDetail, IssueKind, ProjectLabel } from "@server/schemas";
+import type { IssueDetail, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
 import { IssueMetaPanel } from "./issue-meta-panel";
 import { IssueDetailHeader } from "./issue-detail-header";
 import { GitStackPanel } from "./git-stack-panel";
+import { StoryTaskRail } from "./story-task-rail";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
 import { IssueDescriptionField } from "./issue-description-field";
@@ -46,10 +47,19 @@ import { supportsAttachments } from "../lib/attachments";
 
 const DETAIL_PAGE_SHELL_CLASS = "max-w-6xl";
 
-/** Own-flow area for `surfaces-detail-flow`; empty for Idea / Task / Project. */
-function OwnFlowSlot({ kind }: { kind: IssueKind }) {
-  if (!kindHasOwnFlow(kind)) return null;
-  return <div data-region="own-flow" />;
+/**
+ * Own-flow area for `surfaces-detail-flow`. Story: single-spine task Rail.
+ * Epic: dependency neighborhood DAG + blockedBy edit. Idea / Task / Project
+ * leave the slot empty.
+ */
+function OwnFlowSlot({ issue }: { issue: IssueDetail }) {
+  if (!kindHasOwnFlow(issue.kind)) return null;
+  return (
+    <div data-region="own-flow">
+      {issue.kind === "story" ? <StoryTaskRail issue={issue} /> : null}
+      {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
+    </div>
+  );
 }
 
 /** Docked companion for `surfaces-chat`; collapse persisted as `?chat=`. */
@@ -180,11 +190,10 @@ function IssueDetailView({
       {isLabelAssignableIssue(issue) ? (
         <IssueAssignmentLabelsField issue={issue} catalog={catalog} />
       ) : null}
-      <OwnFlowSlot kind={issue.kind} />
-      {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
       {issue.kind === "story" || issue.kind === "task" ? (
         <GitStackPanel issue={issue} />
       ) : null}
+      <OwnFlowSlot issue={issue} />
       <IssueAttachmentsSection issue={issue} upload={upload} />
       <IssueDescriptionField issue={issue} upload={upload} />
       {issue.kind === "project" ? (
