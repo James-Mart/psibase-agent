@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { GitBranch, Plus } from "lucide-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { visibleIssues } from "@server/services/archived-visibility";
 import type {
@@ -28,11 +29,17 @@ import {
   writeOverviewLensParam,
   type OverviewLens,
 } from "../lib/overview-lens";
+import {
+  structureScopedIssues,
+  structureTreeNodes,
+} from "../lib/structure";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { FlowBucketsSections } from "./flow-buckets-sections";
 import { FlowRow } from "./flow-row";
 import { FlowRowActions } from "./flow-row-actions";
+import { IssueTree } from "./issue-tree";
 import { OverviewFlowFilters } from "./overview-flow-filters";
+import { StructureIdeaCapture } from "./structure-idea-capture";
 
 function OverviewHeader({ title }: { title: string }) {
   return (
@@ -195,9 +202,118 @@ function OverviewFlowLens({
   );
 }
 
+/** Project-scoped Structure lens: containment tree + authoring create entry points. */
+function OverviewStructureLens({
+  projectId,
+  issues,
+  derived,
+  catalog,
+}: {
+  projectId: string;
+  issues: IssueRecord[];
+  derived: Record<string, DerivedState>;
+  catalog: ProjectLabel[];
+}) {
+  const openNew = useIssueUiStore((s) => s.openNew);
+  const search = useIssueUiStore((s) => s.search);
+  const setSearch = useIssueUiStore((s) => s.setSearch);
+  const labelFilter = useIssueUiStore((s) => s.labelFilter);
+  const setLabelFilter = useIssueUiStore((s) => s.setLabelFilter);
+  const boardKindFilter = useIssueUiStore((s) => s.boardKindFilter);
+  const setBoardKindFilter = useIssueUiStore((s) => s.setBoardKindFilter);
+  const showArchived = useIssueUiStore((s) => s.showArchived);
+
+  const filters: FlowFilters = useMemo(
+    () => ({
+      search,
+      labelIds: labelFilter,
+      kind: boardKindFilter,
+    }),
+    [boardKindFilter, labelFilter, search],
+  );
+  const filtersOn = flowFiltersActive(filters);
+
+  const scoped = useMemo(
+    () => structureScopedIssues(issues, projectId, showArchived),
+    [issues, projectId, showArchived],
+  );
+  const nodes = useMemo(
+    () => structureTreeNodes(scoped, filters),
+    [filters, scoped],
+  );
+
+  const clearFilters = () => {
+    setSearch("");
+    setLabelFilter([]);
+    setBoardKindFilter("both");
+  };
+
+  const hasIdeas = useMemo(
+    () => scoped.some((issue) => issue.kind === "idea"),
+    [scoped],
+  );
+
+  return (
+    <div
+      role="tabpanel"
+      id="overview-lens-panel-structure"
+      aria-labelledby="overview-lens-tab-structure"
+      className="flex flex-col gap-6"
+    >
+      <StructureIdeaCapture projectId={projectId} empty={!hasIdeas} />
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            openNew({ presetKind: "story", presetParent: projectId })
+          }
+        >
+          <GitBranch className="h-4 w-4" />
+          New story
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            openNew({ presetKind: "epic", presetParent: projectId })
+          }
+        >
+          <Plus className="h-4 w-4" />
+          New epic
+        </Button>
+      </div>
+
+      <OverviewFlowFilters catalog={catalog} />
+
+      {filtersOn && nodes.length === 0 ? (
+        <ShellState
+          eyebrow="Filtered"
+          title="No work matches these filters."
+          detail="Clear search, labels, or kind to see the Structure again."
+          action={
+            <Button size="sm" variant="primary" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          }
+        />
+      ) : (
+        <IssueTree
+          nodes={nodes}
+          derived={derived}
+          issues={scoped}
+          catalog={catalog}
+          projectId={projectId}
+        />
+      )}
+    </div>
+  );
+}
+
 /**
- * Per-project overview shell: lens switcher (`?lens=`) + Flow lens.
- * Structure and Dependencies are mount points for stacked Stories.
+ * Per-project overview shell: lens switcher (`?lens=`) + Flow / Structure lenses.
+ * Dependencies remains a mount point for the stacked Story.
  */
 export function OverviewPage() {
   const { projectId = "" } = useParams();
@@ -259,13 +375,12 @@ export function OverviewPage() {
             />
           ) : null}
 
-          {/* Mount point: Structure lens — surfaces-overview-structure */}
           {lens === "structure" ? (
-            <div
-              role="tabpanel"
-              id="overview-lens-panel-structure"
-              aria-labelledby="overview-lens-tab-structure"
-              data-lens-mount="structure"
+            <OverviewStructureLens
+              projectId={projectId}
+              issues={issues}
+              derived={derived}
+              catalog={catalog}
             />
           ) : null}
 

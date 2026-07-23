@@ -22,6 +22,7 @@ import {
   TASK_STATUS_LABEL,
   hasInFlightWork,
   isInFlight,
+  isIssueComplete,
   statusStages,
 } from "./derived";
 
@@ -261,5 +262,36 @@ describe("statusStages", () => {
         undefined,
       ),
     ).toEqual([]);
+  });
+});
+
+describe("isIssueComplete", () => {
+  it("treats task done, story merged, and epic done as complete", () => {
+    expect(isIssueComplete(task("t", "done"), undefined)).toBe(true);
+    expect(isIssueComplete(task("t", "todo"), undefined)).toBe(false);
+    expect(
+      isIssueComplete(story("s"), { blocked: false, storyStatus: "merged" }),
+    ).toBe(true);
+    expect(
+      isIssueComplete(
+        { ...story("s"), merged: true },
+        { blocked: false, storyStatus: "not-started" },
+      ),
+    ).toBe(true);
+    expect(
+      isIssueComplete(epic("e"), { blocked: false, epicStatus: "done" }),
+    ).toBe(true);
+    expect(
+      isIssueComplete(epic("e"), { blocked: false, epicStatus: "todo" }),
+    ).toBe(false);
+  });
+
+  it("returns false for kinds without completion", () => {
+    expect(
+      isIssueComplete(
+        { id: "i", kind: "idea", title: "i", partOf: "p", ...timestamps },
+        undefined,
+      ),
+    ).toBe(false);
   });
 });

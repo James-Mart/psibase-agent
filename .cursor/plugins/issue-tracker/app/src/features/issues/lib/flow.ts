@@ -2,11 +2,9 @@ import { bySequence } from "@server/order";
 import type { DerivedState, IssueRecord } from "@server/schemas";
 import type { BoardKindFilter } from "./board-kind-filter";
 import { issuesById, projectIdOf } from "./build-tree";
-import { isInFlight } from "./derived";
-import { filterWithAncestors } from "./filter-with-ancestors";
-import { issueMatchesLabelFilter } from "./project-labels";
+import { isInFlight, isIssueComplete } from "./derived";
+import { filterIssuesBySearchAndLabels } from "./filter-by-search-labels";
 import type { RailNodeState } from "./rail-state";
-import { issueMatchesSearch } from "./search";
 
 type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
 
@@ -69,27 +67,19 @@ function flowKindAllows(
 }
 
 /**
- * Story/Epic ids kept under Flow filters. Mirrors the old tree pipeline:
- * sequential `filterWithAncestors` per active search/label dimension (so an
- * Epic matching labels while a child matches search still survives), then
- * kind via `flowKindAllows`.
+ * Story/Epic ids kept under Flow filters. Search/label via shared
+ * `filterIssuesBySearchAndLabels` (ancestor retention), then kind via
+ * `flowKindAllows`.
  */
 export function matchingFlowIssueIds(
   issues: IssueRecord[],
   filters: FlowFilters,
 ): Set<string> {
-  let next = issues;
-  if (filters.search.trim()) {
-    next = filterWithAncestors(next, (issue) =>
-      issueMatchesSearch(issue, filters.search),
-    );
-  }
-  if (filters.labelIds.length > 0) {
-    const labelIds = [...filters.labelIds];
-    next = filterWithAncestors(next, (issue) =>
-      issueMatchesLabelFilter(issue, labelIds),
-    );
-  }
+  const next = filterIssuesBySearchAndLabels(
+    issues,
+    filters.search,
+    filters.labelIds,
+  );
   const keep = new Set<string>();
   for (const issue of next) {
     if (
@@ -164,8 +154,7 @@ function isRecentlyMerged(
   issue: IssueRecord & { kind: "story" | "epic" },
   state: DerivedState | undefined,
 ): boolean {
-  if (issue.kind === "story") return state?.storyStatus === "merged";
-  return state?.epicStatus === "done";
+  return isIssueComplete(issue, state);
 }
 
 /**

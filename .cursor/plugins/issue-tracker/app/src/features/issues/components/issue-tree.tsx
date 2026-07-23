@@ -12,6 +12,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { assigneeOf } from "@server/assignee";
+import { hasAttention } from "@server/kind";
 import {
   CHILD_KIND,
   type DerivedState,
@@ -20,8 +22,10 @@ import {
   type ProjectLabel,
 } from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
-import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { OverviewRow } from "@/components/ui/overview-row";
+import { ProgressRail } from "@/components/ui/rail";
 import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
@@ -36,12 +40,12 @@ import {
 } from "../hooks/use-story-tree-dnd";
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import type { IssueNode } from "../lib/build-tree";
+import { isIssueComplete } from "../lib/derived";
 import { issuePath } from "../lib/links";
 import { isRowDraggable } from "../lib/story-tree-dnd-logic";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { EpicAxisChips, StoryAxisChips } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
-import { IssueBadges } from "./issue-badges";
 import { ProjectLabelChips } from "./project-label-chips";
 
 const KIND_ICON: Record<IssueKind, typeof Layers> = {
@@ -98,13 +102,26 @@ function TreeRowDerivedMeta({
   return null;
 }
 
+/** Tabular child progress (`done/total`) for OverviewRow count slot. */
+function childProgressCount(
+  node: IssueNode,
+  derived: DerivedMap,
+): string | undefined {
+  const total = node.children.length;
+  if (total === 0) return undefined;
+  const done = node.children.filter((child) =>
+    isIssueComplete(child.issue, derived[child.issue.id]),
+  ).length;
+  return `${done}/${total}`;
+}
+
 function RowActions({ issue }: { issue: IssueRecord }) {
   const openNew = useIssueUiStore((s) => s.openNew);
   const requestDelete = useIssueUiStore((s) => s.requestDelete);
   const childKind = CHILD_KIND[issue.kind];
 
   return (
-    <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+    <span className="flex items-center gap-0.5">
       {childKind ? (
         issue.kind === "story" ? (
           <DropdownMenu>
@@ -194,17 +211,19 @@ function TreeRow({
   const state = derived[issue.id];
   const rowDraggable = isRowDraggable(issue, issues);
   const { isDragging, isDropTarget, ...rowDnDHandlers } = getRowDnDProps(issue);
+  const assignee = assigneeOf(issue);
+  const attention = hasAttention(issue) && issue.needsAttention;
+  const count = childProgressCount(node, derived);
 
   return (
     <div>
       <div
         className={cn(
-          "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent",
+          "group flex items-center gap-1.5",
           hasChildren && "cursor-pointer",
           rowDraggable && "cursor-grab active:cursor-grabbing",
-          state?.blocked && "opacity-40",
           isDragging && "opacity-50",
-          isDropTarget && "bg-accent ring-1 ring-ring",
+          isDropTarget && "rounded-lg ring-1 ring-ring",
         )}
         {...rowDnDHandlers}
         onClick={
@@ -225,21 +244,41 @@ function TreeRow({
             )
           ) : null}
         </span>
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <Link
-          to={issuePath(projectId, issue.id)}
-          className="truncate text-sm hover:underline"
-          onClick={(e) => e.stopPropagation()}
-          draggable={false}
+        <OverviewRow
+          className="min-w-0 flex-1"
+          avatar={
+            assignee ? (
+              <Avatar name={assignee} size="sm" />
+            ) : (
+              <Icon
+                aria-label={issue.kind}
+                className="h-4 w-4 text-muted-foreground"
+              />
+            )
+          }
+          sparkline={<ProgressRail issue={issue} state={state} />}
+          attention={attention}
+          blocked={Boolean(state?.blocked)}
+          count={count}
         >
-          {issue.title}
-        </Link>
-        <span className="ml-auto flex items-center gap-2">
-          {state?.blocked ? (
-            <Badge variant="blocked">blocked</Badge>
-          ) : null}
+          <Link
+            to={issuePath(projectId, issue.id)}
+            className="truncate text-inherit no-underline hover:underline"
+            onClick={(e) => e.stopPropagation()}
+            draggable={false}
+          >
+            {issue.title}
+          </Link>
+        </OverviewRow>
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-2",
+            "opacity-0 transition-opacity",
+            "group-hover:opacity-100 group-focus-within:opacity-100",
+            "focus-within:opacity-100",
+          )}
+        >
           <ProjectLabelChips issue={issue} catalog={catalog} />
-          <IssueBadges issue={issue} compact />
           {issue.kind === "story" && issue.prUrl ? (
             <PrLink url={issue.prUrl} />
           ) : null}
