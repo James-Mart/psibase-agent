@@ -20,6 +20,74 @@ async function openNewEpicDialog(page: Page): Promise<void> {
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
 }
 
+async function openNewProjectDialog(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "New project" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: "New project" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Name the project and group related epics."),
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Create" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+}
+
+async function openRenameProjectDialog(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Project actions" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: "Rename project" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText("Update the project name shown across the plan."),
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save" })).toBeVisible();
+}
+
+test.describe("project dialog", () => {
+  test("creates a project via the dialog", async ({ page, seededApp }) => {
+    await page.goto(seededApp.baseURL);
+    await openNewProjectDialog(page);
+
+    const dialog = page.getByTestId("project-dialog");
+    await dialog.getByLabel("Title").fill("Project from dialog");
+    await dialog.getByRole("button", { name: "Create" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL(/\/projects\/project-from-dialog\/?$/);
+    await expect(
+      page.getByRole("link", { name: "Project from dialog" }),
+    ).toBeVisible();
+  });
+
+  test("renames a project via the dialog", async ({ page, seededApp }) => {
+    await page.goto(`${seededApp.baseURL}/projects/seed-proj`);
+    await openRenameProjectDialog(page);
+
+    const dialog = page.getByTestId("project-dialog");
+    await dialog.getByLabel("Title").fill("Renamed Seed Project");
+    await dialog.getByRole("button", { name: "Save" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Renamed Seed Project" }),
+    ).toBeVisible();
+  });
+
+  // Sole both-theme key-surface snapshot for the project dialog.
+  test("both-theme project dialog snapshot", async ({ page, seededApp }) => {
+    await page.goto(seededApp.baseURL);
+    await snapshotBothThemes(page, "project-dialog", async () => {
+      await openNewProjectDialog(page);
+      await expect(page.getByTestId("project-dialog")).toBeVisible();
+    });
+  });
+});
+
 test.describe("new-issue dialog", () => {
   test("creates an Epic via the dialog", async ({ page, seededApp }) => {
     await gotoOverviewStructure(page, seededApp.baseURL);

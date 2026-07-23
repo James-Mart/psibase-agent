@@ -19,6 +19,12 @@ import { projectPath } from "../lib/links";
 import { MergePolicySelect } from "./merge-policy-select";
 import { WorkspacePathInput } from "./workspace-path-input";
 
+function descriptionFor(isRename: boolean): string {
+  return isRename
+    ? "Update the project name shown across the plan."
+    : "Name the project and group related epics.";
+}
+
 export function ProjectDialog() {
   const navigate = useNavigate();
   const target = useIssueUiStore((s) => s.projectDialog);
@@ -71,49 +77,49 @@ export function ProjectDialog() {
 
   return (
     <Dialog open={Boolean(target)} onOpenChange={(open) => !open && close()}>
-      <DialogContent>
+      <DialogContent data-testid="project-dialog">
         <DialogHeader>
           <DialogTitle>{isRename ? "Rename project" : "New project"}</DialogTitle>
-          <DialogDescription>
-            A project groups related epics.
-          </DialogDescription>
+          <DialogDescription>{descriptionFor(isRename)}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="project-title">Title</Label>
-          <Input
-            id="project-title"
-            value={title}
-            autoFocus
-            placeholder="Project title"
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-          />
-        </div>
+        <div className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="project-title">{FIELD_LABELS.title}</Label>
+            <Input
+              id="project-title"
+              value={title}
+              autoFocus
+              placeholder="Name the project"
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+            />
+          </div>
 
-        {!isRename ? (
-          <>
-            <div className="grid gap-1.5">
-              <Label htmlFor="project-workspace">{FIELD_LABELS.workspace}</Label>
-              <WorkspacePathInput
-                id="project-workspace"
-                value={workspace}
-                optional
-                onChange={setWorkspace}
-              />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="project-merge-policy">
-                {FIELD_LABELS.mergePolicy}
-              </Label>
-              <MergePolicySelect
-                id="project-merge-policy"
-                value={mergePolicy}
-                onChange={setMergePolicy}
-              />
-            </div>
-          </>
-        ) : null}
+          {!isRename ? (
+            <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="project-workspace">{FIELD_LABELS.workspace}</Label>
+                <WorkspacePathInput
+                  id="project-workspace"
+                  value={workspace}
+                  optional
+                  onChange={setWorkspace}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="project-merge-policy">
+                  {FIELD_LABELS.mergePolicy}
+                </Label>
+                <MergePolicySelect
+                  id="project-merge-policy"
+                  value={mergePolicy}
+                  onChange={setMergePolicy}
+                />
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => close()}>
