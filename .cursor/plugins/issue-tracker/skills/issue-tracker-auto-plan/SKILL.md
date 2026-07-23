@@ -100,6 +100,11 @@ attachment:<name> — <one-line scope>`). When present, Read that attachment
 from the step-1 summary's Project `Attachments:` list (plan artifact —
 permitted) and consult it before deciding.
 
+When the subsystem is unclear and undocumented — no matching entry and not
+evident from the high-level vision — delegate a **code-scope research** task
+per **### Research delegation** with a prompt to survey that subsystem's
+breadth and scope as implemented in the code.
+
 ### PM decision heuristics
 
 The seed is a **proposal**, not a specification. It may be terse or authored by
