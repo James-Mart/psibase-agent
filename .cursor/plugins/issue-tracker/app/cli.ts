@@ -323,7 +323,7 @@ program
   .command("apply")
   .argument("<file>", "path to the nested YAML doc to apply")
   .description(
-    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Story (one story + its tasks under an existing Epic or Project); prunes within the declared root's subtree only",
+    "upsert a nested YAML tree rooted at a Project (whole tree), an Epic (one epic in an existing project), or a Story (one story + its tasks under an existing Epic or Project); prunes within the declared root's subtree only; omitting a restated Epic's blockedBy clears it to []",
   )
   .action((file) =>
     run(async () => {

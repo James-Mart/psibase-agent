@@ -58,9 +58,11 @@ Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-d
   linearizing them, at the cost of waiting for the blocking Epic to merge).
 - **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
-  deleted, and unchanged nodes are untouched. It is atomic (a doc that would
-  break integrity changes nothing) and preserves runtime/progress fields and
-  attachment bytes, so re-applying an edited doc mid-implementation is safe
+  deleted, and unchanged nodes are untouched. Omitting `blockedBy` on a
+  restated Epic clears it to `[]` (full desired state) — it does not preserve
+  on-disk edges. It is atomic (a doc that would break integrity changes
+  nothing) and preserves runtime/progress fields and attachment bytes, so
+  re-applying an edited doc mid-implementation is safe
   ([SPEC.md § Declarative/imperative field seam](../../SPEC.md#declarativeimperative-field-seam)).
   Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
   incrementally with `issue <kind> add` or kind `set`.
