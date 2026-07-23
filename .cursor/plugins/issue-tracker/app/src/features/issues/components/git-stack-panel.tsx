@@ -15,7 +15,6 @@ import {
   CommitShaDisplay,
   PrUrlDisplay,
 } from "./readonly-git-fields";
-import { StoryAxisChips, storyAxesVisible } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 
 function BranchPanel({
@@ -41,18 +40,6 @@ function BranchPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Git / stack
       </div>
-      {storyAxesVisible(state?.storyStatus, issue.specReview, issue.retro) ? (
-        <Row
-          label="Status"
-          value={
-            <StoryAxisChips
-              storyStatus={state?.storyStatus}
-              specReview={issue.specReview}
-              retro={issue.retro}
-            />
-          }
-        />
-      ) : null}
       <Row
         label={FIELD_LABELS.mergeBase}
         value={
@@ -143,7 +130,6 @@ function CommitPanel({
           value={<BranchNameDisplay branchName={branch.branchName} />}
         />
       ) : null}
-      <Row label="Status" value={<TaskStatusChips status={issue.status} qa={issue.qa} />} />
       <Row
         label="Commit SHA"
         value={<CommitShaDisplay commitSha={issue.commitSha} />}

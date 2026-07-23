@@ -1,26 +1,11 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { useMemo, type ReactNode } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
-  Check,
-  Copy,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
-  Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 import type { IssueDetail, IssueKind, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { PageShell } from "@/components/page-shell";
@@ -33,8 +18,7 @@ import {
   useIssueDetailFileUpload,
   type UploadAttachmentMutation,
 } from "../hooks/use-issue-detail-file-upload";
-import { useIssueUiStore } from "../store/use-issue-ui-store";
-import { KIND_LABEL, kindHas } from "../lib/kind";
+import { kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
 import {
@@ -47,19 +31,16 @@ import {
   projectCatalogLabels,
 } from "../lib/project-labels";
 import { IssueMetaPanel } from "./issue-meta-panel";
-import { IssueBadges } from "./issue-badges";
-import { ProjectLabelChips } from "./project-label-chips";
+import { IssueDetailHeader } from "./issue-detail-header";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
-import { IssueTitleField } from "./issue-title-field";
 import { IssueDescriptionField } from "./issue-description-field";
 import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
 import { IssueProjectLabelsField } from "./issue-project-labels-field";
 import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
 import { IssueInspirationAppsField } from "./issue-inspiration-apps-field";
 import { ChatPanel } from "./chat-panel";
-import { ArchiveIssueButton } from "./archive-issue-button";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
@@ -128,46 +109,6 @@ function CompanionSlot({
   );
 }
 
-function CopyIssueIdButton({ id }: { id: string }) {
-  const [copied, setCopied] = useState(false);
-  const resetCopiedRef = useRef<ReturnType<typeof window.setTimeout>>();
-
-  useEffect(() => {
-    return () => {
-      if (resetCopiedRef.current !== undefined) {
-        window.clearTimeout(resetCopiedRef.current);
-      }
-    };
-  }, []);
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      title="Copy id"
-      className="shrink-0 text-muted-foreground"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(id);
-          setCopied(true);
-          if (resetCopiedRef.current !== undefined) {
-            window.clearTimeout(resetCopiedRef.current);
-          }
-          resetCopiedRef.current = window.setTimeout(() => setCopied(false), 1500);
-        } catch {
-          toast.error("Could not copy to clipboard");
-        }
-      }}
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
-    </Button>
-  );
-}
-
 function IssueDetailBody({
   issue,
   projectId,
@@ -179,9 +120,7 @@ function IssueDetailBody({
   upload?: UploadAttachmentMutation;
   catalog: ProjectLabel[];
 }) {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestDelete = useIssueUiStore((s) => s.requestDelete);
   const attach = supportsAttachments(issue.kind);
   const companionExpanded =
     parseChatCompanionState(searchParams.get("chat")) === "expanded";
@@ -197,37 +136,11 @@ function IssueDetailBody({
   return (
     <div className="flex min-h-0 flex-1 gap-4">
       <div className="flex min-w-0 flex-1 flex-col gap-4">
-        <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">
-              {KIND_LABEL[issue.kind]}
-            </span>
-            <IssueTitleField issue={issue} />
-            <div className="mt-0.5 flex items-center gap-0.5">
-              <span className="font-mono text-xs text-muted-foreground">
-                {issue.id}
-              </span>
-              <CopyIssueIdButton id={issue.id} />
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <ProjectLabelChips issue={issue} catalog={catalog} />
-              <IssueBadges issue={issue} />
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <ArchiveIssueButton issue={issue} />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                requestDelete(issue.id);
-                navigate(projectPath(projectId));
-              }}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
-          </div>
-        </header>
+        <IssueDetailHeader
+          issue={issue}
+          projectId={projectId}
+          catalog={catalog}
+        />
 
         <IssueDetailView
           issue={issue}

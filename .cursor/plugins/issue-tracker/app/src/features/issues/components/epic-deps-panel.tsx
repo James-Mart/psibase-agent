@@ -5,7 +5,6 @@ import { useIssuesQuery } from "../api/queries";
 import { IssueBlockedByField } from "./issue-blocked-by-field";
 import { IssueLink } from "./issue-link";
 import { MetaRow as Row } from "./meta-row";
-import { EpicAxisChips, epicAxesVisible } from "./axis-chips";
 
 function DepsPanel({
   issue,
@@ -24,14 +23,6 @@ function DepsPanel({
       <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Dependencies
       </div>
-      {epicAxesVisible(state?.epicStatus, issue.retro) ? (
-        <Row
-          label="Status"
-          value={
-            <EpicAxisChips epicStatus={state?.epicStatus} retro={issue.retro} />
-          }
-        />
-      ) : null}
       <Row
         label="Blocked"
         value={
