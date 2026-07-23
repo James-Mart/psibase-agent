@@ -3,74 +3,104 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+  /* Mainline palette (HSL components) → shadcn slots via aliases.
+     Dark is canonical; light is derived. Ready ports carry no hue
+     (hollow ink outline) — no dedicated token. */
+  :root,
+  [data-theme="dark"] {
+    --void: 217.5 25% 6.3%;
+    --panel: 218.6 25.9% 10.6%;
+    --panel-2: 216.7 25% 14.1%;
+    --rail: 216 19.6% 20%;
+    --rail-lit: 216 20.5% 28.6%;
+    --mut: 216 13.2% 55.3%;
+    --ink: 220 23.1% 92.4%;
+    --current: 180 65% 54.1%;
+    --current-dim: 182.4 54.3% 36.1%;
+    --blocked: 352 68.5% 61.4%;
+    --merged: 147.8 50.5% 57.3%;
+    --warn: 40 75% 60.8%;
+
+    --background: var(--void);
+    --foreground: var(--ink);
+    --card: var(--panel);
+    --card-foreground: var(--ink);
+    --popover: var(--panel);
+    --popover-foreground: var(--ink);
+    --primary: var(--current);
+    --primary-foreground: var(--void);
+    --secondary: var(--panel-2);
+    --secondary-foreground: var(--ink);
+    --muted: var(--panel-2);
+    --muted-foreground: var(--mut);
+    --accent: var(--panel-2);
+    --accent-foreground: var(--ink);
+    --destructive: var(--blocked);
+    --destructive-foreground: var(--ink);
+    --success: var(--merged);
+    --success-foreground: var(--void);
+    --warning: var(--warn);
+    --warning-foreground: var(--void);
+    --border: var(--rail);
+    --input: var(--rail);
+    --ring: var(--current);
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: var(--panel);
+    --sidebar-foreground: var(--ink);
+    --sidebar-primary: var(--current);
+    --sidebar-primary-foreground: var(--void);
+    --sidebar-accent: var(--panel-2);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: var(--rail);
+    --sidebar-ring: var(--current);
   }
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 8% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 65% 47%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 240 5.9% 10%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+  [data-theme="light"] {
+    --void: 46.7 27.3% 93.5%;
+    --panel: 48 38.5% 97.5%;
+    --panel-2: 0 0% 100%;
+    --rail: 45 16.3% 80.8%;
+    --rail-lit: 45.7 12.7% 67.6%;
+    --mut: 40 10.9% 37.8%;
+    --ink: 220 14.3% 12.4%;
+    --current: 182.8 84.4% 35.3%;
+    --current-dim: 182.3 44.6% 65.3%;
+    --blocked: 350.8 53.7% 50%;
+    --merged: 150.5 54.9% 40%;
+    --warn: 38.7 81.1% 39.4%;
+
+    --background: var(--void);
+    --foreground: var(--ink);
+    --card: var(--panel);
+    --card-foreground: var(--ink);
+    --popover: var(--panel-2);
+    --popover-foreground: var(--ink);
+    --primary: var(--current);
+    --primary-foreground: var(--panel-2);
+    --secondary: var(--panel-2);
+    --secondary-foreground: var(--ink);
+    --muted: var(--panel);
+    --muted-foreground: var(--mut);
+    --accent: var(--panel);
+    --accent-foreground: var(--ink);
+    --destructive: var(--blocked);
+    --destructive-foreground: var(--panel-2);
+    --success: var(--merged);
+    --success-foreground: var(--panel-2);
+    --warning: var(--warn);
+    --warning-foreground: var(--panel-2);
+    --border: var(--rail);
+    --input: var(--rail);
+    --ring: var(--current);
     --radius: 0.5rem;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: var(--panel);
+    --sidebar-foreground: var(--ink);
+    --sidebar-primary: var(--current);
+    --sidebar-primary-foreground: var(--panel-2);
+    --sidebar-accent: var(--void);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: var(--rail);
+    --sidebar-ring: var(--current);
   }
 }
 
