@@ -484,6 +484,21 @@ the YAML doc.
 Agents load these at bootstrap; coordinators do not pass doc paths in Task
 prompts.
 
+**Subsystem vision docs (convention only).** Per-subsystem vision docs are
+ordinary Project **attachments**, not additional `supportingDocs` keys. The
+`supportingDocs` schema stays `{ vision?, codingStandards?, designSystem? }`
+— no schema or CLI change. Index them from the main vision doc (the
+`supportingDocs.vision` target) under a `## Subsystem reference` section.
+Each entry is a markdown list item:
+
+```
+- <subsystem name> — <attachment:name> — <one-line scope>
+```
+
+Agents discover and consult a subsystem doc via the existing vision path:
+read the vision doc, find a matching `## Subsystem reference` entry, then
+Read that attachment.
+
 ### Project workspace
 
 A Project's optional `workspace` is the absolute path to the local git checkout

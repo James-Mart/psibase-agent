@@ -157,3 +157,6 @@ Offer to run again for another key only if the user asks.
   user explicitly asks.
 - Do not hand-edit `issue.json`. Do not put supporting-doc bodies into
   Project `description.md`.
+- When revising `vision`, preserve `## Subsystem reference` unless the user
+  asks to change it. Convention:
+  [SPEC.md § Project supporting docs](../../SPEC.md#project-supporting-docs).
