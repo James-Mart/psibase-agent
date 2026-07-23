@@ -7,6 +7,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "list",
+  expect: {
+    toHaveScreenshot: {
+      animations: "disabled",
+      caret: "hide",
+    },
+  },
   use: {
     baseURL: "http://localhost:8060",
     trace: "retain-on-failure",
