@@ -7,6 +7,7 @@ import { NewIssueDialog } from "@/features/issues/components/new-issue-dialog";
 import { DeleteIssueDialog } from "@/features/issues/components/delete-issue-dialog";
 import { ProjectSidebar } from "@/features/issues/components/project-sidebar";
 import { ProjectDialog } from "@/features/issues/components/project-dialog";
+import { TopBar } from "@/features/issues/components/top-bar";
 import { useIssueEvents } from "@/features/issues/hooks/use-issue-events";
 import { useIssuesQuery } from "@/features/issues/api/queries";
 import { useIssueUiStore } from "@/features/issues/store/use-issue-ui-store";
@@ -92,6 +93,7 @@ export function App() {
     <SidebarProvider>
       <ProjectSidebar />
       <SidebarInset>
+        <TopBar />
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/projects/:projectId" element={<TreePage />} />
