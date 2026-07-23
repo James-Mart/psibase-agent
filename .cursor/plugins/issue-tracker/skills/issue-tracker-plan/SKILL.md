@@ -89,12 +89,8 @@ Story grain, or slice decomposition — apply issue-tracker-authoring grain
 yourself. Reserve questions for product and dependency choices that remain
 after those rules.
 
-**Early confirm (multi-root).** Once themes are clear enough to apply
-authoring [Multi-Epic split](../issue-tracker-authoring/SKILL.md#multi-epic-split),
-propose the **root set** in chat: each theme as an Epic or project-level Story
-(per Epic grain), plus any Epic `blockedBy` edges. Get agreement on that set
-**before** drilling into each root's Stories/Tasks. If the capture stays a
-single root, skip this beat and continue grilling that root.
+Keep asking one question at a time — do **not** dump a Story/Task outline
+mid-grill.
 
 **Rules (mandatory):**
 
