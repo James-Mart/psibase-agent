@@ -44,6 +44,17 @@ test.describe("overview Flow lens", () => {
     const structurePanel = page.getByRole("tabpanel", { name: "Structure" });
     await expect(structurePanel).toBeVisible();
     await expect(
+      structurePanel.getByRole("heading", { name: "Ideas" }),
+    ).toBeVisible();
+    await expect(
+      structurePanel.getByText(
+        "No ideas yet. Name what to plan next, then capture it here.",
+      ),
+    ).toBeVisible();
+    await expect(
+      structurePanel.getByRole("button", { name: "New idea" }),
+    ).toBeVisible();
+    await expect(
       structurePanel.getByRole("button", { name: "New story" }),
     ).toBeVisible();
     await expect(
@@ -162,6 +173,47 @@ test.describe("overview Flow lens", () => {
     await expect(
       rowAfter.getByRole("button", { name: "Clear needs attention" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Structure idea capture creates an Idea outside Flow", async ({
+    page,
+    seededApp,
+  }) => {
+    await gotoOverviewFlow(page, seededApp.baseURL);
+    await page
+      .getByRole("tablist", { name: "Overview lens" })
+      .getByRole("tab", { name: "Structure" })
+      .click();
+
+    const structurePanel = page.getByRole("tabpanel", { name: "Structure" });
+    await expect(structurePanel).toBeVisible();
+    await expect(
+      structurePanel.getByText(
+        "No ideas yet. Name what to plan next, then capture it here.",
+      ),
+    ).toBeVisible();
+
+    await structurePanel.getByLabel("Idea title").fill("Capture me next");
+    await structurePanel.getByRole("button", { name: "New idea" }).click();
+
+    await expect(
+      structurePanel.getByRole("link", { name: /^Capture me next\b/ }),
+    ).toBeVisible();
+    await expect(
+      structurePanel.getByText(
+        "No ideas yet. Name what to plan next, then capture it here.",
+      ),
+    ).toHaveCount(0);
+
+    await page
+      .getByRole("tablist", { name: "Overview lens" })
+      .getByRole("tab", { name: "Flow" })
+      .click();
+    const flowPanel = page.getByRole("tabpanel", { name: "Flow" });
+    await expect(flowPanel).toBeVisible();
+    await expect(
+      flowPanel.getByRole("link", { name: /^Capture me next\b/ }),
+    ).toHaveCount(0);
   });
 
   // Sole both-theme key-surface snapshot for the project Flow overview.

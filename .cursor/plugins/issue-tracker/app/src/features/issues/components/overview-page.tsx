@@ -39,6 +39,7 @@ import { FlowRow } from "./flow-row";
 import { FlowRowActions } from "./flow-row-actions";
 import { IssueTree } from "./issue-tree";
 import { OverviewFlowFilters } from "./overview-flow-filters";
+import { StructureIdeaCapture } from "./structure-idea-capture";
 
 function OverviewHeader({ title }: { title: string }) {
   return (
@@ -247,6 +248,11 @@ function OverviewStructureLens({
     setBoardKindFilter("both");
   };
 
+  const hasIdeas = useMemo(
+    () => scoped.some((issue) => issue.kind === "idea"),
+    [scoped],
+  );
+
   return (
     <div
       role="tabpanel"
@@ -254,6 +260,8 @@ function OverviewStructureLens({
       aria-labelledby="overview-lens-tab-structure"
       className="flex flex-col gap-6"
     >
+      <StructureIdeaCapture projectId={projectId} empty={!hasIdeas} />
+
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           size="sm"
@@ -267,7 +275,7 @@ function OverviewStructureLens({
         </Button>
         <Button
           size="sm"
-          variant="primary"
+          variant="outline"
           onClick={() =>
             openNew({ presetKind: "epic", presetParent: projectId })
           }
