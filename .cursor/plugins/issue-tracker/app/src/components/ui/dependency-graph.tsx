@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "react-router-dom";
 import type { DepGraphEdge, DepGraphModel, DepGraphNode } from "@/features/issues/lib/flow";
 import { RailPort } from "@/components/ui/rail";
 import { cn } from "@/lib/utils/cn";
@@ -122,6 +123,8 @@ function edgePath(
 export interface DependencyGraphProps
   extends React.HTMLAttributes<HTMLDivElement> {
   model: DepGraphModel;
+  /** When set, each node label/port links here (e.g. Epic detail). */
+  nodeHref?: (node: DepGraphNode) => string;
 }
 
 /**
@@ -130,6 +133,7 @@ export interface DependencyGraphProps
  */
 export function DependencyGraph({
   model,
+  nodeHref,
   className,
   ...props
 }: DependencyGraphProps) {
@@ -182,13 +186,26 @@ export function DependencyGraph({
         ))}
       </svg>
       {layout.nodes.map((node) => (
-        <GraphPort key={node.id} node={node} />
+        <GraphPort
+          key={node.id}
+          node={node}
+          href={nodeHref?.(node)}
+        />
       ))}
     </div>
   );
 }
 
-function GraphPort({ node }: { node: PlacedNode }) {
+function GraphPort({ node, href }: { node: PlacedNode; href?: string }) {
+  const port = (
+    <RailPort
+      state={node.state}
+      label={node.label}
+      className="flex w-full flex-col items-center"
+      labelClassName="mt-1 w-full truncate text-center text-xs"
+    />
+  );
+
   return (
     <div
       data-testid="dep-graph-node"
@@ -201,12 +218,16 @@ function GraphPort({ node }: { node: PlacedNode }) {
         width: LABEL_W,
       }}
     >
-      <RailPort
-        state={node.state}
-        label={node.label}
-        className="flex w-full flex-col items-center"
-        labelClassName="mt-1 w-full truncate text-center text-xs"
-      />
+      {href != null ? (
+        <Link
+          to={href}
+          className="block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {port}
+        </Link>
+      ) : (
+        port
+      )}
     </div>
   );
 }

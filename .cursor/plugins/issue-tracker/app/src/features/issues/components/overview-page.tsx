@@ -39,6 +39,7 @@ import { FlowRow } from "./flow-row";
 import { FlowRowActions } from "./flow-row-actions";
 import { IssueTree } from "./issue-tree";
 import { OverviewFlowFilters } from "./overview-flow-filters";
+import { OverviewDependenciesLens } from "./overview-dependencies-lens";
 import { StructureIdeaCapture } from "./structure-idea-capture";
 
 function OverviewHeader({ title }: { title: string }) {
@@ -311,10 +312,7 @@ function OverviewStructureLens({
   );
 }
 
-/**
- * Per-project overview shell: lens switcher (`?lens=`) + Flow / Structure lenses.
- * Dependencies remains a mount point for the stacked Story.
- */
+/** Per-project overview shell: lens switcher (`?lens=`) + Flow / Structure / Dependencies lenses. */
 export function OverviewPage() {
   const { projectId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -384,13 +382,11 @@ export function OverviewPage() {
             />
           ) : null}
 
-          {/* Mount point: Dependencies lens — surfaces-overview-dependency-map */}
           {lens === "dependencies" ? (
-            <div
-              role="tabpanel"
-              id="overview-lens-panel-dependencies"
-              aria-labelledby="overview-lens-tab-dependencies"
-              data-lens-mount="dependencies"
+            <OverviewDependenciesLens
+              projectId={projectId}
+              issues={issues}
+              derived={derived}
             />
           ) : null}
         </PageShell>
