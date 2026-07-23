@@ -13,6 +13,11 @@ const config: Config = {
   		}
   	},
   	extend: {
+  		fontFamily: {
+  			sans: ["var(--font-body)"],
+  			mono: ["var(--font-mono)"],
+  			display: ["var(--font-display)"],
+  		},
   		colors: {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',

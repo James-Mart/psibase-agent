@@ -1,8 +1,17 @@
+@import "./fonts.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --font-display: "Martian Mono", ui-monospace, monospace;
+    --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
   /* Mainline palette (HSL components) → shadcn slots via aliases.
      Dark is canonical; light is derived. Ready ports carry no hue
      (hollow ink outline) — no dedicated token. */
@@ -109,9 +118,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      "Helvetica Neue", sans-serif;
+    @apply bg-background font-sans text-foreground antialiased;
   }
 }
 
