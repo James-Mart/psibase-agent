@@ -12,7 +12,9 @@ export function TopBar() {
   const { data } = useIssuesQuery();
 
   const live = useMemo(() => {
-    const issues = filterToProject(data?.issues ?? [], projectId ?? null);
+    const all = data?.issues ?? [];
+    // Cockpit (`/`) has no project scope — aggregate liveness across all work.
+    const issues = projectId ? filterToProject(all, projectId) : all;
     return hasInFlightWork(issues, data?.derived ?? {});
   }, [data?.derived, data?.issues, projectId]);
 
