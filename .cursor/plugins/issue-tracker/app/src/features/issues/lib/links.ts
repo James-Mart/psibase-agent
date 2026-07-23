@@ -8,9 +8,12 @@ export function issuePath(projectId: string, id: string): string {
   return `/projects/${projectId}/issues/${id}`;
 }
 
-/** Detail route with chat companion expanded (`?chat=expanded`). */
+/**
+ * Detail route with chat companion expanded. Absent `chat` already means
+ * expanded (`writeChatCompanionParam`), so this is the plain detail path.
+ */
 export function issueChatPath(projectId: string, id: string): string {
-  return `${issuePath(projectId, id)}?chat=expanded`;
+  return issuePath(projectId, id);
 }
 
 export function parseIssueLink(href: string | undefined): string | null {

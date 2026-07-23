@@ -11,12 +11,10 @@ describe("parseIssueLink", () => {
 });
 
 describe("issueChatPath", () => {
-  it("appends chat=expanded to the detail route", () => {
+  it("is the detail route (absent chat means expanded)", () => {
     expect(issueChatPath("proj", "story-1")).toBe(
-      "/projects/proj/issues/story-1?chat=expanded",
+      "/projects/proj/issues/story-1",
     );
-    expect(issueChatPath("proj", "story-1")).toBe(
-      `${issuePath("proj", "story-1")}?chat=expanded`,
-    );
+    expect(issueChatPath("proj", "story-1")).toBe(issuePath("proj", "story-1"));
   });
 });
