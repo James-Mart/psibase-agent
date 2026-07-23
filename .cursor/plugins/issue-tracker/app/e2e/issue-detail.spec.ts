@@ -1,28 +1,6 @@
-import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { gotoSeedEpicDetail, gotoSeedStoryDetail } from "./seed-navigation";
 import { snapshotBothThemes } from "./snapshot-both-themes";
-
-async function gotoSeedStoryDetail(
-  page: Page,
-  baseURL: string,
-): Promise<Locator> {
-  await page.goto(`${baseURL}/projects/seed-proj/issues/seed-story-flight`);
-  const main = page.getByRole("main");
-  await expect(main.getByText("Story", { exact: true }).first()).toBeVisible();
-  await expect(main.getByText("Story in flight").first()).toBeVisible();
-  return main;
-}
-
-async function gotoSeedEpicDetail(
-  page: Page,
-  baseURL: string,
-  epicId = "seed-epic-b",
-): Promise<Locator> {
-  await page.goto(`${baseURL}/projects/seed-proj/issues/${epicId}`);
-  const main = page.getByRole("main");
-  await expect(main.getByText("Epic", { exact: true }).first()).toBeVisible();
-  return main;
-}
 
 test.describe("issue detail", () => {
   // Sole both-theme key-surface snapshot for the two-region issue detail.
