@@ -1,5 +1,6 @@
 import { FIELD_LABELS } from "@server/fields";
 import type { ProjectLabel } from "@server/schemas";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toggleAssignmentId } from "../lib/project-labels";
 import { ProjectLabelChip } from "./project-label-chip";
@@ -31,12 +32,10 @@ export function AssignmentLabelsEditor({
             return (
               <li key={label.id}>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-primary"
+                  <Checkbox
                     checked={checked}
                     disabled={disabled}
-                    onChange={() =>
+                    onCheckedChange={() =>
                       onChange(toggleAssignmentId(selected, label.id))
                     }
                   />
