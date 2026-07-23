@@ -70,8 +70,8 @@ human sees changes live in the UI.
 Before doing anything else, stop and ask the user to confirm they want you to
 coordinate this work root now. State that **Composer 2.5 (`composer-2.5`) is the
 recommended coordinator**. Do not attempt to detect or print the current model
-id. If they do not confirm, have them re-invoke this skill with `composer-2.5`
-instead of continuing. After they confirm, continue with the CLI checks below.
+id. If they do not confirm, stop — do not start coordinating. After they
+confirm, continue with the CLI checks below.
 
 ### CLI checks
 
