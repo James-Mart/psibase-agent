@@ -28,7 +28,15 @@ test.describe("issue detail", () => {
     await expect(main.getByText("Description")).toBeVisible();
     await expect(main.getByText("Part of")).toBeVisible();
     await expect(main.locator('[data-region="meta-scalars"]')).toBeVisible();
-    await expect(main.locator('[data-region="own-flow"]')).toBeAttached();
+    const ownFlow = main.locator('[data-region="own-flow"]');
+    await expect(ownFlow).toBeAttached();
+    // Story own-flow: this Story's task Rail only (no sibling/stacked Stories).
+    const rail = ownFlow.getByTestId("story-task-rail");
+    await expect(rail).toBeVisible();
+    await expect(rail.getByRole("listitem")).toHaveCount(1);
+    await expect(rail.getByText("Task in flight")).toBeVisible();
+    await expect(rail.getByTestId("rail-work-cursor")).toBeAttached();
+    await expect(ownFlow.getByText("Merged story")).toHaveCount(0);
 
     await snapshotBothThemes(page, "issue-detail");
   });
