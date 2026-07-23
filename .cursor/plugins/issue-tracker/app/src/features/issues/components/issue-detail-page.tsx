@@ -186,9 +186,7 @@ function IssueDetailView({
         <GitStackPanel issue={issue} />
       ) : null}
       <IssueAttachmentsSection issue={issue} upload={upload} />
-      <div className="rounded-lg border bg-card p-6">
-        <IssueDescriptionField issue={issue} upload={upload} />
-      </div>
+      <IssueDescriptionField issue={issue} upload={upload} />
       {issue.kind === "project" ? (
         <>
           <IssueSupportingDocsField issue={issue} />

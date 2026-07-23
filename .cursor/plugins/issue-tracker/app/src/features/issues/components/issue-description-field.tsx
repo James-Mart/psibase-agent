@@ -32,33 +32,39 @@ export function IssueDescriptionField({
   );
 
   return (
-    <InlineField
-      value={issue.description}
-      issue={issue}
-      multiline
-      richDisplay
-      emptyLabel="No description."
-      inputClassName="min-h-[280px]"
-      textareaRef={textareaRef}
-      textareaProps={textareaProps}
-      textareaAttrs={{ [DESCRIPTION_EDITOR_ATTR]: "" }}
-      shouldDeferBlurCommit={() => isUploading}
-      onDraftChange={setDraft}
-      setDraftRef={setDraftRef}
-      onSave={async (next) => {
-        if (next === issue.description) return;
-        await update.mutateAsync({
-          id: issue.id,
-          patch: { description: next },
-        });
-      }}
-      renderDisplayContent={(value) =>
-        value.trim() ? (
-          <Markdown issueId={attach ? issue.id : undefined}>{value}</Markdown>
-        ) : (
-          <p className="text-sm text-muted-foreground">No description.</p>
-        )
-      }
-    />
+    <section className="rounded-lg border border-border bg-card p-5">
+      <p className="mb-3 font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--current))]">
+        Description
+      </p>
+      <InlineField
+        value={issue.description}
+        issue={issue}
+        multiline
+        richDisplay
+        inputClassName="min-h-[280px] text-[13px] leading-relaxed"
+        textareaRef={textareaRef}
+        textareaProps={textareaProps}
+        textareaAttrs={{ [DESCRIPTION_EDITOR_ATTR]: "" }}
+        shouldDeferBlurCommit={() => isUploading}
+        onDraftChange={setDraft}
+        setDraftRef={setDraftRef}
+        onSave={async (next) => {
+          if (next === issue.description) return;
+          await update.mutateAsync({
+            id: issue.id,
+            patch: { description: next },
+          });
+        }}
+        renderDisplayContent={(value) =>
+          value.trim() ? (
+            <Markdown issueId={attach ? issue.id : undefined}>{value}</Markdown>
+          ) : (
+            <p className="text-[15px] leading-[1.55] text-muted-foreground">
+              Add a description.
+            </p>
+          )
+        }
+      />
+    </section>
   );
 }
