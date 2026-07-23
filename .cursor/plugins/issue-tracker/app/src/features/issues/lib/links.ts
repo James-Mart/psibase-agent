@@ -8,6 +8,11 @@ export function issuePath(projectId: string, id: string): string {
   return `/projects/${projectId}/issues/${id}`;
 }
 
+/** Detail route with chat companion expanded (`?chat=expanded`). */
+export function issueChatPath(projectId: string, id: string): string {
+  return `${issuePath(projectId, id)}?chat=expanded`;
+}
+
 export function parseIssueLink(href: string | undefined): string | null {
   if (!href || !href.startsWith(ISSUE_LINK_PREFIX)) return null;
   return href.slice(ISSUE_LINK_PREFIX.length);

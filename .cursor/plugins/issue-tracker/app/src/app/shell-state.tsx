@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { PageShell } from "@/components/page-shell";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils/cn";
@@ -94,4 +96,61 @@ export function ShellLoadingState({ label }: { label: string }) {
       </div>
     </Card>
   );
+}
+
+/**
+ * Shared loading/error gate for pages driven by `useIssuesQuery`.
+ * Success content is the caller's responsibility (usually a `PageShell`).
+ */
+export function IssuesQueryShell({
+  isLoading,
+  error,
+  isFetching,
+  onReload,
+  loadingLabel,
+  errorTitle,
+  children,
+}: {
+  isLoading: boolean;
+  error: Error | null | undefined;
+  isFetching: boolean;
+  onReload: () => void;
+  loadingLabel: string;
+  errorTitle: string;
+  children: ReactNode;
+}): ReactNode {
+  if (isLoading) {
+    return (
+      <PageShell>
+        <ShellLoadingState label={loadingLabel} />
+      </PageShell>
+    );
+  }
+  if (error) {
+    return (
+      <PageShell>
+        <ShellState
+          tone="blocked"
+          eyebrow="Fault"
+          title={errorTitle}
+          detail={
+            <ShellFaultDetail
+              message={error.message}
+              hint="Check the server, then reload."
+            />
+          }
+          action={
+            <Button
+              variant="primary"
+              disabled={isFetching}
+              onClick={onReload}
+            >
+              Reload
+            </Button>
+          }
+        />
+      </PageShell>
+    );
+  }
+  return children;
 }
