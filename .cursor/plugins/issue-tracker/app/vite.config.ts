@@ -18,4 +18,7 @@ export default defineConfig({
       "/api": "http://localhost:8061",
     },
   },
+  test: {
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
+  },
 });
