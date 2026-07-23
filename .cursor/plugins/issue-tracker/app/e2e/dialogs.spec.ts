@@ -137,23 +137,16 @@ test.describe("new-issue dialog", () => {
 });
 
 test.describe("delete confirmation dialog", () => {
-  test("deletes a leaf issue via the dialog", async ({ page, seededApp }) => {
-    await page.goto(
-      `${seededApp.baseURL}/projects/seed-proj/issues/seed-task-flight`,
-    );
-    await page.locator("header").getByRole("button").last().click();
+  test.describe.configure({ mode: "serial" });
 
-    const dialog = page.getByTestId("delete-issue-dialog");
-    await expect(
-      dialog.getByRole("heading", { name: "Delete task" }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: "Delete", exact: true }),
-    ).toBeVisible();
-    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-
-    await expect(dialog).toHaveCount(0);
-    await expect(page.getByText("Task in flight")).toHaveCount(0);
+  // Sole both-theme key-surface snapshot for the delete confirmation dialog.
+  // Runs before destructive deletes so worker-scoped seed-epic-b stays intact.
+  test("both-theme delete dialog snapshot", async ({ page, seededApp }) => {
+    await page.goto(seededApp.baseURL);
+    await snapshotBothThemes(page, "delete-issue-dialog", async () => {
+      await openDeleteEpicDialog(page, seededApp.baseURL);
+      await expect(page.getByTestId("delete-issue-dialog")).toBeVisible();
+    });
   });
 
   test("deletes an epic and its contained issues", async ({ page, seededApp }) => {
@@ -169,12 +162,42 @@ test.describe("delete confirmation dialog", () => {
     );
   });
 
-  // Sole both-theme key-surface snapshot for the delete confirmation dialog.
-  test("both-theme delete dialog snapshot", async ({ page, seededApp }) => {
-    await page.goto(seededApp.baseURL);
-    await snapshotBothThemes(page, "delete-issue-dialog", async () => {
-      await openDeleteEpicDialog(page, seededApp.baseURL);
-      await expect(page.getByTestId("delete-issue-dialog")).toBeVisible();
+  test("deletes a leaf issue via the dialog", async ({ page, seededApp }) => {
+    const storyRes = await page.request.post(`${seededApp.baseURL}/api/issues`, {
+      data: {
+        kind: "story",
+        title: "Leaf delete story",
+        partOf: "seed-epic-a",
+      },
     });
+    expect(storyRes.ok()).toBeTruthy();
+    const { id: storyId } = await storyRes.json();
+
+    const createRes = await page.request.post(`${seededApp.baseURL}/api/issues`, {
+      data: {
+        kind: "task",
+        title: "Leaf delete target",
+        partOf: storyId,
+      },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const { id: taskId } = await createRes.json();
+
+    await page.goto(
+      `${seededApp.baseURL}/projects/seed-proj/issues/${taskId}`,
+    );
+    await page.locator("header").getByRole("button").last().click();
+
+    const dialog = page.getByTestId("delete-issue-dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Delete task" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Delete", exact: true }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Leaf delete target")).toHaveCount(0);
   });
 });
