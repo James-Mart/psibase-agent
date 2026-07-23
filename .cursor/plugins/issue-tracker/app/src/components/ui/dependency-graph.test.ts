@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import {
   DependencyGraph,
   layoutDepGraph,
@@ -86,5 +87,25 @@ describe("DependencyGraph", () => {
       expect(html).toContain("hsl(var(--merged))");
       expect(html).toContain("hsl(var(--void))");
     }
+  });
+
+  it("wraps nodes in links when nodeHref is set", () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: React.createElement(DependencyGraph, {
+            model: diamondModel,
+            nodeHref: (node) => `/epics/${node.id}`,
+          }),
+        },
+      ],
+      { initialEntries: ["/"] },
+    );
+    const html = renderToStaticMarkup(
+      React.createElement(RouterProvider, { router }),
+    );
+    expect(html).toContain('href="/epics/C"');
+    expect(html).toContain('href="/epics/D"');
   });
 });

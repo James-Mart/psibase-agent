@@ -95,9 +95,7 @@ test.describe("overview Flow lens", () => {
       .getByRole("tab", { name: "Dependencies" })
       .click();
     await expect(page).toHaveURL(/[?&]lens=dependencies(?:&|$)/);
-    await expect(
-      page.locator('[data-lens-mount="dependencies"]'),
-    ).toBeAttached();
+    await expect(page.getByRole("tabpanel", { name: "Dependencies" })).toBeVisible();
     await expect(page.getByRole("tabpanel", { name: "Structure" })).toHaveCount(
       0,
     );
@@ -247,5 +245,64 @@ test.describe("overview Structure lens", () => {
       page.getByRole("main").getByRole("link", { name: /^Epic A\b/ }),
     ).toBeVisible();
     await snapshotBothThemes(page, "overview-structure");
+  });
+});
+
+async function gotoOverviewDependencies(
+  page: Page,
+  baseURL: string,
+): Promise<Locator> {
+  await page.goto(`${baseURL}/projects/seed-proj?lens=dependencies`);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Seed Project" })).toBeVisible();
+  await expect(
+    page.getByRole("tablist", { name: "Overview lens" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("tabpanel", { name: "Dependencies" }),
+  ).toBeVisible();
+  return main;
+}
+
+test.describe("overview Dependencies lens", () => {
+  test("renders the seeded diamond DAG with node states and drill-down links", async ({
+    page,
+    seededApp,
+  }) => {
+    const main = await gotoOverviewDependencies(page, seededApp.baseURL);
+
+    const nodes = main.locator('[data-testid="dep-graph-node"]');
+    await expect(nodes).toHaveCount(4);
+
+    await expect(
+      main.locator('[data-testid="dep-graph-node"][data-id="seed-epic-a"]'),
+    ).toHaveAttribute("data-state", "ready");
+    await expect(
+      main.locator('[data-testid="dep-graph-node"][data-id="seed-epic-b"]'),
+    ).toHaveAttribute("data-state", "blocked");
+    await expect(
+      main.locator('[data-testid="dep-graph-node"][data-id="seed-epic-c"]'),
+    ).toHaveAttribute("data-state", "blocked");
+    await expect(
+      main.locator('[data-testid="dep-graph-node"][data-id="seed-epic-d"]'),
+    ).toHaveAttribute("data-state", "blocked");
+
+    const edges = main.locator('[data-testid="dep-graph-edge"]');
+    await expect(edges).toHaveCount(4);
+    await expect(edges.filter({ hasNot: page.locator('[data-satisfied="true"]') })).toHaveCount(4);
+
+    await main.getByRole("link", { name: /^Epic A\b/ }).click();
+    await expect(page).toHaveURL(
+      /\/projects\/seed-proj\/issues\/seed-epic-a\/?$/,
+    );
+  });
+
+  // Sole both-theme key-surface snapshot for the project Dependencies overview.
+  test("both-theme Dependencies key-surface snapshot", async ({ page, seededApp }) => {
+    await gotoOverviewDependencies(page, seededApp.baseURL);
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /^Epic A\b/ }),
+    ).toBeVisible();
+    await snapshotBothThemes(page, "overview-dependencies");
   });
 });
