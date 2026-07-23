@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { DerivedState, IssueRecord } from "@server/schemas";
-import { depGraphModel, flowBuckets } from "./flow";
+import {
+  depGraphModel,
+  filterFlowBuckets,
+  flowBuckets,
+  flowFiltersActive,
+  type FlowBuckets,
+  type FlowFilters,
+} from "./flow";
+
+const noFilters: FlowFilters = { search: "", labelIds: [], kind: "both" };
 
 const t0 = "2026-07-01T00:00:00.000Z";
 const t1 = "2026-07-02T00:00:00.000Z";
@@ -87,8 +96,33 @@ function idea(id: string, partOf: string): IssueRecord {
   };
 }
 
+function labeledStory(
+  id: string,
+  partOf: string,
+  labels: string[],
+): IssueRecord {
+  return { ...story(id, partOf), labels };
+}
+
+function labeledEpic(
+  id: string,
+  partOf: string,
+  labels: string[],
+): IssueRecord {
+  return { ...epic(id, partOf), labels };
+}
+
 function ids(items: { issue: IssueRecord }[]): string[] {
   return items.map((item) => item.issue.id);
+}
+
+function bucketIds(buckets: FlowBuckets): Record<keyof FlowBuckets, string[]> {
+  return {
+    ready: ids(buckets.ready),
+    inFlight: ids(buckets.inFlight),
+    blocked: ids(buckets.blocked),
+    recentlyMerged: ids(buckets.recentlyMerged),
+  };
 }
 
 describe("flowBuckets", () => {
@@ -235,6 +269,117 @@ describe("flowBuckets", () => {
     const buckets = flowBuckets(issues, derived, { projectId: "p" });
     expect(ids(buckets.inFlight)).toEqual(["s"]);
     expect(ids(buckets.ready)).toEqual(["e"]);
+  });
+});
+
+describe("filterFlowBuckets", () => {
+  const issues = [
+    project("p"),
+    epic("ready-epic", "p"),
+    labeledStory("ready-story", "ready-epic", ["bug"]),
+    task("ready-task", "ready-story"),
+    epic("flight-epic", "p"),
+    story("flight-story", "flight-epic"),
+  ];
+  const derived: Record<string, DerivedState> = {
+    "ready-epic": { blocked: false, epicStatus: "todo" },
+    "ready-story": { blocked: false, storyStatus: "not-started" },
+    "flight-epic": { blocked: false, epicStatus: "in-progress" },
+    "flight-story": { blocked: false, storyStatus: "in-progress" },
+  };
+  const buckets = flowBuckets(issues, derived, { projectId: "p" });
+
+  it("flowFiltersActive is false for defaults", () => {
+    expect(flowFiltersActive(noFilters)).toBe(false);
+    expect(flowFiltersActive({ ...noFilters, search: "  " })).toBe(false);
+  });
+
+  it("returns buckets unchanged when filters are inactive", () => {
+    expect(filterFlowBuckets(buckets, issues, noFilters)).toEqual(buckets);
+  });
+
+  it("filters by kind", () => {
+    const epicsOnly = filterFlowBuckets(buckets, issues, {
+      ...noFilters,
+      kind: "epic",
+    });
+    expect(bucketIds(epicsOnly)).toEqual({
+      ready: ["ready-epic"],
+      inFlight: ["flight-epic"],
+      blocked: [],
+      recentlyMerged: [],
+    });
+
+    const ideasOnly = filterFlowBuckets(buckets, issues, {
+      ...noFilters,
+      kind: "idea",
+    });
+    expect(bucketIds(ideasOnly)).toEqual({
+      ready: [],
+      inFlight: [],
+      blocked: [],
+      recentlyMerged: [],
+    });
+  });
+
+  it("filters by search on the row or a descendant", () => {
+    const byTitle = filterFlowBuckets(buckets, issues, {
+      ...noFilters,
+      search: "flight-story",
+    });
+    expect(ids(byTitle.inFlight).sort()).toEqual(
+      ["flight-epic", "flight-story"].sort(),
+    );
+    expect(byTitle.ready).toEqual([]);
+
+    const byTask = filterFlowBuckets(buckets, issues, {
+      ...noFilters,
+      search: "ready-task",
+    });
+    expect(ids(byTask.ready).sort()).toEqual(
+      ["ready-epic", "ready-story"].sort(),
+    );
+  });
+
+  it("filters by label OR and composes with kind", () => {
+    const labeled = filterFlowBuckets(buckets, issues, {
+      ...noFilters,
+      labelIds: ["bug"],
+    });
+    expect(ids(labeled.ready).sort()).toEqual(
+      ["ready-epic", "ready-story"].sort(),
+    );
+    expect(labeled.inFlight).toEqual([]);
+
+    const storiesWithBug = filterFlowBuckets(buckets, issues, {
+      search: "",
+      labelIds: ["bug"],
+      kind: "story",
+    });
+    expect(ids(storiesWithBug.ready)).toEqual(["ready-story"]);
+  });
+
+  it("keeps an Epic when labels match it and search matches a child (tree semantics)", () => {
+    // AND-at-seed would drop both: epic matches label only, story matches search only.
+    const crossIssues = [
+      project("p"),
+      labeledEpic("labeled-epic", "p", ["bug"]),
+      story("search-story", "labeled-epic"),
+    ];
+    const crossDerived: Record<string, DerivedState> = {
+      "labeled-epic": { blocked: false, epicStatus: "todo" },
+      "search-story": { blocked: false, storyStatus: "not-started" },
+    };
+    const crossBuckets = flowBuckets(crossIssues, crossDerived, {
+      projectId: "p",
+    });
+    const filtered = filterFlowBuckets(crossBuckets, crossIssues, {
+      search: "search-story",
+      labelIds: ["bug"],
+      kind: "both",
+    });
+    expect(ids(filtered.ready)).toEqual(["labeled-epic"]);
+    expect(filtered.inFlight).toEqual([]);
   });
 });
 

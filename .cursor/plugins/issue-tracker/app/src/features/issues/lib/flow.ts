@@ -1,6 +1,10 @@
 import type { DerivedState, IssueRecord } from "@server/schemas";
+import type { BoardKindFilter } from "./board-kind-filter";
 import { issuesById, projectIdOf } from "./build-tree";
+import { filterWithAncestors } from "./filter-with-ancestors";
+import { issueMatchesLabelFilter } from "./project-labels";
 import type { RailNodeState } from "./rail-state";
+import { issueMatchesSearch } from "./search";
 
 export type { RailNodeState };
 
@@ -36,6 +40,81 @@ export type FlowBuckets = {
 export type FlowScope = {
   projectId?: string;
 };
+
+/** In-memory Flow lens filters (search / label / kind). Archive is applied separately. */
+export type FlowFilters = {
+  search: string;
+  labelIds: readonly string[];
+  kind: BoardKindFilter;
+};
+
+export function flowFiltersActive(filters: FlowFilters): boolean {
+  return (
+    filters.search.trim().length > 0 ||
+    filters.labelIds.length > 0 ||
+    filters.kind !== "both"
+  );
+}
+
+function flowKindAllows(
+  kind: IssueRecord["kind"],
+  filter: BoardKindFilter,
+): boolean {
+  if (filter === "both") return kind === "epic" || kind === "story";
+  return kind === filter;
+}
+
+/**
+ * Story/Epic ids kept under Flow filters. Mirrors the old tree pipeline:
+ * sequential `filterWithAncestors` per active search/label dimension (so an
+ * Epic matching labels while a child matches search still survives), then
+ * kind via `flowKindAllows`.
+ */
+export function matchingFlowIssueIds(
+  issues: IssueRecord[],
+  filters: FlowFilters,
+): Set<string> {
+  let next = issues;
+  if (filters.search.trim()) {
+    next = filterWithAncestors(next, (issue) =>
+      issueMatchesSearch(issue, filters.search),
+    );
+  }
+  if (filters.labelIds.length > 0) {
+    const labelIds = [...filters.labelIds];
+    next = filterWithAncestors(next, (issue) =>
+      issueMatchesLabelFilter(issue, labelIds),
+    );
+  }
+  const keep = new Set<string>();
+  for (const issue of next) {
+    if (
+      (issue.kind === "story" || issue.kind === "epic") &&
+      flowKindAllows(issue.kind, filters.kind)
+    ) {
+      keep.add(issue.id);
+    }
+  }
+  return keep;
+}
+
+/** Narrow bucketed Flow rows by search / label / kind. Pure — no I/O. */
+export function filterFlowBuckets(
+  buckets: FlowBuckets,
+  issues: IssueRecord[],
+  filters: FlowFilters,
+): FlowBuckets {
+  if (!flowFiltersActive(filters)) return buckets;
+  const keep = matchingFlowIssueIds(issues, filters);
+  const take = (items: FlowItem[]) =>
+    items.filter((item) => keep.has(item.issue.id));
+  return {
+    ready: take(buckets.ready),
+    inFlight: take(buckets.inFlight),
+    blocked: take(buckets.blocked),
+    recentlyMerged: take(buckets.recentlyMerged),
+  };
+}
 
 function isStoryOrEpic(
   issue: IssueRecord,

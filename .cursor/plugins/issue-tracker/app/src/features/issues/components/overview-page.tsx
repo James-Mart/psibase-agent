@@ -1,12 +1,24 @@
 import { useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import type { DerivedState, IssueRecord } from "@server/schemas";
+import { visibleIssues } from "@server/services/archived-visibility";
+import type {
+  DerivedState,
+  IssueRecord,
+  ProjectLabel,
+} from "@server/schemas";
 import { PageShell } from "@/components/page-shell";
+import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { IssuesQueryShell, ShellState } from "@/app/shell-state";
 import { cn } from "@/lib/utils/cn";
 import { useIssuesQuery } from "../api/queries";
-import { flowBuckets, type FlowItem } from "../lib/flow";
+import {
+  filterFlowBuckets,
+  flowBuckets,
+  flowFiltersActive,
+  type FlowFilters,
+  type FlowItem,
+} from "../lib/flow";
 import { issuePath } from "../lib/links";
 import {
   OVERVIEW_LENS_OPTIONS,
@@ -14,8 +26,10 @@ import {
   writeOverviewLensParam,
   type OverviewLens,
 } from "../lib/overview-lens";
+import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { FlowBucketsSections } from "./flow-buckets-sections";
 import { FlowRow } from "./flow-row";
+import { OverviewFlowFilters } from "./overview-flow-filters";
 
 function OverviewHeader({ title }: { title: string }) {
   return (
@@ -74,39 +88,100 @@ function LensSwitcher({
   );
 }
 
-/** Project-scoped Flow lens (filters land in overview-flow-lens). */
+function flowBucketsEmpty(buckets: {
+  ready: unknown[];
+  inFlight: unknown[];
+  blocked: unknown[];
+  recentlyMerged: unknown[];
+}): boolean {
+  return (
+    buckets.ready.length === 0 &&
+    buckets.inFlight.length === 0 &&
+    buckets.blocked.length === 0 &&
+    buckets.recentlyMerged.length === 0
+  );
+}
+
+/** Project-scoped Flow lens with search / label / kind / archived filters. */
 function OverviewFlowLens({
   projectId,
   issues,
   derived,
+  catalog,
 }: {
   projectId: string;
   issues: IssueRecord[];
   derived: Record<string, DerivedState>;
+  catalog: ProjectLabel[];
 }) {
-  const buckets = useMemo(
-    () => flowBuckets(issues, derived, { projectId }),
-    [derived, issues, projectId],
+  const search = useIssueUiStore((s) => s.search);
+  const setSearch = useIssueUiStore((s) => s.setSearch);
+  const labelFilter = useIssueUiStore((s) => s.labelFilter);
+  const setLabelFilter = useIssueUiStore((s) => s.setLabelFilter);
+  const boardKindFilter = useIssueUiStore((s) => s.boardKindFilter);
+  const setBoardKindFilter = useIssueUiStore((s) => s.setBoardKindFilter);
+  const showArchived = useIssueUiStore((s) => s.showArchived);
+
+  const filters: FlowFilters = useMemo(
+    () => ({
+      search,
+      labelIds: labelFilter,
+      kind: boardKindFilter,
+    }),
+    [boardKindFilter, labelFilter, search],
   );
+  const filtersOn = flowFiltersActive(filters);
+
+  const visible = useMemo(
+    () => visibleIssues(issues, showArchived),
+    [issues, showArchived],
+  );
+
+  const buckets = useMemo(() => {
+    const raw = flowBuckets(visible, derived, { projectId });
+    return filterFlowBuckets(raw, visible, filters);
+  }, [derived, filters, projectId, visible]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setLabelFilter([]);
+    setBoardKindFilter("both");
+  };
 
   return (
     <div
       role="tabpanel"
       id="overview-lens-panel-flow"
       aria-labelledby="overview-lens-tab-flow"
+      className="flex flex-col gap-6"
     >
-      <FlowBucketsSections
-        buckets={buckets}
-        idPrefix="overview-flow"
-        renderRow={(item: FlowItem) => (
-          <Link
-            to={issuePath(projectId, item.issue.id)}
-            className="block text-inherit no-underline hover:no-underline"
-          >
-            <FlowRow item={item} />
-          </Link>
-        )}
-      />
+      <OverviewFlowFilters catalog={catalog} />
+
+      {filtersOn && flowBucketsEmpty(buckets) ? (
+        <ShellState
+          eyebrow="Filtered"
+          title="No work matches these filters."
+          detail="Clear search, labels, or kind to see the Flow again."
+          action={
+            <Button size="sm" variant="primary" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          }
+        />
+      ) : (
+        <FlowBucketsSections
+          buckets={buckets}
+          idPrefix="overview-flow"
+          renderRow={(item: FlowItem) => (
+            <Link
+              to={issuePath(projectId, item.issue.id)}
+              className="block text-inherit no-underline hover:no-underline"
+            >
+              <FlowRow item={item} />
+            </Link>
+          )}
+        />
+      )}
     </div>
   );
 }
@@ -130,6 +205,7 @@ export function OverviewPage() {
       ),
     [issues, projectId],
   );
+  const catalog = project?.kind === "project" ? (project.labels ?? []) : [];
 
   const setLens = (next: OverviewLens) => {
     setSearchParams((prev) => writeOverviewLensParam(prev, next), {
@@ -170,6 +246,7 @@ export function OverviewPage() {
               projectId={projectId}
               issues={issues}
               derived={derived}
+              catalog={catalog}
             />
           ) : null}
 

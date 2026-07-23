@@ -6,13 +6,25 @@ export const FLOW_BUCKET_DEFS: {
   label: string;
   empty: string;
 }[] = [
-  { key: "inFlight", label: "In flight", empty: "Nothing in flight." },
-  { key: "ready", label: "Ready", empty: "Nothing ready." },
-  { key: "blocked", label: "Blocked", empty: "Nothing blocked." },
+  {
+    key: "inFlight",
+    label: "In flight",
+    empty: "Nothing in flight. Pick up Ready work or start a Story.",
+  },
+  {
+    key: "ready",
+    label: "Ready",
+    empty: "Nothing ready. Clear filters, or add work in Structure.",
+  },
+  {
+    key: "blocked",
+    label: "Blocked",
+    empty: "Nothing blocked. Dependencies are clear.",
+  },
   {
     key: "recentlyMerged",
     label: "Recently merged",
-    empty: "Nothing merged recently.",
+    empty: "Nothing merged recently. Merged Stories land here.",
   },
 ];
 
