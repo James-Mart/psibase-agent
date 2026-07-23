@@ -149,7 +149,9 @@ polish spawns parallel check agents; concurrent polish runs overload CPU):
 
 1. Auto-chain **`issue-tracker-plan-polish`** on that root — no polish
    yes/no. Polish itself auto-applies when safe (see that skill); do not add
-   an approve-before-apply beat here.
+   an approve-before-apply beat here. If polish is deferred in this session
+   (e.g. the user asks to grill more before polish runs), the polish→retro
+   obligation for that root persists — deferral does not reset or cancel it.
 2. After that root's polish finishes its **success path** (retained apply
    landed, or no-changes-needed — including after the user resolves an
    escalate and apply proceeds), always spawn **Retro** (Spawn stubs) for
@@ -158,8 +160,12 @@ polish spawns parallel check agents; concurrent polish runs overload CPU):
    — do not fire-and-forget. Do **not** mine transcripts yourself, and do
    **not** expect or relay a retro summary into your context.
 
-Standalone `issue-tracker-plan-polish` does **not** spawn retro — only this
-skill's After-success chain does.
+**Standalone polish.** **Standalone** polish is `issue-tracker-plan-polish`
+invoked on its own, not as a continuation of an in-flight
+`issue-tracker-plan` migrate in the same session. Polish deferred within a
+plan session and run later in that same session is **not** standalone — after
+its success path, still spawn retro as in step 2. Truly standalone,
+user-initiated polish does **not** spawn retro.
 
 ## Spawn stubs
 
