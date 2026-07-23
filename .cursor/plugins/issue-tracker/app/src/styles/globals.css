@@ -29,6 +29,9 @@
     --blocked: 352 68.5% 61.4%;
     --merged: 147.8 50.5% 57.3%;
     --warn: 40 75% 60.8%;
+    /* Live emphasis only — spreads match design-system dark --glow. */
+    --glow: 0 0 0 1px hsl(var(--current) / 0.35),
+      0 0 18px -2px hsl(var(--current) / 0.45);
 
     --background: var(--void);
     --foreground: var(--ink);
@@ -77,6 +80,9 @@
     --blocked: 350.8 53.7% 50%;
     --merged: 150.5 54.9% 40%;
     --warn: 38.7 81.1% 39.4%;
+    /* Live emphasis only — spreads match design-system light --glow. */
+    --glow: 0 0 0 1px hsl(var(--current) / 0.35),
+      0 0 16px -4px hsl(var(--current) / 0.4);
 
     --background: var(--void);
     --foreground: var(--ink);

@@ -158,7 +158,7 @@ export function NewIssueDialog() {
           <Button variant="ghost" onClick={() => closeNew()}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit}>
+          <Button variant="primary" onClick={submit} disabled={!canSubmit}>
             Create
           </Button>
         </DialogFooter>

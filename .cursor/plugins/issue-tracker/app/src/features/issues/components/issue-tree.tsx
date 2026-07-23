@@ -20,6 +20,7 @@ import {
   type ProjectLabel,
 } from "@server/schemas";
 import { cn } from "@/lib/utils/cn";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -38,7 +39,6 @@ import type { IssueNode } from "../lib/build-tree";
 import { issuePath } from "../lib/links";
 import { isRowDraggable } from "../lib/story-tree-dnd-logic";
 import { ArchiveIssueButton } from "./archive-issue-button";
-import { AxisChip } from "./axis-chip";
 import { EpicAxisChips, StoryAxisChips } from "./axis-chips";
 import { TaskStatusChips } from "./task-status-chips";
 import { IssueBadges } from "./issue-badges";
@@ -236,7 +236,7 @@ function TreeRow({
         </Link>
         <span className="ml-auto flex items-center gap-2">
           {state?.blocked ? (
-            <AxisChip className="text-muted-foreground">blocked</AxisChip>
+            <Badge variant="blocked">blocked</Badge>
           ) : null}
           <ProjectLabelChips issue={issue} catalog={catalog} />
           <IssueBadges issue={issue} compact />

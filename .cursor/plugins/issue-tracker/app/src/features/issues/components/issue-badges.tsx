@@ -28,7 +28,7 @@ export function IssueBadges({
     <span className={cn("flex items-center gap-1.5", className)}>
       {needsAttention ? (
         <Badge
-          variant="warning"
+          variant="warn"
           className="gap-1"
           title={attentionReason ?? "needs attention"}
         >

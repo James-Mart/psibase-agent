@@ -324,8 +324,15 @@ export interface IssueEvent {
   scope: IssueEventScope;
 }
 
-export type StoryStatus = "not-started" | "in-progress" | "pr-open" | "merged";
-export type EpicStatus = "todo" | "in-progress" | "done";
+export const STORY_STATUSES = [
+  "not-started",
+  "in-progress",
+  "pr-open",
+  "merged",
+] as const;
+export const EPIC_STATUSES = ["todo", "in-progress", "done"] as const;
+export type StoryStatus = (typeof STORY_STATUSES)[number];
+export type EpicStatus = (typeof EPIC_STATUSES)[number];
 
 export interface DerivedState {
   blocked: boolean;

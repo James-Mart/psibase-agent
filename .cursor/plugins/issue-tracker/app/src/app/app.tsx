@@ -70,7 +70,7 @@ function HomeRedirect() {
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={() => openProjectDialog()}>
+        <Button size="sm" variant="primary" onClick={() => openProjectDialog()}>
           <Plus className="h-4 w-4" />
           New project
         </Button>

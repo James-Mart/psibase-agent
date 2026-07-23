@@ -7,7 +7,7 @@ export function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
     <div className="mx-auto mt-20 max-w-lg rounded-lg border bg-card p-6 text-center">
       <h2 className="text-lg font-semibold">Something went wrong</h2>
       <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-      <Button className="mt-4" onClick={resetErrorBoundary}>
+      <Button className="mt-4" variant="primary" onClick={resetErrorBoundary}>
         Try again
       </Button>
     </div>

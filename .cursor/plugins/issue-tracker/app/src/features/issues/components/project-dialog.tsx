@@ -119,7 +119,7 @@ export function ProjectDialog() {
           <Button variant="ghost" onClick={() => close()}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit}>
+          <Button variant="primary" onClick={submit} disabled={!canSubmit}>
             {isRename ? "Save" : "Create"}
           </Button>
         </DialogFooter>
