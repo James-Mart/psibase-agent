@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { DerivedState, IssueRecord } from "@server/schemas";
+import { issuesById } from "./build-tree";
 import {
   depGraphModel,
   filterFlowBuckets,
   flowBuckets,
   flowFiltersActive,
+  inFlightTaskOf,
   type FlowBuckets,
   type FlowFilters,
 } from "./flow";
@@ -269,6 +271,51 @@ describe("flowBuckets", () => {
     const buckets = flowBuckets(issues, derived, { projectId: "p" });
     expect(ids(buckets.inFlight)).toEqual(["s"]);
     expect(ids(buckets.ready)).toEqual(["e"]);
+  });
+});
+
+describe("inFlightTaskOf", () => {
+  it("returns the earliest in-progress or fixing task under a Story", () => {
+    const tDone = { ...task("t0", "s"), status: "done" as const, order: 0 };
+    const tFlight = {
+      ...task("t1", "s"),
+      status: "in-progress" as const,
+      order: 1,
+    };
+    const tFix = { ...task("t2", "s"), status: "fixing" as const, order: 2 };
+    const s = story("s", "e");
+    const issues = [project("p"), epic("e", "p"), s, tDone, tFlight, tFix];
+
+    expect(inFlightTaskOf(s, issues)?.id).toBe("t1");
+  });
+
+  it("finds a descendant in-flight task under an Epic", () => {
+    const tFlight = {
+      ...task("t1", "s"),
+      status: "in-progress" as const,
+    };
+    const e = epic("e", "p");
+    const issues = [project("p"), e, story("s", "e"), tFlight];
+
+    expect(inFlightTaskOf(e, issues)?.id).toBe("t1");
+  });
+
+  it("returns undefined when the row has no in-flight Task", () => {
+    const s = story("s", "e");
+    const issues = [project("p"), epic("e", "p"), s, task("t", "s")];
+    expect(inFlightTaskOf(s, issues)).toBeUndefined();
+    expect(inFlightTaskOf(project("p"), issues)).toBeUndefined();
+  });
+
+  it("reuses a shared byId map when provided", () => {
+    const tFlight = {
+      ...task("t1", "s"),
+      status: "in-progress" as const,
+    };
+    const e = epic("e", "p");
+    const issues = [project("p"), e, story("s", "e"), tFlight];
+    const byId = issuesById(issues);
+    expect(inFlightTaskOf(e, issues, byId)?.id).toBe("t1");
   });
 });
 

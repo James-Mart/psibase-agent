@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { visibleIssues } from "@server/services/archived-visibility";
 import type {
   DerivedState,
@@ -12,10 +12,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { IssuesQueryShell, ShellState } from "@/app/shell-state";
 import { cn } from "@/lib/utils/cn";
 import { useIssuesQuery } from "../api/queries";
+import { issuesById } from "../lib/build-tree";
 import {
   filterFlowBuckets,
   flowBuckets,
   flowFiltersActive,
+  inFlightTaskOf,
   type FlowFilters,
   type FlowItem,
 } from "../lib/flow";
@@ -29,6 +31,7 @@ import {
 import { useIssueUiStore } from "../store/use-issue-ui-store";
 import { FlowBucketsSections } from "./flow-buckets-sections";
 import { FlowRow } from "./flow-row";
+import { FlowRowActions } from "./flow-row-actions";
 import { OverviewFlowFilters } from "./overview-flow-filters";
 
 function OverviewHeader({ title }: { title: string }) {
@@ -136,6 +139,7 @@ function OverviewFlowLens({
     () => visibleIssues(issues, showArchived),
     [issues, showArchived],
   );
+  const byId = useMemo(() => issuesById(visible), [visible]);
 
   const buckets = useMemo(() => {
     const raw = flowBuckets(visible, derived, { projectId });
@@ -173,12 +177,17 @@ function OverviewFlowLens({
           buckets={buckets}
           idPrefix="overview-flow"
           renderRow={(item: FlowItem) => (
-            <Link
+            <FlowRow
+              item={item}
               to={issuePath(projectId, item.issue.id)}
-              className="block text-inherit no-underline hover:no-underline"
-            >
-              <FlowRow item={item} />
-            </Link>
+              actions={
+                <FlowRowActions
+                  item={item}
+                  projectId={projectId}
+                  task={inFlightTaskOf(item.issue, visible, byId)}
+                />
+              }
+            />
           )}
         />
       )}

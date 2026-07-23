@@ -1,5 +1,6 @@
 import type { IssueDetail } from "@server/schemas";
 import { useUpdateIssue } from "../api/mutations";
+import { needsAttentionPatch } from "../lib/needs-attention-patch";
 import { InlineField } from "./inline-field";
 import { IssueBooleanPatchField } from "./issue-boolean-patch-field";
 
@@ -13,11 +14,7 @@ export function IssueNeedsAttentionField({
       issueId={issue.id}
       checked={issue.needsAttention}
       labels={{ on: "on", off: "off" }}
-      patchFor={(needsAttention) =>
-        needsAttention
-          ? { needsAttention: true }
-          : { needsAttention: false, attentionReason: null }
-      }
+      patchFor={needsAttentionPatch}
     />
   );
 }

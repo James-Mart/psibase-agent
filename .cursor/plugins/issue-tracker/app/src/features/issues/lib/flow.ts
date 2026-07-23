@@ -1,10 +1,14 @@
+import { bySequence } from "@server/order";
 import type { DerivedState, IssueRecord } from "@server/schemas";
 import type { BoardKindFilter } from "./board-kind-filter";
 import { issuesById, projectIdOf } from "./build-tree";
+import { isInFlight } from "./derived";
 import { filterWithAncestors } from "./filter-with-ancestors";
 import { issueMatchesLabelFilter } from "./project-labels";
 import type { RailNodeState } from "./rail-state";
 import { issueMatchesSearch } from "./search";
+
+type TaskRecord = Extract<IssueRecord, { kind: "task" }>;
 
 export type { RailNodeState };
 
@@ -120,6 +124,28 @@ function isStoryOrEpic(
   issue: IssueRecord,
 ): issue is IssueRecord & { kind: "story" | "epic" } {
   return issue.kind === "story" || issue.kind === "epic";
+}
+
+/**
+ * Current in-flight Task under a Flow row (Story or Epic): status
+ * `in-progress` or `fixing`, earliest by sequence. Undefined when none.
+ * Pass `byId` when the caller already has `issuesById(issues)` (e.g. per-row).
+ */
+export function inFlightTaskOf(
+  rowIssue: IssueRecord,
+  issues: IssueRecord[],
+  byId?: Map<string, IssueRecord>,
+): TaskRecord | undefined {
+  if (rowIssue.kind !== "story" && rowIssue.kind !== "epic") return undefined;
+  const index = byId ?? issuesById(issues);
+  const tasks = issues.filter((issue): issue is TaskRecord => {
+    if (issue.kind !== "task" || !isInFlight(issue, undefined)) return false;
+    if (rowIssue.kind === "story") return issue.partOf === rowIssue.id;
+    const story = index.get(issue.partOf);
+    return story?.kind === "story" && story.partOf === rowIssue.id;
+  });
+  tasks.sort(bySequence);
+  return tasks[0];
 }
 
 function isInFlightBucket(

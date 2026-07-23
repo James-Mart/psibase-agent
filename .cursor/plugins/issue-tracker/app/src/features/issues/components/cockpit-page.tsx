@@ -35,12 +35,9 @@ function CockpitFlowRow({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <Link
-        to={issuePath(projectId, item.issue.id)}
-        className="min-w-0 flex-1 text-inherit no-underline hover:no-underline"
-      >
-        <FlowRow item={item} />
-      </Link>
+      <div className="min-w-0 flex-1">
+        <FlowRow item={item} to={issuePath(projectId, item.issue.id)} />
+      </div>
       <Link
         to={projectPath(projectId)}
         className="shrink-0 truncate font-mono text-[11px] text-muted-foreground hover:text-foreground"
