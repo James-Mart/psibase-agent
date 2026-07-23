@@ -1,9 +1,29 @@
 import type { DerivedState, IssueRecord } from "@server/schemas";
 import { issuesById, projectIdOf } from "./build-tree";
+import type { RailNodeState } from "./rail-state";
+
+export type { RailNodeState };
 
 export type FlowItem = {
   issue: IssueRecord;
   state: DerivedState | undefined;
+};
+
+export type DepGraphNode = {
+  id: string;
+  label: string;
+  state: RailNodeState;
+};
+
+export type DepGraphEdge = {
+  from: string;
+  to: string;
+  satisfied: boolean;
+};
+
+export type DepGraphModel = {
+  nodes: DepGraphNode[];
+  edges: DepGraphEdge[];
 };
 
 export type FlowBuckets = {
@@ -84,4 +104,47 @@ export function flowBuckets(
   );
 
   return { ready, inFlight, blocked, recentlyMerged };
+}
+
+function depGraphNodeState(derived: DerivedState | undefined): RailNodeState {
+  if (derived?.blocked) return "blocked";
+  if (derived?.epicStatus === "done") return "merged";
+  if (derived?.epicStatus === "in-progress") return "in-flight";
+  return "ready";
+}
+
+/**
+ * Build a node-link DAG model of Epics and their `blockedBy` edges.
+ * Edge direction is prerequisite → dependent. Pure view-model — no I/O.
+ */
+export function depGraphModel(
+  epics: IssueRecord[],
+  derived: Record<string, DerivedState>,
+): DepGraphModel {
+  const epicRecords = epics.filter(
+    (issue): issue is IssueRecord & { kind: "epic" } => issue.kind === "epic",
+  );
+
+  const nodes: DepGraphNode[] = epicRecords.map((issue) => ({
+    id: issue.id,
+    label: issue.title,
+    state: depGraphNodeState(derived[issue.id]),
+  }));
+
+  const edgeKeys = new Set<string>();
+  const edges: DepGraphEdge[] = [];
+  for (const issue of epicRecords) {
+    for (const from of issue.blockedBy) {
+      const key = `${from}\0${issue.id}`;
+      if (edgeKeys.has(key)) continue;
+      edgeKeys.add(key);
+      edges.push({
+        from,
+        to: issue.id,
+        satisfied: derived[from]?.epicStatus === "done",
+      });
+    }
+  }
+
+  return { nodes, edges };
 }

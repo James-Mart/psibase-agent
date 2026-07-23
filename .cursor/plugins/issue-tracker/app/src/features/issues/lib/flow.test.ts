@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DerivedState, IssueRecord } from "@server/schemas";
-import { flowBuckets } from "./flow";
+import { depGraphModel, flowBuckets } from "./flow";
 
 const t0 = "2026-07-01T00:00:00.000Z";
 const t1 = "2026-07-02T00:00:00.000Z";
@@ -21,6 +21,7 @@ function epic(
   id: string,
   partOf: string,
   updatedAt = t0,
+  blockedBy: string[] = [],
 ): IssueRecord {
   return {
     id,
@@ -32,7 +33,7 @@ function epic(
     updatedAt,
     needsAttention: false,
     attentionReason: null,
-    blockedBy: [],
+    blockedBy,
     archived: false,
   };
 }
@@ -234,5 +235,74 @@ describe("flowBuckets", () => {
     const buckets = flowBuckets(issues, derived, { projectId: "p" });
     expect(ids(buckets.inFlight)).toEqual(["s"]);
     expect(ids(buckets.ready)).toEqual(["e"]);
+  });
+});
+
+describe("depGraphModel", () => {
+  it("maps diamond DAG node states, prerequisite→dependent edges, and satisfied flags", () => {
+    // C blocks A and B; A and B block D (diamond).
+    const epics = [
+      epic("C", "p"),
+      epic("A", "p", t0, ["C"]),
+      epic("B", "p", t0, ["C"]),
+      epic("D", "p", t0, ["A", "B"]),
+    ];
+    const derived: Record<string, DerivedState> = {
+      C: { blocked: false, epicStatus: "done" },
+      A: { blocked: false, epicStatus: "in-progress" },
+      B: { blocked: true, epicStatus: "todo" },
+      D: { blocked: true, epicStatus: "todo" },
+    };
+
+    const model = depGraphModel(epics, derived);
+
+    expect(model.nodes).toEqual([
+      { id: "C", label: "C", state: "merged" },
+      { id: "A", label: "A", state: "in-flight" },
+      { id: "B", label: "B", state: "blocked" },
+      { id: "D", label: "D", state: "blocked" },
+    ]);
+
+    expect(model.edges).toEqual([
+      { from: "C", to: "A", satisfied: true },
+      { from: "C", to: "B", satisfied: true },
+      { from: "A", to: "D", satisfied: false },
+      { from: "B", to: "D", satisfied: false },
+    ]);
+  });
+
+  it("dedupes duplicate blockedBy entries and prefers blocked over epicStatus", () => {
+    const epics = [
+      epic("A", "p"),
+      epic("B", "p", t0, ["A", "A"]),
+      epic("ready", "p"),
+    ];
+    const derived: Record<string, DerivedState> = {
+      A: { blocked: false, epicStatus: "done" },
+      B: { blocked: true, epicStatus: "done" },
+      ready: { blocked: false, epicStatus: "todo" },
+    };
+
+    const model = depGraphModel(epics, derived);
+
+    expect(model.nodes.find((n) => n.id === "B")?.state).toBe("blocked");
+    expect(model.nodes.find((n) => n.id === "ready")?.state).toBe("ready");
+    expect(model.edges).toEqual([{ from: "A", to: "B", satisfied: true }]);
+  });
+
+  it("ignores non-epic records in the input list", () => {
+    const issues = [
+      project("p"),
+      epic("E", "p"),
+      story("S", "E"),
+      task("T", "S"),
+    ];
+    const derived: Record<string, DerivedState> = {
+      E: { blocked: false, epicStatus: "todo" },
+    };
+
+    const model = depGraphModel(issues, derived);
+    expect(model.nodes).toEqual([{ id: "E", label: "E", state: "ready" }]);
+    expect(model.edges).toEqual([]);
   });
 });
