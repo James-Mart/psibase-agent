@@ -6,6 +6,7 @@ import {
   SPEC_REVIEW_STATUSES,
   STORY_STATUSES,
   TASK_STATUSES,
+  type IssueRecord,
 } from "@server/schemas";
 import { BADGE_VARIANTS } from "@/components/ui/badge";
 import {
@@ -15,7 +16,40 @@ import {
   SPEC_REVIEW_BADGE_VARIANT,
   STORY_STATUS_BADGE_VARIANT,
   TASK_STATUS_BADGE_VARIANT,
+  hasInFlightWork,
+  isInFlight,
 } from "./derived";
+
+const timestamps = {
+  createdAt: "2026-07-09T14:00:00.000Z",
+  updatedAt: "2026-07-09T14:00:00.000Z",
+};
+
+function task(
+  id: string,
+  status: IssueRecord & { kind: "task" }["status"],
+): IssueRecord {
+  return {
+    id,
+    kind: "task",
+    title: id,
+    partOf: "story",
+    status,
+    ...timestamps,
+  };
+}
+
+function story(id: string): IssueRecord {
+  return {
+    id,
+    kind: "story",
+    title: id,
+    partOf: "epic",
+    branchName: id,
+    merged: false,
+    ...timestamps,
+  };
+}
 
 const badgeVariantSet = new Set<string>(BADGE_VARIANTS);
 
@@ -57,5 +91,57 @@ describe("status badge variant maps", () => {
 
   it("maps every retro status to an existing Badge variant", () => {
     expectMapCovers(RETRO_STATUSES, RETRO_BADGE_VARIANT);
+  });
+});
+
+describe("liveness helpers", () => {
+  it("treats in-progress and fixing tasks as in flight", () => {
+    expect(isInFlight(task("a", "in-progress"), undefined)).toBe(true);
+    expect(isInFlight(task("b", "fixing"), undefined)).toBe(true);
+  });
+
+  it("treats todo and done tasks as not in flight without derived state", () => {
+    expect(isInFlight(task("a", "todo"), undefined)).toBe(false);
+    expect(isInFlight(task("b", "done"), undefined)).toBe(false);
+  });
+
+  it("treats derived in-progress story or epic status as in flight", () => {
+    const s = story("s");
+    expect(isInFlight(s, { blocked: false, storyStatus: "in-progress" })).toBe(
+      true,
+    );
+    expect(isInFlight(s, { blocked: false, storyStatus: "pr-open" })).toBe(
+      false,
+    );
+    expect(
+      isInFlight(
+        { id: "e", kind: "epic", title: "e", partOf: "p", ...timestamps },
+        { blocked: false, epicStatus: "in-progress" },
+      ),
+    ).toBe(true);
+  });
+
+  it("detects in-flight work across a set", () => {
+    const issues = [task("a", "todo"), task("b", "done"), story("s")];
+    const idle = {
+      "a": { blocked: false },
+      "b": { blocked: false },
+      s: { blocked: false, storyStatus: "not-started" as const },
+    };
+    expect(hasInFlightWork(issues, idle)).toBe(false);
+
+    const active = {
+      ...idle,
+      s: { blocked: false, storyStatus: "in-progress" as const },
+    };
+    expect(hasInFlightWork(issues, active)).toBe(true);
+
+    const taskActive = {
+      ...idle,
+      a: { blocked: false },
+      b: { blocked: false },
+      s: { blocked: false, storyStatus: "not-started" as const },
+    };
+    expect(hasInFlightWork([task("t", "fixing")], taskActive)).toBe(true);
   });
 });

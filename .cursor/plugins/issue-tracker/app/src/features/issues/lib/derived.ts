@@ -5,6 +5,8 @@ import type {
   SpecReviewStatus,
   QaStatus,
   RetroStatus,
+  IssueRecord,
+  DerivedState,
 } from "@server/schemas";
 import type { BadgeProps } from "@/components/ui/badge";
 
@@ -97,3 +99,28 @@ export const RETRO_BADGE_VARIANT: Record<
   "in-progress": "inProgress",
   done: "done",
 };
+
+/** True when work is actively in flight on this issue. */
+export function isInFlight(
+  issue: IssueRecord,
+  state: DerivedState | undefined,
+): boolean {
+  if (
+    issue.kind === "task" &&
+    (issue.status === "in-progress" || issue.status === "fixing")
+  ) {
+    return true;
+  }
+  return (
+    state?.storyStatus === "in-progress" ||
+    state?.epicStatus === "in-progress"
+  );
+}
+
+/** True when any issue in the set has active in-flight work. */
+export function hasInFlightWork(
+  issues: IssueRecord[],
+  derived: Record<string, DerivedState>,
+): boolean {
+  return issues.some((issue) => isInFlight(issue, derived[issue.id]));
+}
