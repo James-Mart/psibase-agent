@@ -1,86 +1,111 @@
+import { useMemo, type ReactNode } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Copy, Trash2 } from "lucide-react";
-import { toast } from "sonner";
-import type { IssueDetail, ProjectLabel } from "@server/schemas";
+  ArrowLeft,
+  MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
+import type { IssueDetail, IssueKind, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
 import { PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils/cn";
 import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
 import { useUploadAttachment } from "../api/mutations";
 import {
   useIssueDetailFileUpload,
   type UploadAttachmentMutation,
 } from "../hooks/use-issue-detail-file-upload";
-import { useIssueUiStore } from "../store/use-issue-ui-store";
-import { KIND_LABEL, kindHas } from "../lib/kind";
+import { kindHas } from "../lib/kind";
 import { issueBelongsToProject, issuesById } from "../lib/build-tree";
 import { projectPath } from "../lib/links";
+import {
+  parseChatCompanionState,
+  writeChatCompanionParam,
+} from "../lib/chat-companion";
+import { kindHasOwnFlow } from "../lib/own-flow";
 import {
   isLabelAssignableIssue,
   projectCatalogLabels,
 } from "../lib/project-labels";
 import { IssueMetaPanel } from "./issue-meta-panel";
-import { IssueBadges } from "./issue-badges";
-import { ProjectLabelChips } from "./project-label-chips";
+import { IssueDetailHeader } from "./issue-detail-header";
 import { GitStackPanel } from "./git-stack-panel";
 import { EpicDepsPanel } from "./epic-deps-panel";
 import { IssueAttachmentsSection } from "./attachments-panel";
-import { IssueTitleField } from "./issue-title-field";
 import { IssueDescriptionField } from "./issue-description-field";
 import { IssueAssignmentLabelsField } from "./issue-assignment-labels-field";
 import { IssueProjectLabelsField } from "./issue-project-labels-field";
 import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
 import { IssueInspirationAppsField } from "./issue-inspiration-apps-field";
 import { ChatPanel } from "./chat-panel";
-import { ArchiveIssueButton } from "./archive-issue-button";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
-function CopyIssueIdButton({ id }: { id: string }) {
-  const [copied, setCopied] = useState(false);
-  const resetCopiedRef = useRef<ReturnType<typeof window.setTimeout>>();
+const DETAIL_PAGE_SHELL_CLASS = "max-w-6xl";
 
-  useEffect(() => {
-    return () => {
-      if (resetCopiedRef.current !== undefined) {
-        window.clearTimeout(resetCopiedRef.current);
-      }
-    };
-  }, []);
+/** Own-flow area for `surfaces-detail-flow`; empty for Idea / Task / Project. */
+function OwnFlowSlot({ kind }: { kind: IssueKind }) {
+  if (!kindHasOwnFlow(kind)) return null;
+  return <div data-region="own-flow" />;
+}
 
+/** Docked companion for `surfaces-chat`; collapse persisted as `?chat=`. */
+function CompanionSlot({
+  expanded,
+  onExpandedChange,
+}: {
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      title="Copy id"
-      className="shrink-0 text-muted-foreground"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(id);
-          setCopied(true);
-          if (resetCopiedRef.current !== undefined) {
-            window.clearTimeout(resetCopiedRef.current);
-          }
-          resetCopiedRef.current = window.setTimeout(() => setCopied(false), 1500);
-        } catch {
-          toast.error("Could not copy to clipboard");
-        }
-      }}
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
+    <aside
+      data-region="companion"
+      data-state={expanded ? "expanded" : "collapsed"}
+      className={cn(
+        "flex shrink-0 flex-col border-l border-border",
+        expanded ? "w-80 pl-4" : "w-10 items-center pt-1",
       )}
-    </Button>
+    >
+      {expanded ? (
+        <>
+          <div className="flex items-center justify-between gap-2 pb-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Chat
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Collapse chat"
+              aria-label="Collapse chat"
+              aria-expanded={true}
+              onClick={() => onExpandedChange(false)}
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </Button>
+          </div>
+          <div data-slot="companion" className="min-h-0 flex-1" />
+        </>
+      ) : (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            title="Expand chat"
+            aria-label="Expand chat"
+            aria-expanded={false}
+            onClick={() => onExpandedChange(true)}
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </Button>
+          <MessageSquare className="mt-2 h-3.5 w-3.5 text-muted-foreground" />
+        </>
+      )}
+    </aside>
   );
 }
 
@@ -95,51 +120,43 @@ function IssueDetailBody({
   upload?: UploadAttachmentMutation;
   catalog: ProjectLabel[];
 }) {
-  const navigate = useNavigate();
-  const requestDelete = useIssueUiStore((s) => s.requestDelete);
+  const [searchParams, setSearchParams] = useSearchParams();
   const attach = supportsAttachments(issue.kind);
+  const companionExpanded =
+    parseChatCompanionState(searchParams.get("chat")) === "expanded";
+
+  const setCompanionExpanded = (expanded: boolean) => {
+    setSearchParams(
+      (prev) =>
+        writeChatCompanionParam(prev, expanded ? "expanded" : "collapsed"),
+      { replace: true },
+    );
+  };
 
   return (
-    <>
-      <header className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">
-            {KIND_LABEL[issue.kind]}
-          </span>
-          <IssueTitleField issue={issue} />
-          <div className="mt-0.5 flex items-center gap-0.5">
-            <span className="font-mono text-xs text-muted-foreground">
-              {issue.id}
-            </span>
-            <CopyIssueIdButton id={issue.id} />
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <ProjectLabelChips issue={issue} catalog={catalog} />
-            <IssueBadges issue={issue} />
-          </div>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <ArchiveIssueButton issue={issue} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              requestDelete(issue.id);
-              navigate(projectPath(projectId));
-            }}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      </header>
+    <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-4">
+        <IssueDetailHeader
+          issue={issue}
+          projectId={projectId}
+          catalog={catalog}
+        />
 
-      <IssueDetailView
-        issue={issue}
-        catalog={catalog}
-        upload={upload}
-        attach={attach}
-      />
-    </>
+        <IssueDetailView
+          issue={issue}
+          catalog={catalog}
+          upload={upload}
+          attach={attach}
+        />
+      </div>
+
+      {kindHas(issue.kind, "chat") ? (
+        <CompanionSlot
+          expanded={companionExpanded}
+          onExpandedChange={setCompanionExpanded}
+        />
+      ) : null}
+    </div>
   );
 }
 
@@ -163,14 +180,13 @@ function IssueDetailView({
       {isLabelAssignableIssue(issue) ? (
         <IssueAssignmentLabelsField issue={issue} catalog={catalog} />
       ) : null}
+      <OwnFlowSlot kind={issue.kind} />
       {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
       {issue.kind === "story" || issue.kind === "task" ? (
         <GitStackPanel issue={issue} />
       ) : null}
       <IssueAttachmentsSection issue={issue} upload={upload} />
-      <div className="rounded-lg border bg-card p-6">
-        <IssueDescriptionField issue={issue} upload={upload} />
-      </div>
+      <IssueDescriptionField issue={issue} upload={upload} />
       {issue.kind === "project" ? (
         <>
           <IssueSupportingDocsField issue={issue} />
@@ -215,7 +231,7 @@ function IssueDetailAttachable({
   const { rootProps } = useIssueDetailFileUpload(upload);
 
   return (
-    <PageShell {...rootProps}>
+    <PageShell className={DETAIL_PAGE_SHELL_CLASS} {...rootProps}>
       {backLink}
       <IssueDetailBody
         issue={issue}
@@ -276,7 +292,7 @@ export function IssueDetailPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell className={DETAIL_PAGE_SHELL_CLASS}>
       {backLink}
 
       {error && !missing ? (

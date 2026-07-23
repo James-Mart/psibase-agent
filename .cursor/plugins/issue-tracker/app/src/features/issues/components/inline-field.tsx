@@ -147,8 +147,7 @@ export function InlineField({
     );
 
     const displayClass = cn(
-      "block w-full min-w-0 rounded-sm text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-      richDisplay && "cursor-text",
+      "-mx-1.5 -my-0.5 block w-full min-w-0 cursor-text rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       displayClassName,
     );
 

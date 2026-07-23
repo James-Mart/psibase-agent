@@ -14,6 +14,8 @@ export function IssueAssigneeField({
       value={issue.assignee ?? ""}
       issue={issue}
       emptyLabel="unassigned"
+      displayClassName="font-mono"
+      inputClassName="font-mono"
       onSave={async (next) => {
         const trimmed = next.trim();
         const current = issue.assignee ?? "";

@@ -118,6 +118,7 @@ export const NON_CLEARABLE_MERGEABLE_KEYS = ["mergePolicy"] as const satisfies r
 
 export type NonClearableMergeableKey = (typeof NON_CLEARABLE_MERGEABLE_KEYS)[number];
 
+/** Operator-facing UI labels (sentence case). Never surface schema keys. */
 export const FIELD_LABELS = {
   workspace: "Workspace",
   mergePolicy: "Merge policy",
@@ -128,17 +129,17 @@ export const FIELD_LABELS = {
   archived: "Archived",
   partOf: "Part of",
   order: "Order",
-  branchName: "Branch name",
+  branchName: "Branch",
   mergeBase: "Merge base",
   stackedOn: "Stacked on",
   blockedBy: "Blocked by",
-  prUrl: "PR URL",
+  prUrl: "Pull request",
   merged: "Merged",
   specReview: "Spec review",
   status: "Status",
   qa: "QA",
   retro: "Retro",
-  commitSha: "Commit SHA",
+  commitSha: "Commit",
   noDiff: "No diff",
   labels: "Labels",
   supportingDocs: "Supporting docs",

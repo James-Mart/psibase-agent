@@ -1,6 +1,7 @@
 import { useMemo, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils/cn";
 import {
   attachmentDownloadName,
   attachmentLinkHref,
@@ -17,7 +18,7 @@ function IssueAwareLink({
   const targetId = parseIssueLink(href);
   if (targetId !== null) {
     return (
-      <IssueLink id={targetId} className={props.className}>
+      <IssueLink id={targetId} className={cn("issue-md-link", props.className)}>
         {children}
       </IssueLink>
     );
