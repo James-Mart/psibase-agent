@@ -19,7 +19,7 @@ export interface SummaryNode {
   title: string;
   /** First prose paragraph of description.md (heading stripped); empty if none. */
   descriptionSummary: string;
-  /** Set when a Commit intentionally landed no file changes. */
+  /** Set when a Task intentionally landed no source-controlled file changes. */
   noDiff?: true;
   /** Present when the issue has one or more attachments. */
   attachments?: SummaryAttachment[];

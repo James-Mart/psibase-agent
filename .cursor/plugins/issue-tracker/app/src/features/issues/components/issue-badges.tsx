@@ -44,7 +44,7 @@ export function IssueBadges({
       ) : null}
       {specReview ? <SpecReviewBadge status={specReview} /> : null}
       {noDiff ? (
-        <Badge variant="secondary" className="gap-1" title="Intentional empty implementor diff">
+        <Badge variant="secondary" className="gap-1" title="No source-controlled implementor changes">
           <CircleSlash className="h-3 w-3" />
           no diff
         </Badge>

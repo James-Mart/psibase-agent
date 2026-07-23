@@ -70,8 +70,8 @@ Every issue has a `kind`, one of:
   implementor model slug), an optional `qa` gate (`reviewing` /
   `changes-requested` / `passed`), an optional `commitSha` (set when done with a
   real git commit), and an optional `noDiff` flag (set via kind
-  [`set`](#kind-scoped-get--set) when the implementor deliberately lands no file
-  changes).
+  [`set`](#kind-scoped-get--set) when the implementor deliberately lands no
+  source-controlled file changes).
 
 ### Relationships
 
@@ -174,10 +174,12 @@ These are computed by `derive()` and never written to disk (see
   `failed`; absent until set via kind [`set`](#kind-scoped-get--set)). Surfaced
   in the detail panel when set; omitted from the tree outline.
 - **noDiff** — a Task-only signal that the implementor intentionally landed no
-  file changes (`true`; absent until set via kind [`set`](#kind-scoped-get--set)).
-  Surfaced in the detail panel when set; omitted from the tree outline. An empty
-  working tree alone is **not** a completion signal — see
-  [Finish commit](#finish-commit).
+  source-controlled file changes (`true`; absent until set via kind
+  [`set`](#kind-scoped-get--set)). Edits that only touch non-source-controlled
+  files (e.g. under the gitignored `issues/` store) still warrant `noDiff`; do
+  not read the flag as "nothing was done." Surfaced in the detail panel when
+  set; omitted from the tree outline. An empty working tree alone is **not** a
+  completion signal — see [Finish commit](#finish-commit).
 - **archived** — stored visibility flag on Epic / Idea / Story / Task (never
   Project). Explicit; **not** auto-derived from Done. Cascade and CLI/UI
   filtering — see [Archived visibility](#archived-visibility).
@@ -683,7 +685,7 @@ Task — the Epic/Story/Task needs-attention common fields plus:
 | `status` | `"todo"` \| `"in-progress"` \| `"fixing"` \| `"done"` | defaults `todo`; the only stored status |
 | `qa` | `"reviewing"` \| `"changes-requested"` \| `"passed"`? | absent until set; machine-readable QA gate |
 | `commitSha` | string? | set when done |
-| `noDiff` | boolean? | absent until set; signals an intentional empty implementor diff |
+| `noDiff` | boolean? | absent until set; signals no source-controlled implementor changes |
 
 Deliberately excluded: `rank`/priority (sibling order is stored as `order`, not
 authored as a separate priority field), freeform per-issue labels outside the
@@ -705,10 +707,13 @@ then applies:
 | absent / `false` | clean (empty) | Escalate: `issue task set <taskId> needsAttention true --reason "…"` — an empty tree without `noDiff` is not a completion signal. |
 | absent / `false` | dirty | Stage all changes (`git add -A`), `git commit -m "<Task title>"`, `issue task set <taskId> status done`, `issue task set <taskId> commitSha $(git rev-parse HEAD)`. |
 
-The implementor sets `noDiff` via kind [`set`](#kind-scoped-get--set) (and
-explains why in chat) when the correct outcome is no file changes; validators and
-the git subagent honor the flag. Clearing it (`noDiff false`) is required if a
-revision later lands file changes.
+The `true` / clean row is a legitimate `done` outcome even when a
+non-source-controlled file was edited (git status stays clean); that is not a
+contradiction with `noDiff`. The implementor sets `noDiff` via kind
+[`set`](#kind-scoped-get--set) (and explains why in chat) when the correct
+outcome is no source-controlled file changes; validators and the git subagent
+honor the flag. Clearing it (`noDiff false`) is required if a revision later
+lands source-controlled file changes.
 
 ### Tree nesting and order
 
