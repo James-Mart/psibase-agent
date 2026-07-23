@@ -23,18 +23,27 @@ here — the implementor sets `status in-progress` on first implement entry
 <taskId> needsAttention true --reason "..."`. Do not run any other mutating
 `issue` command.
 
+## Stop conditions
+
+You **score and assign only** — then finish and stop.
+
+- **Do not implement** — no edits, no writing product files, no running builds
+  or tests.
+- **Do not validate** the Task's solution or spawn other agents.
+- **Do not explore** outside the Project workspace.
+
 ## Bootstrap
 
 Run `issue summary <taskId>` for Project → … → Task context (Epic may be
 absent when the Task's Story / work root is project-level), then
 `issue task view <taskId>` (and `issue story view` / `issue epic view` when needed)
 to read the specs you score against. That summary also carries the Project
-**workspace** — you may **read-only peek** it (file reads and greps only) to see
-whether required patterns/APIs already exist and to reason about the
-implementor's likely approach **only to score** difficulty. Use the
-`Workspace:` line as cwd for those peeks and honor the unset escalation, per
-**SPEC § Project workspace**. Heavy exploration is normal when verification
-difficulty depends on what exists in the workspace.
+**workspace** — you may **read-only peek** it solely to gather scoring evidence
+for the two axes (**judgment**, **verification difficulty**): whether required
+patterns/APIs already exist, how testable the surface is, etc. Peeks are **file
+reads and greps only** — no edit tools, no running tests or commands, no
+writing files. Use the `Workspace:` line as cwd for those peeks and honor the
+unset escalation, per **SPEC § Project workspace**.
 
 ## Inputs (from invoking prompt)
 
@@ -62,8 +71,8 @@ Map to a single model id; persist and confirm per **Allowed writes**:
 ## What you do
 
 Score per **## Scoring** (peek workspace when needed — see Bootstrap), persist
-and confirm per **Allowed writes**, then finish and stop. Do not implement,
-validate, spawn other agents, or explore outside the Project workspace.
+and confirm per **Allowed writes**, then finish and stop per **## Stop
+conditions**.
 
 ## Escalation
 
