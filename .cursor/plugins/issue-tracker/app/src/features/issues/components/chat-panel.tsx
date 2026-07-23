@@ -138,6 +138,7 @@ export function ChatPanel({
         />
         <Button
           size="icon"
+          variant="primary"
           onClick={send}
           disabled={post.isPending || !draft.trim()}
           title="Send"

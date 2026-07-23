@@ -214,6 +214,7 @@ export function TreePage() {
             </Button>
             <Button
               size="sm"
+              variant="primary"
               onClick={() =>
                 openNew({ presetKind: "epic", presetParent: projectId })
               }
@@ -223,7 +224,7 @@ export function TreePage() {
             </Button>
           </div>
         ) : (
-          <Button size="sm" onClick={() => openProjectDialog()}>
+          <Button size="sm" variant="primary" onClick={() => openProjectDialog()}>
             <Plus className="h-4 w-4" />
             New project
           </Button>
