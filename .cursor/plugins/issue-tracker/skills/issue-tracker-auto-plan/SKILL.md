@@ -92,6 +92,14 @@ inspiration-app patterns, etc. — you MUST delegate to a Composer-2.5 Task
 the research and return **only a concise summary**; ingest that summary for your
 judgment. Delegate work wherever possible to preserve your own context.
 
+### Subsystem vision consult
+
+When a decision concerns a subsystem, check the vision doc's
+`## Subsystem reference` for a matching entry (`<subsystem name> —
+attachment:<name> — <one-line scope>`). When present, Read that attachment
+from the step-1 summary's Project `Attachments:` list (plan artifact —
+permitted) and consult it before deciding.
+
 ### PM decision heuristics
 
 The seed is a **proposal**, not a specification. It may be terse or authored by
