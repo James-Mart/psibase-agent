@@ -3,6 +3,20 @@ import { expect, type Page } from "@playwright/test";
 const THEME_STORAGE_KEY = "ui-theme";
 const THEMES = ["dark", "light"] as const;
 
+type Theme = (typeof THEMES)[number];
+
+export async function expectThemeState(
+  page: Page,
+  expected: { dataTheme: Theme; storage: Theme | null },
+): Promise<void> {
+  await expect(page.locator("html")).toHaveAttribute("data-theme", expected.dataTheme);
+  const storage = await page.evaluate(
+    (key) => localStorage.getItem(key),
+    THEME_STORAGE_KEY,
+  );
+  expect(storage).toBe(expected.storage);
+}
+
 async function applyTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
   await page.evaluate(
     ({ key, theme: next }) => {
