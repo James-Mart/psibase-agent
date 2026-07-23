@@ -5,6 +5,7 @@ import {
   type SupportingDocKey,
 } from "@server/schemas";
 import type { Attachment } from "@server/services/attachments";
+import { ShellInlineFault } from "@/app/shell-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +23,7 @@ import {
   type SupportingDocMode,
   type SupportingDocsDraft,
 } from "../lib/supporting-docs";
+import { DetailEyebrow } from "./detail-section";
 
 function DocRow({
   docKey,
@@ -43,7 +45,7 @@ function DocRow({
   const label = SUPPORTING_DOC_KEY_LABELS[docKey];
 
   return (
-    <li className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3">
+    <li className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3">
       <Label>{label}</Label>
       <div className="grid gap-2 sm:grid-cols-[10rem_1fr]">
         <Select
@@ -67,7 +69,7 @@ function DocRow({
 
         {draft.mode === "attachment" ? (
           attachmentsLoading ? (
-            <p className="flex h-9 items-center text-sm text-muted-foreground">
+            <p className="flex h-9 items-center font-mono text-[11px] text-muted-foreground">
               Loading attachments…
             </p>
           ) : attachments.length > 0 ? (
@@ -92,20 +94,25 @@ function DocRow({
               </SelectContent>
             </Select>
           ) : (
-            <Input
-              value={draft.name}
-              disabled={disabled}
-              onChange={(e) =>
-                onChange({ mode: "attachment", name: e.target.value })
-              }
-              onBlur={(e) =>
-                onCommit?.({ mode: "attachment", name: e.target.value })
-              }
-              className="font-mono"
-              placeholder="attachment basename"
-              spellCheck={false}
-              aria-label={`${label} attachment`}
-            />
+            <div className="flex min-h-9 flex-col justify-center gap-1.5">
+              <Input
+                value={draft.name}
+                disabled={disabled}
+                onChange={(e) =>
+                  onChange({ mode: "attachment", name: e.target.value })
+                }
+                onBlur={(e) =>
+                  onCommit?.({ mode: "attachment", name: e.target.value })
+                }
+                className="font-mono"
+                placeholder="attachment basename"
+                spellCheck={false}
+                aria-label={`${label} attachment`}
+              />
+              <p className="text-xs text-muted-foreground">
+                No attachments yet. Upload one first, or type a basename.
+              </p>
+            </div>
           )
         ) : null}
 
@@ -128,7 +135,7 @@ function DocRow({
 
         {draft.mode === "absent" ? (
           <p className="flex h-9 items-center text-sm text-muted-foreground">
-            No pointer set
+            Not linked. Choose an attachment or workspace path.
           </p>
         ) : null}
       </div>
@@ -158,12 +165,24 @@ export function SupportingDocsEditor({
   draftRef.current = draft;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border p-3">
-      <Label>{FIELD_LABELS.supportingDocs}</Label>
+    <section className="rounded-lg border border-border bg-card p-5">
+      <DetailEyebrow className="mb-3">
+        {FIELD_LABELS.supportingDocs}
+      </DetailEyebrow>
       {loadError ? (
-        <p className="text-sm text-destructive-foreground">{loadError.message}</p>
+        <ShellInlineFault
+          className="mb-3"
+          message={loadError.message}
+          hint="Check the server, then retry the attachments list."
+        />
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <ShellInlineFault
+          className="mb-3"
+          message={error}
+          hint="Fix the pointer, then save again."
+        />
+      ) : null}
       <ul className="flex flex-col gap-3">
         {SUPPORTING_DOC_KEYS.map((key) => (
           <DocRow
@@ -186,6 +205,6 @@ export function SupportingDocsEditor({
           />
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

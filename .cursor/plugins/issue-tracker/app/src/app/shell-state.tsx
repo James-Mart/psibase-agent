@@ -28,6 +28,29 @@ export function ShellFaultDetail({
   );
 }
 
+/** Compact inline fault banner for section-level errors. */
+export function ShellInlineFault({
+  message,
+  hint,
+  className,
+}: {
+  message: string;
+  hint: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-md border border-[hsl(var(--blocked)/0.45)] bg-[hsl(var(--blocked)/0.08)] px-3 py-2.5 text-sm text-muted-foreground",
+        className,
+      )}
+      role="alert"
+    >
+      <ShellFaultDetail message={message} hint={hint} />
+    </div>
+  );
+}
+
 export function ShellState({
   tone = "neutral",
   eyebrow,

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { FIELD_LABELS } from "@server/fields";
+import { ShellInlineFault } from "@/app/shell-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,7 @@ import {
   newInspirationAppDraft,
   type InspirationAppDraft,
 } from "../lib/inspiration-apps";
+import { DetailEyebrow } from "./detail-section";
 
 export function InspirationAppsEditor({
   drafts,
@@ -47,9 +49,9 @@ export function InspirationAppsEditor({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border p-3">
-      <div className="flex items-center justify-between gap-2">
-        <Label>{FIELD_LABELS.inspirationApps}</Label>
+    <section className="rounded-lg border border-border bg-card p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <DetailEyebrow>{FIELD_LABELS.inspirationApps}</DetailEyebrow>
         <Button
           type="button"
           variant="outline"
@@ -67,13 +69,15 @@ export function InspirationAppsEditor({
       </div>
 
       {drafts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No inspiration apps.</p>
+        <p className="text-sm text-muted-foreground">
+          No inspiration apps. Add an app that informs this project.
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {drafts.map((draft) => (
             <li
               key={draft.key}
-              className="flex flex-col gap-2 rounded-md border bg-muted/30 p-3"
+              className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3"
             >
               <div className="flex items-center justify-end">
                 <Button
@@ -140,7 +144,13 @@ export function InspirationAppsEditor({
         </ul>
       )}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-    </div>
+      {error ? (
+        <ShellInlineFault
+          className="mt-3"
+          message={error}
+          hint="Fix the fields, then save again."
+        />
+      ) : null}
+    </section>
   );
 }
