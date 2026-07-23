@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { gotoOverviewStructure } from "./seed-navigation";
 import { snapshotBothThemes } from "./snapshot-both-themes";
 
 async function gotoOverviewFlow(page: Page, baseURL: string): Promise<Locator> {
@@ -10,17 +11,6 @@ async function gotoOverviewFlow(page: Page, baseURL: string): Promise<Locator> {
     page.getByRole("tablist", { name: "Overview lens" }),
   ).toBeVisible();
   await expect(page.getByRole("tabpanel", { name: "Flow" })).toBeVisible();
-  return main;
-}
-
-async function gotoOverviewStructure(page: Page, baseURL: string): Promise<Locator> {
-  await page.goto(`${baseURL}/projects/seed-proj?lens=structure`);
-  const main = page.getByRole("main");
-  await expect(main.getByRole("heading", { name: "Seed Project" })).toBeVisible();
-  await expect(
-    page.getByRole("tablist", { name: "Overview lens" }),
-  ).toBeVisible();
-  await expect(page.getByRole("tabpanel", { name: "Structure" })).toBeVisible();
   return main;
 }
 
