@@ -30,8 +30,11 @@ the spawned discriminator / planner.
 (b) **Epic / project-level Story source:** `issue <rootKind> attach` and
 `issue <rootKind> comment` on each resulting plan root (kind `epic` or
 `story`, per that root's `issue summary`). Standout-decisions comments use
-`--role stakeholder`. Everything else is read-only `issue` (`summary`,
-`view`, `tree`, `get`). Do not set any status.
+`--role stakeholder`. Also, when registering a newly authored subsystem
+vision doc per **### Subsystem vision consult**: `issue project attach` and
+editing the main vision doc's `## Subsystem reference` (attachment detach /
+rewrite / reattach, or workspace file edit). Everything else is read-only
+`issue` (`summary`, `view`, `tree`, `get`). Do not set any status.
 
 ## Argument
 
@@ -111,6 +114,26 @@ grill's intent is to capture the subsystem's governing vision. That judgment
 may come from the high-level vision or from the delegated code-scope research
 summary. A minor or one-off concept does not trigger this grill; proceed using
 the research summary or vision as applicable.
+
+After the grill, register the new doc so progressive disclosure picks it up
+on future runs. Take `<subsystem name>` and `<one-line scope>` from the grill
+outcome.
+
+1. Write the authored subsystem vision to a temp file, then
+   `issue project attach <projectId> <temp-file>` (`<projectId>` from step 1).
+   Use the printed stored basename as `<name>`.
+2. Index it under the main vision doc's `## Subsystem reference` as
+   `- <subsystem name> — attachment:<name> — <one-line scope>`.
+   Edit the vision target from step-1 `supportingDocs:` `vision=`:
+   - **attachment** (`vision=attachment:<vision-basename>`): Read the current
+     vision content from the step-1 Project `Attachments:` path for
+     `<vision-basename>`. Add the list item, write the full revised doc to a
+     temp file whose basename is `<vision-basename>`, then
+     `issue project detach <projectId> <vision-basename>` and
+     `issue project attach <projectId> <temp-file>`.
+   - **workspace** (`vision=workspace:<path>`): edit the file at the path
+     formed by joining Project `Workspace:` with `<path>`.
+   Do not change `supportingDocs` keys.
 
 ### PM decision heuristics
 
@@ -227,9 +250,9 @@ When finalize is done, report per **## Finalize**. Then stop.
   discriminator + planner spawns, finalize. Do not author the plan tree
   yourself — the vanilla planner owns authoring / polish / retro via
   `issue-tracker-plan`.
-- Honor the intro **Allowed writes** contract (Idea source → archived-Idea
-  `attach` / `comment`; non-Idea source → per-root `attach` / `comment`; no
-  status changes).
+- Honor the intro **Allowed writes** contract (finalize attach/comment;
+  subsystem-doc register `issue project attach` + vision `## Subsystem
+  reference` edit; no status changes).
 - **Deploy** changes to this plugin by mirroring the whole directory to
   `/root/.cursor/plugins/local/issue-tracker` per the `update-cursor-plugin`
   flow (a runtime deploy step, not a git commit).
