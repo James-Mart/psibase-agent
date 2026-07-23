@@ -48,6 +48,27 @@ async function openRenameProjectDialog(page: Page): Promise<void> {
   await expect(dialog.getByRole("button", { name: "Save" })).toBeVisible();
 }
 
+async function openDeleteEpicDialog(page: Page, baseURL: string): Promise<void> {
+  await gotoOverviewStructure(page, baseURL);
+  const epicBRow = page.locator(".group", {
+    has: page.getByRole("link", { name: "Epic B" }),
+  });
+  await epicBRow.hover();
+  await epicBRow.getByTitle("Delete").click();
+  const dialog = page.getByTestId("delete-issue-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: "Delete epic" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByText(/and 3 contained issues/),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Delete 4 issues" }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible();
+}
+
 test.describe("project dialog", () => {
   test("creates a project via the dialog", async ({ page, seededApp }) => {
     await page.goto(seededApp.baseURL);
@@ -111,6 +132,49 @@ test.describe("new-issue dialog", () => {
     await snapshotBothThemes(page, "new-issue-dialog", async () => {
       await openNewEpicDialog(page);
       await expect(page.getByTestId("new-issue-dialog")).toBeVisible();
+    });
+  });
+});
+
+test.describe("delete confirmation dialog", () => {
+  test("deletes a leaf issue via the dialog", async ({ page, seededApp }) => {
+    await page.goto(
+      `${seededApp.baseURL}/projects/seed-proj/issues/seed-task-flight`,
+    );
+    await page.locator("header").getByRole("button").last().click();
+
+    const dialog = page.getByTestId("delete-issue-dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Delete task" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("button", { name: "Delete", exact: true }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText("Task in flight")).toHaveCount(0);
+  });
+
+  test("deletes an epic and its contained issues", async ({ page, seededApp }) => {
+    await openDeleteEpicDialog(page, seededApp.baseURL);
+
+    const dialog = page.getByTestId("delete-issue-dialog");
+    await dialog.getByRole("button", { name: "Delete 4 issues" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Epic B" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Story in flight" })).toHaveCount(
+      0,
+    );
+  });
+
+  // Sole both-theme key-surface snapshot for the delete confirmation dialog.
+  test("both-theme delete dialog snapshot", async ({ page, seededApp }) => {
+    await page.goto(seededApp.baseURL);
+    await snapshotBothThemes(page, "delete-issue-dialog", async () => {
+      await openDeleteEpicDialog(page, seededApp.baseURL);
+      await expect(page.getByTestId("delete-issue-dialog")).toBeVisible();
     });
   });
 });
