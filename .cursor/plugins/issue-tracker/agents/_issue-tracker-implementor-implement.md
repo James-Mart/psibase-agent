@@ -21,4 +21,6 @@ Absolute path for this file (Read this exact path):
    and finalized downstream — an empty tree on its own is **not** a completion
    signal, so never rely on it alone.
 5. If blocked, raise `issue task set <id> needsAttention true --reason "..."`
-   and stop; otherwise finish and stop.
+   and stop. Otherwise stop with the tree uncommitted. Git sets Task
+   `status done` on finish-commit; this role's only status writes are
+   Bootstrap's entry `in-progress` / `fixing`.
