@@ -24,3 +24,17 @@ export async function gotoSeedEpicDetail(
   await expect(main.getByText("Epic", { exact: true }).first()).toBeVisible();
   return main;
 }
+
+export async function gotoOverviewStructure(
+  page: Page,
+  baseURL: string,
+): Promise<Locator> {
+  await page.goto(`${baseURL}/projects/seed-proj?lens=structure`);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Seed Project" })).toBeVisible();
+  await expect(
+    page.getByRole("tablist", { name: "Overview lens" }),
+  ).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: "Structure" })).toBeVisible();
+  return main;
+}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FIELD_LABELS } from "@server/fields";
 import { KINDS, PARENT_KINDS, type IssueKind } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,21 @@ import { PartOfTargetSelect } from "./part-of-target-select";
 
 // Projects are created from the sidebar, not this dialog.
 const SELECTABLE_KINDS = KINDS.filter((kind) => kind !== "project");
+
+function descriptionFor(kind: IssueKind): string {
+  switch (kind) {
+    case "idea":
+      return "Name the idea and capture it under this project.";
+    case "epic":
+      return "Add an Epic under this project.";
+    case "story":
+      return "Add a Story under a project or epic.";
+    case "task":
+      return "Add a Task under its Story.";
+    default:
+      return "Add it under its parent in the plan.";
+  }
+}
 
 export function NewIssueDialog() {
   const target = useIssueUiStore((s) => s.newIssue);
@@ -59,7 +75,7 @@ export function NewIssueDialog() {
   );
 
   const needsParent = parentKinds.length > 0;
-  const parentKindLabel = parentKinds.join(" / ");
+  const parentKindLabel = parentKinds.map((k) => KIND_LABEL[k]).join(" / ");
   const canSubmit =
     title.trim().length > 0 &&
     (!needsParent || parent.length > 0) &&
@@ -80,16 +96,10 @@ export function NewIssueDialog() {
 
   return (
     <Dialog open={Boolean(target)} onOpenChange={(open) => !open && closeNew()}>
-      <DialogContent>
+      <DialogContent data-testid="new-issue-dialog">
         <DialogHeader>
           <DialogTitle>New {KIND_LABEL[kind].toLowerCase()}</DialogTitle>
-          <DialogDescription>
-            {kind === "idea"
-              ? "Capture an idea under this project."
-              : kind === "story"
-                ? "Create a Story under a Project or an Epic."
-                : "Create an issue in the Epic / Idea \u203a Story \u203a Task tree."}
-          </DialogDescription>
+          <DialogDescription>{descriptionFor(kind)}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -118,12 +128,12 @@ export function NewIssueDialog() {
           ) : null}
 
           <div className="grid gap-1.5">
-            <Label htmlFor="new-issue-title">Title</Label>
+            <Label htmlFor="new-issue-title">{FIELD_LABELS.title}</Label>
             <Input
               id="new-issue-title"
               value={title}
               autoFocus
-              placeholder={`${KIND_LABEL[kind]} title`}
+              placeholder={`Name the ${KIND_LABEL[kind].toLowerCase()}`}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
@@ -131,25 +141,29 @@ export function NewIssueDialog() {
 
           {needsParent && !parentLocked ? (
             <div className="grid gap-1.5">
-              <Label>Part of ({parentKindLabel})</Label>
+              <Label>
+                {FIELD_LABELS.partOf} ({parentKindLabel})
+              </Label>
               <PartOfTargetSelect
                 value={parent}
                 onValueChange={setParent}
                 options={parentOptions}
-                placeholder={`Select a ${parentKindLabel}`}
+                placeholder={`Select a ${parentKindLabel.toLowerCase()}`}
               />
             </div>
           ) : null}
 
           {parentLocked ? (
             <p className="text-xs text-muted-foreground">
-              Part of <span className="font-mono">{parent}</span>
+              {FIELD_LABELS.partOf}{" "}
+              <span className="font-mono">{parent}</span>
             </p>
           ) : null}
 
           {target?.presetStackedOn ? (
             <p className="text-xs text-muted-foreground">
-              Stacked on <span className="font-mono">{stackedOn}</span>
+              {FIELD_LABELS.stackedOn}{" "}
+              <span className="font-mono">{stackedOn}</span>
             </p>
           ) : null}
         </div>

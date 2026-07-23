@@ -17,7 +17,10 @@ export async function expectThemeState(
   expect(storage).toBe(expected.storage);
 }
 
-async function applyTheme(page: Page, theme: (typeof THEMES)[number]): Promise<void> {
+export async function applyTheme(
+  page: Page,
+  theme: (typeof THEMES)[number],
+): Promise<void> {
   await page.evaluate(
     ({ key, theme: next }) => {
       localStorage.setItem(key, next);
@@ -31,10 +34,18 @@ async function applyTheme(page: Page, theme: (typeof THEMES)[number]): Promise<v
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** Capture `toHaveScreenshot` for dark and light via `ui-theme` / `data-theme`. */
-export async function snapshotBothThemes(page: Page, name: string): Promise<void> {
+/**
+ * Capture `toHaveScreenshot` for dark and light via `ui-theme` / `data-theme`.
+ * Optional `setup` runs after each theme apply (e.g. re-open a dialog lost on reload).
+ */
+export async function snapshotBothThemes(
+  page: Page,
+  name: string,
+  setup?: () => Promise<void>,
+): Promise<void> {
   for (const theme of THEMES) {
     await applyTheme(page, theme);
+    if (setup) await setup();
     await expect(page).toHaveScreenshot(`${name}-${theme}.png`);
   }
 }
