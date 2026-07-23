@@ -1,18 +1,14 @@
 import { useMemo } from "react";
-import { useMatch } from "react-router-dom";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { currentGlow, liveChip } from "@/components/ui/overlay-surfaces";
 import { cn } from "@/lib/utils/cn";
 import { useIssuesQuery } from "../api/queries";
+import { useRouteProjectId } from "../hooks/use-route-project-id";
 import { filterToProject } from "../lib/build-tree";
 import { hasInFlightWork } from "../lib/derived";
 
 export function TopBar() {
-  // TopBar sits above <Routes>, so useMatch (not useParams) for project scope.
-  const detailMatch = useMatch("/projects/:projectId/issues/:id");
-  const projectMatch = useMatch("/projects/:projectId");
-  const projectId =
-    detailMatch?.params.projectId ?? projectMatch?.params.projectId;
+  const projectId = useRouteProjectId();
   const { data } = useIssuesQuery();
 
   const live = useMemo(() => {
