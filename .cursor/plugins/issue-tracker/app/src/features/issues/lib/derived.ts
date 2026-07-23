@@ -21,7 +21,7 @@ export const TASK_STATUS_BADGE_VARIANT: Record<
 > = {
   todo: "todo",
   "in-progress": "inProgress",
-  fixing: "warning",
+  fixing: "current",
   done: "done",
 };
 
