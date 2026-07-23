@@ -61,6 +61,10 @@ Structural / guideline violations of issue-tracker-authoring:
      Epic.
 - **Companion / attachments** — external workspace paths in prose where
   attachments belong (authoring **Attachments**).
+- **Merge-policy delivery prose** — when the Project's `mergePolicy` is `merge`
+  or `manual`, flag pull-request-assuming language in Epic / Story / Task prose
+  (authoring **Merge-policy delivery prose**). Examples: "in the PR", "the pull
+  request", "open a PR", "PR review". Emit `error`.
 
 ### Epic grain finding shape (fixtures)
 
