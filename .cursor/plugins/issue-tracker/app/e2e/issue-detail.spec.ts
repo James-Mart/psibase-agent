@@ -13,6 +13,17 @@ async function gotoSeedStoryDetail(
   return main;
 }
 
+async function gotoSeedEpicDetail(
+  page: Page,
+  baseURL: string,
+  epicId = "seed-epic-b",
+): Promise<Locator> {
+  await page.goto(`${baseURL}/projects/seed-proj/issues/${epicId}`);
+  const main = page.getByRole("main");
+  await expect(main.getByText("Epic", { exact: true }).first()).toBeVisible();
+  return main;
+}
+
 test.describe("issue detail", () => {
   // Sole both-theme key-surface snapshot for the two-region issue detail.
   test("both-theme two-region key-surface snapshot", async ({
@@ -39,5 +50,71 @@ test.describe("issue detail", () => {
     await expect(ownFlow.getByText("Merged story")).toHaveCount(0);
 
     await snapshotBothThemes(page, "issue-detail");
+  });
+
+  test("epic own-flow shows neighborhood DAG and blockedBy edits round-trip", async ({
+    page,
+    seededApp,
+  }) => {
+    const main = await gotoSeedEpicDetail(page, seededApp.baseURL);
+    const ownFlow = main.locator('[data-region="own-flow"]');
+    const neighborhood = ownFlow.getByTestId("epic-dep-neighborhood");
+    await expect(neighborhood).toBeVisible();
+
+    // Neighborhood of B: A, B, D — not C (indirect via D).
+    await expect(
+      neighborhood.locator('[data-testid="dep-graph-node"]'),
+    ).toHaveCount(3);
+    await expect(
+      neighborhood.locator(
+        '[data-testid="dep-graph-node"][data-id="seed-epic-a"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      neighborhood.locator(
+        '[data-testid="dep-graph-node"][data-id="seed-epic-b"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      neighborhood.locator(
+        '[data-testid="dep-graph-node"][data-id="seed-epic-d"]',
+      ),
+    ).toBeVisible();
+    await expect(
+      neighborhood.locator(
+        '[data-testid="dep-graph-node"][data-id="seed-epic-c"]',
+      ),
+    ).toHaveCount(0);
+
+    await expect(neighborhood.getByText("Blocked by")).toBeVisible();
+    await expect(neighborhood.getByText("seed-epic-a")).toBeVisible();
+
+    // Clear blockedBy, reload, then restore.
+    await neighborhood.getByText("seed-epic-a").first().click();
+    const input = neighborhood.getByPlaceholder("space-separated epic ids");
+    await expect(input).toBeVisible();
+    await input.fill("");
+    await input.press("Enter");
+    await expect(neighborhood.getByText("nothing")).toBeVisible();
+
+    await page.reload({ waitUntil: "load" });
+    const afterClear = page
+      .getByRole("main")
+      .locator('[data-testid="epic-dep-neighborhood"]');
+    await expect(afterClear.getByText("nothing")).toBeVisible();
+
+    await afterClear.getByText("nothing").click();
+    const restore = afterClear.getByPlaceholder("space-separated epic ids");
+    await restore.fill("seed-epic-a");
+    await restore.press("Enter");
+    await expect(afterClear.getByText("seed-epic-a")).toBeVisible();
+
+    await page.reload({ waitUntil: "load" });
+    await expect(
+      page
+        .getByRole("main")
+        .locator('[data-testid="epic-dep-neighborhood"]')
+        .getByText("seed-epic-a"),
+    ).toBeVisible();
   });
 });

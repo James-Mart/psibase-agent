@@ -1,5 +1,5 @@
 import { visibleIssues } from "@server/services/archived-visibility";
-import { bySequence } from "@server/order";
+import { bySequence, epicsBlockedBy } from "@server/order";
 import type { DerivedState, IssueRecord } from "@server/schemas";
 import type { BoardKindFilter } from "./board-kind-filter";
 import { filterToProject, issuesById, projectIdOf } from "./build-tree";
@@ -224,8 +224,34 @@ function depGraphNodeState(derived: DerivedState | undefined): RailNodeState {
 }
 
 /**
+ * An Epic plus its direct `blockedBy` / blocking neighbors — the detail
+ * own-flow neighborhood (not the full project DAG).
+ */
+export function epicDependencyNeighborhood(
+  epicId: string,
+  issues: readonly IssueRecord[],
+): Array<IssueRecord & { kind: "epic" }> {
+  const list = [...issues];
+  const byId = issuesById(list);
+  const focus = byId.get(epicId);
+  if (!focus || focus.kind !== "epic") return [];
+
+  const ids = new Set<string>([epicId]);
+  for (const id of focus.blockedBy) ids.add(id);
+  for (const dependent of epicsBlockedBy(epicId, list)) {
+    ids.add(dependent.id);
+  }
+
+  return [...ids].flatMap((id) => {
+    const issue = byId.get(id);
+    return issue?.kind === "epic" ? [issue] : [];
+  });
+}
+
+/**
  * Build a node-link DAG model of Epics and their `blockedBy` edges.
  * Edge direction is prerequisite → dependent. Pure view-model — no I/O.
+ * Edges whose prerequisite is outside the supplied epic set are omitted.
  */
 export function depGraphModel(
   epics: IssueRecord[],
@@ -234,6 +260,7 @@ export function depGraphModel(
   const epicRecords = epics.filter(
     (issue): issue is IssueRecord & { kind: "epic" } => issue.kind === "epic",
   );
+  const epicIds = new Set(epicRecords.map((issue) => issue.id));
 
   const nodes: DepGraphNode[] = epicRecords.map((issue) => ({
     id: issue.id,
@@ -245,6 +272,7 @@ export function depGraphModel(
   const edges: DepGraphEdge[] = [];
   for (const issue of epicRecords) {
     for (const from of issue.blockedBy) {
+      if (!epicIds.has(from)) continue;
       const key = `${from}\0${issue.id}`;
       if (edgeKeys.has(key)) continue;
       edgeKeys.add(key);

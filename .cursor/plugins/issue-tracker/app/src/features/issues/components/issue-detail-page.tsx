@@ -49,13 +49,15 @@ const DETAIL_PAGE_SHELL_CLASS = "max-w-6xl";
 
 /**
  * Own-flow area for `surfaces-detail-flow`. Story: single-spine task Rail.
- * Epic filled by a later Task; Idea / Task / Project leave the slot empty.
+ * Epic: dependency neighborhood DAG + blockedBy edit. Idea / Task / Project
+ * leave the slot empty.
  */
 function OwnFlowSlot({ issue }: { issue: IssueDetail }) {
   if (!kindHasOwnFlow(issue.kind)) return null;
   return (
     <div data-region="own-flow">
       {issue.kind === "story" ? <StoryTaskRail issue={issue} /> : null}
+      {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
     </div>
   );
 }
@@ -192,7 +194,6 @@ function IssueDetailView({
         <GitStackPanel issue={issue} />
       ) : null}
       <OwnFlowSlot issue={issue} />
-      {issue.kind === "epic" ? <EpicDepsPanel issue={issue} /> : null}
       <IssueAttachmentsSection issue={issue} upload={upload} />
       <IssueDescriptionField issue={issue} upload={upload} />
       {issue.kind === "project" ? (
