@@ -6,18 +6,23 @@ import {
   SPEC_REVIEW_STATUSES,
   STORY_STATUSES,
   TASK_STATUSES,
+  type DerivedState,
   type IssueRecord,
 } from "@server/schemas";
 import { BADGE_VARIANTS } from "@/components/ui/badge";
 import {
   EPIC_STATUS_BADGE_VARIANT,
+  EPIC_STATUS_LABEL,
   QA_STATUS_BADGE_VARIANT,
   RETRO_BADGE_VARIANT,
   SPEC_REVIEW_BADGE_VARIANT,
   STORY_STATUS_BADGE_VARIANT,
+  STORY_STATUS_LABEL,
   TASK_STATUS_BADGE_VARIANT,
+  TASK_STATUS_LABEL,
   hasInFlightWork,
   isInFlight,
+  statusStages,
 } from "./derived";
 
 const timestamps = {
@@ -49,6 +54,20 @@ function story(id: string): IssueRecord {
     merged: false,
     ...timestamps,
   };
+}
+
+function epic(id: string): IssueRecord {
+  return {
+    id,
+    kind: "epic",
+    title: id,
+    partOf: "project",
+    ...timestamps,
+  };
+}
+
+function stageStates(issue: IssueRecord, state?: DerivedState) {
+  return statusStages(issue, state).map((s) => s.state);
 }
 
 const badgeVariantSet = new Set<string>(BADGE_VARIANTS);
@@ -143,5 +162,104 @@ describe("liveness helpers", () => {
       s: { blocked: false, storyStatus: "not-started" as const },
     };
     expect(hasInFlightWork([task("t", "fixing")], taskActive)).toBe(true);
+  });
+});
+
+describe("statusStages", () => {
+  it("emits todo → in-progress → done for tasks", () => {
+    const stages = statusStages(task("t", "todo"), undefined);
+    expect(stages.map((s) => s.label)).toEqual([
+      TASK_STATUS_LABEL.todo,
+      TASK_STATUS_LABEL["in-progress"],
+      TASK_STATUS_LABEL.done,
+    ]);
+    expect(stageStates(task("t", "todo"))).toEqual([
+      "current",
+      "idle",
+      "idle",
+    ]);
+    expect(stageStates(task("t", "in-progress"))).toEqual([
+      "done",
+      "current",
+      "idle",
+    ]);
+    expect(stageStates(task("t", "done"))).toEqual(["done", "done", "done"]);
+  });
+
+  it("keeps the current dot on in-progress for a fixing task", () => {
+    expect(statusStages(task("a", "fixing"), undefined)).toEqual(
+      statusStages(task("b", "in-progress"), undefined),
+    );
+    expect(stageStates(task("a", "fixing"))).toEqual([
+      "done",
+      "current",
+      "idle",
+    ]);
+  });
+
+  it("lights the right story stage for each status", () => {
+    const s = story("s");
+    for (const status of STORY_STATUSES) {
+      const stages = statusStages(s, { blocked: false, storyStatus: status });
+      expect(stages.map((st) => st.label)).toEqual(
+        STORY_STATUSES.map((id) => STORY_STATUS_LABEL[id]),
+      );
+      const idx = STORY_STATUSES.indexOf(status);
+      if (status === "merged") {
+        expect(stages.every((st) => st.state === "done")).toBe(true);
+      } else {
+        expect(stages.map((st) => st.state)).toEqual(
+          STORY_STATUSES.map((_, i) =>
+            i < idx ? "done" : i === idx ? "current" : "idle",
+          ),
+        );
+      }
+    }
+  });
+
+  it("lights the right epic stage for each status", () => {
+    const e = epic("e");
+    for (const status of EPIC_STATUSES) {
+      const stages = statusStages(e, { blocked: false, epicStatus: status });
+      expect(stages.map((st) => st.label)).toEqual(
+        EPIC_STATUSES.map((id) => EPIC_STATUS_LABEL[id]),
+      );
+      const idx = EPIC_STATUSES.indexOf(status);
+      if (status === "done") {
+        expect(stages.every((st) => st.state === "done")).toBe(true);
+      } else {
+        expect(stages.map((st) => st.state)).toEqual(
+          EPIC_STATUSES.map((_, i) =>
+            i < idx ? "done" : i === idx ? "current" : "idle",
+          ),
+        );
+      }
+    }
+  });
+
+  it("returns [] for kinds with no stage sequence", () => {
+    expect(
+      statusStages(
+        {
+          id: "p",
+          kind: "project",
+          title: "p",
+          ...timestamps,
+        },
+        undefined,
+      ),
+    ).toEqual([]);
+    expect(
+      statusStages(
+        {
+          id: "i",
+          kind: "idea",
+          title: "i",
+          partOf: "p",
+          ...timestamps,
+        },
+        undefined,
+      ),
+    ).toEqual([]);
   });
 });

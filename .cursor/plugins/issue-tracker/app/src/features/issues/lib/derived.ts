@@ -1,14 +1,27 @@
-import type {
-  StoryStatus,
-  TaskStatus,
-  EpicStatus,
-  SpecReviewStatus,
-  QaStatus,
-  RetroStatus,
-  IssueRecord,
-  DerivedState,
+import {
+  EPIC_STATUSES,
+  STORY_STATUSES,
+  type StoryStatus,
+  type TaskStatus,
+  type EpicStatus,
+  type SpecReviewStatus,
+  type QaStatus,
+  type RetroStatus,
+  type IssueRecord,
+  type DerivedState,
 } from "@server/schemas";
 import type { BadgeProps } from "@/components/ui/badge";
+
+/** Sparkline stage visual state — idle ahead, current active, done behind/complete. */
+export type StatusStageState = "done" | "current" | "idle";
+
+export interface StatusStage {
+  label: string;
+  state: StatusStageState;
+}
+
+/** Task sparkline sequence — fixing is not a stage (dot stays on in-progress). */
+const TASK_SPARKLINE_STATUSES = ["todo", "in-progress", "done"] as const;
 
 export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   todo: "todo",
@@ -123,4 +136,49 @@ export function hasInFlightWork(
   derived: Record<string, DerivedState>,
 ): boolean {
   return issues.some((issue) => isInFlight(issue, derived[issue.id]));
+}
+
+function stagesForIndex(
+  labels: readonly string[],
+  currentIndex: number,
+  completed: boolean,
+): StatusStage[] {
+  return labels.map((label, i) => {
+    if (completed || i < currentIndex) return { label, state: "done" as const };
+    if (i === currentIndex) return { label, state: "current" as const };
+    return { label, state: "idle" as const };
+  });
+}
+
+/**
+ * Sparkline stage list for an issue's primary status enum.
+ * Task: todo → in-progress → done (fixing keeps the current dot on in-progress).
+ * Story: not-started → in-progress → pr-open → merged.
+ * Epic: todo → in-progress → done.
+ * Other kinds: [].
+ */
+export function statusStages(
+  issue: IssueRecord,
+  state: DerivedState | undefined,
+): StatusStage[] {
+  if (issue.kind === "task") {
+    const labels = TASK_SPARKLINE_STATUSES.map((s) => TASK_STATUS_LABEL[s]);
+    const status =
+      issue.status === "fixing" ? "in-progress" : issue.status;
+    const currentIndex = TASK_SPARKLINE_STATUSES.indexOf(status);
+    return stagesForIndex(labels, currentIndex, status === "done");
+  }
+  if (issue.kind === "story") {
+    const labels = STORY_STATUSES.map((s) => STORY_STATUS_LABEL[s]);
+    const status = state?.storyStatus ?? "not-started";
+    const currentIndex = STORY_STATUSES.indexOf(status);
+    return stagesForIndex(labels, currentIndex, status === "merged");
+  }
+  if (issue.kind === "epic") {
+    const labels = EPIC_STATUSES.map((s) => EPIC_STATUS_LABEL[s]);
+    const status = state?.epicStatus ?? "todo";
+    const currentIndex = EPIC_STATUSES.indexOf(status);
+    return stagesForIndex(labels, currentIndex, status === "done");
+  }
+  return [];
 }

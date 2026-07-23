@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { workCursorFraction, type RailNodeState } from "./rail";
+import {
+  sparkSegState,
+  workCursorFraction,
+  type RailNodeState,
+} from "./rail";
+
+describe("sparkSegState", () => {
+  it("marks the segment into the current dot as current", () => {
+    expect(sparkSegState("done", "current")).toBe("current");
+    expect(sparkSegState("idle", "current")).toBe("current");
+  });
+
+  it("marks segments between done dots as done", () => {
+    expect(sparkSegState("done", "done")).toBe("done");
+  });
+
+  it("marks remaining segments as idle", () => {
+    expect(sparkSegState("current", "idle")).toBe("idle");
+    expect(sparkSegState("idle", "idle")).toBe("idle");
+    expect(sparkSegState("done", "idle")).toBe("idle");
+  });
+});
 
 describe("workCursorFraction", () => {
   it("returns the center fraction of the in-flight node", () => {
