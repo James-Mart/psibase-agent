@@ -13,6 +13,17 @@ async function gotoOverviewFlow(page: Page, baseURL: string): Promise<Locator> {
   return main;
 }
 
+async function gotoOverviewStructure(page: Page, baseURL: string): Promise<Locator> {
+  await page.goto(`${baseURL}/projects/seed-proj?lens=structure`);
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Seed Project" })).toBeVisible();
+  await expect(
+    page.getByRole("tablist", { name: "Overview lens" }),
+  ).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: "Structure" })).toBeVisible();
+  return main;
+}
+
 function bucketSection(
   main: Locator,
   key: "ready" | "inFlight" | "blocked" | "recentlyMerged",
@@ -225,5 +236,16 @@ test.describe("overview Flow lens", () => {
         .getByRole("link", { name: /^Story in flight\b/ }),
     ).toBeVisible();
     await snapshotBothThemes(page, "overview-flow");
+  });
+});
+
+test.describe("overview Structure lens", () => {
+  // Sole both-theme key-surface snapshot for the project Structure overview.
+  test("both-theme Structure key-surface snapshot", async ({ page, seededApp }) => {
+    await gotoOverviewStructure(page, seededApp.baseURL);
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /^Epic A\b/ }),
+    ).toBeVisible();
+    await snapshotBothThemes(page, "overview-structure");
   });
 });
