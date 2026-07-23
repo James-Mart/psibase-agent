@@ -10,5 +10,9 @@ export const popoverSurface =
 export const panelChip =
   "border border-[hsl(var(--rail-lit))] bg-secondary font-mono text-muted-foreground";
 
-/** Current-hue live glow — uses per-theme `--glow` (no extra ring). */
-export const currentGlow = "shadow-[var(--glow)]";
+/** Top-bar live status pill — rail hairline, mono 11px, muted ink (design-system `.livechip`). */
+export const liveChip =
+  "inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground";
+
+/** Current-hue live glow — arbitrary property so Tailwind emits box-shadow, not a shadow color. */
+export const currentGlow = "[box-shadow:var(--glow)]";

@@ -101,12 +101,18 @@ const config: Config = {
   				'70%': { top: 'var(--wc-end)', opacity: '1' },
   				'88%': { top: 'var(--wc-end)', opacity: '1' },
   				'100%': { top: 'var(--wc-end)', opacity: '0' }
+  			},
+  			// live chip pulse — matches design-system livedot
+  			'live-dot': {
+  				'0%, 100%': { opacity: '1' },
+  				'50%': { opacity: '0.35' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'work-cursor': 'work-cursor 5.2s cubic-bezier(0.5, 0, 0.5, 1) infinite'
+  			'work-cursor': 'work-cursor 5.2s cubic-bezier(0.5, 0, 0.5, 1) infinite',
+  			'live-dot': 'live-dot 2.4s ease-in-out infinite'
   		}
   	}
   },

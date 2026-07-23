@@ -3,7 +3,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type HTMLAttributes,
   type ReactNode,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -11,9 +10,9 @@ import { ArrowLeft, Check, Copy, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { IssueDetail, ProjectLabel } from "@server/schemas";
 import { ApiError } from "@/lib/api/errors";
+import { PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils/cn";
 import { useIssueDetailQuery, useIssuesQuery } from "../api/queries";
 import { useUploadAttachment } from "../api/mutations";
 import {
@@ -44,9 +43,6 @@ import { ChatPanel } from "./chat-panel";
 import { ArchiveIssueButton } from "./archive-issue-button";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
-
-const DETAIL_SHELL_CLASS =
-  "mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8";
 
 function CopyIssueIdButton({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
@@ -85,21 +81,6 @@ function CopyIssueIdButton({ id }: { id: string }) {
         <Copy className="h-3.5 w-3.5" />
       )}
     </Button>
-  );
-}
-
-function DetailShell({
-  className,
-  children,
-  ...rootProps
-}: {
-  className?: string;
-  children: ReactNode;
-} & HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn(DETAIL_SHELL_CLASS, className)} {...rootProps}>
-      {children}
-    </div>
   );
 }
 
@@ -234,7 +215,7 @@ function IssueDetailAttachable({
   const { rootProps } = useIssueDetailFileUpload(upload);
 
   return (
-    <DetailShell {...rootProps}>
+    <PageShell {...rootProps}>
       {backLink}
       <IssueDetailBody
         issue={issue}
@@ -242,7 +223,7 @@ function IssueDetailAttachable({
         upload={upload}
         catalog={catalog}
       />
-    </DetailShell>
+    </PageShell>
   );
 }
 
@@ -295,7 +276,7 @@ export function IssueDetailPage() {
   }
 
   return (
-    <DetailShell>
+    <PageShell>
       {backLink}
 
       {error && !missing ? (
@@ -333,6 +314,6 @@ export function IssueDetailPage() {
           catalog={catalog}
         />
       ) : null}
-    </DetailShell>
+    </PageShell>
   );
 }
