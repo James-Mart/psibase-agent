@@ -1,8 +1,8 @@
 import { Route, Routes } from "react-router-dom";
 import { useEffect } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { TreePage } from "@/features/issues/components/tree-page";
 import { CockpitPage } from "@/features/issues/components/cockpit-page";
+import { OverviewPage } from "@/features/issues/components/overview-page";
 import { IssueDetailPage } from "@/features/issues/components/issue-detail-page";
 import { NewIssueDialog } from "@/features/issues/components/new-issue-dialog";
 import { DeleteIssueDialog } from "@/features/issues/components/delete-issue-dialog";
@@ -26,7 +26,7 @@ export function App() {
         <TopBar />
         <Routes>
           <Route path="/" element={<CockpitPage />} />
-          <Route path="/projects/:projectId" element={<TreePage />} />
+          <Route path="/projects/:projectId" element={<OverviewPage />} />
           <Route
             path="/projects/:projectId/issues/:id"
             element={<IssueDetailPage />}

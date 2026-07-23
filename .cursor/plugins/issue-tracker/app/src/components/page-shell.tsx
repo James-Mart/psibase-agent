@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
-/** Shared centered page chrome for route-level shells (detail, tree, cockpit). */
+/** Shared centered page chrome for route-level shells (detail, overview, cockpit). */
 export const PAGE_SHELL_CLASS =
   "mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8";
 
