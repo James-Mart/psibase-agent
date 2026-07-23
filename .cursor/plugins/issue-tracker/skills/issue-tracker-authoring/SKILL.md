@@ -133,9 +133,12 @@ For each resulting root, still choose Epic vs project-level Story by
 - **Task** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Must be a standalone vertical
   slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
-  Tree nesting supplies context, so linking task → epic is unnecessary.
-  **Tasks run in the order they appear in the doc** (top-to-bottom); authors
-  never specify `order` — array position is implementation order.
+  Any Task with implementor work ends with a markdown `### Verify` or
+  `## Verify` heading — not inline `Verify:` / `**Verify:**` (see
+  [Task Verify heading](#task-verify-heading)). Tree nesting supplies context,
+  so linking task → epic is unnecessary. **Tasks run in the order they appear
+  in the doc** (top-to-bottom); authors never specify `order` — array position
+  is implementation order.
 
 **Each Story must be independently mergeable to `main`.** Stories merge to
 `main` (stacked children after their fork-point Story, in stack order), and only
@@ -191,6 +194,23 @@ the Project `workspace` root. Do not use plugin-root shorthand (`agents/...`,
 - **Good:** `In
   .cursor/plugins/issue-tracker/agents/issue-tracker-spec-conformance-validator.md`
 
+## Task Verify heading
+
+Any Task with implementor work (a `### Change` section or equivalent
+implementable scope) must end with a markdown `### Verify` or `## Verify`
+heading that states how to check the work. Do not use inline `Verify:` or
+`**Verify:**` labels — plan-authoring-conformance flags those as missing
+Verify.
+
+- **Bad:** `Verify: run tests` or `**Verify:** read the file and confirm X`.
+- **Good:**
+
+```markdown
+### Verify
+
+Run the unit tests. Confirm X.
+```
+
 ## Prior-content consistency
 
 When a Task Change updates content, you must update every place that still
@@ -231,6 +251,9 @@ Before done:
   field names (see [Task interface seams](#task-interface-seams)).
 - Every Task Change that names file paths uses workspace-relative paths (see
   [Task Change paths](#task-change-paths)).
+- Every Task with implementor work has a `### Verify` / `## Verify` heading
+  (not inline `Verify:`) stating how to check the work (see
+  [Task Verify heading](#task-verify-heading)).
 - Every Task Change that updates content also updates every place that still
   describes or depends on the prior version (see
   [Prior-content consistency](#prior-content-consistency)).
