@@ -138,6 +138,22 @@ export function hasInFlightWork(
   return issues.some((issue) => isInFlight(issue, derived[issue.id]));
 }
 
+/**
+ * True when an issue is complete for progress/bucket purposes:
+ * task done, story merged (derived or `merged` flag), epic done.
+ */
+export function isIssueComplete(
+  issue: IssueRecord,
+  state: DerivedState | undefined,
+): boolean {
+  if (issue.kind === "task") return issue.status === "done";
+  if (issue.kind === "story") {
+    return state?.storyStatus === "merged" || issue.merged === true;
+  }
+  if (issue.kind === "epic") return state?.epicStatus === "done";
+  return false;
+}
+
 function stagesForIndex(
   labels: readonly string[],
   currentIndex: number,

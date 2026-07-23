@@ -21,7 +21,7 @@ function bucketSection(
 }
 
 test.describe("overview Flow lens", () => {
-  test("lens switcher persists selection and mounts placeholder panes", async ({
+  test("lens switcher persists selection and mounts Structure content", async ({
     page,
     seededApp,
   }) => {
@@ -41,8 +41,17 @@ test.describe("overview Flow lens", () => {
     await expect(page).toHaveURL(/[?&]lens=structure(?:&|$)/);
     await expect(structureTab).toHaveAttribute("aria-selected", "true");
     await expect(flowTab).toHaveAttribute("aria-selected", "false");
-    // Placeholder mounts are empty — attached, not visible.
-    await expect(page.locator('[data-lens-mount="structure"]')).toBeAttached();
+    const structurePanel = page.getByRole("tabpanel", { name: "Structure" });
+    await expect(structurePanel).toBeVisible();
+    await expect(
+      structurePanel.getByRole("button", { name: "New story" }),
+    ).toBeVisible();
+    await expect(
+      structurePanel.getByRole("button", { name: "New epic" }),
+    ).toBeVisible();
+    await expect(
+      structurePanel.getByRole("link", { name: /^Epic A\b/ }),
+    ).toBeVisible();
     await expect(page.getByRole("tabpanel", { name: "Flow" })).toHaveCount(0);
 
     await page.reload({ waitUntil: "load" });
@@ -52,7 +61,12 @@ test.describe("overview Flow lens", () => {
         name: "Structure",
       }),
     ).toHaveAttribute("aria-selected", "true");
-    await expect(page.locator('[data-lens-mount="structure"]')).toBeAttached();
+    await expect(page.getByRole("tabpanel", { name: "Structure" })).toBeVisible();
+    await expect(
+      page
+        .getByRole("tabpanel", { name: "Structure" })
+        .getByRole("button", { name: "New epic" }),
+    ).toBeVisible();
 
     await page
       .getByRole("tablist", { name: "Overview lens" })
@@ -62,7 +76,9 @@ test.describe("overview Flow lens", () => {
     await expect(
       page.locator('[data-lens-mount="dependencies"]'),
     ).toBeAttached();
-    await expect(page.locator('[data-lens-mount="structure"]')).toHaveCount(0);
+    await expect(page.getByRole("tabpanel", { name: "Structure" })).toHaveCount(
+      0,
+    );
 
     await page
       .getByRole("tablist", { name: "Overview lens" })
