@@ -35,10 +35,10 @@ Absolute path for this file (Read this exact path):
       name them alongside the decline reasoning.
    6. If Idea creation fails: `issue task set <id> needsAttention true --reason
       "..."` immediately; include the failure in the step 5 comment.
-4. **Keep `noDiff` honest.** If your revision lands file changes, clear the flag
-   (`issue task set <id> noDiff false`). If you now conclude the correct
-   outcome is no file changes, set it (`issue task set <id> noDiff true`) and
-   say why in your reply.
+4. **Keep `noDiff` honest.** If your revision lands source-controlled file
+   changes, clear the flag (`issue task set <id> noDiff false`). If you now
+   conclude the correct outcome is no source-controlled file changes, set it
+   (`issue task set <id> noDiff true`) and say why in your reply.
 5. Post a succinct reply:
    `issue task comment <id> --role <comment-role> --body "..."` (what you
    changed, what you declined and why — including Idea ids from step 3 and any

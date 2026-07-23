@@ -420,10 +420,12 @@ Git stubs (`start-branch`, `finish-commit`, `finish-branch`): coordinator passes
 - The implementor leaves work uncommitted; the **git** subagent finalizes per
   its Finish Commit matrix (the authority for these outcomes): a normal Task
   is committed (message = Task title) and recorded `done` with its sha, while
-  a Task the implementor deliberately marked `noDiff` is recorded `done` with
-  **no** git commit and no sha. Either way the coordinator just spawns
-  finish-commit — it never inspects the tree or the `noDiff` flag, and an empty
-  tree alone is never a completion signal.
+  a Task the implementor deliberately marked `noDiff` (no source-controlled
+  changes) is recorded `done` with **no** git commit and no sha — do not treat
+  that as "nothing was done" when a non-source-controlled file was edited.
+  Either way the coordinator just spawns finish-commit — it never inspects the
+  tree or the `noDiff` flag, and an empty tree alone is never a completion
+  signal.
 - Per-Task QA loop (entry gate, spawn/resume, three-strike): see **Per-Task
   cycle** — single canonical definition; you never count QA rounds.
   Spec-conformance remediation is Close-Story's job (see that section) — no

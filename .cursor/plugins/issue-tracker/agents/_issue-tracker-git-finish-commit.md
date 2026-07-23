@@ -18,6 +18,10 @@ Never parse chat.
 | absent/false | clean (empty) | `issue task set <taskId> needsAttention true --reason "..."` — an empty tree without `noDiff` is not a completion signal. Then stop. |
 | absent/false | dirty | Stage, commit, and record — steps below. |
 
+The `true` / clean row is a legitimate `done` outcome even when a
+non-source-controlled file was edited (git status stays clean); that is not a
+contradiction with `noDiff`.
+
 For the **dirty + no `noDiff`** row:
 
 1. Stage **all** uncommitted changes (`git add -A`). Do not pick paths —

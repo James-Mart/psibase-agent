@@ -58,10 +58,12 @@ per **SPEC § Project workspace**.
    - Use its Task spec from `issue task view <taskId>`.
    - Inspect the workspace at that Task's recorded `commitSha` (or the
      equivalent diff of what that Task delivered against its spec).
-   - A `noDiff` Task has no `commitSha` and delivered no diff: judge it by
-     its Task spec plus the implementor's chat rationale
-     (`issue task view <taskId> --chat`) — was landing no changes actually
-     correct? Treat an unjustified or spec-violating no-op as a gap.
+   - A `noDiff` Task has no `commitSha` and delivered no source-controlled
+     diff: judge it by its Task spec plus the implementor's chat rationale
+     (`issue task view <taskId> --chat`) — was landing no source-controlled
+     changes actually correct? Do not treat `noDiff` as "nothing was done"
+     when a non-source-controlled file was edited. Treat an unjustified or
+     spec-violating no-op as a gap.
    - Collect **only** missing or off-spec behavior. Omit anything you judge
      in-spec or acceptable — the implementor treats anything not listed as
      fine. The remediation Task description (if any) **is** the implementor's
