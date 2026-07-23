@@ -58,9 +58,11 @@ Doc format and field seam: [SPEC.md § `apply` doc format](../../SPEC.md#apply-d
   linearizing them, at the cost of waiting for the blocking Epic to merge).
 - **Re-apply as the plan evolves.** `apply` is an idempotent upsert that
   prunes-by-default: nodes you add appear, nodes you drop from the doc are
-  deleted, and unchanged nodes are untouched. It is atomic (a doc that would
-  break integrity changes nothing) and preserves runtime/progress fields and
-  attachment bytes, so re-applying an edited doc mid-implementation is safe
+  deleted, and unchanged nodes are untouched. Omitting `blockedBy` on a
+  restated Epic clears it to `[]` (full desired state) — it does not preserve
+  on-disk edges. It is atomic (a doc that would break integrity changes
+  nothing) and preserves runtime/progress fields and attachment bytes, so
+  re-applying an edited doc mid-implementation is safe
   ([SPEC.md § Declarative/imperative field seam](../../SPEC.md#declarativeimperative-field-seam)).
   Re-`apply` the doc for plan-owned changes; do not patch plan-owned fields
   incrementally with `issue <kind> add` or kind `set`.
@@ -131,9 +133,12 @@ For each resulting root, still choose Epic vs project-level Story by
 - **Task** = one git commit: implementor-resolution detail (what to do + how to
   verify), no deeper than a good plan section. Must be a standalone vertical
   slice that leaves the tip buildable/testable ([SPEC.md](../../SPEC.md#kinds)).
-  Tree nesting supplies context, so linking task → epic is unnecessary.
-  **Tasks run in the order they appear in the doc** (top-to-bottom); authors
-  never specify `order` — array position is implementation order.
+  Any Task with implementor work ends with a markdown `### Verify` or
+  `## Verify` heading — not inline `Verify:` / `**Verify:**` (see
+  [Task Verify heading](#task-verify-heading)). Tree nesting supplies context,
+  so linking task → epic is unnecessary. **Tasks run in the order they appear
+  in the doc** (top-to-bottom); authors never specify `order` — array position
+  is implementation order.
 
 **Each Story must be independently mergeable to `main`.** Stories merge to
 `main` (stacked children after their fork-point Story, in stack order), and only
@@ -189,6 +194,23 @@ the Project `workspace` root. Do not use plugin-root shorthand (`agents/...`,
 - **Good:** `In
   .cursor/plugins/issue-tracker/agents/issue-tracker-spec-conformance-validator.md`
 
+## Task Verify heading
+
+Any Task with implementor work (a `### Change` section or equivalent
+implementable scope) must end with a markdown `### Verify` or `## Verify`
+heading that states how to check the work. Do not use inline `Verify:` or
+`**Verify:**` labels — plan-authoring-conformance flags those as missing
+Verify.
+
+- **Bad:** `Verify: run tests` or `**Verify:** read the file and confirm X`.
+- **Good:**
+
+```markdown
+### Verify
+
+Run the unit tests. Confirm X.
+```
+
 ## Prior-content consistency
 
 When a Task Change updates content, you must update every place that still
@@ -229,6 +251,9 @@ Before done:
   field names (see [Task interface seams](#task-interface-seams)).
 - Every Task Change that names file paths uses workspace-relative paths (see
   [Task Change paths](#task-change-paths)).
+- Every Task with implementor work has a `### Verify` / `## Verify` heading
+  (not inline `Verify:`) stating how to check the work (see
+  [Task Verify heading](#task-verify-heading)).
 - Every Task Change that updates content also updates every place that still
   describes or depends on the prior version (see
   [Prior-content consistency](#prior-content-consistency)).

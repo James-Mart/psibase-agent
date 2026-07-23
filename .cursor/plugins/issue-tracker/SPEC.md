@@ -1026,7 +1026,11 @@ project:
   sequence). UI still shows tasks then stacked Stories.
 - **Explicit `blockedBy`.** The one cross-reference authored by hand: on an
   **Epic** node, a list of other Epic ids (same Project) this Epic depends on.
-  Uses the same kebab id rule as node ids.
+  Uses the same kebab id rule as node ids. Omitting `blockedBy` on a restated
+  Epic sets it to `[]` — the doc is the full desired state for that field, not
+  a patch over on-disk edges. That is distinct from "unchanged nodes are
+  untouched" (whole node already matches the doc) and from the story-rooted
+  rule that preserves on-disk `stackedOn` when unrestated.
 - **Inline descriptions.** Each node's optional `description` is a block scalar
   (`|`) written to that issue's `description.md`; omitting it on create seeds the
   default `# <title>`. This is what lets authors write Markdown without shell
@@ -1124,7 +1128,7 @@ preserves everything else from the existing same-kind issue.
 | --- | --- |
 | `title` | `apply` (from the doc) |
 | `description` (`description.md`) | `apply` (from the doc) |
-| `blockedBy` (Epic) | `apply` (explicit on the Epic node) |
+| `blockedBy` (Epic) | `apply` (from the Epic node; omit → `[]`) |
 | `retro` (Epic) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `retro` (Story) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
 | `workspace` (Project) | imperative only (kind [`set`](#kind-scoped-get--set)); `apply` preserves |
