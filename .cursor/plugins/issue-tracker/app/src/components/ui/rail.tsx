@@ -27,12 +27,39 @@ const labelStateClasses: Record<RailNodeState, string> = {
   merged: "text-foreground",
 };
 
+/**
+ * Fraction (0–1) down the spine of the in-flight port — where the work-cursor
+ * bead travels to and rests. `null` when no node is in-flight (no live target).
+ * Assumes uniform node rhythm, so the port center of node `i` of `n` sits at
+ * `(i + 0.5) / n`.
+ */
+export function workCursorFraction(
+  states: readonly RailNodeState[],
+): number | null {
+  const index = states.indexOf("in-flight");
+  if (index < 0) return null;
+  return (index + 0.5) / states.length;
+}
+
+export interface RailProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Surface a work-cursor bead that travels the spine toward the in-flight node
+   * — telemetry that autonomous work is on the line. Under `prefers-reduced-motion`
+   * the bead does not travel; it rests statically on the in-flight port.
+   */
+  live?: boolean;
+}
+
 /** Single-spine lifecycle Rail: an ordered dependency spine of state-encoded ports. */
-export function Rail({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function Rail({ className, children, live, ...props }: RailProps) {
+  const states = React.Children.toArray(children).flatMap((child) =>
+    React.isValidElement(child) &&
+    (child.props as Partial<RailNodeProps>).state != null
+      ? [(child.props as RailNodeProps).state]
+      : [],
+  );
+  const fraction = live ? workCursorFraction(states) : null;
+
   return (
     <div
       role="list"
@@ -44,6 +71,20 @@ export function Rail({
       )}
       {...props}
     >
+      {fraction != null && (
+        <span
+          aria-hidden="true"
+          data-testid="rail-work-cursor"
+          style={{ "--wc-end": `${fraction * 100}%` } as React.CSSProperties}
+          className={cn(
+            "pointer-events-none absolute left-[3px] top-[var(--wc-end)] z-10 h-2.5 w-2.5 -translate-y-1/2 rounded-full",
+            "bg-[hsl(var(--current))] [box-shadow:var(--glow)]",
+            // motion is telemetry: travel only when motion is allowed; under
+            // reduced-motion the base top (the in-flight port) is the rest state.
+            "motion-safe:animate-work-cursor",
+          )}
+        />
+      )}
       {children}
     </div>
   );
