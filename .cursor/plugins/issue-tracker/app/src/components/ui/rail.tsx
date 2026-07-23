@@ -5,6 +5,7 @@ import {
   type StatusStage,
   type StatusStageState,
 } from "@/features/issues/lib/derived";
+import type { RailNodeState } from "@/features/issues/lib/rail-state";
 import {
   Tooltip,
   TooltipContent,
@@ -12,11 +13,10 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 
+export type { RailNodeState };
+
 /** Current-hue live glow on a port — arbitrary property so Tailwind emits box-shadow, not a shadow color. */
 const portGlow = "[box-shadow:var(--glow)]";
-
-/** Work-state of a Rail port. Ready carries no hue (hollow ink outline). */
-export type RailNodeState = "ready" | "in-flight" | "blocked" | "merged";
 
 /** Edge into a node: solid = satisfied/landed hop; dashed = waiting on a dependency. */
 export type RailEdge = "solid" | "dashed";
@@ -37,6 +37,53 @@ const labelStateClasses: Record<RailNodeState, string> = {
   blocked: "text-muted-foreground",
   merged: "text-foreground",
 };
+
+export interface RailPortProps {
+  state: RailNodeState;
+  label?: React.ReactNode;
+  /** Force the current-hue glow; defaults to on for in-flight ports. */
+  glow?: boolean;
+  className?: string;
+  portClassName?: string;
+  labelClassName?: string;
+}
+
+/** State-encoded port disc + optional label — shared by RailNode and DependencyGraph. */
+export function RailPort({
+  state,
+  label,
+  glow,
+  className,
+  portClassName,
+  labelClassName,
+}: RailPortProps) {
+  const showGlow = glow ?? state === "in-flight";
+
+  return (
+    <span className={cn(className)}>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-3 w-3 shrink-0 rounded-full border-2",
+          portStateClasses[state],
+          showGlow && portGlow,
+          portClassName,
+        )}
+      />
+      {label != null && (
+        <span
+          className={cn(
+            "font-medium",
+            labelStateClasses[state],
+            labelClassName,
+          )}
+        >
+          {label}
+        </span>
+      )}
+    </span>
+  );
+}
 
 /**
  * Fraction (0–1) down the spine of the in-flight port — where the work-cursor
@@ -119,8 +166,6 @@ export function RailNode({
   children,
   ...props
 }: RailNodeProps) {
-  const showGlow = glow ?? state === "in-flight";
-
   return (
     <div
       role="listitem"
@@ -133,19 +178,13 @@ export function RailNode({
           className="pointer-events-none absolute left-[-18px] top-[-6px] h-[18px] border-l-2 border-dashed border-[hsl(var(--blocked))] opacity-[.55]"
         />
       )}
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute left-[-23px] top-3 h-3 w-3 rounded-full border-2",
-          portStateClasses[state],
-          showGlow && portGlow,
-        )}
+      <RailPort
+        state={state}
+        label={label}
+        glow={glow}
+        className="contents"
+        portClassName="absolute left-[-23px] top-3"
       />
-      {label != null && (
-        <span className={cn("font-medium", labelStateClasses[state])}>
-          {label}
-        </span>
-      )}
       {children}
     </div>
   );

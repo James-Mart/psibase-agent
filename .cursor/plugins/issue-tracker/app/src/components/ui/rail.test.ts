@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  sparkSegState,
-  workCursorFraction,
-  type RailNodeState,
-} from "./rail";
+import { sparkSegState, workCursorFraction } from "./rail";
+import type { RailNodeState } from "@/features/issues/lib/rail-state";
 
 describe("sparkSegState", () => {
   it("marks the segment into the current dot as current", () => {
