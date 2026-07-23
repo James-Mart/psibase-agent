@@ -42,6 +42,7 @@ import { IssueProjectLabelsField } from "./issue-project-labels-field";
 import { IssueSupportingDocsField } from "./issue-supporting-docs-field";
 import { IssueInspirationAppsField } from "./issue-inspiration-apps-field";
 import { ChatPanel } from "./chat-panel";
+import { DetailEyebrow } from "./detail-section";
 import { ProjectDetailTabs } from "./project-detail-tabs";
 import { supportsAttachments } from "../lib/attachments";
 
@@ -64,9 +65,13 @@ function OwnFlowSlot({ issue }: { issue: IssueDetail }) {
 
 /** Docked companion for `surfaces-chat`; collapse persisted as `?chat=`. */
 function CompanionSlot({
+  issueId,
+  attachmentsIssueId,
   expanded,
   onExpandedChange,
 }: {
+  issueId: string;
+  attachmentsIssueId?: string;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
 }) {
@@ -76,15 +81,15 @@ function CompanionSlot({
       data-state={expanded ? "expanded" : "collapsed"}
       className={cn(
         "flex shrink-0 flex-col border-l border-border",
-        expanded ? "w-80 pl-4" : "w-10 items-center pt-1",
+        expanded
+          ? "sticky top-8 h-[calc(100svh-4rem)] w-80 pl-4"
+          : "w-10 items-center pt-1",
       )}
     >
       {expanded ? (
         <>
-          <div className="flex items-center justify-between gap-2 pb-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Chat
-            </p>
+          <div className="flex items-center justify-between gap-2 pb-3">
+            <DetailEyebrow>Chat</DetailEyebrow>
             <Button
               type="button"
               variant="ghost"
@@ -97,7 +102,10 @@ function CompanionSlot({
               <PanelRightClose className="h-4 w-4" />
             </Button>
           </div>
-          <div data-slot="companion" className="min-h-0 flex-1" />
+          <ChatPanel
+            id={issueId}
+            attachmentsIssueId={attachmentsIssueId}
+          />
         </>
       ) : (
         <>
@@ -156,12 +164,13 @@ function IssueDetailBody({
           issue={issue}
           catalog={catalog}
           upload={upload}
-          attach={attach}
         />
       </div>
 
       {kindHas(issue.kind, "chat") ? (
         <CompanionSlot
+          issueId={issue.id}
+          attachmentsIssueId={attach ? issue.id : undefined}
           expanded={companionExpanded}
           onExpandedChange={setCompanionExpanded}
         />
@@ -174,12 +183,10 @@ function IssueDetailView({
   issue,
   catalog,
   upload,
-  attach,
 }: {
   issue: IssueDetail;
   catalog: ProjectLabel[];
   upload?: UploadAttachmentMutation;
-  attach: boolean;
 }) {
   const overview = (
     <>
@@ -201,12 +208,6 @@ function IssueDetailView({
           <IssueSupportingDocsField issue={issue} />
           <IssueInspirationAppsField issue={issue} />
         </>
-      ) : null}
-      {kindHas(issue.kind, "chat") ? (
-        <ChatPanel
-          id={issue.id}
-          attachmentsIssueId={attach ? issue.id : undefined}
-        />
       ) : null}
     </>
   );

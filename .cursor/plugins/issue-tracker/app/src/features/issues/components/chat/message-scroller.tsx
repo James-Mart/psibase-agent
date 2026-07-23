@@ -21,7 +21,7 @@ export function MessageScroller({
     <div
       ref={ref}
       className={cn(
-        "flex max-h-[26rem] min-h-[6rem] flex-col gap-3 overflow-y-auto px-1 py-2",
+        "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 py-2",
         className,
       )}
     >

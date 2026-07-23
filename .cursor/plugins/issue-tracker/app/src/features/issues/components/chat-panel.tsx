@@ -67,6 +67,7 @@ function MessageList({
   );
 }
 
+/** Per-issue chat thread + composer for the detail companion slot. */
 export function ChatPanel({
   id,
   attachmentsIssueId,
@@ -96,9 +97,7 @@ export function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-      <h2 className="text-sm font-semibold text-muted-foreground">Chat</h2>
-
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {error ? (
         <p className="text-sm text-destructive-foreground">{error.message}</p>
       ) : null}
@@ -111,29 +110,33 @@ export function ChatPanel({
         </div>
       ) : null}
 
-      {isLoading ? (
-        <p className="px-1 py-4 text-sm text-muted-foreground">Loading chat…</p>
-      ) : messages.length === 0 ? (
-        <p className="px-1 py-4 text-sm text-muted-foreground">
-          No messages yet.
-        </p>
-      ) : (
-        <MessageScroller bottomKey={messages.length}>
-          <MessageList
-            messages={messages}
-            attachmentsIssueId={attachmentsIssueId}
-          />
-        </MessageScroller>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {isLoading ? (
+          <p className="px-1 py-4 text-sm text-muted-foreground">Loading chat…</p>
+        ) : messages.length === 0 ? (
+          <p className="px-1 py-4 text-sm text-foreground">
+            No messages yet. Type below to steer this issue.
+          </p>
+        ) : (
+          <MessageScroller bottomKey={messages.length}>
+            <MessageList
+              messages={messages}
+              attachmentsIssueId={attachmentsIssueId}
+            />
+          </MessageScroller>
+        )}
+      </div>
 
       {post.isPending ? <Shimmer label="Sending…" /> : null}
 
-      <div className="flex items-end gap-2">
+      <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Write a message… (Enter to send, Shift+Enter for newline)"
+          placeholder="Steer this issue"
+          title="Enter to send, Shift+Enter for a newline"
+          aria-label="Steer this issue"
           className="min-h-[40px] resize-none"
         />
         <Button
@@ -142,6 +145,7 @@ export function ChatPanel({
           onClick={send}
           disabled={post.isPending || !draft.trim()}
           title="Send"
+          aria-label="Send"
         >
           <Send className="h-4 w-4" />
         </Button>
