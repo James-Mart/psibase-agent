@@ -16,13 +16,18 @@ import { projectPath } from "@/features/issues/lib/links";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Plus } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageShell } from "@/components/page-shell";
+import {
+  ShellFaultDetail,
+  ShellLoadingState,
+  ShellState,
+} from "./shell-state";
 
 const LEGACY_SELECTED_PROJECT_KEY = "issue-tracker.selectedProject";
 
 function HomeRedirect() {
   const navigate = useNavigate();
-  const { data, isLoading, error } = useIssuesQuery();
+  const { data, isLoading, error, refetch, isFetching } = useIssuesQuery();
   const openProjectDialog = useIssueUiStore((s) => s.openProjectDialog);
 
   const firstProjectId = useMemo(
@@ -38,20 +43,36 @@ function HomeRedirect() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-        <Skeleton className="h-8 w-1/3" />
-        <Skeleton className="h-24 w-full" />
-      </div>
+      <PageShell>
+        <ShellLoadingState label="Loading the plan…" />
+      </PageShell>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive-foreground">
-          {error.message}
-        </div>
-      </div>
+      <PageShell>
+        <ShellState
+          tone="blocked"
+          eyebrow="Fault"
+          title="Couldn't load the plan."
+          detail={
+            <ShellFaultDetail
+              message={error.message}
+              hint="Check the server, then reload."
+            />
+          }
+          action={
+            <Button
+              variant="primary"
+              disabled={isFetching}
+              onClick={() => void refetch()}
+            >
+              Reload
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
@@ -60,26 +81,25 @@ function HomeRedirect() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
-      <header className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <div>
-            <h1 className="text-xl font-semibold">Issue Tracker</h1>
-            <p className="text-sm text-muted-foreground">
-              Create a project to get started
-            </p>
-          </div>
-        </div>
-        <Button size="sm" variant="primary" onClick={() => openProjectDialog()}>
-          <Plus className="h-4 w-4" />
-          New project
-        </Button>
+    <PageShell>
+      <header className="flex items-center gap-2">
+        <SidebarTrigger className="-ml-1" />
+        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--current))]">
+          Cockpit
+        </p>
       </header>
-      <div className="rounded-lg border bg-card px-4 py-12 text-center text-sm text-muted-foreground">
-        No projects yet.
-      </div>
-    </div>
+      <ShellState
+        eyebrow="Empty"
+        title="No projects on the line."
+        detail="Create a project to start planning."
+        action={
+          <Button size="sm" variant="primary" onClick={() => openProjectDialog()}>
+            <Plus className="h-4 w-4" />
+            New project
+          </Button>
+        }
+      />
+    </PageShell>
   );
 }
 

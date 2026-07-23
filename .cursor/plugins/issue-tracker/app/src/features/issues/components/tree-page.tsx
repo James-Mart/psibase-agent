@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { IssueRecord, ProjectLabel } from "@server/schemas";
 import { visibleIssues } from "@server/services/archived-visibility";
+import { PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -173,7 +174,7 @@ export function TreePage() {
   const unknownProject = Boolean(data) && Boolean(projectId) && !hasProject;
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-4 px-6 py-8">
+    <PageShell>
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <SidebarTrigger className="-ml-1" />
@@ -331,6 +332,6 @@ export function TreePage() {
           </div>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

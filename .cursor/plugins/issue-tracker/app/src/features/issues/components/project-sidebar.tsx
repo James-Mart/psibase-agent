@@ -140,7 +140,7 @@ export function ProjectSidebar() {
             <SidebarMenu>
               {projects.length === 0 ? (
                 <p className="pl-[26px] pr-2 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                  No projects yet.
+                  Create a project.
                 </p>
               ) : (
                 projects.map((project) => (
