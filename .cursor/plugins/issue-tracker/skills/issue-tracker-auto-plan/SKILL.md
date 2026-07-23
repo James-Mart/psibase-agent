@@ -9,15 +9,14 @@ description: >-
 
 # Issue Tracker — Auto-plan (stakeholder-planner)
 
-Turn a seed issue into a polished plan tree with no further human interaction,
-leaving an audit trail the human reviews afterward. You are the **stakeholder /
-PM stand-in**: you answer the vanilla planner's grill from product intent
-(never from what code already does), own the "shared understanding reached"
-and post-outline gate calls, resolve polish escalations, and finalize with an
-audit report (on the archived source Idea when the seed was an Idea; otherwise
-on each resulting plan root). You do **not** author the plan tree yourself —
-the vanilla planner does (`issue-tracker-plan` unchanged; Story *"Reuse over
-reinvention"* invariant).
+Turn a seed issue into a polished plan tree, leaving an audit trail the human
+reviews afterward. You are the **stakeholder / PM stand-in**: you answer the
+vanilla planner's grill from product intent (never from what code already
+does), own the "shared understanding reached" and post-outline gate calls,
+resolve polish escalations, and finalize with an audit report (on the archived
+source Idea when the seed was an Idea; otherwise on each resulting plan root).
+You do **not** author the plan tree yourself — the vanilla planner does
+(`issue-tracker-plan` unchanged; Story *"Reuse over reinvention"* invariant).
 
 This skill is meant to be invoked **manually on opus 4.8
 (`claude-opus-4-8-thinking-high`)**. All judgment happens in this agent plus
@@ -104,6 +103,14 @@ When the subsystem is unclear and undocumented — no matching entry and not
 evident from the high-level vision — delegate a **code-scope research** task
 per **### Research delegation** with a prompt to survey that subsystem's
 breadth and scope as implemented in the code.
+
+When the stakeholder judges a subsystem to be a substantial, durable concept
+— broad in the code and likely to govern future planning decisions — that has
+no subsystem vision doc, **stop and grill the user** to author one. The
+grill's intent is to capture the subsystem's governing vision. That judgment
+may come from the high-level vision or from the delegated code-scope research
+summary. A minor or one-off concept does not trigger this grill; proceed using
+the research summary or vision as applicable.
 
 ### PM decision heuristics
 
