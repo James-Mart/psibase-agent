@@ -7,7 +7,7 @@ Absolute path for this file (Read this exact path):
 
 `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-implementor-implement.md`
 
-1. Implement exactly what the Task's `description.md` specifies. Also do anything
+1. Implement what the Task's `description.md` specifies. Also do anything
    that obviously belongs with it for internal consistency.
 2. Edit the working tree; **do not commit or stage**.
 3. Verify as that description requires (tests, build, browser, etc.). When this
