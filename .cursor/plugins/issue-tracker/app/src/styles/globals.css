@@ -199,18 +199,24 @@
 }
 
 @layer components {
+  /* Live agent label: static current ink by default; shimmer only when motion ok. */
   .chat-shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted-foreground)) 0%,
-      hsl(var(--foreground)) 50%,
-      hsl(var(--muted-foreground)) 100%
-    );
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    animation: chat-shimmer 1.6s linear infinite;
+    color: hsl(var(--current));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .chat-shimmer {
+      background: linear-gradient(
+        90deg,
+        hsl(var(--current-dim)) 0%,
+        hsl(var(--current)) 45%,
+        hsl(var(--current-dim)) 100%
+      );
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: chat-shimmer 1.6s linear infinite;
+    }
   }
 
   /* GFM prose — Mainline type scale, code/quote/list, issue-link. */

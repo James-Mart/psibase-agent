@@ -1,21 +1,18 @@
-import { useState, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import type { ChatMessage } from "@server/schemas";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useChatQuery } from "../api/queries";
+import { useChatQuery, useIssuesQuery } from "../api/queries";
 import { usePostMessage } from "../api/mutations";
+import { isInFlight } from "../lib/derived";
 import { Markdown } from "./markdown";
 import { MessageScroller } from "./chat/message-scroller";
-import { Bubble, Message, type MessageAlign } from "./chat/message";
+import { Message, lastAgentMessageIndex } from "./chat/message";
 import { Marker } from "./chat/marker";
 import { Shimmer } from "./chat/shimmer";
 
 const COMPOSER_ROLE = "human";
-
-function alignOf(role: string): MessageAlign {
-  return role === COMPOSER_ROLE ? "end" : "start";
-}
 
 function dayKey(at: string): string {
   const date = new Date(at);
@@ -40,25 +37,31 @@ function dayLabel(at: string): string {
 function MessageList({
   messages,
   attachmentsIssueId,
+  agentLive,
 }: {
   messages: ChatMessage[];
   attachmentsIssueId?: string;
+  agentLive: boolean;
 }) {
   let lastDay = "";
+  const liveIndex = agentLive ? lastAgentMessageIndex(messages) : -1;
   return (
     <>
       {messages.map((message, index) => {
         const key = dayKey(message.at);
         const showMarker = key !== lastDay;
         lastDay = key;
-        const align = alignOf(message.role);
+        const author = message.name ?? message.role;
         return (
           <div key={`${message.at}-${index}`} className="flex flex-col gap-2">
             {showMarker ? <Marker>{dayLabel(message.at)}</Marker> : null}
-            <Message align={align}>
-              <Bubble align={align} author={message.name ?? message.role} at={message.at}>
-                <Markdown issueId={attachmentsIssueId}>{message.body}</Markdown>
-              </Bubble>
+            <Message
+              author={author}
+              role={message.role}
+              at={message.at}
+              live={index === liveIndex}
+            >
+              <Markdown issueId={attachmentsIssueId}>{message.body}</Markdown>
             </Message>
           </div>
         );
@@ -77,11 +80,18 @@ export function ChatPanel({
   attachmentsIssueId?: string;
 }) {
   const { data, isLoading, error } = useChatQuery(id);
+  const { data: list } = useIssuesQuery();
   const post = usePostMessage(id);
   const [draft, setDraft] = useState("");
 
   const messages = data?.messages ?? [];
   const problems = data?.problems ?? [];
+
+  const agentLive = useMemo(() => {
+    const issue = list?.issues.find((item) => item.id === id);
+    if (!issue) return false;
+    return isInFlight(issue, list?.derived[id]);
+  }, [id, list?.derived, list?.issues]);
 
   const send = () => {
     const body = draft.trim();
@@ -122,12 +132,17 @@ export function ChatPanel({
             <MessageList
               messages={messages}
               attachmentsIssueId={attachmentsIssueId}
+              agentLive={agentLive}
             />
           </MessageScroller>
         )}
       </div>
 
-      {post.isPending ? <Shimmer label="Sending…" /> : null}
+      {post.isPending ? (
+        <Shimmer label="Sending…" />
+      ) : agentLive ? (
+        <Shimmer />
+      ) : null}
 
       <div className="flex shrink-0 items-end gap-2 border-t border-border pt-3">
         <Textarea
