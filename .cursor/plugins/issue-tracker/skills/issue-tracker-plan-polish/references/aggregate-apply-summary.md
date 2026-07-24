@@ -34,7 +34,7 @@ After all five return:
    **single-threaded** through this coordinator. Do **not** ask yes/no to
    apply. Write path is the retained apply doc per issue-tracker-authoring
    (declarative apply) — epic-form or story-form per Bootstrap `<rootKind>`.
-5. **Re-check until clean.** Enter this step only when the preceding step 4
+5. **Re-check.** Enter this step only when the preceding step 4
    successfully applied a retained YAML. Then:
    - **Resume flagging agents.** Resume (Cursor Task `resume`) each check
      agent that returned one or more findings in the round whose fixes
@@ -48,8 +48,15 @@ After all five return:
      findings arrays (same schema as step 1). Deduplicate overlapping
      findings among them.
    - **Exit or continue.** When every resumed agent returned an empty
-     findings array, continue to step 6. When findings remain, continue
-     from step 2 through step 4. Repeat this step from **Resume flagging
+     findings array, continue to step 6. When findings remain and an
+     escalate is unresolved, do not exit here — escalate (step 2) stays
+     mandatory for unsafe auto-apply; resolve it, then continue. When
+     findings remain and there is **no** unresolved escalate, the
+     planner may unilaterally **veto continued polish** and proceed to
+     step 6, or continue from step 2 through step 4. Veto grounds are
+     planner judgment only (diminishing returns, checker conflict, good
+     enough) — no iteration cap, no per-finding veto API, no
+     checker-precedence rules. Repeat this step from **Resume flagging
      agents** only when that step 4 applied a retained YAML; otherwise
      continue to step 6 (remaining findings, including warnings retained
      per step 3, appear in the summary).
@@ -57,7 +64,11 @@ After all five return:
    in chat a **short informational** summary. Include **every
    non-escalated finding** (with severities) — including warnings whose
    fixes were not adopted — plus the plan changes applied when apply ran.
-   State explicitly that **no changes are needed** only when there are
+   When exit was a planner **veto** of continued polish, state explicitly
+   that continued polish was **vetoed**, give a short reason, **and**
+   list the leftover findings (with severities) so callers can distinguish
+   veto from “nothing left to apply” / warnings-retained exits. State
+   explicitly that **no changes are needed** only when there are
    **zero findings** (truly clean). Do **not** dump the apply YAML into
    chat. Show `apply` stdout (created/updated/deleted + subtree outline)
    when apply ran.

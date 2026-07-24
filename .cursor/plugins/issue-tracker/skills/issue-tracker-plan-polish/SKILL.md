@@ -12,9 +12,11 @@ description: >-
 Polish one **work root** — an **Epic** or a **project-level Story** — already
 in the tracker. You are the **coordinator**: spawn read-only check agents,
 compose a full apply doc from their findings (keep it internal), auto-apply
-when safe, then show a short findings + changes summary in chat. Behavioral
-contract: Epic **auto-plan-polish-confirm** invariants (auto-apply +
-post-summary; escalate only when unsafe) — do not restate that list here.
+when safe, then show a short findings + changes summary in chat. Checkers
+advise; the planner may stop continued polish (veto) when returns diminish —
+leftover findings still appear in the summary. Behavioral contract: Epic
+**auto-plan-polish-confirm** invariants (auto-apply + post-summary; escalate
+only when unsafe) — do not restate that list here.
 
 **Read** `/root/.cursor/plugins/local/issue-tracker/agents/_issue-tracker-cli.md`.
 
