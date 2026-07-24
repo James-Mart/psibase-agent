@@ -59,7 +59,7 @@ export function ProjectDetailTabs({
       </div>
       <div
         role="tabpanel"
-        className="flex flex-col gap-4"
+        className={cn("flex flex-col gap-4", !overviewSelected && "hidden")}
         {...tabPanelVisibility(overviewSelected)}
       >
         {overview}
@@ -67,7 +67,12 @@ export function ProjectDetailTabs({
       {previewTabs.map((tab) => {
         const selected = resolvedActive === tab.key;
         return (
-          <div key={tab.key} role="tabpanel" {...tabPanelVisibility(selected)}>
+          <div
+            key={tab.key}
+            role="tabpanel"
+            className={cn(!selected && "hidden")}
+            {...tabPanelVisibility(selected)}
+          >
             <SupportingDocPreview projectId={projectId} tab={tab} />
           </div>
         );
@@ -78,7 +83,7 @@ export function ProjectDetailTabs({
 
 /** Keep panels mounted; freeze inactive ones. `inert` cast: React 18 DOM types omit it. */
 function tabPanelVisibility(selected: boolean): Record<string, unknown> {
-  return selected ? { hidden: false } : { hidden: true, inert: "" };
+  return selected ? {} : { inert: "" };
 }
 
 function TabButton({
