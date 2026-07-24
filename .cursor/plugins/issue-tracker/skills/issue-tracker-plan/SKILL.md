@@ -152,9 +152,11 @@ polish spawns parallel check agents; concurrent polish runs overload CPU):
    an approve-before-apply beat here. If polish is deferred in this session
    (e.g. the user asks to grill more before polish runs), the polish→retro
    obligation for that root persists — deferral does not reset or cancel it.
-2. After that root's polish finishes its **success path** (retained apply
-   landed, or no-changes-needed — including after the user resolves an
-   escalate and apply proceeds), always spawn **Retro** (Spawn stubs) for
+2. After that root's polish finishes its **success path** — retained apply
+   landed, no-changes-needed (including after the user resolves an escalate
+   and apply proceeds), or **planner-vetoed** polish (leftover findings
+   listed in the polish summary with an explicit veto) — always spawn
+   **Retro** (Spawn stubs) for
    that root. Do **not** check whether work-root `retro` is unset before
    spawning. Wait until the Cursor Task finishes (or raises needsAttention)
    — do not fire-and-forget. Do **not** mine transcripts yourself, and do
