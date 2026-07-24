@@ -23,5 +23,5 @@ to code-review. Instead:
    `noDiff` as "nothing was done" when a non-source-controlled file was edited.
 4. Prepare the comment body: list any actionable problems from above as a
    concrete list, or — if the no-op is justified — a single line approving it.
-   Never edit files or the `noDiff` flag. Then continue to the Outcome include
-   (do **not** post the comment or stop from this file).
+   Never edit files or the `noDiff` flag. Then return to the parent **What you
+   do** section (do **not** post the comment or stop from this file).
