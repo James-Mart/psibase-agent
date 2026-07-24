@@ -26,5 +26,5 @@ Absolute path for this file (Read this exact path):
    - Do **not** list things you judge correct or acceptable — the implementor
      treats anything unmentioned as fine.
    - If nothing actionable, a single line saying so.
-   Then continue to the Outcome include (do **not** post the comment or stop
-   from this file).
+   Then return to the parent **What you do** section (do **not** post the
+   comment or stop from this file).
