@@ -5,7 +5,7 @@ description: Runs Catch2 unit tests packaged as WASM using the build tree psites
 
 # Run WASM Catch2 tests
 
-Working directory: `/root/psibase/build`
+Run from `build/` in the worktree you are editing:
 
 ```bash
 ./psitest <test>.wasm [Catch2 args...]
@@ -13,7 +13,7 @@ Working directory: `/root/psibase/build`
 
 - Aggregated test binary: `psibase-tests.wasm`. Per-package binaries: `ls *.wasm`.
 - Prefer release wasm unless the user needs `-debug`.
-- If `psitest` or the wasm is missing, build first — do not invent alternate runners.
+- If `psitest` or the wasm is missing, build it in this worktree first — do not invent alternate runners.
 
 ## Not this skill
 

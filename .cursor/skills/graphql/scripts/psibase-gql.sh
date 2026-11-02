@@ -34,7 +34,12 @@ if [ -z "$PORT" ]; then
 fi
 
 URL="http://${SERVICE}.psibase.localhost:${PORT}/graphql"
-PSIBASE="${PSIBASE:-/root/psibase/build/rust/release/psibase}"
+# CLI from the caller's worktree. This file is reached through the `.cursor`
+# symlink, so its own path is not that checkout.
+if [ -z "${PSIBASE:-}" ]; then
+    repo_root=$(git rev-parse --show-toplevel)
+    PSIBASE="${repo_root}/build/rust/release/psibase"
+fi
 
 CURL_ARGS=(-s -X POST "$URL" -H "Content-Type: application/graphql" -d "$QUERY")
 

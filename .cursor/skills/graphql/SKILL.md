@@ -18,7 +18,7 @@ Run the helper script:
 bash .cursor/skills/graphql/scripts/psibase-gql.sh <service> '<query>' [--user <account>] [--port <port>]
 ```
 
-The script auto-detects the port from the running psinode process, handles bearer-token login when `--user` is given, and pretty-prints the JSON response.
+The script auto-detects the port from the running psinode process, handles bearer-token login when `--user` is given, and pretty-prints the JSON response. Login uses this worktree's `build/rust/release/psibase` (`PSIBASE` overrides that). Run it from the worktree root so `.cursor` and that binary resolve here.
 
 ## Examples
 
